@@ -165,10 +165,10 @@ if ($selectedYearId) {
     <section class="main-illustration boxsize my-5">
         <div class="row align-items-center">
         <div class="col-md-6">
-            <img src="../files/_partners/<?= htmlspecialchars($selectedYear['img_principale'] ?? '') ?>" alt="Image principale" class="img-fluid main-img lightbox-trigger" loading="lazy">
+            <img src="../files/_partners/<?= htmlspecialchars($selectedYear['img'] ?? '') ?>" alt="Image principale" class="img-fluid main-img lightbox-trigger" loading="lazy">
         </div>
         <div class="col-md-6">
-            <p class="lead"><?= htmlspecialchars($selectedYear['desc_principale'] ?? '') ?></p>
+            <p class="lead"><?= htmlspecialchars($selectedYear['desc'] ?? '') ?></p>
         </div>
         </div>
     </section>
