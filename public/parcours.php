@@ -54,7 +54,7 @@ $picture_gradient= $data['picture_gradient'] ?? '';
 
     <a href="inscription.php" class="nav-item">Inscription</a>
     <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
-    <a href="partenaire.php" class="nav-item menu-cache">Partenaires</a>
+    <a href="partenaires.php" class="nav-item menu-cache">Partenaires</a>
     <a href="photos.php" class="nav-item menu-cache">Photos</a>
     <a href="news.php" class="nav-item menu-cache">Actualités</a>
 
@@ -64,32 +64,32 @@ $picture_gradient= $data['picture_gradient'] ?? '';
     <!-- Menu déroulant mobile -->
     <div class="menu-deroulant d-none">
       <a href="parcours.php">Parcours</a>
-      <a href="partenaire.php">Partenaires</a>
+      <a href="partenaires.php">Partenaires</a>
       <a href="photos.php">Photos</a>
       <a href="news.php">Actualités</a>
     </div>
   </nav>
 
   <section class="main-illustration boxsize my-5">
-  <div class="row align-items-center">
-    <div class="col-md-6">
-      <img src="../files/_pictures/<?= htmlspecialchars($picture_parcours) ?>" alt="Image principale" class="img-fluid main-img lightbox-trigger" loading="lazy">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <img src="../files/_pictures/<?= htmlspecialchars($picture_parcours) ?>" alt="Image principale" class="img-fluid main-img lightbox-trigger" loading="lazy">
+      </div>
+      <div class="col-md-6">
+        <h2 class="mb-3"><?= htmlspecialchars($titleParcours) ?></h2>
+        <p class="lead"><?= htmlspecialchars($parcoursDesc) ?></p>
+      </div>
     </div>
-    <div class="col-md-6">
-      <h2 class="mb-3"><?= htmlspecialchars($titleParcours) ?></h2>
-      <p class="lead"><?= htmlspecialchars($parcoursDesc) ?></p>
-    </div>
-  </div>
-</section>
+  </section>
 
-<?php if (!empty($picture_gradient)) : ?>
-  <div class="section-divider my-4 text-center boxsize">
-    <img src="../files/_pictures/<?= htmlspecialchars($picture_gradient) ?>"
-        alt="Illustration intermédiaire"
-        class="img-fluid img-separatrice lightbox-trigger"
-        loading="lazy">
-  </div>
-<?php endif; ?>
+  <?php if (!empty($picture_gradient)) : ?>
+    <div class="section-divider my-4 text-center boxsize">
+      <img src="../files/_pictures/<?= htmlspecialchars($picture_gradient) ?>"
+          alt="Illustration intermédiaire"
+          class="img-fluid img-separatrice lightbox-trigger"
+          loading="lazy">
+    </div>
+  <?php endif; ?>
 
 <!-- ######################## Albums du parcours ######################## -->
 

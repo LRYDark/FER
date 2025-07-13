@@ -55,7 +55,7 @@ $footer= $data['footer'] ?? null;
 
     <a href="register.php" class="nav-item">Inscription</a>
     <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
-    <a href="partenaire.php" class="nav-item menu-cache">Partenaires</a>
+    <a href="partenaires.php" class="nav-item menu-cache">Partenaires</a>
     <a href="photos.php" class="nav-item menu-cache">Photos</a>
     <a href="news.php" class="nav-item menu-cache">Actualités</a>
 
@@ -65,7 +65,7 @@ $footer= $data['footer'] ?? null;
     <!-- Menu déroulant mobile -->
     <div class="menu-deroulant d-none">
       <a href="parcours.php">Parcours</a>
-      <a href="partenaire.php">Partenaires</a>
+      <a href="partenaires.php">Partenaires</a>
       <a href="photos.php">Photos</a>
       <a href="news.php">Actualités</a>
     </div>

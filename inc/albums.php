@@ -29,7 +29,7 @@ if (isset($_POST['update_year'])) {
 
   if (!empty($_FILES['year_img']['name'])) {
     $imgName = $_FILES['year_img']['name'];
-    move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_pictures/" . $imgName);
+    move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_albums/" . $imgName);
     $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ?, img = ? WHERE id = ?");
     $stmt->execute([$year, $title, $imgName, $yearId]);
   } else {
@@ -50,7 +50,7 @@ if (isset($_POST['update_album'])) {
 
   if (!empty($_FILES['album_img']['name'])) {
     $imgName = $_FILES['album_img']['name'];
-    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_pictures/" . $imgName);
+    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $imgName);
     $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = ?, album_desc = ? WHERE id = ?");
     $stmt->execute([$album_title, $album_link, $imgName, $album_desc, $albumId]);
   } else {
@@ -66,7 +66,7 @@ if (isset($_POST['add_album'])) {
   $yearId = $_POST['year_id'];
   $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
   $imgName = $_FILES['album_img']['name'];
-  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_pictures/" . $imgName);
+  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $imgName);
   $stmt->execute([
     $yearId,
     $_POST['album_title'],
@@ -89,8 +89,8 @@ if (isset($_POST['delete_album'])) {
   $img = $stmt->fetchColumn();
 
   // Supprimer le fichier image
-  if ($img && file_exists("../files/_pictures/" . $img)) {
-    unlink("../files/_pictures/" . $img);
+  if ($img && file_exists("../files/_albums/" . $img)) {
+    unlink("../files/_albums/" . $img);
   }
 
   // Supprimer l'album
@@ -106,7 +106,7 @@ if (isset($_POST['delete_album'])) {
 if (isset($_POST['add_year'])) {
   $stmt = $pdo->prepare("INSERT INTO photo_years (year, title, img) VALUES (?, ?, ?)");
   $imgName = $_FILES['year_img']['name'];
-  move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_pictures/" . $imgName);
+  move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_albums/" . $imgName);
   $stmt->execute([$_POST['year'], $_POST['title'], $imgName]);
 }
 
@@ -118,8 +118,8 @@ if (isset($_POST['delete_year'])) {
   $stmt->execute([$yearId]);
   $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
   foreach ($albumImgs as $img) {
-    if ($img && file_exists("../files/_pictures/" . $img)) {
-      unlink("../files/_pictures/" . $img);
+    if ($img && file_exists("../files/_albums/" . $img)) {
+      unlink("../files/_albums/" . $img);
     }
   }
 
@@ -127,8 +127,8 @@ if (isset($_POST['delete_year'])) {
   $stmt = $pdo->prepare("SELECT img FROM photo_years WHERE id = ?");
   $stmt->execute([$yearId]);
   $yearImg = $stmt->fetchColumn();
-  if ($yearImg && file_exists("../files/_pictures/" . $yearImg)) {
-    unlink("../files/_pictures/" . $yearImg);
+  if ($yearImg && file_exists("../files/_albums/" . $yearImg)) {
+    unlink("../files/_albums/" . $yearImg);
   }
 
   // Supprimer les albums et l'année
@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
                 </div>
                 <div class="card-body">
-                    <img src="../files/_pictures/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
+                    <img src="../files/_albums/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
                     <ul class="list-group">
                 </div>
                 </div>

@@ -1,9 +1,5 @@
 <?php
 require '../config/config.php';
-$stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');
-$stmtcount->execute();
-$count = $stmtcount->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
-
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -56,7 +52,7 @@ if ($selectedYearId) {
 
   <!-- Barre HERO en haut -->
   <section class="hero">
-    <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
+    <img src="../files/_albums/<?= htmlspecialchars($picture) ?>"
         alt="Logo Forbach en Rose" class="logo-top">
     <div class="hero-inner">
       <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($titleAccueil) ?></h1>
@@ -69,7 +65,7 @@ if ($selectedYearId) {
     <a href="accueil.php" class="nav-item accueil-style">Accueil</a>
     <a href="inscription.php" class="nav-item">Inscription</a>
     <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
-    <a href="partenaire.php" class="nav-item menu-cache">Partenaires</a>
+    <a href="partenaires.php" class="nav-item menu-cache">Partenaires</a>
     <a href="photos.php" class="nav-item menu-cache">Photos</a>
     <a href="news.php" class="nav-item menu-cache">Actualités</a>
 
@@ -79,7 +75,7 @@ if ($selectedYearId) {
     <!-- Menu déroulant mobile -->
     <div class="menu-deroulant d-none">
       <a href="parcours.php">Parcours</a>
-      <a href="partenaire.php">Partenaires</a>
+      <a href="partenaires.php">Partenaires</a>
       <a href="photos.php">Photos</a>
       <a href="news.php">Actualités</a>
     </div>
@@ -109,7 +105,7 @@ if ($selectedYearId) {
                     </div>
 
                     <?php if (!empty($year['img'])): ?>
-                    <img src="../files/_pictures/<?= htmlspecialchars($year['img']) ?>"
+                    <img src="../files/_albums/<?= htmlspecialchars($year['img']) ?>"
                         class="img-fluid"
                         alt="Image année <?= htmlspecialchars($year['title']) ?>"
                         loading="lazy"
@@ -138,7 +134,7 @@ if ($selectedYearId) {
                         </div>
 
                         <?php if (!empty($album['album_img'])): ?>
-                        <img src="../files/_pictures/<?= htmlspecialchars($album['album_img']) ?>"
+                        <img src="../files/_albums/<?= htmlspecialchars($album['album_img']) ?>"
                             class="img-fluid"
                             alt="Image album <?= htmlspecialchars($album['album_title']) ?>"
                             loading="lazy"
