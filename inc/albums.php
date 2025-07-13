@@ -16,7 +16,6 @@ if (isset($_POST['update_year'])) {
   $year = $_POST['year'];
   $title = $_POST['title'];
 
-  // Gestion image si uploadé
   if (!empty($_FILES['year_img']['name'])) {
     $imgName = $_FILES['year_img']['name'];
     move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_pictures/" . $imgName);
@@ -26,6 +25,9 @@ if (isset($_POST['update_year'])) {
     $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ? WHERE id = ?");
     $stmt->execute([$year, $title, $yearId]);
   }
+  $_SESSION['reopen_modal'] = $yearId;
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
 }
 
 if (isset($_POST['update_album'])) {
@@ -33,6 +35,7 @@ if (isset($_POST['update_album'])) {
   $album_title = $_POST['album_title'];
   $album_link = $_POST['album_link'];
   $album_desc = $_POST['album_desc'];
+  $yearId = $_POST['year_id'];
 
   if (!empty($_FILES['album_img']['name'])) {
     $imgName = $_FILES['album_img']['name'];
@@ -43,9 +46,52 @@ if (isset($_POST['update_album'])) {
     $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
     $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
   }
+  $_SESSION['reopen_modal'] = $yearId;
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
 }
 
-// Traitement ajout année
+if (isset($_POST['add_album'])) {
+  $yearId = $_POST['year_id'];
+  $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
+  $imgName = $_FILES['album_img']['name'];
+  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_pictures/" . $imgName);
+  $stmt->execute([
+    $yearId,
+    $_POST['album_title'],
+    $_POST['album_link'],
+    $imgName,
+    $_POST['album_desc']
+  ]);
+  $_SESSION['reopen_modal'] = $yearId;
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
+}
+
+if (isset($_POST['delete_album'])) {
+  $albumId = $_POST['album_id'];
+  $yearId = $_POST['year_id'];
+
+  // Récupérer le nom de l'image
+  $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE id = ?");
+  $stmt->execute([$albumId]);
+  $img = $stmt->fetchColumn();
+
+  // Supprimer le fichier image
+  if ($img && file_exists("../files/_pictures/" . $img)) {
+    unlink("../files/_pictures/" . $img);
+  }
+
+  // Supprimer l'album
+  $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
+  $stmt->execute([$albumId]);
+
+  $_SESSION['reopen_modal'] = $yearId;
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
+}
+
+
 if (isset($_POST['add_year'])) {
   $stmt = $pdo->prepare("INSERT INTO photo_years (year, title, img) VALUES (?, ?, ?)");
   $imgName = $_FILES['year_img']['name'];
@@ -53,35 +99,37 @@ if (isset($_POST['add_year'])) {
   $stmt->execute([$_POST['year'], $_POST['title'], $imgName]);
 }
 
-// Traitement ajout album
-if (isset($_POST['add_album'])) {
-  $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
-  $imgName = $_FILES['album_img']['name'];
-  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_pictures/" . $imgName);
-  $stmt->execute([
-    $_POST['year_id'],
-    $_POST['album_title'],
-    $_POST['album_link'],
-    $imgName,
-    $_POST['album_desc']
-  ]);
-}
-
-// Traitement suppression album
-if (isset($_POST['delete_album'])) {
-  $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
-  $stmt->execute([$_POST['album_id']]);
-}
-
-// Traitement suppression année + albums associés
 if (isset($_POST['delete_year'])) {
+  $yearId = $_POST['year_id'];
+
+  // Supprimer les images des albums associés
+  $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE year_id = ?");
+  $stmt->execute([$yearId]);
+  $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+  foreach ($albumImgs as $img) {
+    if ($img && file_exists("../files/_pictures/" . $img)) {
+      unlink("../files/_pictures/" . $img);
+    }
+  }
+
+  // Supprimer l'image de l'année
+  $stmt = $pdo->prepare("SELECT img FROM photo_years WHERE id = ?");
+  $stmt->execute([$yearId]);
+  $yearImg = $stmt->fetchColumn();
+  if ($yearImg && file_exists("../files/_pictures/" . $yearImg)) {
+    unlink("../files/_pictures/" . $yearImg);
+  }
+
+  // Supprimer les albums et l'année
   $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
-  $stmt1->execute([$_POST['year_id']]);
+  $stmt1->execute([$yearId]);
   $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
-  $stmt2->execute([$_POST['year_id']]);
+  $stmt2->execute([$yearId]);
+
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
 }
 
-// Récupération des années et albums
 $years = $pdo->query("SELECT * FROM photo_years ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
 $albumsByYear = [];
 foreach ($years as $y) {
@@ -94,10 +142,104 @@ foreach ($years as $y) {
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <title>Gestion Albums</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Réglages – Forbach en Rose</title>
+
+<!-- ─── CSS ─── -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.alert').forEach(alertEl => {
+    // ferme après 3 000 ms
+    setTimeout(() => {
+      // ferme proprement (même animation que le bouton « X »)
+      bootstrap.Alert.getOrCreateInstance(alertEl).close();
+    }, 5000);
+  });
+});
+</script>
+<style>
+  .first-750 td{background:#ffe5ff!important;font-weight:600}
+  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
+  .hero h1{margin:0;font-size:2.2rem}
+  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
+  @media (max-width:991.98px){.top-actions{display:none}}
+  .card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
+  tr.filters th[class*="sorting"]::before,
+  tr.filters th[class*="sorting"]::after{display:none!important}
+  .statCard{min-width:180px}
+  .hide-stats #stats {display: none !important;}
+</style>
 </head>
+
+<body class="d-flex flex-column">
+<!-- ═════════ HEADER ═════════ -->
+<header class="hero">
+  <button class="btn btn-outline-light d-lg-none" style="position:absolute;top:.6rem;right:.6rem"
+          data-bs-toggle="offcanvas" data-bs-target="#menuMobile">&#9776;</button>
+
+  <div class="top-actions">
+    <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
+    <a      id="albums" href="albums.php"   class="btn btn-outline-light">Albums</a>
+    <a      id="logout" href="#"           class="btn btn-outline-light">Déconnexion</a>
+  </div>
+
+  <div class="hero-inner text-center">
+    <h1>Réglages</h1>
+    <p class="mb-0">Gestion des inscriptions – Rôle : <strong><?= htmlspecialchars($role) ?></strong></p>
+  </div>
+</header>
+
+<!-- ═════════ OFFCANVAS MOBILE ═════════ -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="menuMobile">
+  <div class="offcanvas-header border-bottom">
+    <h5 class="offcanvas-title mb-0">Menu</h5>
+    <button class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item small text-muted fw-semibold">Actions rapides</li>
+      <li class="list-group-item d-flex align-items-center p-3">
+        <i class="bi bi-speedometer2 me-2 text-rose"></i>
+        <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1">Tableau de bord</a>
+        <a id="albums" href="albums.php" class="btn btn-link text-start p-0 flex-grow-1">Albums</a>
+      </li>
+      <li class="list-group-item d-flex align-items-center p-3">
+        <i class="bi bi-box-arrow-right me-2 text-danger"></i>
+        <a id="logout_m"  class="btn btn-link text-start p-0 flex-grow-1">Déconnexion</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+
+<!-- ═════════ MAIN ═════════ -->
+<main class="container-fluid flex-grow-1">
+    <!-- Une seule .row -->
+    <div class="row g-4 align-items-stretch"><!-- align-items-stretch => les cartes prennent la même hauteur -->
+        <!-- Colonne GAUCHE : 2 petites cartes empilées -->
+        <div class="col-12 col-lg-12 d-flex flex-column gap-4">
+ <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+
+
+<!-- Place this before </body> -->
+<?php if (isset($_SESSION['reopen_modal'])): ?>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var modalId = 'modalYear<?= $_SESSION['reopen_modal'] ?>';
+    var modal = new bootstrap.Modal(document.getElementById(modalId));
+    modal.show();
+  });
+</script>
+<?php unset($_SESSION['reopen_modal']); ?>
+<?php endif; ?>
+
 <body class="container py-4">
 
 <h1 class="mb-4">Gestion des Albums par Année</h1>
@@ -134,7 +276,7 @@ foreach ($years as $y) {
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label">Année</label>
-                <input type="text" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
+                <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
               </div>
               <div class="col-md-4">
                 <label class="form-label">Titre</label>
@@ -221,7 +363,7 @@ foreach ($years as $y) {
       <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
         <div class="col-md-4">
           <label class="form-label">Année</label>
-          <input type="text" name="year" class="form-control" required>
+          <input type="number" name="year" class="form-control" required>
         </div>
         <div class="col-md-4">
           <label class="form-label">Titre</label>
@@ -238,7 +380,12 @@ foreach ($years as $y) {
     </div>
   </div>
 </div>
+        </div>
+</div>
+    </div><!-- /row -->
+</main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
