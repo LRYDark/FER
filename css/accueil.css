@@ -326,8 +326,17 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
     text-decoration: underline;
   }
 
-.nav-flottante a.inscription-grise {
+/* Style par défaut pour Accueil : fond gris clair */
+.nav-flottante a.accueil-style {
   background: #f2f2f2;
   border-radius: 1rem;
   padding: 0.3rem 0.8rem;
+  color: #e91e63;
+  font-weight: 700;
+}
+
+/* Style actif (quand la page est sélectionnée) : fond rose */
+.nav-flottante a.accueil-style.active {
+  background: #ffe3f0;
+  color: #e91e63;
 }
