@@ -112,6 +112,8 @@ $picture_gradient= $data['picture_gradient'] ?? '';
   <img class="lightbox-content" id="lightbox-img" alt="">
 </div>
 
+<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+
 <script>
     document.addEventListener("DOMContentLoaded", function () {
       const lightbox = document.getElementById("lightbox");
