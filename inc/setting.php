@@ -1,17 +1,9 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-
-
-
-
 require '../config/config.php';
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
 if ($role !== 'admin') {
-  header('Location: login.php');
+  header('Location: ../login.php');
   exit;
 }
 
@@ -305,6 +297,8 @@ if ($date_course) {
    Carte 4 : PARCOURS
 -------------------------------------------------------------------------- */
 $alertParcours = '';
+
+
 if (isset($_POST['parcours'])) {
 
 $parcoursDesc = $_POST['parcoursDesc'] ?? '';  
@@ -406,7 +400,75 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
     }
 }
 
-// Suppression image
+
+//suppression image
+if (isset($_POST['delete_picture_parcours']) && $picture_parcours) {
+    $filePath = '../files/_pictures/' . $picture_parcours;
+    if (file_exists($filePath)) {
+        unlink($filePath); // Supprime le fichier
+    }
+
+    // Supprime la référence dans la base de données
+    $stmt = $pdo->prepare('UPDATE setting SET picture_parcours = NULL WHERE id = :id');
+    $stmt->execute(['id' => 1]);
+
+    $picture_parcours = ''; // Met à jour la variable locale
+    $alertParcours = makeAlert('success', 'Image supprimée avec succès.');
+}
+if (isset($_POST['delete_picture_gradient']) && $picture_gradient) {
+    $filePath = '../files/_pictures/' . $picture_gradient;
+    if (file_exists($filePath)) {
+        unlink($filePath); // Supprime le fichier
+    }
+
+    // Supprime la référence dans la base de données
+    $stmt = $pdo->prepare('UPDATE setting SET picture_gradient = NULL WHERE id = :id');
+    $stmt->execute(['id' => 1]);
+
+    $picture_gradient = ''; // Met à jour la variable locale
+    $alertParcours = makeAlert('success', 'Image supprimée avec succès.');
+}
+if (isset($_POST['delete_picture_accueil']) && $picture_accueil) {
+    $filePath = '../files/_pictures/' . $picture_accueil;
+    if (file_exists($filePath)) {
+        unlink($filePath); // Supprime le fichier
+    }
+
+    // Supprime la référence dans la base de données
+    $stmt = $pdo->prepare('UPDATE setting SET picture_accueil = NULL WHERE id = :id');
+    $stmt->execute(['id' => 1]);
+
+    $picture_accueil = ''; // Met à jour la variable locale
+    $alertAccueil = makeAlert('success', 'Image supprimée avec succès.');
+}
+if (isset($_POST['delete_picture_partner']) && $picture_partner) {
+    $filePath = '../files/_pictures/' . $picture_partner;
+    if (file_exists($filePath)) {
+        unlink($filePath); // Supprime le fichier
+    }
+
+    // Supprime la référence dans la base de données
+    $stmt = $pdo->prepare('UPDATE setting SET picture_partner = NULL WHERE id = :id');
+    $stmt->execute(['id' => 1]);
+
+    $picture_partner = ''; // Met à jour la variable locale
+    $alertAccueil = makeAlert('success', 'Image supprimée avec succès.');
+}
+if (isset($_POST['delete_picture']) && $picture) {
+    $filePath = '../files/_pictures/' . $picture;
+    if (file_exists($filePath)) {
+        unlink($filePath); // Supprime le fichier
+    }
+
+    // Supprime la référence dans la base de données
+    $stmt = $pdo->prepare('UPDATE setting SET picture = NULL WHERE id = :id');
+    $stmt->execute(['id' => 1]);
+
+    $picture = ''; // Met à jour la variable locale
+    $alert = makeAlert('success', 'Image supprimée avec succès.');
+}
+
+// Suppression image modal
 if (isset($_POST['deleteImage'])) {
     $fileToDelete = basename($_POST['deleteImage']);
     $path = '../files/_parcours/' . $fileToDelete;
@@ -569,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 title="Choisissez la couleur">
                         </div>
                         <div class="mb-3">
-                            <label for="picture" class="form-label">Choisir une image</label>
+                            <label for="picture" class="form-label">Image d'entête</label>
                             <input type="file"
                                 class="form-control"
                                 id="picture"
@@ -577,12 +639,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 accept="image/*">
                             <?php if ($picture) : ?>
                                 <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture) ?></small>
-                            <div class="mb-2">
-                                <img  src="../files/_pictures/<?= rawurlencode($picture) ?>"
-                                    alt="Image actuelle"
-                                    class="img-thumbnail"
-                                    style="max-width:145px;">
-                            </div>
+                                <div class="mb-2">
+                                    <img src="../files/_pictures/<?= rawurlencode($picture) ?>"
+                                        alt="Image actuelle"
+                                        class="img-thumbnail"
+                                        style="max-width:145px;">
+                                </div>
+                                <button type="submit" name="delete_picture" value="1" class="btn btn-danger btn-sm">
+                                    Supprimer l'image
+                                </button>
                             <?php endif; ?>
                         </div>
                         <div class="col-md-6"><label class="form-label">Bas de page</label>
@@ -649,12 +714,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             accept="image/*">
                         <?php if ($picture_accueil) : ?>
                             <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_accueil) ?></small>
-                        <div class="mb-2">
-                            <img  src="../files/_pictures/<?= rawurlencode($picture_accueil) ?>"
-                                alt="Image actuelle"
-                                class="img-thumbnail"
-                                style="max-width:145px;">
-                        </div>
+                            <div class="mb-2">
+                                <img src="../files/_pictures/<?= rawurlencode($picture_accueil) ?>"
+                                    alt="Image actuelle"
+                                    class="img-thumbnail"
+                                    style="max-width:145px;">
+                            </div>
+                            <button type="submit" name="delete_picture_accueil" value="1" class="btn btn-danger btn-sm">
+                                Supprimer l'image
+                            </button>
                         <?php endif; ?>
                     </div>
                     <div class="col-md-6"><label class="form-label">Image des partenaires</label>
@@ -663,15 +731,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             id="picture_partner"
                             name="picture_partner"
                             accept="image/*">
-                        <?php if ($picture_partner) : ?>
-                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_partner) ?></small>
+                    <?php if ($picture_partner) : ?>
+                        <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_partner) ?></small>
                         <div class="mb-2">
-                            <img  src="../files/_pictures/<?= rawurlencode($picture_partner) ?>"
+                            <img src="../files/_pictures/<?= rawurlencode($picture_partner) ?>"
                                 alt="Image actuelle"
                                 class="img-thumbnail"
                                 style="max-width:145px;">
                         </div>
-                        <?php endif; ?>
+                        <button type="submit" name="delete_picture_partner" value="1" class="btn btn-danger btn-sm">
+                            Supprimer l'image
+                        </button>
+                    <?php endif; ?>
                     </div>
                     <button type="submit" name="accueil" class="btn btn-primary">Sauvegarder</button>
                 </form>
@@ -699,15 +770,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             id="picture_parcours"
                             name="picture_parcours"
                             accept="image/*">
-                        <?php if ($picture_parcours) : ?>
-                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_parcours) ?></small>
+                    <?php if ($picture_parcours) : ?>
+                        <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_parcours) ?></small>
                         <div class="mb-2">
-                            <img  src="../files/_pictures/<?= rawurlencode($picture_parcours) ?>"
+                            <img src="../files/_pictures/<?= rawurlencode($picture_parcours) ?>"
                                 alt="Image actuelle"
                                 class="img-thumbnail"
                                 style="max-width:145px;">
                         </div>
-                        <?php endif; ?>
+                        <button type="submit" name="delete_picture_parcours" value="1" class="btn btn-danger btn-sm">
+                            Supprimer l'image
+                        </button>
+                    <?php endif; ?>
                     </div>
                     <div class="col-md-6"><label class="form-label">Image du dénivelé</label>
                         <input type="file"
@@ -715,15 +789,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             id="picture_gradient"
                             name="picture_gradient"
                             accept="image/*">
-                        <?php if ($picture_gradient) : ?>
-                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_gradient) ?></small>
+                    <?php if ($picture_gradient) : ?>
+                        <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_gradient) ?></small>
                         <div class="mb-2">
-                            <img  src="../files/_pictures/<?= rawurlencode($picture_gradient) ?>"
+                            <img src="../files/_pictures/<?= rawurlencode($picture_gradient) ?>"
                                 alt="Image actuelle"
                                 class="img-thumbnail"
                                 style="max-width:145px;">
                         </div>
-                        <?php endif; ?>
+                        <button type="submit" name="delete_picture_gradient" value="1" class="btn btn-danger btn-sm">
+                            Supprimer l'image
+                        </button>
+                    <?php endif; ?>
                     </div>
                     <div class="col-12">
                         <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalGalerie">

@@ -15,7 +15,7 @@ $picture= $data['picture'] ?? '';
 $footer= $data['footer'] ?? '';  
 $titleColor = $data['title_color'] ?? '#ffffff';
 $registration_fee = $data['registration_fee'] ?? 0;  
-
+$accueil_active = $data['accueil_active'] ? 1 : 0;
 ?>
 <!doctype html>
 <html lang="fr">
@@ -170,6 +170,16 @@ body{
 </header>
 
 <!-- ───────── MAIN ───────── -->
+<?php if ($accueil_active === 0): ?>
+  <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
+    <div class="card card-form p-4 bg-white">
+      <div class="p-4 w-100" role="alert" style="margin-top:5%; font-size: 1.2rem; background-color: #ffe1f0; color: #e03f8a; border-radius: 1rem;">
+        🚫 Les inscriptions sont actuellement fermées. Merci de votre compréhension.
+      </div>
+    </div>
+  </main>
+<?php else: ?>
+
 <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
   <div class="card card-form p-4 bg-white">
 
@@ -239,6 +249,7 @@ body{
 
   </div><!-- /card -->
 </main>
+<?php endif; ?>
 
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
