@@ -22,12 +22,12 @@ $years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
 
 // Si une année est sélectionnée, récupérer les albums associés
 $selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : null;
-$albums = [];
+$partners = [];
 
 if ($selectedYearId) {
     $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id');
     $stmtAlbums->execute(['year_id' => $selectedYearId]);
-    $albums = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
+    $partners = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
 
     $stmtYear = $pdo->prepare('SELECT * FROM partners_years WHERE id = :id LIMIT 1');
     $stmtYear->execute(['id' => $selectedYearId]);
@@ -71,11 +71,11 @@ if ($selectedYearId) {
             <?php
             $stmtYears = $pdo->prepare('SELECT id, title FROM partners_years ORDER BY year DESC');
             $stmtYears->execute();
-            $partners = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($partners)) {
+            $partnersNav = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($partnersNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun partenaires disponible</span>';
             } else {
-                foreach ($partners as $year) {
+                foreach ($partnersNav as $year) {
                     echo '<a href="partenaires.php?year_id=' . htmlspecialchars($year['id']) . '">' . htmlspecialchars($year['title']) . '</a>';
                 }
             }
@@ -126,11 +126,11 @@ if ($selectedYearId) {
         <?php
             $stmtYears = $pdo->prepare('SELECT id, title FROM partners_years ORDER BY year DESC');
             $stmtYears->execute();
-            $partners = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($partners)) {
+            $partnersNav = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($partnersNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun partenaires disponible</span>';
             } else {
-                foreach ($partners as $year) {
+                foreach ($partnersNav as $year) {
                     echo '<a href="partenaires.php?year_id=' . htmlspecialchars($year['id']) . '">' . htmlspecialchars($year['title']) . '</a>';
                 }
             }
@@ -177,23 +177,24 @@ if ($selectedYearId) {
 <main style="flex:1;">
   <div class="container my-5">
     <?php if ($selectedYearId): ?>
+    <h1 class="mb-4"><?= htmlspecialchars($selectedYear['title'] ?? '') ?></h1>
       <div class="row">
-        <?php foreach ($albums as $album): ?>
+        <?php foreach ($partners as $partner): ?>
           <div class="col-md-4 mb-4">
             <div class="card shadow text-center d-flex flex-column"
                 style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff; cursor: pointer;"
-                onclick="showImageModal('../files/_partners/<?= htmlspecialchars($album['album_img']) ?>')">
+                onclick="showImageModal('../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>')">
                 
                 <div class="card-body p-3">
                 <h5 class="card-title mb-3" style="color: #111; font-weight: bold;">
-                    <?= htmlspecialchars($album['album_title']) ?>
+                    <?= htmlspecialchars($partner['album_title']) ?>
                 </h5>
                 </div>
 
-                <?php if (!empty($album['album_img'])): ?>
-                <img src="../files/_partners/<?= htmlspecialchars($album['album_img']) ?>"
+                <?php if (!empty($partner['album_img'])): ?>
+                <img src="../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>"
                     class="img-fluid w-100"
-                    alt="Image partenaire <?= htmlspecialchars($album['album_title']) ?>"
+                    alt="Image partenaire <?= htmlspecialchars($partner['album_title']) ?>"
                     loading="lazy"
                     style="object-fit: contain;">
                 <?php endif; ?>
