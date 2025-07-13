@@ -26,10 +26,17 @@ if (isset($_POST['update_year'])) {
   $yearId = $_POST['year_id'];
   $year = $_POST['year'];
   $title = $_POST['title'];
+  $partner_desc = $_POST['partner_desc'];
 
-    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $yearId]);
-
+  if (!empty($_FILES['year_img']['name'])) {
+    $imgName = $_FILES['year_img']['name'];
+    move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_partners/" . $imgName);
+    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, img = ?, `desc` = ? WHERE id = ?");
+    $stmt->execute([$year, $title, $imgName, $partner_desc, $yearId]);
+  } else {
+    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, `desc` = ? WHERE id = ?");
+    $stmt->execute([$year, $title, $partner_desc, $yearId]);
+  }
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
@@ -92,8 +99,10 @@ if (isset($_POST['delete_album'])) {
 }
 
 if (isset($_POST['add_year'])) {
-  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
-  $stmt->execute([$_POST['year'], $_POST['title']]);
+  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, img, desc) VALUES (?, ?, ?, ?)");
+  $imgName = $_FILES['year_img']['name'];
+  move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_partners/" . $imgName);
+  $stmt->execute([$_POST['year'], $_POST['title'], $imgName, $_POST['partner_desc']]);
 }
 
 if (isset($_POST['delete_year'])) {
@@ -108,6 +117,8 @@ if (isset($_POST['delete_year'])) {
     }
   }
 
+  $stmt = $pdo->prepare("SELECT img FROM partners_years WHERE id = ?");
+  $stmt->execute([$yearId]);
   $yearImg = $stmt->fetchColumn();
   if ($yearImg && file_exists("../files/_partners/" . $yearImg)) {
     unlink("../files/_partners/" . $yearImg);
@@ -130,6 +141,7 @@ foreach ($years as $y) {
   $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
+
 
 <!doctype html>
 <html lang="fr">
@@ -244,6 +256,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>
                     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
                 </div>
+                <div class="card-body">
+                    <img src="../files/_partners/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
+                    <ul class="list-group">
+                </div>
                 </div>
             </div>
 
@@ -259,14 +275,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Année</label>
-                            <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Titre</label>
-                            <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
-                        </div>
+                          <div class="col-md-4">
+                              <label class="form-label">Année</label>
+                              <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
+                          </div>
+                          <div class="col-md-4">
+                              <label class="form-label">Titre</label>
+                              <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
+                          </div>
+                          <div class="col-md-4">
+                              <label class="form-label">Image</label>
+                              <input type="file" name="year_img" class="form-control">
+                          </div>
+                          <div class="col-md-12">
+                            <textarea name="partner_desc" class="form-control" placeholder="Description"><?= htmlspecialchars($year['desc']) ?></textarea>
+                          </div>
                         </div>
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
                     </form>
@@ -285,7 +308,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="col-md-3">
                                 <input type="text" name="album_title" class="form-control" value="<?= htmlspecialchars($album['album_title']) ?>">
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-3">
+                                <input type="text" name="album_link" class="form-control" value="<?= htmlspecialchars($album['album_link']) ?>">
+                            </div>
+                            <div class="col-md-3">
                                 <input type="file" name="album_img" class="form-control">
                             </div>
                             <div class="col-md-2">
@@ -310,7 +336,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="col-md-4">
                         <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-md-4">
+                        <input type="url" name="album_link" class="form-control" placeholder="Lien">
+                        </div>
+                        <div class="col-md-4">
                         <input type="file" name="album_img" class="form-control" required>
                         </div>
                         <div class="col-md-12">
@@ -336,13 +365,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                     <label class="form-label">Titre</label>
                     <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                    <label class="form-label">Image</label>
+                    <input type="file" name="year_img" class="form-control" required>
+                    </div>
+                    <div class="col-md-12">
+                      <textarea name="partner_desc" class="form-control" placeholder="Description"></textarea>
                     </div>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
