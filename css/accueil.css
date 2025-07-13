@@ -325,3 +325,9 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
     margin: 0 0.5rem;
     text-decoration: underline;
   }
+
+.nav-flottante a.inscription-grise {
+  background: #f2f2f2;
+  border-radius: 1rem;
+  padding: 0.3rem 0.8rem;
+}

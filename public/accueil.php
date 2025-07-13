@@ -52,7 +52,7 @@ $footer= $data['footer'] ?? null;
   <!-- Navigation -->
   <nav class="nav-flottante">
     <a href="accueil.php" class="nav-item">Accueil</a>
-    <a href="inscription.php" class="nav-item">Inscription</a>
+    <a href="register.php" class="nav-item inscription-grise">Inscription</a>
     <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
     <a href="partenaire.php" class="nav-item menu-cache">Partenaires</a>
     <a href="photos.php" class="nav-item menu-cache">Photos</a>
