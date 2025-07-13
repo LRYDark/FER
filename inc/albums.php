@@ -11,6 +11,17 @@ if ($role !== 'admin') {
   exit;
 }
 
+$stmt = $pdo->prepare(
+    'SELECT *
+       FROM setting
+      WHERE id = :id
+      LIMIT 1');
+$stmt->execute(['id' => 1]);
+
+$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$footer= $data['footer'] ?? '';  
+
 if (isset($_POST['update_year'])) {
   $yearId = $_POST['year_id'];
   $year = $_POST['year'];
@@ -186,12 +197,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   <div class="top-actions">
     <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
-    <a      id="albums" href="albums.php"   class="btn btn-outline-light">Albums</a>
+    <a      id="setting" href="setting.php"   class="btn btn-outline-light">Réglages</a>
     <a      id="logout" href="#"           class="btn btn-outline-light">Déconnexion</a>
   </div>
 
   <div class="hero-inner text-center">
-    <h1>Réglages</h1>
+    <h1>Albums</h1>
     <p class="mb-0">Gestion des inscriptions – Rôle : <strong><?= htmlspecialchars($role) ?></strong></p>
   </div>
 </header>
@@ -208,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <li class="list-group-item d-flex align-items-center p-3">
         <i class="bi bi-speedometer2 me-2 text-rose"></i>
         <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1">Tableau de bord</a>
-        <a id="albums" href="albums.php" class="btn btn-link text-start p-0 flex-grow-1">Albums</a>
+        <a id="setting" href="setting.php" class="btn btn-link text-start p-0 flex-grow-1">Réglages</a>
       </li>
       <li class="list-group-item d-flex align-items-center p-3">
         <i class="bi bi-box-arrow-right me-2 text-danger"></i>
@@ -225,165 +236,164 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="row g-4 align-items-stretch"><!-- align-items-stretch => les cartes prennent la même hauteur -->
         <!-- Colonne GAUCHE : 2 petites cartes empilées -->
         <div class="col-12 col-lg-12 d-flex flex-column gap-4">
- <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+            <!-- Place this before </body> -->
+            <?php if (isset($_SESSION['reopen_modal'])): ?>
+            <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var modalId = 'modalYear<?= $_SESSION['reopen_modal'] ?>';
+                var modal = new bootstrap.Modal(document.getElementById(modalId));
+                modal.show();
+            });
+            </script>
+            <?php unset($_SESSION['reopen_modal']); ?>
+            <?php endif; ?>
 
+            <body class="container py-4">
 
-<!-- Place this before </body> -->
-<?php if (isset($_SESSION['reopen_modal'])): ?>
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    var modalId = 'modalYear<?= $_SESSION['reopen_modal'] ?>';
-    var modal = new bootstrap.Modal(document.getElementById(modalId));
-    modal.show();
-  });
-</script>
-<?php unset($_SESSION['reopen_modal']); ?>
-<?php endif; ?>
+            <h1 class="mb-4">Gestion des Albums par Année</h1>
 
-<body class="container py-4">
+            <!-- Bouton pour ajouter une année -->
+            <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">Ajouter une Année</button>
 
-<h1 class="mb-4">Gestion des Albums par Année</h1>
-
-<!-- Bouton pour ajouter une année -->
-<button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">Ajouter une Année</button>
-
-<div class="row g-4">
-<?php foreach ($years as $year): ?>
-  <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
-      </div>
-      <div class="card-body">
-        <img src="../files/_pictures/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
-        <ul class="list-group">
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal de modification année -->
-  <div class="modal fade" id="modalYear<?= $year['id'] ?>" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-      <div class="modal-content p-4">
-        <div class="modal-header">
-          <h5 class="modal-title">Modifier l'année <?= htmlspecialchars($year['year']) ?></h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <form method="post" enctype="multipart/form-data" class="mb-4">
-            <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label">Année</label>
-                <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Titre</label>
-                <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Image</label>
-                <input type="file" name="year_img" class="form-control">
-              </div>
+            <div class="row g-4">
+            <?php foreach ($years as $year): ?>
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
+                </div>
+                <div class="card-body">
+                    <img src="../files/_pictures/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
+                    <ul class="list-group">
+                </div>
+                </div>
             </div>
-            <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
-          </form>
 
-          <form method="post" onsubmit="return confirm('Supprimer cette année et tous ses albums ?');">
-            <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-            <button type="submit" name="delete_year" class="btn btn-danger mb-4">Supprimer l'année</button>
-          </form>
+            <!-- Modal de modification année -->
+            <div class="modal fade" id="modalYear<?= $year['id'] ?>" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                <div class="modal-content p-4">
+                    <div class="modal-header">
+                    <h5 class="modal-title">Modifier l'année <?= htmlspecialchars($year['year']) ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                    <form method="post" enctype="multipart/form-data" class="mb-4">
+                        <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
+                        <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Année</label>
+                            <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Titre</label>
+                            <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Image</label>
+                            <input type="file" name="year_img" class="form-control">
+                        </div>
+                        </div>
+                        <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
+                    </form>
 
-          <h5>Albums associés</h5>
-          <ul class="list-group mb-3">
-            <?php foreach ($albumsByYear[$year['id']] as $album): ?>
-              <li class="list-group-item">
-                <form method="post" enctype="multipart/form-data" class="row g-2 align-items-center">
-                  <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
-                  <div class="col-md-3">
-                    <input type="text" name="album_title" class="form-control" value="<?= htmlspecialchars($album['album_title']) ?>">
-                  </div>
-                  <div class="col-md-3">
-                    <input type="text" name="album_link" class="form-control" value="<?= htmlspecialchars($album['album_link']) ?>">
-                  </div>
-                  <div class="col-md-3">
-                    <input type="file" name="album_img" class="form-control">
-                  </div>
-                  <div class="col-md-2">
-                    <input type="text" name="album_desc" class="form-control" value="<?= htmlspecialchars($album['album_desc']) ?>">
-                  </div>
-                  <div class="col-md-1 d-grid">
-                    
-<div class="d-flex gap-2">
-  <button type="submit" name="update_album" class="btn btn-sm btn-success">✔</button>
-  <button type="submit" name="delete_album" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet album ?');">🗑</button>
-</div>
+                    <form method="post" onsubmit="return confirm('Supprimer cette année et tous ses albums ?');">
+                        <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
+                        <button type="submit" name="delete_year" class="btn btn-danger mb-4">Supprimer l'année</button>
+                    </form>
 
-                  </div>
-                </form>
-              </li>
+                    <h5>Albums associés</h5>
+                    <ul class="list-group mb-3">
+                        <?php foreach ($albumsByYear[$year['id']] as $album): ?>
+                        <li class="list-group-item">
+                            <form method="post" enctype="multipart/form-data" class="row g-2 align-items-center">
+                            <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
+                            <div class="col-md-3">
+                                <input type="text" name="album_title" class="form-control" value="<?= htmlspecialchars($album['album_title']) ?>">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" name="album_link" class="form-control" value="<?= htmlspecialchars($album['album_link']) ?>">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="file" name="album_img" class="form-control">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" name="album_desc" class="form-control" value="<?= htmlspecialchars($album['album_desc']) ?>">
+                            </div>
+                            <div class="col-md-1 d-grid">
+                                
+            <div class="d-flex gap-2">
+            <button type="submit" name="update_album" class="btn btn-sm btn-success">✔</button>
+            <button type="submit" name="delete_album" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet album ?');">🗑</button>
+            </div>
+
+                            </div>
+                            </form>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+
+                    <h6>Ajouter un nouvel album</h6>
+                    <form method="post" enctype="multipart/form-data" class="row g-3">
+                        <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
+                        <div class="col-md-4">
+                        <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
+                        </div>
+                        <div class="col-md-4">
+                        <input type="url" name="album_link" class="form-control" placeholder="Lien">
+                        </div>
+                        <div class="col-md-4">
+                        <input type="file" name="album_img" class="form-control" required>
+                        </div>
+                        <div class="col-md-12">
+                        <textarea name="album_desc" class="form-control" placeholder="Description"></textarea>
+                        </div>
+                        <div class="col-12">
+                        <button type="submit" name="add_album" class="btn btn-primary">Ajouter l'album</button>
+                        </div>
+                    </form>
+                    </div>
+                </div>
+                </div>
+            </div>
             <?php endforeach; ?>
-          </ul>
+            </div>
 
-          <h6>Ajouter un nouvel album</h6>
-          <form method="post" enctype="multipart/form-data" class="row g-3">
-            <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-            <div class="col-md-4">
-              <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
+            <!-- Modal ajout année -->
+            <div class="modal fade" id="modalAddYear" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content p-4">
+                <div class="modal-header">
+                    <h5 class="modal-title">Ajouter une Année</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
+                    <div class="col-md-4">
+                    <label class="form-label">Année</label>
+                    <input type="number" name="year" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                    <label class="form-label">Titre</label>
+                    <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                    <label class="form-label">Image</label>
+                    <input type="file" name="year_img" class="form-control" required>
+                    </div>
+                    <div class="col-12">
+                    <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
+                    </div>
+                </form>
+                </div>
             </div>
-            <div class="col-md-4">
-              <input type="url" name="album_link" class="form-control" placeholder="Lien">
             </div>
-            <div class="col-md-4">
-              <input type="file" name="album_img" class="form-control" required>
-            </div>
-            <div class="col-md-12">
-              <textarea name="album_desc" class="form-control" placeholder="Description"></textarea>
-            </div>
-            <div class="col-12">
-              <button type="submit" name="add_album" class="btn btn-primary">Ajouter l'album</button>
-            </div>
-          </form>
         </div>
-      </div>
-    </div>
-  </div>
-<?php endforeach; ?>
-</div>
-
-<!-- Modal ajout année -->
-<div class="modal fade" id="modalAddYear" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content p-4">
-      <div class="modal-header">
-        <h5 class="modal-title">Ajouter une Année</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
-        <div class="col-md-4">
-          <label class="form-label">Année</label>
-          <input type="number" name="year" class="form-control" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Titre</label>
-          <input type="text" name="title" class="form-control" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Image</label>
-          <input type="file" name="year_img" class="form-control" required>
-        </div>
-        <div class="col-12">
-          <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-        </div>
-</div>
     </div><!-- /row -->
 </main>
+
+<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
