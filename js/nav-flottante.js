@@ -128,8 +128,6 @@ function togglePhotosDropdown(event) {
   current.style.display = (current.style.display === 'block') ? 'none' : 'block';
 }
 
-
-
 function toggleMobileDropdown(event) {
   event.preventDefault();
   event.stopPropagation();
@@ -157,11 +155,6 @@ function toggleMobilePhotosDropdown(event) {
 
   current.style.display = (current.style.display === 'flex') ? 'none' : 'flex';
 }
-
-
-
-        
-
 
 document.addEventListener('click', function(event) {
   const partenairesDropdown = document.getElementById('dropdownPartenaires');
