@@ -536,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   <div class="top-actions">
     <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
+    <a      id="albums" href="albums.php"   class="btn btn-outline-light">Albums</a>
     <a      id="logout" href="#"           class="btn btn-outline-light">Déconnexion</a>
   </div>
 
@@ -557,6 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <li class="list-group-item d-flex align-items-center p-3">
         <i class="bi bi-speedometer2 me-2 text-rose"></i>
         <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1">Tableau de bord</a>
+        <a id="albums" href="albums.php" class="btn btn-link text-start p-0 flex-grow-1">Albums</a>
       </li>
       <li class="list-group-item d-flex align-items-center p-3">
         <i class="bi bi-box-arrow-right me-2 text-danger"></i>
