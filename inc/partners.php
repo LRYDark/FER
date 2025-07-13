@@ -285,7 +285,8 @@ document.addEventListener('DOMContentLoaded', () => {
                               <input type="file" name="year_img" class="form-control">
                           </div>
                           <div class="col-md-12">
-                            <textarea name="partner_desc" class="form-control" placeholder="Description"><?= htmlspecialchars($year['desc']) ?></textarea>
+                            <!-- Textarea avec TinyMCE -->
+                            <textarea class="form-control" id="partner_desc" name="partner_desc" rows="10" placeholder="Description"><?= htmlspecialchars($year['desc']) ?></textarea>
                           </div>
                         </div>
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
@@ -371,6 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="col-md-12">
                       <textarea name="partner_desc" class="form-control" placeholder="Description"></textarea>
                     </div>
+                        <!-- Textarea avec TinyMCE -->
+                        <textarea class="form-control" id="partner_desc" name="partner_desc" rows="10" placeholder="Description"></textarea>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
                     </div>
@@ -381,6 +384,80 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
     </div><!-- /row -->
 </main>
+
+<!-- ############################ Réglementation course ############################ -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .card-dashboard {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .tox-tinymce {
+            border-radius: 0.375rem !important;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js"></script>
+    <script>
+        tinymce.init({
+            selector: '#partner_desc',
+            plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
+            toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+            height: 200,
+            menubar: false,
+            branding: false,
+            content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+            
+            // Configuration des couleurs
+            color_map: [
+                "000000", "Noir",
+                "993300", "Marron foncé",
+                "333300", "Vert foncé",
+                "003300", "Vert sombre",
+                "003366", "Bleu marine",
+                "000080", "Bleu",
+                "333399", "Indigo",
+                "333333", "Gris très foncé",
+                "800000", "Marron",
+                "FF6600", "Orange",
+                "808000", "Olive",
+                "008000", "Vert",
+                "008080", "Sarcelle",
+                "0000FF", "Bleu",
+                "666699", "Gris bleu",
+                "808080", "Gris",
+                "FF0000", "Rouge",
+                "FF9900", "Ambre",
+                "99CC00", "Vert jaune",
+                "339966", "Vert mer",
+                "33CCCC", "Turquoise",
+                "3366FF", "Bleu royal",
+                "800080", "Violet",
+                "999999", "Gris moyen",
+                "FF00FF", "Magenta",
+                "FFCC00", "Or",
+                "FFFF00", "Jaune",
+                "00FF00", "Lime",
+                "00FFFF", "Cyan",
+                "00CCFF", "Bleu ciel",
+                "993366", "Rouge brun",
+                "FFFFFF", "Blanc",
+                "FF99CC", "Rose",
+                "FFCC99", "Pêche",
+                "FFFF99", "Jaune clair",
+                "CCFFCC", "Vert clair",
+                "CCFFFF", "Cyan clair",
+                "99CCFF", "Bleu clair",
+                "CC99FF", "Prune"
+            ],
+            
+            // Permettre tous les éléments HTML
+            extended_valid_elements: '*[*]',
+            
+            // Configuration du mode code
+            toolbar_mode: 'sliding'
+        });
+    </script>
+<!-- ############################ Réglementation course ############################ -->
 
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 

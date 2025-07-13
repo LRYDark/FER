@@ -167,7 +167,7 @@ if ($selectedYearId) {
             <img src="../files/_partners/<?= htmlspecialchars($selectedYear['img'] ?? '') ?>" alt="Image principale" class="img-fluid main-img lightbox-trigger" loading="lazy">
         </div>
         <div class="col-md-6">
-            <p class="lead"><?= htmlspecialchars($selectedYear['desc'] ?? '') ?></p>
+            <p class="lead"><?= $selectedYear['desc'] ?></p>
         </div>
         </div>
     </section>
