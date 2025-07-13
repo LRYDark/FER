@@ -49,10 +49,21 @@ $footer= $data['footer'] ?? null;
     </div>
   </section>
 
-  <!-- Navigation -->
+   <!-- Navigation -->
+  <?php
+    // partenaires
+    $stmtYears = $pdo->prepare('SELECT id, title FROM partners_years ORDER BY year DESC');
+    $stmtYears->execute();
+    $partnersNav = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
+
+    // photos
+    $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
+    $stmtPhotos->execute();
+    $albumsNav = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
+  ?>
   <nav class="nav-flottante">
     <a href="accueil.php" class="nav-item accueil-style">Accueil</a>
-    <a href="inscription.php" class="nav-item">Inscription</a>
+    <a href="register.php" class="nav-item">Inscription</a>
     <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
     <div class="nav-item dropdown menu-cache" style="position: relative;">
         <a href="#" class="nav-link partenaires-toggle" onclick="toggleDropdown(event)">
@@ -60,14 +71,12 @@ $footer= $data['footer'] ?? null;
         </a>
         <div class="dropdown-content-custom" id="dropdownPartenaires">
             <?php
-            $stmtYears = $pdo->prepare('SELECT id, title FROM partners_years ORDER BY year DESC');
-            $stmtYears->execute();
-            $partners = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($partners)) {
+
+            if (empty($partnersNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun partenaires disponible</span>';
             } else {
-                foreach ($partners as $year) {
-                    echo '<a href="partenaires.php?year_id=' . htmlspecialchars($year['id']) . '">' . htmlspecialchars($year['title']) . '</a>';
+                foreach ($partnersNav as $yearNav) {
+                    echo '<a href="partenaires.php?year_id=' . htmlspecialchars($yearNav['id']) . '">' . htmlspecialchars($yearNav['title']) . '</a>';
                 }
             }
             ?>
@@ -83,14 +92,11 @@ $footer= $data['footer'] ?? null;
         </a>
         <div class="dropdown-content-custom" id="dropdownPhotos">
             <?php
-            $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
-            $stmtPhotos->execute();
-            $albums = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($albums)) {
+            if (empty($albumsNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
             } else {
-                foreach ($albums as $album) {
-                    echo '<a href="photos.php?year_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
+                foreach ($albumsNav as $albumNav) {
+                    echo '<a href="photos.php?year_id=' . htmlspecialchars($albumNav['id']) . '">' . htmlspecialchars($albumNav['title']) . '</a>';
                 }
             }
             ?>
@@ -105,7 +111,6 @@ $footer= $data['footer'] ?? null;
     <!-- Menu déroulant mobile -->
     <div class="menu-deroulant" id="mobileMenu">
     <a href="parcours.php">Parcours</a>
-
     <div class="dropdown-mobile">
         <a href="#" class="partenaires-toggle-mobile" onclick="toggleMobileDropdown(event)">
         Partenaires
@@ -115,20 +120,17 @@ $footer= $data['footer'] ?? null;
         </a>
         <div class="dropdown-content-mobile" id="dropdownMobilePartenaires">
         <?php
-            $stmtYears = $pdo->prepare('SELECT id, title FROM partners_years ORDER BY year DESC');
-            $stmtYears->execute();
-            $partners = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($partners)) {
+            if (empty($partnersNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun partenaires disponible</span>';
             } else {
-                foreach ($partners as $year) {
-                    echo '<a href="partenaires.php?year_id=' . htmlspecialchars($year['id']) . '">' . htmlspecialchars($year['title']) . '</a>';
+                foreach ($partnersNav as $yearNav) {
+                    echo '<a href="partenaires.php?year_id=' . htmlspecialchars($yearNav['id']) . '">' . htmlspecialchars($yearNav['title']) . '</a>';
                 }
             }
         ?>
         </div>
         </div>
-        <a href="#" class="partenaires-toggle-mobile" onclick="toggleMobilePhotosDropdown(event)">
+        <a href="#" class="photos-toggle-mobile" onclick="toggleMobilePhotosDropdown(event)">
             Photos
             <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16">
             <path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
@@ -136,14 +138,11 @@ $footer= $data['footer'] ?? null;
         </a>
         <div class="dropdown-content-mobile" id="dropdownMobilePhotos">
         <?php
-            $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
-            $stmtPhotos->execute();
-            $albums = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($albums)) {
+            if (empty($albumsNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
             } else {
-                foreach ($albums as $album) {
-                    echo '<a href="photos.php?year_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
+                foreach ($albumsNav as $albumNav) {
+                    echo '<a href="photos.php?year_id=' . htmlspecialchars($albumNav['id']) . '">' . htmlspecialchars($albumNav['title']) . '</a>';
                 }
             }
         ?>
