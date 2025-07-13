@@ -29,9 +29,15 @@ $selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : null;
 $albums = [];
 
 if ($selectedYearId) {
+    // Récupération des albums
     $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id');
     $stmtAlbums->execute(['year_id' => $selectedYearId]);
     $albums = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
+
+    // Récupération des infos de l'année sélectionnée
+    $stmtYear = $pdo->prepare('SELECT * FROM photo_years WHERE id = :id LIMIT 1');
+    $stmtYear->execute(['id' => $selectedYearId]);
+    $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
 }
 ?>
 
@@ -87,9 +93,8 @@ if ($selectedYearId) {
     </style>
 
         <div class="container my-5">
-        <h1 class="mb-4">Albums Photos</h1>
-
         <?php if (!$selectedYearId): ?>
+            <h1 class="mb-4">Albums Photos</h1>
             <div class="row">
             <?php foreach ($years as $year): ?>
             <div class="col-md-4 mb-4">
@@ -117,7 +122,8 @@ if ($selectedYearId) {
             <?php endforeach; ?>
             </div>
             <?php else: ?>
-            <a href="photos.php" class="btn btn-secondary mb-4">← Retour aux années</a>
+            <h1 class="mb-4">Albums : <?= htmlspecialchars($selectedYear['title'] ?? '') ?></h1>
+            <a href="photos.php" class="btn btn-secondary mb-4">← Retour</a>
             <div class="row">
                 <?php foreach ($albums as $album): ?>
                 <div class="col-md-4 mb-4">
