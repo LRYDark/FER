@@ -1,0 +1,327 @@
+
+/* ───────── Palette & background ───────── */
+:root{
+  --rose-500:#ff4f9c; --rose-600:#e03f8a;
+  --bg-grad:linear-gradient(135deg,#ffe1f0 0%,#fff 40%,#ffe1f0 100%);
+}
+body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:column;}
+
+  /* NAVIGATION flottante */
+  .nav-flottante {
+    background: white;
+    border-radius: 3rem;
+    padding: 0.3rem 2rem;
+    margin: -1.7rem auto 2rem;
+    width: calc(100% - 100px);
+    max-width: 1000px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+    position: relative;
+    transition: gap 0.3s ease;
+  }
+
+  /* Liens de la nav ET du menu déroulant mobile */
+  .nav-flottante a,
+  .menu-deroulant a {
+    color: #e91e63;
+    font-weight: 700;
+    text-decoration: none;
+    font-size: 1.15rem;
+    white-space: nowrap;
+    margin: 0.25rem 0;
+    text-align: center;
+  }
+
+  .nav-flottante a.active,
+  .menu-deroulant a.active {
+    background: #ffe3f0;
+    border-radius: 1rem;
+    padding: 0.3rem 0.8rem;
+  }
+
+  .nav-flottante a:hover,
+  .menu-deroulant a:hover {
+    text-decoration: underline;
+  }
+
+  /* Bouton burger */
+  .burger-toggle {
+    width: 32px;
+    height: 32px;
+    background: transparent;   /* plus de gris */
+    border: none;
+    cursor: pointer;
+    position: relative;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Trois traits horizontaux */
+  .burger-toggle::before,
+  .burger-toggle::after,
+  .burger-toggle span {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 2px;
+    background-color: #111;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  /* Ligne du milieu */
+  .burger-toggle span {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* Ligne du haut */
+  .burger-toggle::before {
+    top: 8px;
+  }
+
+  /* Ligne du bas */
+  .burger-toggle::after {
+    bottom: 8px;
+  }
+
+  /* Animation en croix si voulu plus tard */
+  .burger-toggle.open::before {
+    transform: rotate(45deg);
+    top: 50%;
+  }
+
+  .burger-toggle.open::after {
+    transform: rotate(-45deg);
+    bottom: 50%;
+  }
+
+  .burger-toggle.open span {
+    opacity: 0;
+  }
+
+  /* Menu déroulant mobile */
+  .menu-deroulant {
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 1rem;
+    gap: 1rem;
+  }
+
+  /* Affichage du menu uniquement en mobile */
+  @media (max-width: 767px) {
+    .menu-cache {
+      display: none !important;
+    }
+    .menu-deroulant.open {
+      display: flex !important;
+    }
+    .nav-flottante {
+      flex-wrap: wrap;
+      width: calc(100% - 40px);
+      max-width: 100%;
+      margin: -1.5rem auto 2rem;
+    }
+    .nav-flottante a {
+      font-size: 1rem;
+    }
+  }
+
+  @media (min-width: 767px) {
+    .burger-toggle {
+      display: none !important;
+    }
+  }
+
+  .logo-top{
+    position:absolute;
+    top:1rem;
+    right:1rem;
+    max-width:220px;
+    width:27vw;
+    filter:drop-shadow(0 3px 6px rgba(0,0,0,.2));
+  }
+
+  /* HERO accueil */
+  .hero-accueil {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3rem; /* espace entre image et compteur */
+    padding: 4rem 1rem;
+    flex-wrap: wrap;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .image-container {
+    position: relative;
+    display: inline-block;
+    margin: 0 auto;
+    margin-right: 500px; /* ✅ Décale légèrement l’image vers la gauche pour centrer le bloc complet */
+  }
+
+  .image-container img {
+    max-width: 100%;
+    border-radius: 1rem;
+  }
+
+  .countdown-group {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translate(-11%, -50%);
+    display: flex;
+    gap: 2rem;
+    z-index: 5;
+  }
+
+  .bloc {
+    background-color: #1d2344;
+    color: white;
+    border-radius: 2.5rem;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .valeur {
+    font-size: 2.2rem;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  .label {
+    font-size: 1rem;
+    margin-top: 0.3rem;
+  }
+
+  @media (max-width: 767px) {
+    .hero-accueil {
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 0 0rem; /* + de place en bas */
+      margin-bottom: -100px;
+      position: relative;
+    }
+
+    .image-container {
+      position: relative;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin: 0 auto;
+      padding-bottom: 150px; /* crée l’espace pour les compteurs */
+    }
+
+    .image-container img {
+      width: 350px;
+      max-width: 95%;
+      display: block;
+      z-index: 1;
+    }
+
+    .partenaires img {
+      width: 350px;
+      max-width: 95%;
+      border-radius: 1rem;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .countdown-group {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.7rem;
+      z-index: 2;
+    }
+
+    .bloc {
+      width: 68px;
+      height: 68px;
+      font-size: 0.9rem;
+      border-radius: 1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .valeur {
+      font-size: 1.35rem;
+    }
+
+    .label {
+      font-size: 0.7rem;
+    }
+
+    /* on cache tout simplement le logo */
+    .logo-top{ display:none; }
+  }
+
+  /* Inscrits */
+  .inscrits {
+    text-align: center;
+    padding: 2rem;
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: #222;
+  }
+
+  /* Bouton inscription */
+  .section-inscription {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem 1rem;
+    text-align: center;
+  }
+
+  .section-inscription .btn-inscription {
+    background: var(--rose-600);
+    color: white;
+    padding: 0.8rem 2rem;
+    font-size: 1.2rem;
+    border-radius: 2rem;
+    border: none;
+  }
+
+  .section-inscription .btn-inscription:hover {
+    background: #c13778;
+  }
+
+  .partenaires {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+
+  .partenaires img {
+    max-width: 800px;
+    border-radius: 1rem;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+
+  footer {
+    background: var(--rose-600);
+    color: white;
+    text-align: center;
+    padding: 1rem;
+    margin-top: 3rem;
+  }
+
+  footer a {
+    color: white;
+    margin: 0 0.5rem;
+    text-decoration: underline;
+  }
