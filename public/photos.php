@@ -91,72 +91,66 @@ if ($selectedYearId) {
 
         <?php if (!$selectedYearId): ?>
             <div class="row">
-<?php foreach ($years as $year): ?>
-  <div class="col-md-4 mb-4">
-    <a href="photos.php?year_id=<?= $year['id'] ?>" class="text-decoration-none">
-      <div class="card h-100 shadow text-center d-flex flex-column justify-content-between"
-           style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff;">
-        
-        <div class="card-body p-3">
-          <h5 class="card-title mb-3" style="color: #111; font-weight: bold;">
-            <?= htmlspecialchars($year['title']) ?>
-          </h5>
-        </div>
+            <?php foreach ($years as $year): ?>
+            <div class="col-md-4 mb-4">
+                <a href="photos.php?year_id=<?= $year['id'] ?>" class="text-decoration-none">
+                <div class="card h-100 shadow text-center d-flex flex-column justify-content-between"
+                    style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff;">
+                    
+                    <div class="card-body p-3">
+                    <h5 class="card-title mb-3" style="color: #111; font-weight: bold;">
+                        <?= htmlspecialchars($year['title']) ?>
+                    </h5>
+                    </div>
 
-        <?php if (!empty($year['img'])): ?>
-          <img src="../files/_pictures/<?= htmlspecialchars($year['img']) ?>"
-               class="img-fluid"
-               alt="Image année <?= htmlspecialchars($year['title']) ?>"
-               loading="lazy"
-               style="width: 100%; height: 220px; object-fit: cover;">
-        <?php endif; ?>
+                    <?php if (!empty($year['img'])): ?>
+                    <img src="../files/_pictures/<?= htmlspecialchars($year['img']) ?>"
+                        class="img-fluid"
+                        alt="Image année <?= htmlspecialchars($year['title']) ?>"
+                        loading="lazy"
+                        style="width: 100%; height: 220px; object-fit: cover;">
+                    <?php endif; ?>
 
-      </div>
-    </a>
-  </div>
-<?php endforeach; ?>
-
+                </div>
+                </a>
             </div>
-<?php else: ?>
-  <a href="photos.php" class="btn btn-secondary mb-4">← Retour aux années</a>
-  <div class="row">
-    <?php foreach ($albums as $album): ?>
-      <div class="col-md-4 mb-4">
-        <a href="<?= htmlspecialchars($album['album_link']) ?>" target="_blank" class="text-decoration-none">
-          <div class="card shadow text-center d-flex flex-column"
-               style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff;">
-
-            <div class="card-body p-3">
-              <h5 class="card-title mb-3" style="color: #111; font-weight: bold;">
-                <?= htmlspecialchars($album['album_title']) ?>
-              </h5>
+            <?php endforeach; ?>
             </div>
+            <?php else: ?>
+            <a href="photos.php" class="btn btn-secondary mb-4">← Retour aux années</a>
+            <div class="row">
+                <?php foreach ($albums as $album): ?>
+                <div class="col-md-4 mb-4">
+                    <a href="<?= htmlspecialchars($album['album_link']) ?>" target="_blank" class="text-decoration-none">
+                    <div class="card shadow text-center d-flex flex-column"
+                        style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff;">
 
-            <?php if (!empty($album['album_img'])): ?>
-              <img src="../files/_pictures/<?= htmlspecialchars($album['album_img']) ?>"
-                   class="img-fluid"
-                   alt="Image album <?= htmlspecialchars($album['album_title']) ?>"
-                   loading="lazy"
-                   style="width: 100%; height: 220px; object-fit: cover;">
+                        <div class="card-body p-3">
+                        <h5 class="card-title mb-3" style="color: #111; font-weight: bold;">
+                            <?= htmlspecialchars($album['album_title']) ?>
+                        </h5>
+                        </div>
+
+                        <?php if (!empty($album['album_img'])): ?>
+                        <img src="../files/_pictures/<?= htmlspecialchars($album['album_img']) ?>"
+                            class="img-fluid"
+                            alt="Image album <?= htmlspecialchars($album['album_title']) ?>"
+                            loading="lazy"
+                            style="width: 100%; height: 220px; object-fit: cover;">
+                        <?php endif; ?>
+
+                        <?php if (!empty($album['album_desc'])): ?>
+                        <div class="card-body px-3 pb-3 pt-2">
+                            <p class="text-muted small mb-0"><?= nl2br(htmlspecialchars($album['album_desc'])) ?></p>
+                        </div>
+                        <?php endif; ?>
+
+                    </div>
+                    </a>
+                </div>
+                <?php endforeach; ?>
+            </div>
             <?php endif; ?>
-
-            <?php if (!empty($album['album_desc'])): ?>
-              <div class="card-body px-3 pb-3 pt-2">
-                <p class="text-muted small mb-0"><?= nl2br(htmlspecialchars($album['album_desc'])) ?></p>
-              </div>
-            <?php endif; ?>
-
-          </div>
-        </a>
-      </div>
-    <?php endforeach; ?>
-  </div>
-<?php endif; ?>
-
-
-
-
-
         </div>
     </main>
 
