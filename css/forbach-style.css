@@ -6,6 +6,13 @@
 body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:column;}
 
 /* ───────── HERO ───────── */
+
+main {
+  flex: 1;
+}
+
+
+
 .hero{
   background:var(--rose-500);
   color:#fff;
