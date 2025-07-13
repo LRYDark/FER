@@ -16,6 +16,10 @@ $footer= $data['footer'] ?? '';
 $titleColor = $data['title_color'] ?? '#ffffff';
 $registration_fee = $data['registration_fee'] ?? 0;  
 $accueil_active = $data['accueil_active'] ? 1 : 0;
+
+
+// reglementation
+$div_reglementation = $data['div_reglementation'] ?? ''; 
 ?>
 <!doctype html>
 <html lang="fr">
@@ -250,6 +254,32 @@ body{
   </div><!-- /card -->
 </main>
 <?php endif; ?>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
+
+<div class="col-12 d-grid">
+  <button type="button" class="btn btn-link mt-2" data-bs-toggle="modal" data-bs-target="#reglementModal">
+    Voir la réglementation de la course
+  </button>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="reglementModal" tabindex="-1" aria-labelledby="reglementModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reglementModalLabel">Réglementation de la course</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <?= $div_reglementation ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 

@@ -41,6 +41,9 @@ $parcoursDesc = $data['parcoursDesc'] ?? '';
 $picture_parcours= $data['picture_parcours'] ?? ''; 
 $picture_gradient= $data['picture_gradient'] ?? ''; 
 
+// reglementation
+$div_reglementation = $data['div_reglementation'] ?? ''; 
+
 /******************************************************************
  * Génère une alerte Bootstrap fermable + auto-dismiss
  *  $type    : success | danger | warning | info …
@@ -400,8 +403,44 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
     }
 }
 
+/* --------------------------------------------------------------------------
+   Carte 1 : Liaison AssoConnect
+-------------------------------------------------------------------------- */
+$alertReglementation = '';
+if (isset($_POST['reglementation'])) {
 
-//suppression image
+    /* a) Lecture & validation */
+    $div_reglementation = trim($_POST['div_reglementation'] ?? '');
+
+    /* b) Requête préparée */
+    $upd = $pdo->prepare(
+        'UPDATE setting
+            SET div_reglementation = :div_reglementation
+            WHERE id = :id'
+    );
+
+    $ok = $upd->execute([
+        'div_reglementation' => $div_reglementation,
+        'id'     => 1
+    ]);
+
+    /* c) Gestion du résultat */
+    if ($ok) {
+        if ($upd->rowCount() > 0) {
+            $alertReglementation = makeAlert('success', 'Réglementation enregistrée !');
+        } else {
+                $alertReglementation = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d’auto-close
+        }
+    } else {
+        /* $execute a échoué : on affiche le message renvoyé par PDO */
+        $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
+        $alertReglementation = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Suppression image
+-------------------------------------------------------------------------- */
 if (isset($_POST['delete_picture_parcours']) && $picture_parcours) {
     $filePath = '../files/_pictures/' . $picture_parcours;
     if (file_exists($filePath)) {
@@ -856,6 +895,100 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>
         </div>
+
+        <!-- ############################ Réglementation course ############################ -->
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            .card-dashboard {
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+            }
+            .tox-tinymce {
+                border-radius: 0.375rem !important;
+            }
+        </style>
+
+        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
+            <!-- Carte 1  -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <h2 class="mb-4">Réglement de la course</h2>
+                 <?php if ($alertReglementation) echo $alertReglementation; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="form-group mb-3">
+                        <label for="divReglementation" class="form-label">Réglement de la course</label>
+                        
+                        <!-- Textarea avec TinyMCE -->
+                        <textarea class="form-control" id="divReglementation" name="div_reglementation" rows="10" required>
+                            <?= htmlspecialchars($div_reglementation) ?>
+                        </textarea>
+                    </div>
+                    <button type="submit" name="reglementation" class="btn btn-primary">Sauvegarder</button>
+                </form>
+            </div>
+        </div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js"></script>
+            <script>
+                tinymce.init({
+                    selector: '#divReglementation',
+                    plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
+                    toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+                    height: 430,
+                    menubar: false,
+                    branding: false,
+                    content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+                    
+                    // Configuration des couleurs
+                    color_map: [
+                        "000000", "Noir",
+                        "993300", "Marron foncé",
+                        "333300", "Vert foncé",
+                        "003300", "Vert sombre",
+                        "003366", "Bleu marine",
+                        "000080", "Bleu",
+                        "333399", "Indigo",
+                        "333333", "Gris très foncé",
+                        "800000", "Marron",
+                        "FF6600", "Orange",
+                        "808000", "Olive",
+                        "008000", "Vert",
+                        "008080", "Sarcelle",
+                        "0000FF", "Bleu",
+                        "666699", "Gris bleu",
+                        "808080", "Gris",
+                        "FF0000", "Rouge",
+                        "FF9900", "Ambre",
+                        "99CC00", "Vert jaune",
+                        "339966", "Vert mer",
+                        "33CCCC", "Turquoise",
+                        "3366FF", "Bleu royal",
+                        "800080", "Violet",
+                        "999999", "Gris moyen",
+                        "FF00FF", "Magenta",
+                        "FFCC00", "Or",
+                        "FFFF00", "Jaune",
+                        "00FF00", "Lime",
+                        "00FFFF", "Cyan",
+                        "00CCFF", "Bleu ciel",
+                        "993366", "Rouge brun",
+                        "FFFFFF", "Blanc",
+                        "FF99CC", "Rose",
+                        "FFCC99", "Pêche",
+                        "FFFF99", "Jaune clair",
+                        "CCFFCC", "Vert clair",
+                        "CCFFFF", "Cyan clair",
+                        "99CCFF", "Bleu clair",
+                        "CC99FF", "Prune"
+                    ],
+                    
+                    // Permettre tous les éléments HTML
+                    extended_valid_elements: '*[*]',
+                    
+                    // Configuration du mode code
+                    toolbar_mode: 'sliding'
+                });
+            </script>
+        <!-- ############################ Réglementation course ############################ -->
 
     </div><!-- /row -->
 </main>
