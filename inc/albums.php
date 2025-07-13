@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require '../config/config.php';
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
@@ -27,15 +23,9 @@ if (isset($_POST['update_year'])) {
   $year = $_POST['year'];
   $title = $_POST['title'];
 
-  if (!empty($_FILES['year_img']['name'])) {
-    $imgName = $_FILES['year_img']['name'];
-    move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_albums/" . $imgName);
-    $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ?, img = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $imgName, $yearId]);
-  } else {
     $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ? WHERE id = ?");
     $stmt->execute([$year, $title, $yearId]);
-  }
+  
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
@@ -104,10 +94,8 @@ if (isset($_POST['delete_album'])) {
 
 
 if (isset($_POST['add_year'])) {
-  $stmt = $pdo->prepare("INSERT INTO photo_years (year, title, img) VALUES (?, ?, ?)");
-  $imgName = $_FILES['year_img']['name'];
-  move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_albums/" . $imgName);
-  $stmt->execute([$_POST['year'], $_POST['title'], $imgName]);
+  $stmt = $pdo->prepare("INSERT INTO photo_years (year, title) VALUES (?, ?)");
+  $stmt->execute([$_POST['year'], $_POST['title']]);
 }
 
 if (isset($_POST['delete_year'])) {
@@ -121,14 +109,6 @@ if (isset($_POST['delete_year'])) {
     if ($img && file_exists("../files/_albums/" . $img)) {
       unlink("../files/_albums/" . $img);
     }
-  }
-
-  // Supprimer l'image de l'année
-  $stmt = $pdo->prepare("SELECT img FROM photo_years WHERE id = ?");
-  $stmt->execute([$yearId]);
-  $yearImg = $stmt->fetchColumn();
-  if ($yearImg && file_exists("../files/_albums/" . $yearImg)) {
-    unlink("../files/_albums/" . $yearImg);
   }
 
   // Supprimer les albums et l'année
@@ -263,10 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>
                     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
                 </div>
-                <div class="card-body">
-                    <img src="../files/_albums/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
-                    <ul class="list-group">
-                </div>
                 </div>
             </div>
 
@@ -282,17 +258,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label">Année</label>
                             <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label">Titre</label>
                             <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Image</label>
-                            <input type="file" name="year_img" class="form-control">
                         </div>
                         </div>
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
@@ -369,17 +341,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                     <label class="form-label">Titre</label>
                     <input type="text" name="title" class="form-control" required>
-                    </div>
-                    <div class="col-md-4">
-                    <label class="form-label">Image</label>
-                    <input type="file" name="year_img" class="form-control" required>
                     </div>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>

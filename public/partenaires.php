@@ -99,14 +99,13 @@ if ($selectedYearId) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
             } else {
                 foreach ($albums as $album) {
-                    echo '<a href="photos.php?album_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
+                    echo '<a href="photos.php?year_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
                 }
             }
             ?>
         </div>
     </div>
     
-
     <a href="news.php" class="nav-item menu-cache">Actualités</a>
 
     <!-- Bouton burger -->
@@ -138,6 +137,12 @@ if ($selectedYearId) {
         ?>
         </div>
         </div>
+        <a href="#" class="partenaires-toggle-mobile" onclick="toggleMobilePhotosDropdown(event)">
+            Photos
+            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16">
+            <path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+            </svg>
+        </a>
         <div class="dropdown-content-mobile" id="dropdownMobilePhotos">
         <?php
             $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
@@ -147,7 +152,7 @@ if ($selectedYearId) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
             } else {
                 foreach ($albums as $album) {
-                    echo '<a href="photos.php?album_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
+                    echo '<a href="photos.php?year_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
                 }
             }
         ?>
@@ -155,10 +160,6 @@ if ($selectedYearId) {
         <a href="news.php">Actualités</a>
     </div>
   </nav>
-
-
-
-  
 
 <?php if ($selectedYearId): ?>
     <section class="main-illustration boxsize my-5">
