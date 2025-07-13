@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="top-actions">
     <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
     <a      id="setting" href="setting.php"   class="btn btn-outline-light">Réglages</a>
-    <a      id="logout" href="#"           class="btn btn-outline-light">Déconnexion</a>
+    <a      id="partners" href="partners.php"   class="btn btn-outline-light">Partenaires</a>
   </div>
 
   <div class="hero-inner text-center">
@@ -200,10 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <i class="bi bi-speedometer2 me-2 text-rose"></i>
         <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1">Tableau de bord</a>
         <a id="setting" href="setting.php" class="btn btn-link text-start p-0 flex-grow-1">Réglages</a>
-      </li>
-      <li class="list-group-item d-flex align-items-center p-3">
-        <i class="bi bi-box-arrow-right me-2 text-danger"></i>
-        <a id="logout_m"  class="btn btn-link text-start p-0 flex-grow-1">Déconnexion</a>
+        <a id="partners" href="partners.php" class="btn btn-link text-start p-0 flex-grow-1">Partenaires</a>
       </li>
     </ul>
   </div>

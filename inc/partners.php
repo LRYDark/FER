@@ -191,11 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="top-actions">
     <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
     <a      id="setting" href="setting.php"   class="btn btn-outline-light">Réglages</a>
-    <a      id="logout" href="#"           class="btn btn-outline-light">Déconnexion</a>
+    <a      id="albums" href="albums.php"   class="btn btn-outline-light">Albums</a>
   </div>
 
   <div class="hero-inner text-center">
-    <h1>Albums</h1>
+    <h1>Partenaires</h1>
     <p class="mb-0">Gestion des inscriptions – Rôle : <strong><?= htmlspecialchars($role) ?></strong></p>
   </div>
 </header>
@@ -213,10 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <i class="bi bi-speedometer2 me-2 text-rose"></i>
         <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1">Tableau de bord</a>
         <a id="setting" href="setting.php" class="btn btn-link text-start p-0 flex-grow-1">Réglages</a>
-      </li>
-      <li class="list-group-item d-flex align-items-center p-3">
-        <i class="bi bi-box-arrow-right me-2 text-danger"></i>
-        <a id="logout_m"  class="btn btn-link text-start p-0 flex-grow-1">Déconnexion</a>
+        <a id="albums" href="albums.php" class="btn btn-link text-start p-0 flex-grow-1">Albums</a>
       </li>
     </ul>
   </div>
@@ -243,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <body class="container py-4">
 
-            <h1 class="mb-4">Gestion des Albums par Année</h1>
+            <h1 class="mb-4">Gestion des Partenaires par Année</h1>
 
             <!-- Bouton pour ajouter une année -->
             <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">Ajouter une Année</button>
@@ -394,5 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</script>
 </body>
 </html>
+
