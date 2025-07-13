@@ -229,7 +229,6 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
-
 <!-- ═════════ MAIN ═════════ -->
 <main class="container-fluid flex-grow-1">
     <!-- Une seule .row -->
