@@ -302,16 +302,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <li class="list-group-item">
                             <form method="post" enctype="multipart/form-data" class="row g-2 align-items-center">
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <input type="text" name="album_title" class="form-control" value="<?= htmlspecialchars($album['album_title']) ?>">
                             </div>
-                            <div class="col-md-3">
-                                <input type="text" name="album_link" class="form-control" value="<?= htmlspecialchars($album['album_link']) ?>">
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <input type="file" name="album_img" class="form-control">
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-3">
                                 <input type="text" name="album_desc" class="form-control" value="<?= htmlspecialchars($album['album_desc']) ?>">
                             </div>
                             <div class="col-md-1 d-grid">
@@ -327,16 +324,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <?php endforeach; ?>
                     </ul>
 
-                    <h6>Ajouter un nouvel album</h6>
+                    <h6>Ajouter un nouveau Partenaires</h6>
                     <form method="post" enctype="multipart/form-data" class="row g-3">
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                         <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
                         </div>
-                        <div class="col-md-4">
-                        <input type="url" name="album_link" class="form-control" placeholder="Lien">
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                         <input type="file" name="album_img" class="form-control" required>
                         </div>
                         <div class="col-md-12">
