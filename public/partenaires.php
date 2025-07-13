@@ -50,7 +50,7 @@ if ($selectedYearId) {
 
   <!-- Barre HERO en haut -->
   <section class="hero">
-    <img src="../files/_partners/<?= htmlspecialchars($picture) ?>"
+    <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
         alt="Logo Forbach en Rose" class="logo-top">
     <div class="hero-inner">
       <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($titleAccueil) ?></h1>
