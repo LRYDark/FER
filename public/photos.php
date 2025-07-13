@@ -1,4 +1,9 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+
 require '../config/config.php';
 $stmt = $pdo->prepare(
     'SELECT *
@@ -96,12 +101,12 @@ if ($selectedYearId) {
             <?php
             $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
             $stmtPhotos->execute();
-            $albums = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($albums)) {
+            $albumsNav = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($albumsNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
             } else {
-                foreach ($albums as $album) {
-                    echo '<a href="photos.php?year_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
+                foreach ($albumsNav as $albumNav) {
+                    echo '<a href="photos.php?year_id=' . htmlspecialchars($albumNav['id']) . '">' . htmlspecialchars($albumNav['title']) . '</a>';
                 }
             }
             ?>
@@ -149,12 +154,12 @@ if ($selectedYearId) {
         <?php
             $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
             $stmtPhotos->execute();
-            $albums = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
-            if (empty($albums)) {
+            $albumsNav = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($albumsNav)) {
                 echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
             } else {
-                foreach ($albums as $album) {
-                    echo '<a href="photos.php?year_id=' . htmlspecialchars($album['id']) . '">' . htmlspecialchars($album['title']) . '</a>';
+                foreach ($albumsNav as $albumNav) {
+                    echo '<a href="photos.php?year_id=' . htmlspecialchars($albumNav['id']) . '">' . htmlspecialchars($albumNav['title']) . '</a>';
                 }
             }
         ?>
@@ -172,7 +177,7 @@ if ($selectedYearId) {
 
         <div class="container my-5">
         <?php if ($selectedYearId): ?>
-            <h1 class="mb-4">Albums : <?= htmlspecialchars($selectedYear['title'] ?? '') ?></h1>
+            <h1 class="mb-4"><?= htmlspecialchars($selectedYear['title'] ?? '') ?></h1>
             <div class="row">
                 <?php foreach ($albums as $album): ?>
                 <div class="col-md-4 mb-4">
