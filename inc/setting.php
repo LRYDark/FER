@@ -1,0 +1,859 @@
+<?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+
+
+
+
+require '../config/config.php';
+requireRole(['admin','user','viewer','saisie']);
+$role = currentRole();
+if ($role !== 'admin') {
+  header('Location: login.php');
+  exit;
+}
+
+$stmt = $pdo->prepare(
+    'SELECT *
+       FROM setting
+      WHERE id = :id
+      LIMIT 1');
+$stmt->execute(['id' => 1]);
+
+$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$assoconnectJs      = $data['assoconnect_js']     ?? null;
+$assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
+$title  = $data['title']   ?? '';
+$picture= $data['picture'] ?? '';  
+$footer= $data['footer'] ?? '';  
+$titleColor = $data['title_color'] ?? '#ffffff'; 
+$registration_fee = $data['registration_fee'] ?? 0;
+
+// accueil
+$titleAccueil  = $data['titleAccueil']   ?? '';
+$edition = $data['edition'] ?? '';  
+$link_instagram  = $data['link_instagram']   ?? '';
+$link_facebook = $data['link_facebook'] ?? ''; 
+$accueil_active = $data['accueil_active'] ? 1 : 0;
+$date_course = $data['date_course'] ?? null;
+$date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
+$picture_partner= $data['picture_partner'] ?? ''; 
+$picture_accueil= $data['picture_accueil'] ?? '';
+
+// parcours
+$titleParcours  = $data['titleParcours']   ?? 'test';
+$parcoursDesc = $data['parcoursDesc'] ?? '';  
+$picture_parcours= $data['picture_parcours'] ?? ''; 
+$picture_gradient= $data['picture_gradient'] ?? ''; 
+
+/******************************************************************
+ * Génère une alerte Bootstrap fermable + auto-dismiss
+ *  $type    : success | danger | warning | info …
+ *  $message : contenu HTML de l’alerte
+ *  $delay   : délai ms avant fermeture auto (0 = pas d’auto-close)
+ *****************************************************************/
+function makeAlert(string $type, string $message, int $delay = 3000): string
+{
+    return '
+    <div class="alert alert-' . $type . ' alert-dismissible fade show"
+         role="alert"
+         data-auto-dismiss="' . $delay . '">
+        ' . $message . '
+        <button type="button" class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Fermer"></button>
+    </div>';
+}
+
+/* --------------------------------------------------------------------------
+   Carte 2 : Configuration général
+-------------------------------------------------------------------------- */
+$alert = '';                           // message à afficher dans la carte 1
+
+if (isset($_POST['config'])) {
+
+    $footer = $_POST['footer'] ?? '';
+    $newColor = $_POST['title_color'] ?? '#ffffff';
+    $registration_fee = isset($_POST['registration_fee'])
+                    ? (int) $_POST['registration_fee']   // nouvelle valeur du formulaire
+                    : 0;                                 // (ou ton défaut)
+
+    /* validation rapide : hexa #RRGGBB */
+    if (!preg_match('/^#[0-9a-f]{6}$/i', $newColor)) {
+        $alert = makeAlert('danger', 'Couleur invalide.');
+    }
+
+    /* 1) Sécuriser / valider le titre */
+    $newTitle = trim($_POST['title'] ?? '');
+    if ($newTitle === '') {
+         $alert = makeAlert('danger', 'Le titre ne peut pas être vide.');
+    } else {
+
+        /* 2) Gérer l’upload d’image (optionnel) */
+        $newPicture = $picture;            // par défaut on garde l’ancienne
+
+        if (!empty($_FILES['picture']['name'])) {
+
+            $allowed   = ['jpg','jpeg','png','gif','webp'];
+            $uploadDir = '../files/_pictures/';
+            $origName  = $_FILES['picture']['name'];
+            $ext       = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+
+            if (!in_array($ext, $allowed, true)) {
+                $alert = makeAlert('danger', 'Format d\'image non autorisé.');
+            } else {
+                $safeName = uniqid('img_', true) . '.' . $ext;
+                $tmp      = $_FILES['picture']['tmp_name'];
+
+                if (move_uploaded_file($tmp, $uploadDir . $safeName)) {
+                    $newPicture = $safeName;
+                } else {
+                    $alert = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                }
+            }
+        }
+
+        /* 3) Si pas d’erreur, mise à jour BD */
+        if ($alert === '') {
+            $upd = $pdo->prepare(
+                'UPDATE setting
+                    SET title               = :title,
+                        picture             = :picture,
+                        title_color         = :color,
+                        footer              = :footer,
+                        registration_fee    = :fee
+                WHERE id = :id'
+            );
+            $upd->execute([
+                'title'     => $newTitle,
+                'picture'   => $newPicture,
+                'color'     => $newColor,
+                'footer'    => $footer,
+                'fee'       => $registration_fee,
+                'id'        => 1
+            ]);
+
+            $alert = makeAlert('success', 'Configuration enregistrée !');
+
+            /* 4) Mettre à jour les variables locales
+                  (sinon le formulaire afficherait l’ancien titre) */
+            $title   = $newTitle;
+            $picture = $newPicture;
+            $titleColor = $newColor;
+            $footer = $footer;
+            $registration_fee = $registration_fee;
+        }
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Carte 1 : Liaison AssoConnect
+-------------------------------------------------------------------------- */
+$alertAsso = '';
+if (isset($_POST['LinkAssoConnect'])) {
+
+    /* a) Lecture & validation */
+    $iframe = trim($_POST['assoconnect_iframe'] ?? '');
+    $script = trim($_POST['assoconnect_js']     ?? '');
+
+    if ($iframe === '' || $script === '') {
+         $alertAsso = makeAlert('danger', 'Les deux champs sont obligatoires.');
+    } else {
+
+        /* b) Requête préparée */
+        $upd = $pdo->prepare(
+            'UPDATE setting
+                SET assoconnect_iframe = :iframe,
+                    assoconnect_js     = :script
+              WHERE id = :id'
+        );
+
+        $ok = $upd->execute([
+            'iframe' => $iframe,
+            'script' => $script,
+            'id'     => 1
+        ]);
+
+        /* c) Gestion du résultat */
+        if ($ok) {
+            if ($upd->rowCount() > 0) {
+                $alertAsso = makeAlert('success', 'Liaison AssoConnect enregistrée !');
+            } else {
+                 $alertAsso = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d’auto-close
+            }
+
+            /* Mettre à jour les variables pour le pré-remplissage */
+            $assoconnectIframe = $iframe;
+            $assoconnectJs     = $script;
+        } else {
+            /* $execute a échoué : on affiche le message renvoyé par PDO */
+            $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
+            $alertAsso = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
+        }
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Carte 3 : Accueil
+-------------------------------------------------------------------------- */
+$alertAccueil = '';
+if (isset($_POST['accueil'])) {
+
+$edition = $_POST['edition'] ?? '';  
+$link_instagram  = $_POST['link_instagram']   ?? '';
+$link_facebook = $_POST['link_facebook'] ?? ''; 
+$accueil_active = $_POST['accueil_active'] ? 1 : 0;
+$date_course = $_POST['date_course'] ?? null;
+$date_course = $_POST['date_course'] ?? null;
+if ($date_course) {
+    // Ajoute l'heure pour obtenir un format complet TIMESTAMP
+    $date_course = $date_course . ' 00:00:00';
+} else {
+    $date_course = null;
+}
+
+/* 1) Sécuriser / valider le titre */
+    $newTitleAccueil = trim($_POST['titleAccueil'] ?? '');
+    if ($newTitleAccueil === '') {
+         $alertAccueil = makeAlert('danger', 'Le titre ne peut pas être vide.');
+    } else {
+            $allowed   = ['jpg','jpeg','png','gif','webp'];
+            $uploadDir = '../files/_pictures/';
+
+        $newPictureAccueil = $picture_accueil; 
+        if (!empty($_FILES['picture_accueil']['name'])) {
+            $origNameAccueil  = $_FILES['picture_accueil']['name'];
+            $extAccueil       = strtolower(pathinfo($origNameAccueil, PATHINFO_EXTENSION));
+
+            if (!in_array($extAccueil, $allowed, true)) {
+                $alertAccueil = makeAlert('danger', 'Format d\'image non autorisé.');
+            } else {
+                $safeNameAccueil = uniqid('img_', true) . '.' . $extAccueil;
+                $tmpAccueil      = $_FILES['picture_accueil']['tmp_name'];
+
+                if (move_uploaded_file($tmpAccueil, $uploadDir . $safeNameAccueil)) {
+                    $newPictureAccueil = $safeNameAccueil;
+                } else {
+                    $alertAccueil = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                }
+            }
+        }
+
+        $newPicturePartner = $picture_partner; 
+        if (!empty($_FILES['picture_partner']['name'])) {
+            $origNamePartner  = $_FILES['picture_partner']['name'];
+            $extPartner       = strtolower(pathinfo($origNamePartner, PATHINFO_EXTENSION));
+
+            if (!in_array($extPartner, $allowed, true)) {
+                $alertAccueil = makeAlert('danger', 'Format d\'image non autorisé.');
+            } else {
+                $safeNamePartner = uniqid('img_', true) . '.' . $extPartner;
+                $tmpPartner      = $_FILES['picture_partner']['tmp_name'];
+
+                if (move_uploaded_file($tmpPartner, $uploadDir . $safeNamePartner)) {
+                    $newPicturePartner = $safeNamePartner;
+                } else {
+                    $alertAccueil = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                }
+            }
+        }
+
+
+        /* 3) Si pas d’erreur, mise à jour BD */
+        if ($alertAccueil === '') {
+            $upd = $pdo->prepare(
+                'UPDATE setting
+                    SET titleAccueil               = :titleAccueil,
+                        picture_partner             = :picture_partner,
+                        picture_accueil             = :picture_accueil,
+                        edition         = :edition,
+                        link_instagram              = :link_instagram,
+                        link_facebook              = :link_facebook,
+                        accueil_active              = :accueil_active,
+                        date_course              = :date_course
+                WHERE id = :id'
+            );
+            $upd->execute([
+                'titleAccueil'     => $newTitleAccueil,
+                'picture_partner'   => $newPicturePartner,
+                'picture_accueil'   => $newPictureAccueil,
+                'edition'     => $edition,
+                'link_instagram'    => $link_instagram,
+                'link_facebook'    => $link_facebook,
+                'accueil_active'    => $accueil_active,
+                'date_course'    => $date_course,
+                'id'        => 1
+            ]);
+
+            $alertAccueil = makeAlert('success', 'Configuration enregistrée !');
+
+            /* 4) Mettre à jour les variables locales
+                  (sinon le formulaire afficherait l’ancien titre) */
+            $titleAccueil  = $newTitleAccueil;
+            $picture_partner= $newPicturePartner; 
+            $picture_accueil= $newPictureAccueil; 
+            $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
+
+        }
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Carte 4 : PARCOURS
+-------------------------------------------------------------------------- */
+$alertParcours = '';
+if (isset($_POST['parcours'])) {
+
+$parcoursDesc = $_POST['parcoursDesc'] ?? '';  
+
+/* 1) Sécuriser / valider le titre */
+    $newTitleParcours = trim($_POST['titleParcours'] ?? '');
+    if ($newTitleParcours === '') {
+         $alertParcours = makeAlert('danger', 'Le titre ne peut pas être vide.');
+    } else {
+            $allowed   = ['jpg','jpeg','png','gif','webp'];
+            $uploadDir = '../files/_pictures/';
+
+        $newPictureGradient = $picture_gradient; 
+        if (!empty($_FILES['picture_gradient']['name'])) {
+            $origNameGradient  = $_FILES['picture_gradient']['name'];
+            $extGradient       = strtolower(pathinfo($origNameGradient, PATHINFO_EXTENSION));
+
+            if (!in_array($extGradient, $allowed, true)) {
+                $alertParcours = makeAlert('danger', 'Format d\'image non autorisé.');
+            } else {
+                $safeNameGradient = uniqid('img_', true) . '.' . $extGradient;
+                $tmpGradient      = $_FILES['picture_gradient']['tmp_name'];
+
+                if (move_uploaded_file($tmpGradient, $uploadDir . $safeNameGradient)) {
+                    $newPictureGradient = $safeNameGradient;
+                } else {
+                    $alertParcours = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                }
+            }
+        }
+
+        $newPictureParcours = $picture_parcours; 
+        if (!empty($_FILES['picture_parcours']['name'])) {
+            $origNameParcours  = $_FILES['picture_parcours']['name'];
+            $extParcours       = strtolower(pathinfo($origNameParcours, PATHINFO_EXTENSION));
+
+            if (!in_array($extParcours, $allowed, true)) {
+                $alertParcours = makeAlert('danger', 'Format d\'image non autorisé.');
+            } else {
+                $safeNameParcours = uniqid('img_', true) . '.' . $extParcours;
+                $tmpParcours      = $_FILES['picture_parcours']['tmp_name'];
+
+                if (move_uploaded_file($tmpParcours, $uploadDir . $safeNameParcours)) {
+                    $newPictureParcours = $safeNameParcours;
+                } else {
+                    $alertParcours = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                }
+            }
+        }
+
+        /* 3) Si pas d’erreur, mise à jour BD */
+        if ($alertParcours === '') {
+            $upd = $pdo->prepare(
+                'UPDATE setting
+                    SET titleParcours             = :titleParcours,
+                        picture_gradient          = :picture_gradient,
+                        picture_parcours          = :picture_parcours,
+                        parcoursDesc              = :parcoursDesc
+                WHERE id = :id'
+            );
+            $upd->execute([
+                'titleParcours'         => $newTitleParcours,
+                'picture_gradient'      => $newPictureGradient,
+                'picture_parcours'      => $newPictureParcours,
+                'parcoursDesc'          => $parcoursDesc,
+                'id'        => 1
+            ]);
+
+            $alertParcours = makeAlert('success', 'Configuration enregistrée !');
+
+            /* 4) Mettre à jour les variables locales
+                  (sinon le formulaire afficherait l’ancien titre) */
+            $titleParcours  = $newTitleParcours;
+            $picture_gradient = $newPictureGradient; 
+            $picture_parcours = $newPictureParcours; 
+        }
+    }
+}
+
+// Upload images
+if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
+    $uploadDir = '../files/_parcours/';
+    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $files = $_FILES['galerieImages'];
+    $existing = is_dir($uploadDir) ? array_diff(scandir($uploadDir), ['.', '..']) : [];
+    $remaining = 30 - count($existing);
+
+    if (count($files['name']) > $remaining) {
+        echo makeAlert('danger', "Vous ne pouvez importer que $remaining image(s) supplémentaires.");
+    } else {
+        for ($i = 0; $i < count($files['name']); $i++) {
+            $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $safeName = uniqid('img_', true) . '.' . $ext;
+                move_uploaded_file($files['tmp_name'][$i], $uploadDir . $safeName);
+            }
+        }
+        header("Refresh:0"); // recharge la page pour voir les nouvelles images
+    }
+}
+
+// Suppression image
+if (isset($_POST['deleteImage'])) {
+    $fileToDelete = basename($_POST['deleteImage']);
+    $path = '../files/_parcours/' . $fileToDelete;
+    if (file_exists($path)) {
+        if (unlink($path)) {
+            echo 'OK';
+            exit; // ✅ Ajoute ceci pour empêcher le reste du HTML d’être renvoyé
+        } else {
+            http_response_code(500);
+            echo 'Erreur lors de la suppression du fichier.';
+            exit;
+        }
+    } else {
+        http_response_code(404);
+        echo 'Fichier introuvable.';
+        exit;
+    }
+}
+
+?>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Réglages – Forbach en Rose</title>
+
+<!-- ─── CSS ─── -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.alert').forEach(alertEl => {
+    // ferme après 3 000 ms
+    setTimeout(() => {
+      // ferme proprement (même animation que le bouton « X »)
+      bootstrap.Alert.getOrCreateInstance(alertEl).close();
+    }, 5000);
+  });
+});
+</script>
+<style>
+  .first-750 td{background:#ffe5ff!important;font-weight:600}
+  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
+  .hero h1{margin:0;font-size:2.2rem}
+  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
+  @media (max-width:991.98px){.top-actions{display:none}}
+  .card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
+  tr.filters th[class*="sorting"]::before,
+  tr.filters th[class*="sorting"]::after{display:none!important}
+  .statCard{min-width:180px}
+  .hide-stats #stats {display: none !important;}
+</style>
+</head>
+
+<body class="d-flex flex-column">
+<!-- ═════════ HEADER ═════════ -->
+<header class="hero">
+  <button class="btn btn-outline-light d-lg-none" style="position:absolute;top:.6rem;right:.6rem"
+          data-bs-toggle="offcanvas" data-bs-target="#menuMobile">&#9776;</button>
+
+  <div class="top-actions">
+    <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
+    <a      id="logout" href="#"           class="btn btn-outline-light">Déconnexion</a>
+  </div>
+
+  <div class="hero-inner text-center">
+    <h1>Réglages</h1>
+    <p class="mb-0">Gestion des inscriptions – Rôle : <strong><?= htmlspecialchars($role) ?></strong></p>
+  </div>
+</header>
+
+<!-- ═════════ OFFCANVAS MOBILE ═════════ -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="menuMobile">
+  <div class="offcanvas-header border-bottom">
+    <h5 class="offcanvas-title mb-0">Menu</h5>
+    <button class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item small text-muted fw-semibold">Actions rapides</li>
+      <li class="list-group-item d-flex align-items-center p-3">
+        <i class="bi bi-speedometer2 me-2 text-rose"></i>
+        <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1">Tableau de bord</a>
+      </li>
+      <li class="list-group-item d-flex align-items-center p-3">
+        <i class="bi bi-box-arrow-right me-2 text-danger"></i>
+        <a id="logout_m"  class="btn btn-link text-start p-0 flex-grow-1">Déconnexion</a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═════════ MAIN ═════════ -->
+<main class="container-fluid flex-grow-1">
+
+    <!-- Une seule .row -->
+    <div class="row g-4 align-items-stretch"><!-- align-items-stretch => les cartes prennent la même hauteur -->
+        <!-- Colonne GAUCHE : 2 petites cartes empilées -->
+        <div class="col-12 col-lg-4 d-flex flex-column gap-4">
+            <!-- Carte 1  -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <!-- …contenu Liaison AssoConnect (carte 1)… -->
+                <h2 class="mb-4">Liaison AssoConnect</h2>
+                    <?php if ($alertAsso) echo $alertAsso; ?>
+                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                        <div class="form-group mb-3">
+                            <label for="divCode">Code DIV Assoconnect</label>
+                            <input type="text"
+                                class="form-control"
+                                id="divCode"
+                                name="assoconnect_iframe"
+                                placeholder="&lt;div class=…&gt;"
+                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="scriptCode">Code Script Assoconnect</label>
+                            <input type="text"
+                                class="form-control"
+                                id="scriptCode"
+                                name="assoconnect_js"
+                                placeholder="&lt;script src=…&gt;"
+                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
+
+                        <button type="submit" name="LinkAssoConnect" class="btn btn-primary">Sauvegarder</button>
+                    </form>
+            </div>
+
+            <!-- Carte 2 -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <!-- …contenu Configuration générale (carte 2)… -->
+                <h2 class="mb-4">Configuration générale</h2>
+                    <!-- Message de succès / erreur -->
+                    <?php if ($alert) echo $alert; ?>
+                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                        <div class="col-md-6"><label class="form-label">Titre</label>
+                            <input type="text"
+                                class="form-control"
+                                id="divCode"
+                                name="title"
+                                placeholder="Titre"
+                                value="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
+                        <!-- COULEUR DU TITRE (nouveau) -->
+                        <div class="col-md-6"><label class="form-label">Couleur du titre</label>
+                            <input type="color"
+                                class="form-control form-control-color"
+                                id="titleColor"
+                                name="title_color"
+                                value="<?= htmlspecialchars($titleColor ?? '#000000'); ?>"
+                                title="Choisissez la couleur">
+                        </div>
+                        <div class="mb-3">
+                            <label for="picture" class="form-label">Choisir une image</label>
+                            <input type="file"
+                                class="form-control"
+                                id="picture"
+                                name="picture"
+                                accept="image/*">
+                            <?php if ($picture) : ?>
+                                <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture) ?></small>
+                            <div class="mb-2">
+                                <img  src="../files/_pictures/<?= rawurlencode($picture) ?>"
+                                    alt="Image actuelle"
+                                    class="img-thumbnail"
+                                    style="max-width:145px;">
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-6"><label class="form-label">Bas de page</label>
+                            <input type="text"
+                                class="form-control"
+                                id="footer"
+                                name="footer"
+                                placeholder="Bas de page"
+                                value="<?= htmlspecialchars($footer, ENT_QUOTES, 'UTF-8'); ?>">
+                        </div>
+                        <div class="col-md-6"><label class="form-label">Montant de l’inscription</label>
+                            <select id="registration_fee" name="registration_fee"class="form-select">
+                                <?php for ($i = 0; $i <= 100; $i++): ?>
+                                <option value="<?= $i ?>"
+                                        <?= ($i == (int)$registration_fee ? 'selected' : '') ?>>
+                                    <?= $i ?>
+                                </option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <button type="submit" name="config" class="btn btn-primary">Sauvegarder</button>
+                    </form>
+            </div>
+
+        </div><!-- /col gauche -->
+
+        <!-- Colonne DROITE : 1 grande carte -->
+        <div class="col-12 col-lg-8">
+        <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white h-100">
+            <!-- …contenu Grandes infos (carte 3)… -->
+            <h2 class="mb-4">Réglage page accueil</h2>
+                <?php if ($alertAccueil) echo $alertAccueil; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+
+                    <div class="col-md-6"><label class="form-label">Titre de l'accueil</label>
+                        <input type="text" class="form-control" name="titleAccueil" placeholder="Titre de l'accueil" value="<?= htmlspecialchars($titleAccueil, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Edition</label>
+                        <input type="text" class="form-control" name="edition" placeholder="Edition" value="<?= htmlspecialchars($edition, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Lien Facebook</label>
+                        <input type="text" class="form-control" name="link_facebook" placeholder="Lien Facebook" value="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Lien Instagram</label>
+                        <input type="text" class="form-control" name="link_instagram" placeholder="Lien Instagram" value="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Date de publication</label>
+                        <input type="date" class="form-control" name="date_course" value="<?= htmlspecialchars($date_formatted, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Activer les inscriptions</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="accueil_active">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Image d'accueil</label>
+                        <input type="file"
+                            class="form-control"
+                            id="picture_accueil"
+                            name="picture_accueil"
+                            accept="image/*">
+                        <?php if ($picture_accueil) : ?>
+                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_accueil) ?></small>
+                        <div class="mb-2">
+                            <img  src="../files/_pictures/<?= rawurlencode($picture_accueil) ?>"
+                                alt="Image actuelle"
+                                class="img-thumbnail"
+                                style="max-width:145px;">
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Image des partenaires</label>
+                        <input type="file"
+                            class="form-control"
+                            id="picture_partner"
+                            name="picture_partner"
+                            accept="image/*">
+                        <?php if ($picture_partner) : ?>
+                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_partner) ?></small>
+                        <div class="mb-2">
+                            <img  src="../files/_pictures/<?= rawurlencode($picture_partner) ?>"
+                                alt="Image actuelle"
+                                class="img-thumbnail"
+                                style="max-width:145px;">
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <button type="submit" name="accueil" class="btn btn-primary">Sauvegarder</button>
+                </form>
+        </div>
+        </div><!-- /col droite -->
+
+        <!-- Colonne DROITE : 1 grande carte -->
+        <div class="col-12 col-lg-6">
+        <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white h-100">
+            <!-- …contenu Grandes infos (carte 3)… -->
+            <h2 class="mb-4">Parcours</h2>
+                <?php if ($alertParcours) echo $alertParcours; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="col-md-6"><label class="form-label">Titre de l'image principale</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Description du parcours</label>
+                        <textarea class="form-control" name="parcoursDesc" placeholder="Description du parcours" rows="3"><?= htmlspecialchars($parcoursDesc, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    </div>
+
+                    <div class="col-md-6"><label class="form-label">Image principale</label>
+                        <input type="file"
+                            class="form-control"
+                            id="picture_parcours"
+                            name="picture_parcours"
+                            accept="image/*">
+                        <?php if ($picture_parcours) : ?>
+                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_parcours) ?></small>
+                        <div class="mb-2">
+                            <img  src="../files/_pictures/<?= rawurlencode($picture_parcours) ?>"
+                                alt="Image actuelle"
+                                class="img-thumbnail"
+                                style="max-width:145px;">
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Image du dénivelé</label>
+                        <input type="file"
+                            class="form-control"
+                            id="picture_gradient"
+                            name="picture_gradient"
+                            accept="image/*">
+                        <?php if ($picture_gradient) : ?>
+                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_gradient) ?></small>
+                        <div class="mb-2">
+                            <img  src="../files/_pictures/<?= rawurlencode($picture_gradient) ?>"
+                                alt="Image actuelle"
+                                class="img-thumbnail"
+                                style="max-width:145px;">
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-12">
+                        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalGalerie">
+                            Gérer la galerie d'images
+                        </button>
+                    </div>
+                    <button type="submit" name="parcours" class="btn btn-primary">Sauvegarder</button>
+                </form>
+        </div>
+        </div><!-- /col droite -->
+
+        <?php
+            $galerieDir = '../files/_parcours/';
+            $images = is_dir($galerieDir) ? array_diff(scandir($galerieDir), ['.', '..']) : [];
+            $maxImages = 30;
+            $remaining = $maxImages - count($images);
+        ?>
+        <div class="modal fade" id="modalGalerie" tabindex="-1" aria-labelledby="modalGalerieLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Galerie d'images du parcours</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Formulaire d'import -->
+                <form id="uploadForm" action="" method="post" enctype="multipart/form-data" class="mb-4">
+                    <label for="galerieImages" class="form-label">
+                    Importer jusqu'à <span id="remainingCount"><?= $remaining ?></span> image(s) :
+                    </label>
+                    <input type="file" name="galerieImages[]" id="galerieImages" class="form-control" accept="image/*" multiple <?= $remaining <= 0 ? 'disabled' : '' ?>>
+                <button type="submit" name="uploadGalerie" class="btn btn-primary mt-2" <?= $remaining <= 0 ? 'disabled' : '' ?>>Importer</button>
+                <?php if ($remaining <= 0): ?>
+                    <div class="text-danger mt-2">Limite de 30 images atteinte. Supprimez des images pour en ajouter.</div>
+                <?php endif; ?>
+                </form>
+
+                <!-- Galerie d'images -->
+                <div class="row" id="galerieContainer">
+                <?php foreach ($images as $img): ?>
+                    <div class="col-md-3 text-center mb-4" data-img="<?= htmlspecialchars($img) ?>">
+                        <img src="<?= $galerieDir . rawurlencode($img) ?>" class="img-thumbnail" style="max-height: 150px;">
+                        <form class="deleteForm mt-2">
+                            <input type="hidden" name="deleteImage" value="<?= htmlspecialchars($img) ?>">
+                            <button type="button" class="btn btn-sm btn-danger delete-btn">Supprimer</button>
+                        </form>
+                    </div>
+                <?php endforeach; ?>
+                </div>
+            </div>
+            </div>
+        </div>
+        </div>
+
+    </div><!-- /row -->
+</main>
+
+<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+
+<!-- ═════════ JS ═════════ -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
+<script>
+/* ══ LOGOUT ════ */
+$('#logout, #logout_m').on('click',e=>{
+  e.preventDefault();
+  fetch('../config/api.php?route=logout').then(()=>location='../login.php');
+});
+
+// images parcours
+document.getElementById('galerieImages')?.addEventListener('change', function () {
+  const max = <?= $remaining ?>;
+  if (this.files.length > max) {
+    alert(`Vous ne pouvez sélectionner que ${max} image(s) maximum.`);
+    this.value = '';
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const maxImages = 30;
+  const input = document.getElementById('galerieImages');
+  const countSpan = document.getElementById('remainingCount');
+  const uploadBtn = document.querySelector('button[name="uploadGalerie"]');
+
+  // Validation dynamique à la sélection
+  input?.addEventListener('change', function () {
+    const remaining = parseInt(countSpan?.textContent || '0');
+    if (this.files.length > remaining) {
+      alert(`Vous ne pouvez sélectionner que ${remaining} image(s) maximum.`);
+      this.value = '';
+    }
+  });
+
+  // Suppression dynamique
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const form = this.closest('.deleteForm');
+      const imageName = form.querySelector('input[name="deleteImage"]').value;
+
+      fetch('', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ deleteImage: imageName })
+      })
+      .then(response => response.text())
+      .then(result => {
+        if (result.trim() === 'OK') {
+          const container = form.closest('[data-img]');
+          container.remove();
+
+          // 🔄 Met à jour le compteur
+          let current = parseInt(countSpan.textContent);
+          if (!isNaN(current) && current < maxImages) {
+            current += 1;
+            countSpan.textContent = current;
+          }
+
+          // ✅ Réactive le champ d'import si désactivé
+          if (input && input.disabled) input.disabled = false;
+          if (uploadBtn && uploadBtn.disabled) uploadBtn.disabled = false;
+        } else {
+          alert("Erreur lors de la suppression : " + result);
+        }
+      })
+      .catch(error => {
+        alert("Erreur réseau : " + error);
+      });
+    });
+  });
+});
+
+</script>
