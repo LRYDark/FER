@@ -27,15 +27,9 @@ if (isset($_POST['update_year'])) {
   $year = $_POST['year'];
   $title = $_POST['title'];
 
-  if (!empty($_FILES['year_img']['name'])) {
-    $imgName = $_FILES['year_img']['name'];
-    move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_albums/" . $imgName);
-    $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ?, img = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $imgName, $yearId]);
-  } else {
-    $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ? WHERE id = ?");
+    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
     $stmt->execute([$year, $title, $yearId]);
-  }
+
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
@@ -44,18 +38,17 @@ if (isset($_POST['update_year'])) {
 if (isset($_POST['update_album'])) {
   $albumId = $_POST['album_id'];
   $album_title = $_POST['album_title'];
-  $album_link = $_POST['album_link'];
   $album_desc = $_POST['album_desc'];
   $yearId = $_POST['year_id'];
 
   if (!empty($_FILES['album_img']['name'])) {
     $imgName = $_FILES['album_img']['name'];
-    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $imgName);
-    $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = ?, album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_link, $imgName, $album_desc, $albumId]);
+    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $imgName);
+    $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = ?, album_desc = ? WHERE id = ?");
+    $stmt->execute([$album_title, $imgName, $album_desc, $albumId]);
   } else {
-    $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
+    $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_desc = ? WHERE id = ?");
+    $stmt->execute([$album_title, $album_desc, $albumId]);
   }
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
@@ -64,13 +57,12 @@ if (isset($_POST['update_album'])) {
 
 if (isset($_POST['add_album'])) {
   $yearId = $_POST['year_id'];
-  $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
+  $stmt = $pdo->prepare("INSERT INTO partners_albums (year_id, album_title, album_img, album_desc) VALUES (?, ?, ?, ?)");
   $imgName = $_FILES['album_img']['name'];
-  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $imgName);
+  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $imgName);
   $stmt->execute([
     $yearId,
     $_POST['album_title'],
-    $_POST['album_link'],
     $imgName,
     $_POST['album_desc']
   ]);
@@ -83,18 +75,15 @@ if (isset($_POST['delete_album'])) {
   $albumId = $_POST['album_id'];
   $yearId = $_POST['year_id'];
 
-  // Récupérer le nom de l'image
-  $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE id = ?");
+  $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
   $stmt->execute([$albumId]);
   $img = $stmt->fetchColumn();
 
-  // Supprimer le fichier image
-  if ($img && file_exists("../files/_albums/" . $img)) {
-    unlink("../files/_albums/" . $img);
+  if ($img && file_exists("../files/_partners/" . $img)) {
+    unlink("../files/_partners/" . $img);
   }
 
-  // Supprimer l'album
-  $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
+  $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
   $stmt->execute([$albumId]);
 
   $_SESSION['reopen_modal'] = $yearId;
@@ -102,49 +91,41 @@ if (isset($_POST['delete_album'])) {
   exit;
 }
 
-
 if (isset($_POST['add_year'])) {
-  $stmt = $pdo->prepare("INSERT INTO photo_years (year, title, img) VALUES (?, ?, ?)");
-  $imgName = $_FILES['year_img']['name'];
-  move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_albums/" . $imgName);
-  $stmt->execute([$_POST['year'], $_POST['title'], $imgName]);
+  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
+  $stmt->execute([$_POST['year'], $_POST['title']]);
 }
 
 if (isset($_POST['delete_year'])) {
   $yearId = $_POST['year_id'];
 
-  // Supprimer les images des albums associés
-  $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE year_id = ?");
+  $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE year_id = ?");
   $stmt->execute([$yearId]);
   $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
   foreach ($albumImgs as $img) {
-    if ($img && file_exists("../files/_albums/" . $img)) {
-      unlink("../files/_albums/" . $img);
+    if ($img && file_exists("../files/_partners/" . $img)) {
+      unlink("../files/_partners/" . $img);
     }
   }
 
-  // Supprimer l'image de l'année
-  $stmt = $pdo->prepare("SELECT img FROM photo_years WHERE id = ?");
-  $stmt->execute([$yearId]);
   $yearImg = $stmt->fetchColumn();
-  if ($yearImg && file_exists("../files/_albums/" . $yearImg)) {
-    unlink("../files/_albums/" . $yearImg);
+  if ($yearImg && file_exists("../files/_partners/" . $yearImg)) {
+    unlink("../files/_partners/" . $yearImg);
   }
 
-  // Supprimer les albums et l'année
-  $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
+  $stmt1 = $pdo->prepare("DELETE FROM partners_albums WHERE year_id = ?");
   $stmt1->execute([$yearId]);
-  $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
+  $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
   $stmt2->execute([$yearId]);
 
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
 
-$years = $pdo->query("SELECT * FROM photo_years ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+$years = $pdo->query("SELECT * FROM partners_years ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
 $albumsByYear = [];
 foreach ($years as $y) {
-  $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ?");
+  $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ?");
   $stmt->execute([$y['id']]);
   $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -263,10 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>
                     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
                 </div>
-                <div class="card-body">
-                    <img src="../files/_albums/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
-                    <ul class="list-group">
-                </div>
                 </div>
             </div>
 
@@ -282,17 +259,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label">Année</label>
                             <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label">Titre</label>
                             <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Image</label>
-                            <input type="file" name="year_img" class="form-control">
                         </div>
                         </div>
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
@@ -312,10 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="col-md-3">
                                 <input type="text" name="album_title" class="form-control" value="<?= htmlspecialchars($album['album_title']) ?>">
                             </div>
-                            <div class="col-md-3">
-                                <input type="text" name="album_link" class="form-control" value="<?= htmlspecialchars($album['album_link']) ?>">
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <input type="file" name="album_img" class="form-control">
                             </div>
                             <div class="col-md-2">
@@ -340,10 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="col-md-4">
                         <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
                         </div>
-                        <div class="col-md-4">
-                        <input type="url" name="album_link" class="form-control" placeholder="Lien">
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-8">
                         <input type="file" name="album_img" class="form-control" required>
                         </div>
                         <div class="col-md-12">
@@ -369,17 +336,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                     <label class="form-label">Titre</label>
                     <input type="text" name="title" class="form-control" required>
-                    </div>
-                    <div class="col-md-4">
-                    <label class="form-label">Image</label>
-                    <input type="file" name="year_img" class="form-control" required>
                     </div>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
@@ -397,4 +360,3 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-

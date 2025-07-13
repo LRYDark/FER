@@ -63,7 +63,14 @@
 
         // Ferme le menu quand on clique sur un lien
         menu.querySelectorAll("a").forEach(link => {
-          link.addEventListener("click", () => {
+          link.addEventListener("click", (event) => {
+            if (
+              link.classList.contains("partenaires-toggle-mobile") ||
+              link.classList.contains("photos-toggle-mobile")
+            ) {
+              event.preventDefault();
+              return;
+            }
             menu.classList.remove("open");
             btn.classList.remove("open");
           });
@@ -81,3 +88,95 @@
         }
       });
     });
+
+
+
+
+
+
+
+
+
+
+
+
+function toggleDropdown(event) {
+  event.preventDefault();
+
+  const current = document.getElementById('dropdownPartenaires');
+  const other = document.getElementById('dropdownPhotos');
+
+  // Ferme l'autre menu si ouvert
+  if (other && other.style.display === 'block') {
+    other.style.display = 'none';
+  }
+
+  // Bascule le menu actuel
+  current.style.display = (current.style.display === 'block') ? 'none' : 'block';
+}
+
+function togglePhotosDropdown(event) {
+  event.preventDefault();
+
+  const current = document.getElementById('dropdownPhotos');
+  const other = document.getElementById('dropdownPartenaires');
+
+  if (other && other.style.display === 'block') {
+    other.style.display = 'none';
+  }
+
+  current.style.display = (current.style.display === 'block') ? 'none' : 'block';
+}
+
+
+
+function toggleMobileDropdown(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const current = document.getElementById('dropdownMobilePartenaires');
+  const other = document.getElementById('dropdownMobilePhotos');
+
+  if (other && other.style.display === 'flex') {
+    other.style.display = 'none';
+  }
+
+  current.style.display = (current.style.display === 'flex') ? 'none' : 'flex';
+}
+
+function toggleMobilePhotosDropdown(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const current = document.getElementById('dropdownMobilePhotos');
+  const other = document.getElementById('dropdownMobilePartenaires');
+
+  if (other && other.style.display === 'flex') {
+    other.style.display = 'none';
+  }
+
+  current.style.display = (current.style.display === 'flex') ? 'none' : 'flex';
+}
+
+
+
+        
+
+
+document.addEventListener('click', function(event) {
+  const partenairesDropdown = document.getElementById('dropdownPartenaires');
+  const partenairesToggle = document.querySelector('.partenaires-toggle');
+
+  const photosDropdown = document.getElementById('dropdownPhotos');
+  const photosToggle = document.querySelector('.photos-toggle');
+
+  // Fermer le menu Partenaires si on clique ailleurs
+  if (partenairesDropdown && !partenairesDropdown.contains(event.target) && !partenairesToggle.contains(event.target)) {
+    partenairesDropdown.style.display = 'none';
+  }
+
+  // Fermer le menu Photos si on clique ailleurs
+  if (photosDropdown && !photosDropdown.contains(event.target) && !photosToggle.contains(event.target)) {
+    photosDropdown.style.display = 'none';
+  }
+});
