@@ -179,7 +179,7 @@ if ($selectedYearId) {
     <h1 class="mb-4"><?= htmlspecialchars($selectedYear['title'] ?? '') ?></h1>
       <div class="row">
         <?php foreach ($partners as $partner): ?>
-          <div class="col-md-4 mb-4">
+          <div class="col-md-3 mb-3">
             <div class="card shadow text-center d-flex flex-column"
                 style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff; cursor: pointer;"
                 onclick="showImageModal('../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>')">
@@ -196,6 +196,12 @@ if ($selectedYearId) {
                     alt="Image partenaire <?= htmlspecialchars($partner['album_title']) ?>"
                     loading="lazy"
                     style="object-fit: contain;">
+                <?php endif; ?>
+
+                <?php if (!empty($partner['album_desc'])): ?>
+                  <div class="card-body px-3 pb-3 pt-2">
+                      <p class="text-muted small mb-0"><?= nl2br(htmlspecialchars($partner['album_desc'])) ?></p>
+                  </div>
                 <?php endif; ?>
             </div>
           </div>
