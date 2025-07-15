@@ -14,6 +14,9 @@ $picture= $data['picture'] ?? '';
 $titleColor = $data['title_color'] ?? '#ffffff';
 $edition = $data['edition'] ?? '';  
 $footer= $data['footer'] ?? null;  
+$link_instagram  = $data['link_instagram'] ?? null;
+$link_facebook = $data['link_facebook'] ?? null;
+$link_cancer = $data['link_cancer'] ?? null; 
 
 // Récupération des années disponibles pour les partenaires
 $stmtYears = $pdo->prepare('SELECT * FROM partners_years ORDER BY year DESC');
@@ -224,7 +227,29 @@ if ($selectedYearId) {
     }
   </script>
 
-    <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+<!-- Footer -->
+ <?php if (!empty($link_facebook) || !empty($link_instagram)) : ?>
+  <footer>
+    <div class="top-logos-footer">
+      <a href="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Ligue contre le Cancer">
+        <img src="../files/_logos/ligue-cancer-blanc.png" alt="Ligue contre le cancer">
+      </a>  
+      <?php if (!empty($link_instagram)) : ?>
+        <a href="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Instagram">
+          <img src="../files/_logos/instagram.png" alt="Instagram">
+        </a>
+      <?php endif; ?>
+      <?php if (!empty($link_facebook)) : ?>
+        <a href="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Facebook">
+          <img src="../files/_logos/facebook.png" alt="Facebook">
+        </a>
+      <?php endif; ?>
+    </div>
+    <?php if (!empty($footer)) : ?>
+      <?= htmlspecialchars($footer) ?>
+    <?php endif; ?>
+  </footer>
+<?php endif; ?>
 
 </body>
 </html>

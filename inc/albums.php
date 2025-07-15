@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <div class="row g-4">
             <?php foreach ($years as $year): ?>
-            <div class="col-md-6">
+            <div class="col-md-3">
                 <div class="card shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>

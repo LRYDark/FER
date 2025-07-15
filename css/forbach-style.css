@@ -222,3 +222,37 @@ main {
   cursor: pointer;
 }
 /* ##############  PARCOURS ############## */ 
+
+.txt-rose {
+  color: var(--rose-500);
+}
+
+/* ───────── FOOTER LOGOS ───────── */
+.top-logos-footer {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 2rem 0;
+  align-items: center;
+  z-index: 10;
+}
+
+.top-logos-footer img {
+  height: 50px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+  transition: transform 0.2s ease;
+}
+.top-logos-footer img:hover {
+  transform: scale(1.1);
+}
+
+/* Mobile : centré et plus petit */
+@media (max-width: 575.98px){
+  .top-logos-footer {
+    justify-content: center;
+    padding: 0.5rem;
+  }
+  .top-logos-footer img {
+    height: 35px;
+  }
+}

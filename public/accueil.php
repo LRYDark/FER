@@ -24,6 +24,8 @@ $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
 $picture_partner= $data['picture_partner'] ?? ''; 
 $picture_accueil= $data['picture_accueil'] ?? ''; 
 $footer= $data['footer'] ?? null;  
+$social_networks = $data['social_networks'] ?? 0;
+$link_cancer = $data['link_cancer'] ?? null;
 
 ?>
 <!DOCTYPE html>
@@ -151,6 +153,66 @@ $footer= $data['footer'] ?? null;
     </div>
   </nav>
 
+  <?php
+  // Si désactivé (0), on ne génère rien
+  if ($social_networks != 0):
+    // Détermine la classe de position
+    $positionClass = match($social_networks) {
+      1 => 'left',
+      2 => 'right',
+      3 => 'center',
+      default => 'center'
+    };
+  ?>
+  <style>
+    /* ─────── TOP LOGOS POSITION ─────── */
+    .top-logos {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 2rem 0;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .top-logos.left     { justify-content: flex-start; }
+    .top-logos.right    { justify-content: flex-end; }
+    .top-logos.center   { justify-content: center; }
+
+    .top-logos img {
+      height: 62px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+      transition: transform 0.2s ease;
+    }
+
+    .top-logos img:hover {
+      transform: scale(1.1);
+    }
+
+    @media (max-width: 575.98px) {
+      .top-logos {
+        justify-content: center !important; /* ✅ toujours centré en mobile */
+        padding: 0.5rem;
+      }
+      .top-logos img {
+        height: 40px;
+      }
+    }
+  </style>
+
+  <!-- Logos réseaux sociaux + Ligue -->
+  <div class="top-logos <?= $positionClass ?>">
+    <a href="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Ligue contre le Cancer">
+      <img src="../files/_logos/ligue-cancer.png" alt="Ligue contre le cancer">
+    </a>
+    <a href="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Instagram">
+      <img src="../files/_logos/instagram.png" alt="Instagram">
+    </a>
+    <a href="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Facebook">
+      <img src="../files/_logos/facebook.png" alt="Facebook">
+    </a>
+  </div>
+  <?php endif; ?>
+
   <!-- Image + Compteur -->
   <section class="hero-accueil">
     <div class="image-container">
@@ -161,7 +223,7 @@ $footer= $data['footer'] ?? null;
 
   <!-- Nombre d'inscrits -->
   <div class="inscrits">
-    Déjà <strong><span id="nb-inscrits"><?= $count ?></span></strong> inscrits !
+    Déjà <strong><span id="nb-inscrits" class="txt-rose"><?= $count ?></span></strong> inscrits !
   </div>
 
   <!-- Inscription -->
@@ -181,25 +243,28 @@ $footer= $data['footer'] ?? null;
   </section>
 
   <!-- Footer -->
-   <?php if (!empty($link_facebook) || !empty($link_instagram)) : ?>
-  
+  <?php if (!empty($link_facebook) || !empty($link_instagram)) : ?>
     <footer>
-      Suivez-nous sur :
-      <?php if (!empty($link_facebook)) : ?>
-        <a href="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">Facebook</a>
-      <?php endif; ?>
-      
-      <?php if (!empty($link_instagram)) : ?>
-        <a href="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">Instagram</a>
-      <?php endif; ?>
-      <br>
-
+      <div class="top-logos-footer">
+        <a href="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Ligue contre le Cancer">
+          <img src="../files/_logos/ligue-cancer-blanc.png" alt="Ligue contre le cancer">
+        </a>  
+        <?php if (!empty($link_instagram)) : ?>
+          <a href="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Instagram">
+            <img src="../files/_logos/instagram.png" alt="Instagram">
+          </a>
+        <?php endif; ?>
+        <?php if (!empty($link_facebook)) : ?>
+          <a href="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Facebook">
+            <img src="../files/_logos/facebook.png" alt="Facebook">
+          </a>
+        <?php endif; ?>
+      </div>
       <?php if (!empty($footer)) : ?>
         <?= htmlspecialchars($footer) ?>
       <?php endif; ?>
     </footer>
   <?php endif; ?>
-
 
   <!-- JS Compte à rebours -->
   <script>
