@@ -48,14 +48,14 @@ $edition = $data['edition'] ?? '';
   justify-content: flex-start;
   margin-bottom: 4rem;
   flex-wrap: wrap;
-  max-width: 1900px; /* Limiter la largeur totale */
+  max-width: 1800px; /* Largeur adaptée à 1800px */
   margin-left: 0; /* Coller à gauche */
   margin-right: auto; /* Centrer si nécessaire */
 }
 
 .news-img-container {
-  flex: 1 1 50%; /* Réduire légèrement la largeur de l'image */
-  max-width: 500px; /* Réduire la largeur max de l'image */
+  flex: 1 1 35%; /* Réduire pour optimiser l'espace sur 1800px */
+  max-width: 650px; /* Augmenter la largeur max de l'image */
   min-width: 300px;
   margin-right: 0; /* Supprimer toute marge droite */
 }
@@ -70,28 +70,28 @@ $edition = $data['edition'] ?? '';
 .news-text-box {
   background: white;
   border-radius: 1rem;
-  padding: 1.5rem;
+  padding: 2rem; /* Augmenter le padding pour plus d'espace */
   position: absolute;
   bottom: 0.5rem;
-  left: calc(35% - 1rem); /* Décaler plus vers la gauche */
+  left: calc(30% - 1rem); /* Décaler encore plus vers la gauche */
   transform: translateY(50%);
-  width: 60%; /* Agrandir la largeur de la zone de texte */
-  max-width: 750px; /* Augmenter la largeur maximale */
+  width: 71%; /* Agrandir encore la largeur de la zone de texte */
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
   z-index: 2;
 }
 
 .news-title {
   font-weight: bold;
-  font-size: 1.3rem;
+  font-size: 1.4rem; /* Légèrement plus grand pour s'adapter à l'espace */
   color: #e91e63;
-  margin-bottom: 0.8rem;
+  margin-bottom: 1rem;
 }
 
 .news-desc {
-  font-size: 1rem;
+  font-size: 1.1rem; /* Légèrement plus grand pour une meilleure lisibilité */
   color: #444;
-  margin-bottom: 1rem;
+  margin-bottom: 1.2rem;
+  line-height: 1.6; /* Améliorer la lisibilité */
 }
 
 /* Responsive mobile */
@@ -108,6 +108,7 @@ $edition = $data['edition'] ?? '';
     transform: none;
     width: 90%;
     margin-top: 1rem;
+     transform: translateY(-7%);
   }
 
   .news-img-container {
@@ -146,7 +147,7 @@ $edition = $data['edition'] ?? '';
 
 /* Optimiser l'utilisation de l'espace du conteneur */
 .container {
-  max-width: 1900px;
+  max-width: 1800px; /* Adapter à 1800px */
   padding-left: 1rem;
   padding-right: 1rem;
 }
