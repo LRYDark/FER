@@ -34,6 +34,8 @@ $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
 $picture_partner= $data['picture_partner'] ?? ''; 
 $picture_accueil= $data['picture_accueil'] ?? '';
+$social_networks = $data['social_networks'] ?? 0;
+$link_cancer = $data['link_cancer'] ?? null;
 
 // parcours
 $titleParcours  = $data['titleParcours']   ?? 'test';
@@ -203,6 +205,9 @@ $link_facebook = $_POST['link_facebook'] ?? '';
 $accueil_active = $_POST['accueil_active'] ? 1 : 0;
 $date_course = $_POST['date_course'] ?? null;
 $date_course = $_POST['date_course'] ?? null;
+$social_networks = $_POST['social_networks'] ?? 0;
+$link_cancer = $_POST['link_cancer'] ?? null;
+
 if ($date_course) {
     // Ajoute l'heure pour obtenir un format complet TIMESTAMP
     $date_course = $date_course . ' 00:00:00';
@@ -256,7 +261,6 @@ if ($date_course) {
             }
         }
 
-
         /* 3) Si pas d’erreur, mise à jour BD */
         if ($alertAccueil === '') {
             $upd = $pdo->prepare(
@@ -268,7 +272,9 @@ if ($date_course) {
                         link_instagram              = :link_instagram,
                         link_facebook              = :link_facebook,
                         accueil_active              = :accueil_active,
-                        date_course              = :date_course
+                        date_course              = :date_course,
+                        social_networks              = :social_networks,
+                        link_cancer              = :link_cancer
                 WHERE id = :id'
             );
             $upd->execute([
@@ -280,6 +286,8 @@ if ($date_course) {
                 'link_facebook'    => $link_facebook,
                 'accueil_active'    => $accueil_active,
                 'date_course'    => $date_course,
+                'social_networks'    => $social_networks,
+                'link_cancer'    => $link_cancer,
                 'id'        => 1
             ]);
 
@@ -786,6 +794,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             Supprimer l'image
                         </button>
                     <?php endif; ?>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="social_networks" class="form-label">Position - Réseaux sociaux</label>
+                        <select name="social_networks" id="social_networks" class="form-select">
+                            <option value="0" <?= $social_networks == 0 ? 'selected' : '' ?>>Désactivé</option>
+                            <option value="1" <?= $social_networks == 1 ? 'selected' : '' ?>>Gauche</option>
+                            <option value="2" <?= $social_networks == 2 ? 'selected' : '' ?>>Droite</option>
+                            <option value="3" <?= $social_networks == 3 ? 'selected' : '' ?>>Centré</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Lien de la ligne contre le cancer</label>
+                        <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la ligne contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
                     <button type="submit" name="accueil" class="btn btn-primary">Sauvegarder</button>
                 </form>
