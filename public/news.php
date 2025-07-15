@@ -160,27 +160,26 @@ $edition = $data['edition'] ?? '';
   <h2 class="text-center mb-4" style="color:#e91e63;">📰 Nos Actualités</h2>
   <?php foreach ($articles as $article): ?>
     <div class="news-wrapper">
-        <?php if (!empty($article['img_article'])): ?>
-            <div class="news-img-container">
-                <img src="../files/_news/<?= htmlspecialchars($article['img_article']) ?>" alt="Article" class="news-img">
-            </div>
-        <?php endif; ?>
-
+      <?php
+      $imgPath = '../files/_news/' . $article['img_article'];
+      if (!empty($article['img_article']) && is_file($imgPath)): ?>
+          <div class="news-img-container">
+              <img src="<?= htmlspecialchars($imgPath) ?>" alt="Article" class="news-img">
+          </div>
+      <?php endif; ?>
         <div class="news-text-box shadow">
             <h5 class="news-title"><?= htmlspecialchars($article['title_article']) ?></h5>
             <p class="news-desc"><?= nl2br(htmlspecialchars($article['desc_article'])) ?></p>
-
             <div class="d-flex justify-content-between align-items-center">
-            <small class="text-muted"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
-<div>
-  <button class="btn-feedback btn-like" data-id="<?= $article['id'] ?>">
-    👍<span class="count-badge like-count"><?= $article['like'] ?></span>
-  </button>
-  <button class="btn-feedback btn-dislike" data-id="<?= $article['id'] ?>">
-    👎<span class="count-badge dislike-count"><?= $article['dislike'] ?></span>
-  </button>
-</div>
-
+              <small class="text-muted"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
+              <div>
+                <button class="btn-feedback btn-like" data-id="<?= $article['id'] ?>">
+                  👍<span class="count-badge like-count"><?= $article['like'] ?></span>
+                </button>
+                <button class="btn-feedback btn-dislike" data-id="<?= $article['id'] ?>">
+                  👎<span class="count-badge dislike-count"><?= $article['dislike'] ?></span>
+                </button>
+              </div>
             </div>
         </div>
     </div>
@@ -195,32 +194,58 @@ $edition = $data['edition'] ?? '';
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
 $(document).ready(function () {
+  function getVoteCookie(articleId) {
+    const name = `vote_${articleId}=`;
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const ca = decodedCookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i].trim();
+      if (c.indexOf(name) === 0) {
+        return c.substring(name.length, c.length);
+      }
+    }
+    return null;
+  }
+
+  function setVoteCookie(articleId, type) {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1); // expire dans 1 an
+    document.cookie = `vote_${articleId}=${type}; expires=${d.toUTCString()}; path=/`;
+  }
+
   $('.btn-like, .btn-dislike').on('click', function () {
     const id = $(this).data('id');
     const type = $(this).hasClass('btn-like') ? 'like' : 'dislike';
-    const button = $(this);
+    const opposite = type === 'like' ? 'dislike' : 'like';
+    const currentVote = getVoteCookie(id);
+
+    if (currentVote === type) {
+      //alert("Vous avez déjà voté.");
+      return;
+    }
 
     $.ajax({
       url: 'news_action.php',
       type: 'POST',
       dataType: 'json',
-      data: { id: id, type: type },
+      data: { id: id, type: type, remove: currentVote },
       success: function (res) {
         if (res.success) {
-          button.find('span').text(res.count);
+          $(`.btn-${type}[data-id="${id}"] .count-badge`).text(res.count[type]);
+          if (currentVote) {
+            $(`.btn-${opposite}[data-id="${id}"] .count-badge`).text(res.count[opposite]);
+          }
+          setVoteCookie(id, type);
         } else {
-          console.error('Erreur côté serveur :', res.error);
+          alert(res.error || "Erreur serveur.");
         }
       },
-      error: function (xhr, status, error) {
-        console.error('Erreur AJAX :', error);
+      error: function () {
+        alert("Erreur AJAX.");
       }
     });
   });
 });
 </script>
-
-
-
 </body>
 </html>
