@@ -1,7 +1,14 @@
-<?php require '../config/config.php';
-$stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');
-$stmtcount->execute();
-$count = $stmtcount->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+<?php
+
+
+
+require '../config/config.php';
+
+$stmt = $pdo->prepare('SELECT * FROM news ORDER BY date_publication DESC');
+$stmt->execute();
+$articles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -16,14 +23,6 @@ $titleAccueil  = $data['titleAccueil']   ?? '';
 $picture= $data['picture'] ?? '';  
 $titleColor = $data['title_color'] ?? '#ffffff';
 $edition = $data['edition'] ?? '';  
-$link_instagram  = $data['link_instagram'] ?? null;
-$link_facebook = $data['link_facebook'] ?? null; 
-$accueil_active = $data['accueil_active'] ? 1 : 0;
-$date_course = $data['date_course'] ?? null;
-$date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
-$picture_partner= $data['picture_partner'] ?? ''; 
-$picture_accueil= $data['picture_accueil'] ?? ''; 
-$footer= $data['footer'] ?? null;  
 
 ?>
 <!DOCTYPE html>
@@ -39,122 +38,60 @@ $footer= $data['footer'] ?? null;
 </head>
 <body>
 
-  <!-- Barre HERO en haut -->
-  <section class="hero">
-    <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
-        alt="Logo Forbach en Rose" class="logo-top">
-    <div class="hero-inner">
-      <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($titleAccueil) ?></h1>
-      <span class="badge-donation"><?= htmlspecialchars($edition) ?></span>
+<?php include '../inc/nav.php'; ?> <!-- si nav séparée -->
+
+<div class="container my-5">
+  <h2 class="text-center mb-4" style="color:#e91e63;">📰 Nos Actualités</h2>
+
+  <?php foreach ($articles as $article): ?>
+    <div class="card mb-4 shadow-sm">
+      <?php if (!empty($article['img_article'])): ?>
+        <img src="../files/news/<?= htmlspecialchars($article['img_article']) ?>" class="card-img-top" alt="Illustration">
+      <?php endif; ?>
+      <div class="card-body">
+        <h5 class="card-title"><?= htmlspecialchars($article['title_article']) ?></h5>
+        <p class="card-text"><?= nl2br(htmlspecialchars($article['desc_article'])) ?></p>
+        <div class="d-flex justify-content-between align-items-center">
+          <small class="text-muted"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
+          <div>
+            <button class="btn btn-outline-success btn-sm btn-like" data-id="<?= $article['id'] ?>">👍 <span class="like-count"><?= $article['like'] ?></span></button>
+            <button class="btn btn-outline-danger btn-sm btn-dislike" data-id="<?= $article['id'] ?>">👎 <span class="dislike-count"><?= $article['dislike'] ?></span></button>
+          </div>
+        </div>
+      </div>
     </div>
-  </section>
+  <?php endforeach; ?>
+</div>
 
-   <!-- Navigation -->
-  <?php
-    // partenaires
-    $stmtYears = $pdo->prepare('SELECT id, title FROM partners_years ORDER BY year DESC');
-    $stmtYears->execute();
-    $partnersNav = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+$(document).ready(function () {
+  $('.btn-like, .btn-dislike').on('click', function () {
+    const id = $(this).data('id');
+    const type = $(this).hasClass('btn-like') ? 'like' : 'dislike';
+    const button = $(this);
 
-    // photos
-    $stmtPhotos = $pdo->prepare('SELECT id, title FROM photo_years ORDER BY year DESC');
-    $stmtPhotos->execute();
-    $albumsNav = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
-  ?>
-  <nav class="nav-flottante">
-    <a href="accueil.php" class="nav-item accueil-style">Accueil</a>
-    <a href="register.php" class="nav-item">Inscription</a>
-    <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
-    <div class="nav-item dropdown menu-cache" style="position: relative;">
-        <a href="#" class="nav-link partenaires-toggle" onclick="toggleDropdown(event)">
-            Partenaires <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/></svg>
-        </a>
-        <div class="dropdown-content-custom" id="dropdownPartenaires">
-            <?php
-
-            if (empty($partnersNav)) {
-                echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun partenaires disponible</span>';
-            } else {
-                foreach ($partnersNav as $yearNav) {
-                    echo '<a href="partenaires.php?year_id=' . htmlspecialchars($yearNav['id']) . '">' . htmlspecialchars($yearNav['title']) . '</a>';
-                }
-            }
-            ?>
-        </div>
-    </div>
-
-    <div class="nav-item dropdown menu-cache" style="position: relative;">
-        <a href="#" class="nav-link photos-toggle" onclick="togglePhotosDropdown(event)">
-            Photos
-            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-            </svg>
-        </a>
-        <div class="dropdown-content-custom" id="dropdownPhotos">
-            <?php
-            if (empty($albumsNav)) {
-                echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
-            } else {
-                foreach ($albumsNav as $albumNav) {
-                    echo '<a href="photos.php?year_id=' . htmlspecialchars($albumNav['id']) . '">' . htmlspecialchars($albumNav['title']) . '</a>';
-                }
-            }
-            ?>
-        </div>
-    </div>
-    
-    <a href="news.php" class="nav-item menu-cache">Actualités</a>
-
-    <!-- Bouton burger -->
-    <button class="burger-toggle d-md-none" aria-label="Menu"></button>
-
-    <!-- Menu déroulant mobile -->
-    <div class="menu-deroulant" id="mobileMenu">
-    <a href="parcours.php">Parcours</a>
-    <div class="dropdown-mobile">
-        <a href="#" class="partenaires-toggle-mobile" onclick="toggleMobileDropdown(event)">
-        Partenaires
-        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-        </svg>
-        </a>
-        <div class="dropdown-content-mobile" id="dropdownMobilePartenaires">
-        <?php
-            if (empty($partnersNav)) {
-                echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun partenaires disponible</span>';
-            } else {
-                foreach ($partnersNav as $yearNav) {
-                    echo '<a href="partenaires.php?year_id=' . htmlspecialchars($yearNav['id']) . '">' . htmlspecialchars($yearNav['title']) . '</a>';
-                }
-            }
-        ?>
-        </div>
-        </div>
-        <a href="#" class="photos-toggle-mobile" onclick="toggleMobilePhotosDropdown(event)">
-            Photos
-            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-            </svg>
-        </a>
-        <div class="dropdown-content-mobile" id="dropdownMobilePhotos">
-        <?php
-            if (empty($albumsNav)) {
-                echo '<span style="display:block; padding:0.5rem 1rem; color:#999;">Aucun album disponible</span>';
-            } else {
-                foreach ($albumsNav as $albumNav) {
-                    echo '<a href="photos.php?year_id=' . htmlspecialchars($albumNav['id']) . '">' . htmlspecialchars($albumNav['title']) . '</a>';
-                }
-            }
-        ?>
-        </div>
-        <a href="news.php">Actualités</a>
-    </div>
-  </nav>
+    $.ajax({
+      url: 'news_action.php',
+      type: 'POST',
+      dataType: 'json',
+      data: { id: id, type: type },
+      success: function (res) {
+        if (res.success) {
+          button.find('span').text(res.count);
+        } else {
+          console.error('Erreur côté serveur :', res.error);
+        }
+      },
+      error: function (xhr, status, error) {
+        console.error('Erreur AJAX :', error);
+      }
+    });
+  });
+});
+</script>
 
 
 
-
-
-
-
-
+</body>
+</html>
