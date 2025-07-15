@@ -151,6 +151,16 @@ $edition = $data['edition'] ?? '';
   padding-left: 1rem;
   padding-right: 1rem;
 }
+.news-wrapper.no-image {
+  justify-content: center;
+}
+
+.news-wrapper.no-image .news-text-box {
+  position: static;
+  transform: none;
+  width: 60%; /* ou 100% selon ton design */
+  margin: 0 auto;
+}
 
 
 
@@ -159,9 +169,9 @@ $edition = $data['edition'] ?? '';
 <div class="container my-5">
   <h2 class="text-center mb-4" style="color:#e91e63;">📰 Nos Actualités</h2>
   <?php foreach ($articles as $article): ?>
-    <div class="news-wrapper">
+    <?php $imgPath = '../files/_news/' . $article['img_article']; ?>
+    <div class="news-wrapper<?= (empty($article['img_article']) || !is_file($imgPath)) ? ' no-image' : '' ?>">
       <?php
-      $imgPath = '../files/_news/' . $article['img_article'];
       if (!empty($article['img_article']) && is_file($imgPath)): ?>
           <div class="news-img-container">
               <img src="<?= htmlspecialchars($imgPath) ?>" alt="Article" class="news-img">
