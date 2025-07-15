@@ -40,28 +40,156 @@ $edition = $data['edition'] ?? '';
 
 <?php include '../inc/nav.php'; ?> <!-- si nav séparée -->
 
+<style>
+.news-wrapper {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  margin-bottom: 4rem;
+  flex-wrap: wrap;
+  max-width: 1900px; /* Limiter la largeur totale */
+  margin-left: 0; /* Coller à gauche */
+  margin-right: auto; /* Centrer si nécessaire */
+}
+
+.news-img-container {
+  flex: 1 1 50%; /* Réduire légèrement la largeur de l'image */
+  max-width: 500px; /* Réduire la largeur max de l'image */
+  min-width: 300px;
+  margin-right: 0; /* Supprimer toute marge droite */
+}
+
+.news-img {
+  width: 100%;
+  height: auto;
+  border-radius: 1rem;
+  display: block;
+}
+
+.news-text-box {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  position: absolute;
+  bottom: 0.5rem;
+  left: calc(35% - 1rem); /* Décaler plus vers la gauche */
+  transform: translateY(50%);
+  width: 60%; /* Agrandir la largeur de la zone de texte */
+  max-width: 750px; /* Augmenter la largeur maximale */
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+
+.news-title {
+  font-weight: bold;
+  font-size: 1.3rem;
+  color: #e91e63;
+  margin-bottom: 0.8rem;
+}
+
+.news-desc {
+  font-size: 1rem;
+  color: #444;
+  margin-bottom: 1rem;
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+  .news-wrapper {
+    flex-direction: column;
+    align-items: center;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .news-text-box {
+    position: static;
+    transform: none;
+    width: 90%;
+    margin-top: 1rem;
+  }
+
+  .news-img-container {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+.btn-feedback {
+  background-color: #ffe3f0;
+  color: #e91e63;
+  border: none;
+  border-radius: 2rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-left: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.btn-feedback:hover {
+  background-color: #e91e63;
+  color: #fff;
+}
+
+.count-badge {
+  display: inline-block;
+  background: white;
+  color: #e91e63;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  margin-left: 0.4rem;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+/* Optimiser l'utilisation de l'espace du conteneur */
+.container {
+  max-width: 1900px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+
+
+</style>
+
 <div class="container my-5">
   <h2 class="text-center mb-4" style="color:#e91e63;">📰 Nos Actualités</h2>
-
   <?php foreach ($articles as $article): ?>
-    <div class="card mb-4 shadow-sm">
-      <?php if (!empty($article['img_article'])): ?>
-        <img src="../files/news/<?= htmlspecialchars($article['img_article']) ?>" class="card-img-top" alt="Illustration">
-      <?php endif; ?>
-      <div class="card-body">
-        <h5 class="card-title"><?= htmlspecialchars($article['title_article']) ?></h5>
-        <p class="card-text"><?= nl2br(htmlspecialchars($article['desc_article'])) ?></p>
-        <div class="d-flex justify-content-between align-items-center">
-          <small class="text-muted"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
-          <div>
-            <button class="btn btn-outline-success btn-sm btn-like" data-id="<?= $article['id'] ?>">👍 <span class="like-count"><?= $article['like'] ?></span></button>
-            <button class="btn btn-outline-danger btn-sm btn-dislike" data-id="<?= $article['id'] ?>">👎 <span class="dislike-count"><?= $article['dislike'] ?></span></button>
-          </div>
+    <div class="news-wrapper">
+        <?php if (!empty($article['img_article'])): ?>
+            <div class="news-img-container">
+                <img src="../files/_news/<?= htmlspecialchars($article['img_article']) ?>" alt="Article" class="news-img">
+            </div>
+        <?php endif; ?>
+
+        <div class="news-text-box shadow">
+            <h5 class="news-title"><?= htmlspecialchars($article['title_article']) ?></h5>
+            <p class="news-desc"><?= nl2br(htmlspecialchars($article['desc_article'])) ?></p>
+
+            <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
+<div>
+  <button class="btn-feedback btn-like" data-id="<?= $article['id'] ?>">
+    👍<span class="count-badge like-count"><?= $article['like'] ?></span>
+  </button>
+  <button class="btn-feedback btn-dislike" data-id="<?= $article['id'] ?>">
+    👎<span class="count-badge dislike-count"><?= $article['dislike'] ?></span>
+  </button>
+</div>
+
+            </div>
         </div>
-      </div>
     </div>
   <?php endforeach; ?>
 </div>
+
+
+
+
+
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
