@@ -1,15 +1,6 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require '../config/config.php';
-requireRole(['admin','user','viewer','saisie']);
-$role = currentRole();
-if ($role !== 'admin') {
-  header('Location: ../login.php');
-  exit;
-}
+requireRole(['admin']);
 
 $stmt = $pdo->prepare(
     'SELECT *
