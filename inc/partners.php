@@ -91,7 +91,7 @@ if (isset($_POST['delete_album'])) {
 }
 
 if (isset($_POST['add_year'])) {
-  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, img, desc) VALUES (?, ?, ?, ?)");
+  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, img, `desc`) VALUES (?, ?, ?, ?)");
   $imgName = $_FILES['year_img']['name'];
   move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_partners/" . $imgName);
   $stmt->execute([$_POST['year'], $_POST['title'], $imgName, $_POST['partner_desc']]);
@@ -318,10 +318,9 @@ foreach ($years as $y) {
                     <input type="file" name="year_img" class="form-control" required>
                     </div>
                     <div class="col-md-12">
-                      <textarea name="partner_desc" class="form-control" placeholder="Description"></textarea>
-                    </div>
-                        <!-- Textarea avec TinyMCE -->
+                       <!-- Textarea avec TinyMCE -->
                         <textarea class="form-control" id="partner_desc" name="partner_desc" rows="10" placeholder="Description"></textarea>
+                    </div>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
                     </div>
