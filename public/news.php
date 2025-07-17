@@ -62,6 +62,10 @@ $titleAccueil = $data['titleAccueil'] ?? '';
 $picture = $data['picture'] ?? '';
 $titleColor = $data['title_color'] ?? '#ffffff';
 $edition = $data['edition'] ?? '';
+$footer= $data['footer'] ?? null;  
+$link_instagram  = $data['link_instagram'] ?? null;
+$link_facebook = $data['link_facebook'] ?? null; 
+$link_cancer = $data['link_cancer'] ?? null;
 
 // Fonction pour tronquer le texte
 function truncateText($text, $maxLength = 180) {
@@ -315,6 +319,30 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         </div>
     </div>
 </div>
+
+<!-- Footer -->
+<?php if (!empty($link_facebook) || !empty($link_instagram)) : ?>
+  <footer>
+    <div class="top-logos-footer">
+      <a href="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Ligue contre le Cancer">
+        <img src="../files/_logos/ligue-cancer-blanc.png" alt="Ligue contre le cancer">
+      </a>  
+      <?php if (!empty($link_instagram)) : ?>
+        <a href="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Instagram">
+          <img src="../files/_logos/instagram.png" alt="Instagram">
+        </a>
+      <?php endif; ?>
+      <?php if (!empty($link_facebook)) : ?>
+        <a href="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Facebook">
+          <img src="../files/_logos/facebook.png" alt="Facebook">
+        </a>
+      <?php endif; ?>
+    </div>
+    <?php if (!empty($footer)) : ?>
+      <?= htmlspecialchars($footer) ?>
+    <?php endif; ?>
+  </footer>
+<?php endif; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
