@@ -182,23 +182,33 @@ document.addEventListener('DOMContentLoaded', () => {
 </style>
 </head>
 
+
+<link href="../css/nav-settings.css" rel="stylesheet">
 <body class="d-flex flex-column">
 <!-- ═════════ HEADER ═════════ -->
-<header class="hero">
-  <button class="btn btn-outline-light d-lg-none" style="position:absolute;top:.6rem;right:.6rem"
+<header class="hero position-relative">
+  <!-- Bouton burger visible uniquement en mobile -->
+  <button class="btn btn-outline-light d-lg-none position-absolute" style="top:.6rem;right:.6rem"
           data-bs-toggle="offcanvas" data-bs-target="#menuMobile">&#9776;</button>
 
-  <div class="top-actions">
-    <a      id="dashboard" href="dashboard.php"   class="btn btn-outline-light">Tableau de bord</a>
-    <a      id="setting" href="setting.php"   class="btn btn-outline-light">Réglages</a>
-    <a      id="albums" href="albums.php"   class="btn btn-outline-light">Albums</a>
-  </div>
-
+  <!-- Contenu principal -->
   <div class="hero-inner text-center">
     <h1>Partenaires</h1>
     <p class="mb-0">Gestion des inscriptions – Rôle : <strong><?= htmlspecialchars($role) ?></strong></p>
+
+    <!-- BARRE ACTIONS – version desktop uniquement -->
+    <?php
+    $currentPage = basename($_SERVER['PHP_SELF']); // Ex: dashboard.php
+    ?>
+    <div class="actions-flottantes-desktop d-none d-lg-flex">
+      <a href="dashboard.php" class="btn-action <?= $currentPage == 'dashboard.php' ? 'active' : '' ?>">Tableau de bord</a>
+      <a href="setting.php" class="btn-action <?= $currentPage == 'setting.php' ? 'active' : '' ?>">Réglages</a>
+      <a href="albums.php" class="btn-action <?= $currentPage == 'albums.php' ? 'active' : '' ?>">Albums</a>
+      <a href="partners.php" class="btn-action <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
+    </div>
   </div>
 </header>
+
 
 <!-- ═════════ OFFCANVAS MOBILE ═════════ -->
 <div class="offcanvas offcanvas-end" tabindex="-1" id="menuMobile">
