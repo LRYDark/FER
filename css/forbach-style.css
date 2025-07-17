@@ -238,7 +238,7 @@ main {
 }
 
 .top-logos-footer img {
-  height: 50px;
+  height: 45px;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
   transition: transform 0.2s ease;
 }
