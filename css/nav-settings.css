@@ -1,0 +1,38 @@
+.actions-flottantes-desktop {
+  position: relative;
+  top: 55px; /* chevauche légèrement le header */
+  z-index: 20;
+  background: white;
+  border-radius: 3rem;
+  padding: 0.3rem 2rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  justify-content: center;
+  gap: 1rem;
+  max-width: fit-content;
+  margin: 0 auto;
+   margin-top: -30px;
+}
+
+.btn-action.active {
+  color: #c2185b;
+  background-color: #ffe1ef;
+  font-weight: 700;
+}
+
+.btn-action {
+  font-weight: 600;
+  color: #e91e63;
+  text-decoration: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: 2rem;
+  transition: all 0.3s ease;
+}
+
+.btn-action:hover {
+  background-color: #ffe1ef;
+  color: #c2185b;
+}
+
+.hero{
+  margin-bottom: 20px;
+}
