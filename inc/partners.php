@@ -1,6 +1,7 @@
 <?php
 require '../config/config.php';
 requireRole(['admin']);
+$role = currentRole();
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -147,17 +148,6 @@ foreach ($years as $y) {
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.alert').forEach(alertEl => {
-    // ferme après 3 000 ms
-    setTimeout(() => {
-      // ferme proprement (même animation que le bouton « X »)
-      bootstrap.Alert.getOrCreateInstance(alertEl).close();
-    }, 5000);
-  });
-});
-</script>
 <style>
   .first-750 td{background:#ffe5ff!important;font-weight:600}
   .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
@@ -420,7 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</script>
 </body>
 </html>
 

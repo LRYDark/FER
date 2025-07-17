@@ -1,6 +1,7 @@
 <?php
 require '../config/config.php';
-requireRole(['admin']);
+requireRole(['admin','user','viewer','saisie']);
+$role = currentRole();
 
 $stmt = $pdo->prepare(
     'SELECT *

@@ -2,10 +2,6 @@
 require '../config/config.php';
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
-if ($role === 'saisie') {
-  header('Location: saisie.php');
-  exit;
-}
 
 $stmt = $pdo->prepare(
     'SELECT *
