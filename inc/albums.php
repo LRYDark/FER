@@ -1,11 +1,6 @@
 <?php
 require '../config/config.php';
-requireRole(['admin','user','viewer','saisie']);
-$role = currentRole();
-if ($role !== 'admin') {
-  header('Location: ../login.php');
-  exit;
-}
+requireRole(['admin']);
 
 $stmt = $pdo->prepare(
     'SELECT *
