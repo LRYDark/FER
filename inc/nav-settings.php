@@ -6,6 +6,7 @@
         'setting.php'   => 'Réglages',
         'albums.php'    => 'Albums',
         'partners.php'  => 'Partenaires',
+        'news.php'  => 'Actualités',
         ];
 
     // Définir le titre ou fallback par défaut
@@ -31,6 +32,7 @@
         <a href="setting.php" class="btn-action <?= $currentPage == 'setting.php' ? 'active' : '' ?>">Réglages</a>
         <a href="albums.php" class="btn-action <?= $currentPage == 'albums.php' ? 'active' : '' ?>">Albums</a>
         <a href="partners.php" class="btn-action <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
+        <a href="news.php" class="btn-action <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
       <?php endif; ?>
     </div>
 
@@ -67,6 +69,10 @@
             <li class="list-group-item d-flex align-items-center p-3">
                 <i class="bi bi-gear me-2 "></i>
                 <a id="partners" href="partners.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
+            </li>
+            <li class="list-group-item d-flex align-items-center p-3">
+                <i class="bi bi-gear me-2 "></i>
+                <a id="news" href="news.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
             </li>
 
             <li class="list-group-item d-flex align-items-center p-3">
