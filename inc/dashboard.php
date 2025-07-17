@@ -186,7 +186,7 @@ function ageFromBirth(b){
 
 /* ══ DataTable ════ */
 let tshirtMode=false;
-function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Mode standard':'Remise T-shirts'); }
+function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Remise T-shirts':'Mode standard'); }
 refreshButtons();
 
 const tbl=$('#tbl').DataTable({
