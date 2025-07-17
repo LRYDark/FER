@@ -36,3 +36,10 @@
 .hero{
   margin-bottom: 20px;
 }
+
+.btn-link.active {
+  color: #c2185b !important;
+  font-weight: bold;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+}
