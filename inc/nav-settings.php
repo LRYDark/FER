@@ -53,6 +53,13 @@
     </div>
     <div class="offcanvas-body p-0">
         <ul class="list-group list-group-flush">
+        <li class="list-group-item small text-muted fw-semibold">Mode</li>
+            <?php if($currentPage == 'dashboard.php'): ?>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <button id="modeTS" class="btn btn-link text-start p-0 flex-grow-1">Mode standard</button>
+                </li>
+            <?php endif; ?>
         <li class="list-group-item small text-muted fw-semibold">Actions rapides</li>
             <li class="list-group-item d-flex align-items-center p-3">
                 <i class="bi bi-gear me-2 "></i>
