@@ -15,6 +15,7 @@ $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
 $footer= $data['footer'] ?? '';  
 $titleColor = $data['title_color'] ?? '#ffffff';
+$picture= $data['picture'] ?? '';  
 ?>
 <!doctype html>
 <html lang="fr">
@@ -40,7 +41,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 
   <!-- ───────── Bandeau rose ───────── -->
   <header class="hero">
-    <img src="files/_pictures/1200x680_vignette-forbach.jpg" alt="Logo Forbach en Rose" class="logo-top">
+    <img src="files/_pictures/<?= htmlspecialchars($picture) ?>" alt="Logo Forbach en Rose" class="logo-top">
     <div class="hero-inner">
       <h1>Connexion</h1>
       <p class="mb-0">Accédez à votre espace</p>
