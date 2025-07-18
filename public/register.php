@@ -158,6 +158,7 @@ $div_reglementation = $data['div_reglementation'] ?? '';
     }
   }
 </style>
+
 </head>
 
 <body>

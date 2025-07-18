@@ -1,0 +1,15 @@
+[18-Jul-2025 21:10:28 UTC] PHP Warning:  require(vendor/autoload.php): Failed to open stream: No such file or directory in /var/www/html/FER/config/api.php on line 277
+[18-Jul-2025 21:10:28 UTC] PHP Fatal error:  Uncaught Error: Failed opening required 'vendor/autoload.php' (include_path='.:/usr/share/php') in /var/www/html/FER/config/api.php:277
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/config/api.php on line 277
+[18-Jul-2025 21:12:49 UTC] PHP Warning:  require(vendor/autoload.php): Failed to open stream: No such file or directory in /var/www/html/FER/config/api.php on line 270
+[18-Jul-2025 21:12:49 UTC] PHP Fatal error:  Uncaught Error: Failed opening required 'vendor/autoload.php' (include_path='.:/usr/share/php') in /var/www/html/FER/config/api.php:270
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/config/api.php on line 270
+[18-Jul-2025 21:14:08 UTC] PHP Fatal error:  Uncaught Error: Class "PhpOffice\PhpSpreadsheet\IOFactory" not found in /var/www/html/FER/config/api.php:273
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/config/api.php on line 273
+[18-Jul-2025 21:43:42 UTC] Import Excel : Call to undefined function normaliseLabel()
