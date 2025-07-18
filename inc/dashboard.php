@@ -132,7 +132,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
     <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
   </div><div class="modal-footer">
     <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-    <button class="btn btn-rose">Importer</button>
+    <button type="submit" class="btn btn-rose">Importer</button>
   </div></form></div></div></div>
 
 <?php if($role==='admin'): ?>
@@ -336,12 +336,41 @@ $('#fEdit').on('submit',e=>{
 });
 
 /* ══ IMPORT EXCEL ════ */
-$('#fImport').on('submit',e=>{
+document.getElementById('fImport').addEventListener('submit', async (e) => {
   e.preventDefault();
-  fetch('../config/api.php?route=import-excel',{method:'POST',body:new FormData(e.target)})
-  .then(r=>r.json()).then(j=>{
-    alert(j.rows+' lignes importées'); tbl.ajax.reload(); bootstrap.Modal.getInstance('#importModal').hide();
-  });
+
+  const form   = e.target;
+  const button = form.querySelector('.btn-rose');
+  const data   = new FormData(form);
+
+  button.disabled   = true;
+  button.textContent = 'Import...';
+
+  try {
+    const res = await fetch('../config/api.php?route=import-excel', {
+      method:      'POST',
+      body:        data,
+      credentials: 'same-origin'   // garde la session PHP
+    });
+
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+
+    const json = await res.json();
+
+    if (json.ok) {
+      alert(`✅ ${json.rows_added} ligne(s) importée(s).`);
+      bootstrap.Modal.getOrCreateInstance('#importModal').hide();
+
+      /* ---- RAFRAÎCHIT LA PAGE ---- */
+      location.reload();
+    }
+  } catch (err) {
+    alert('Erreur réseau/serveur : ' + err.message);
+  } finally {
+    button.disabled   = false;
+    button.textContent = 'Importer';
+    form.reset();
+  }
 });
 
 /* ══ COMPTES UTILISATEURS (ADMIN) ════ */
