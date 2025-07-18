@@ -32,6 +32,7 @@ $picture_partner= $data['picture_partner'] ?? '';
 $picture_accueil= $data['picture_accueil'] ?? '';
 $social_networks = $data['social_networks'] ?? 0;
 $link_cancer = $data['link_cancer'] ?? null;
+$debogage = $data['debogage'] ? 1 : 0;
 
 // parcours
 $titleParcours  = $data['titleParcours']   ?? 'test';
@@ -65,9 +66,9 @@ function makeAlert(string $type, string $message, int $delay = 3000): string
    Carte 2 : Configuration général
 -------------------------------------------------------------------------- */
 $alert = '';                           // message à afficher dans la carte 1
-
 if (isset($_POST['config'])) {
 
+    $debogage = isset($_POST['debogage']) ? 1 : 0;
     $footer = $_POST['footer'] ?? '';
     $newColor = $_POST['title_color'] ?? '#ffffff';
     $registration_fee = isset($_POST['registration_fee'])
@@ -117,7 +118,8 @@ if (isset($_POST['config'])) {
                         picture             = :picture,
                         title_color         = :color,
                         footer              = :footer,
-                        registration_fee    = :fee
+                        registration_fee    = :fee,
+                        debogage            = :debogage
                 WHERE id = :id'
             );
             $upd->execute([
@@ -126,6 +128,7 @@ if (isset($_POST['config'])) {
                 'color'     => $newColor,
                 'footer'    => $footer,
                 'fee'       => $registration_fee,
+                'debogage'  => $debogage,
                 'id'        => 1
             ]);
 
@@ -136,8 +139,6 @@ if (isset($_POST['config'])) {
             $title   = $newTitle;
             $picture = $newPicture;
             $titleColor = $newColor;
-            $footer = $footer;
-            $registration_fee = $registration_fee;
         }
     }
 }
@@ -631,13 +632,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                 required>
                         </div>
                         <!-- COULEUR DU TITRE (nouveau) -->
-                        <div class="col-md-6"><label class="form-label">Couleur du titre</label>
+                        <div class="col-md-3"><label class="form-label">Couleur du titre</label>
                             <input type="color"
                                 class="form-control form-control-color"
                                 id="titleColor"
                                 name="title_color"
                                 value="<?= htmlspecialchars($titleColor ?? '#000000'); ?>"
                                 title="Choisissez la couleur">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Activer le debogage</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="debogage" id="debogage" <?= isset($debogage) && $debogage ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="debogage">Oui / Non</label>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="picture" class="form-label">Image d'entête</label>

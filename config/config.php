@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require_once __DIR__ . '/../vendor/autoload.php';   // charge l’autoloader Composer
 
 // Charge les variables d’environnement
@@ -23,6 +19,20 @@ $options = [
 
 $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+$stmt = $pdo->prepare(
+    'SELECT debogage
+       FROM setting
+      WHERE id = :id
+      LIMIT 1');
+$stmt->execute(['id' => 1]);
+$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+if($data['debogage'] == 1){
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+}
 
 session_start();
 

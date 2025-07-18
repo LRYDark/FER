@@ -225,7 +225,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             $descFound = !empty($search) && stripos($article['desc_article'], $search) !== false;
             
             // Surligner uniquement si trouvé dans la description et pas dans le titre
-            $displayTitle = htmlspecialchars($article['title_article']);
+            $displayTitle = htmlspecialchars($article['title_article'] ?? '');
             $displayDesc = $article['desc_article'];
             
             if (!empty($search) && !$titleFound && $descFound) {
