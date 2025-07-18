@@ -31,132 +31,132 @@ $div_reglementation = $data['div_reglementation'] ?? '';
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
-/* ───────── Palette & background ───────── */
-:root{
-  --rose-500:#ff4f9c;
-  --rose-600:#e03f8a;
-  --bg-grad:linear-gradient(135deg,#ffe1f0 0%,#fff 40%,#ffe1f0 100%);
-}
-body{
-  background:var(--bg-grad);
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-}
+  /* ───────── Palette & background ───────── */
+  :root{
+    --rose-500:#ff4f9c;
+    --rose-600:#e03f8a;
+    --bg-grad:linear-gradient(135deg,#ffe1f0 0%,#fff 40%,#ffe1f0 100%);
+  }
+  body{
+    background:var(--bg-grad);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
 
-/* ───────── HERO ───────── */
-.hero{
-  background:var(--rose-500);
-  color:#fff;
-  padding:4rem 1rem 5rem;
-  position:relative;
-  text-align:center;
-}
-.hero h1{font-size:2.6rem;font-weight:700;letter-spacing:1px;}
-.badge-donation{
-  background:#fff;
-  color:var(--rose-600);
-  border-radius:1rem;
-  padding:.4rem .9rem;
-  font-weight:600;
-}
-.hero-inner{max-width:800px;margin:0 auto;}
-.logo-top{
-  position:absolute;
-  top:1rem;
-  right:1rem;
-  max-width:220px;
-  width:27vw;
-  filter:drop-shadow(0 3px 6px rgba(0,0,0,.2));
-}
+  /* ───────── HERO ───────── */
+  .hero{
+    background:var(--rose-500);
+    color:#fff;
+    padding:4rem 1rem 5rem;
+    position:relative;
+    text-align:center;
+  }
+  .hero h1{font-size:2.6rem;font-weight:700;letter-spacing:1px;}
+  .badge-donation{
+    background:#fff;
+    color:var(--rose-600);
+    border-radius:1rem;
+    padding:.4rem .9rem;
+    font-weight:600;
+  }
+  .hero-inner{max-width:800px;margin:0 auto;}
+  .logo-top{
+    position:absolute;
+    top:1rem;
+    right:1rem;
+    max-width:220px;
+    width:27vw;
+    filter:drop-shadow(0 3px 6px rgba(0,0,0,.2));
+  }
 
-/* ───────── STEPPER ───────── */
-.stepper{
-  margin:-.5rem 0 2rem;          /* ← compacte + remonte légèrement */
-  padding:0;
-  list-style:none;
-}
-.stepper li{
-  position:relative;
-  text-align:center;
-  flex:1 1 0;
-  color:#999;
-  font-size:.9rem;
-}
-.stepper li .circle{
-  display:inline-flex;
-  width:32px;
-  height:32px;
-  align-items:center;
-  justify-content:center;
-  border-radius:50%;
-  border:3px solid #999;
-  font-weight:600;
-}
-.stepper li::after{
-  content:'';
-  position:absolute;
-  top:15px;
-  left:50%;
-  width:100%;
-  height:3px;
-  background:#999;
-  z-index:-1;
-}
-.stepper li:last-child::after{display:none;}
-.stepper li.active .circle,
-.stepper li.done  .circle{
-  border-color:var(--rose-600);
-  background:var(--rose-600);
-  color:#fff;
-}
-.stepper li.active,
-.stepper li.done{color:var(--rose-600);}
-.stepper li.done::after{background:var(--rose-600);}
+  /* ───────── STEPPER ───────── */
+  .stepper{
+    margin:-.5rem 0 2rem;          /* ← compacte + remonte légèrement */
+    padding:0;
+    list-style:none;
+  }
+  .stepper li{
+    position:relative;
+    text-align:center;
+    flex:1 1 0;
+    color:#999;
+    font-size:.9rem;
+  }
+  .stepper li .circle{
+    display:inline-flex;
+    width:32px;
+    height:32px;
+    align-items:center;
+    justify-content:center;
+    border-radius:50%;
+    border:3px solid #999;
+    font-weight:600;
+  }
+  .stepper li::after{
+    content:'';
+    position:absolute;
+    top:15px;
+    left:50%;
+    width:100%;
+    height:3px;
+    background:#999;
+    z-index:-1;
+  }
+  .stepper li:last-child::after{display:none;}
+  .stepper li.active .circle,
+  .stepper li.done  .circle{
+    border-color:var(--rose-600);
+    background:var(--rose-600);
+    color:#fff;
+  }
+  .stepper li.active,
+  .stepper li.done{color:var(--rose-600);}
+  .stepper li.done::after{background:var(--rose-600);}
 
-/* ───────── FORMULAIRE & carte ───────── */
-.card-form{
-  max-width:1100px;     /* ← plus large qu’avant (760px) */
-  margin-top:-3.2rem;  /* ← chevauche le HERO pour l’effet “posé” */
-  border:0;
-  box-shadow:0 0 25px rgba(0,0,0,.1);
-}
-.btn-rose{
-  background:var(--rose-600);
-  border:0;
-}
-.btn-rose:hover{background:#c13778;}
-.form-control,
-.form-select{border-radius:1rem;}
-.step-section.d-none{display:none!important;}
-
-/* Pleine largeur pour le widget paiement */
-#step-2 .iframe-asc-container,
-#step-2 .iframe-asc-container iframe{
-  width:1100px !important;
-  max-width:100% !important;
-}
-#step-2 .iframe-asc-container{margin-bottom:2rem;}
-
-/* ───────── MOBILE (<576 px) ───────── */
-@media (max-width:575.98px){
-  .logo-top{display:none;}
-  .hero{padding:3rem 1rem 4rem;}
-  .hero h1{font-size:1.6rem;}
-  .hero p{font-size:.9rem;}
+  /* ───────── FORMULAIRE & carte ───────── */
   .card-form{
-    max-width:100%;
-    margin-top:-2rem;       /* chevauchement un peu moins prononcé sur mobile */
+    max-width:1100px;     /* ← plus large qu’avant (760px) */
+    margin-top:-3.2rem;  /* ← chevauche le HERO pour l’effet “posé” */
+    border:0;
+    box-shadow:0 0 25px rgba(0,0,0,.1);
   }
-  #fPub .col-md-6{
-    flex:0 0 100%;
-    max-width:100%;
+  .btn-rose{
+    background:var(--rose-600);
+    border:0;
   }
-  .btn-rose.btn-lg{
-    font-size:1rem;
-    padding:.65rem 1rem;
+  .btn-rose:hover{background:#c13778;}
+  .form-control,
+  .form-select{border-radius:1rem;}
+  .step-section.d-none{display:none!important;}
+
+  /* Pleine largeur pour le widget paiement */
+  #step-2 .iframe-asc-container,
+  #step-2 .iframe-asc-container iframe{
+    width:1100px !important;
+    max-width:100% !important;
   }
-}
+  #step-2 .iframe-asc-container{margin-bottom:2rem;}
+
+  /* ───────── MOBILE (<576 px) ───────── */
+  @media (max-width:575.98px){
+    .logo-top{display:none;}
+    .hero{padding:3rem 1rem 4rem;}
+    .hero h1{font-size:1.6rem;}
+    .hero p{font-size:.9rem;}
+    .card-form{
+      max-width:100%;
+      margin-top:-2rem;       /* chevauchement un peu moins prononcé sur mobile */
+    }
+    #fPub .col-md-6{
+      flex:0 0 100%;
+      max-width:100%;
+    }
+    .btn-rose.btn-lg{
+      font-size:1rem;
+      padding:.65rem 1rem;
+    }
+  }
 </style>
 </head>
 
