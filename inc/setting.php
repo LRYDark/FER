@@ -1098,7 +1098,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h2 class="mb-4">Informations d'import excel</h2>
                  <?php if ($alertImport) echo $alertImport; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <div class="col-md-4"><label class="form-label">N° d'inscription</label>
+                    <div class="col-md-4"><label class="form-label">N° d'inscription =</label>
                         <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
                     <div class="col-md-4"><label class="form-label">Nom = </label>
