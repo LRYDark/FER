@@ -317,7 +317,7 @@ $div_reglementation = $data['div_reglementation'] ?? '';
         <input type="hidden" name="tshirt_size" value="-">
         <input type="hidden" name="qr_token" value="<?= htmlspecialchars($qrToken) ?>">
         <input type="hidden" name="origine" value="QR-<?= htmlspecialchars($qrData['organisation']) ?>">
-        <input type="hidden" name="paiement_mode" value="QR Code">
+        <input type="hidden" name="paiement_mode" value="En ligne">
 
         <div class="col-12 d-grid">
           <button class="btn btn-rose btn-lg" type="submit">
