@@ -260,7 +260,47 @@ const tbl=$('#tbl').DataTable({
 });
 tbl.on('xhr.dt',(e,s,json)=>updateStats(json||[]));
 
-setInterval(()=>tbl.ajax.reload(null,false),5000);
+// Événements pour détecter l'ouverture/fermeture des menus t-shirt
+$('#tbl').on('mousedown', '.tshirt-dd', function(e) {
+  isDropdownOpen = true;
+});
+
+$('#tbl').on('focus', '.tshirt-dd', function() {
+  isDropdownOpen = true;
+});
+
+$('#tbl').on('blur change', '.tshirt-dd', function() {
+  // Petit délai pour permettre la sélection d'une option
+  setTimeout(() => {
+    isDropdownOpen = false;
+  }, 150);
+});
+
+// Détecter les clics ailleurs pour fermer le flag
+$(document).on('click', function(e) {
+  if (!$(e.target).hasClass('tshirt-dd')) {
+    setTimeout(() => {
+      isDropdownOpen = false;
+    }, 100);
+  }
+});
+
+// Variables pour gérer le refresh automatique
+let refreshInterval;
+let isDropdownOpen = false;
+
+// Fonction pour démarrer le refresh automatique
+function startAutoRefresh() {
+  refreshInterval = setInterval(() => {
+    // Ne pas recharger si un menu déroulant t-shirt est ouvert
+    if (!isDropdownOpen) {
+      tbl.ajax.reload(null, false);
+    }
+  }, 5000);
+}
+
+// Démarrer le refresh automatique
+startAutoRefresh();
 $('#quickSearch').on('keyup',function(){tbl.search(this.value).draw();});
 
 /* ══ Stats ════ */
@@ -313,7 +353,7 @@ function buildFilters(api){
 
 /* ══ Bascule Remise T-shirts ════ */
 function applyTshirtMode() {
-  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine'];
+  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine', ''];
   // Masquer certaines colonnes
   tbl.columns().every(function () {
     const h = $(this.header()).text().trim();
