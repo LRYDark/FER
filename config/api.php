@@ -598,5 +598,220 @@ if ($route === 'registrations-archive') {
     exit;
 }
 
+// Gestion des QR Codes
+if ($route === 'qrcodes') {
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // Récupération des QR codes - avec gestion d'erreurs
+        try {
+            $stmt = $pdo->prepare('SELECT * FROM qrcodes ORDER BY created_at DESC');
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($result);
+        } catch (Exception $e) {
+            error_log('Erreur lors de la récupération des QR codes: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Erreur lors de la récupération des données']);
+        }
+        exit;
+    }
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Création d'un nouveau QR code
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+        
+        // Fallback si JSON decode échoue
+        if (!$data) {
+            $data = $_POST;
+            error_log('Fallback vers $_POST: ' . print_r($data, true));
+        }
+        
+        // Validation
+        if (empty($data['organisation']) || empty($data['base_url'])) {
+            error_log('Données manquantes - Organisation: ' . ($data['organisation'] ?? 'vide') . ', Base URL: ' . ($data['base_url'] ?? 'vide'));
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Organisation et URL requis']);
+            exit;
+        }
+        
+        // Génération d'un token unique
+        $maxAttempts = 10;
+        $attempt = 0;
+        do {
+            $attempt++;
+            $token = bin2hex(random_bytes(32));
+            
+            try {
+                $stmt = $pdo->prepare('SELECT COUNT(*) FROM qrcodes WHERE token = ?');
+                $stmt->execute([$token]);
+                $exists = $stmt->fetchColumn() > 0;
+            } catch (Exception $e) {
+                error_log('Erreur lors de la vérification du token: ' . $e->getMessage());
+                $exists = false; // Continue avec ce token
+            }
+            
+            if ($attempt >= $maxAttempts) {
+                error_log('Impossible de générer un token unique après ' . $maxAttempts . ' tentatives');
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Erreur lors de la génération du token']);
+                exit;
+            }
+            
+        } while ($exists);
+        
+        // Construction de l'URL finale
+        $separator = strpos($data['base_url'], '?') !== false ? '&' : '?';
+        $qr_url = $data['base_url'] . $separator . 'token=' . $token;
+        
+        try {
+            // Vérification que la table existe
+            $checkTable = $pdo->query("SHOW TABLES LIKE 'qrcodes'")->rowCount();
+            if ($checkTable == 0) {
+                error_log('Table qrcodes n\'existe pas');
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Table qrcodes non trouvée']);
+                exit;
+            }
+            
+            $stmt = $pdo->prepare(
+                'INSERT INTO qrcodes (organisation, token, qr_url, description, created_by) 
+                 VALUES (?, ?, ?, ?, ?)'
+            );
+            
+            $result = $stmt->execute([
+                $data['organisation'],
+                $token,
+                $qr_url,
+                $data['description'] ?? null,
+                currentUserId() // Ajout de l'utilisateur créateur
+            ]);
+            
+            if ($result) {
+                $insertId = $pdo->lastInsertId();
+                
+                echo json_encode([
+                    'success' => true,
+                    'id' => $insertId,
+                    'token' => $token,
+                    'qr_url' => $qr_url,
+                    'message' => 'QR Code créé avec succès'
+                ]);
+            } else {
+                error_log('Échec de l\'insertion en base');
+                echo json_encode(['success' => false, 'message' => 'Échec de l\'insertion']);
+            }
+            
+        } catch (Exception $e) {
+            error_log('Erreur lors de la création du QR code: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erreur base de données: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+        // Modification d'un QR code
+        parse_str(file_get_contents('php://input'), $data);
+        
+        if (empty($data['id'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'ID requis']);
+            exit;
+        }
+        
+        $updates = [];
+        $params = [];
+        
+        if (isset($data['is_active'])) {
+            $updates[] = 'is_active = ?';
+            $params[] = (int)$data['is_active'];
+        }
+        
+        if (isset($data['description'])) {
+            $updates[] = 'description = ?';
+            $params[] = $data['description'];
+        }
+        
+        if (!empty($updates)) {
+            $params[] = $data['id'];
+            $sql = 'UPDATE qrcodes SET ' . implode(', ', $updates) . ' WHERE id = ?';
+            
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                error_log('Erreur lors de la mise à jour du QR code: ' . $e->getMessage());
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            }
+        } else {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Aucune donnée à modifier']);
+        }
+        exit;
+    }
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        // Suppression d'un QR code (admin seulement)
+        requireRole(['admin']);
+        
+        parse_str(file_get_contents('php://input'), $data);
+        
+        if (empty($data['id'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'ID requis']);
+            exit;
+        }
+        
+        try {
+            $stmt = $pdo->prepare('DELETE FROM qrcodes WHERE id = ?');
+            $stmt->execute([$data['id']]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            error_log('Erreur lors de la suppression du QR code: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+}
+
+// Fonction pour valider un token QR code
+if ($route === 'validate-qr-token') {
+    $token = $_GET['token'] ?? '';
+    
+    if (empty($token)) {
+        echo json_encode(['valid' => false, 'message' => 'Token manquant']);
+        exit;
+    }
+    
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT organisation, description, is_active, created_at 
+             FROM qrcodes 
+             WHERE token = ? AND is_active = 1'
+        );
+        $stmt->execute([$token]);
+        $qrData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($qrData) {
+            echo json_encode([
+                'valid' => true,
+                'organisation' => $qrData['organisation'],
+                'description' => $qrData['description']
+            ]);
+        } else {
+            echo json_encode(['valid' => false, 'message' => 'Token invalide ou inactif']);
+        }
+    } catch (Exception $e) {
+        error_log('Erreur lors de la validation du token: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['valid' => false, 'message' => 'Erreur serveur']);
+    }
+    exit;
+}
+
 http_response_code(404); 
 echo json_encode(['error'=>'route inconnue']);

@@ -17,7 +17,10 @@ return array(
     'PhpOffice\\PhpSpreadsheet\\' => array($vendorDir . '/phpoffice/phpspreadsheet/src/PhpSpreadsheet'),
     'Matrix\\' => array($vendorDir . '/markbaker/matrix/classes/src'),
     'GrahamCampbell\\ResultType\\' => array($vendorDir . '/graham-campbell/result-type/src'),
+    'Endroid\\QrCode\\' => array($vendorDir . '/endroid/qr-code/src'),
     'Dotenv\\' => array($vendorDir . '/vlucas/phpdotenv/src'),
+    'DASPRiD\\Enum\\' => array($vendorDir . '/dasprid/enum/src'),
     'Composer\\Pcre\\' => array($vendorDir . '/composer/pcre/src'),
     'Complex\\' => array($vendorDir . '/markbaker/complex/classes/src'),
+    'BaconQrCode\\' => array($vendorDir . '/bacon/bacon-qr-code/src'),
 );
