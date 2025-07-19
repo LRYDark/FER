@@ -32,7 +32,6 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-  .first-750 td{background:linear-gradient(135deg, #ffe5ff 0%, #fff0ff 100%)!important;font-weight:600;border-left: 4px solid var(--rose-500)!important;}
   .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
   .hero h1{margin:0;font-size:2.2rem}
   .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
@@ -68,6 +67,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
   padding:.65rem .8rem;
   vertical-align:middle;
   font-size:.86rem;
+  border-left:2px solid var(--rose-500)!important;
 }
 
 /* 2. zébrage léger */
@@ -84,8 +84,9 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 
 /* 5. garde ta règle “first-750” mais on la rend plus douce */
 .first-750 td{
-  background:linear-gradient(90deg,#fff2f8 0%,#fcecff 100%)!important;
-  border-left:2px solid var(--rose-500)!important;
+  background:linear-gradient(90deg,#fff2f8 0%,#fcecff 100%)!important; /* couleur finale */
+  font-weight:600;                      /* conservé si tu le souhaites */
+  
 }
 
 /* ═══ Petite retouche des filtres sous l’en-tête =========================== */
@@ -305,6 +306,14 @@ const tbl=$('#tbl').DataTable({
   },
   columns:[
     {data:'id',visible:false},
+    {// colonne ID juste après « id de la bdd invisible »
+      data: null,
+      title: 'ID',
+      width: '60px',
+      className: 'text-center',
+      orderable: false,     // pas de tri sur cette colonne
+      defaultContent: ''    // on remplira la cellule dans rowCallback
+    },
     {data:'inscription_no',title:'N°'},
     {data:'nom',title:'Nom'},
     {data:'prenom',title:'Prénom'},
@@ -362,11 +371,11 @@ const tbl=$('#tbl').DataTable({
   autoWidth:false,
   orderCellsTop:true,
   order: [[11, 'asc']], // Trier par date d'ajout par défaut (colonne 11 = created_at)
-  rowCallback: function(row, data, index) {
-    // Surligner les 750 premiers inscrits par ordre de date d'ajout
-    if(index < 750) {
-      $(row).addClass('first-750');
-    }
+  rowCallback: function (row, data, _displayNum, displayIndex) {
+    // 1) numéro séquentiel : displayIndex (0-based) + 1
+    $('td:eq(0)', row).text(displayIndex + 1);   // 2 = 3ᵉ colonne (0,1,2)
+    // displayIndex = rang global après tri & recherche
+    $(row).toggleClass('first-750', displayIndex < 750);
   },
   initComplete:function(){
     buildFilters(this.api());
