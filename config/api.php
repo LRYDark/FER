@@ -235,7 +235,6 @@ if ($route==='registrations'){
 if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     requireRole(['admin']);
 
-    /* ---------- validation upload ---------- */
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         http_response_code(400);
         echo json_encode(['error' => 'Erreur lors du téléchargement du fichier']);
@@ -243,14 +242,11 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        /* ---------- Autoload Composer ---------- */
-        require_once __DIR__ . '/../vendor/autoload.php';    // chemin absolu
-        // (pas de “use” en plein milieu de code)
+        require_once __DIR__ . '/../vendor/autoload.php';
 
-        /* ---------- lecture brute ---------- */
         $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($_FILES['file']['tmp_name'])
                      ->getActiveSheet()
-                     ->toArray(null, true, true, true);      // clés = A, B, C…
+                     ->toArray(null, true, true, true); // A, B, C...
 
         if (empty($sheet) || count($sheet) < 2) {
             http_response_code(400);
@@ -258,21 +254,38 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        /* ---------- 1) map intitulé → lettre ---------- */
-        $headerMap = [];                    // ex. ['numero billet' => 'A']
+        // 1. Récupération des correspondances depuis la BDD
+        $mapFields = []; // ['numero billet' => 'inscription_no']
+        $stmt = $pdo->query('SELECT fields_bdd, fields_excel FROM import');
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $mapFields[ normaliseLabel($row['fields_excel']) ] = $row['fields_bdd'];
+        }
+
+        // 2. Mapping des entêtes Excel
+        $headerMap = []; // ['numero billet' => 'A']
         foreach ($sheet[1] as $col => $label) {
             if (!$label) continue;
             $headerMap[ normaliseLabel($label) ] = $col;
         }
 
-        /* ---------- 2) colonnes requises ---------- */
-        $required = [
-            'numero billet', 'prenom participant', 'nom participant',
-            'telephone mobile', 'adresse email', 'annee de naissance',
-            'sexe', 'ville', 'nom de l\'equipe', 'pays', 'date de creation'
-        ];
+        // 3. Vérification des colonnes requises
+        $required = array_keys($mapFields);
         $missing = array_diff($required, array_keys($headerMap));
+
+        // Log de debug
+        file_put_contents('debug_import.log', json_encode([
+            'required' => $required,
+            'headerMap' => array_keys($headerMap),
+            'missing' => array_values($missing)
+        ], JSON_PRETTY_PRINT));
+
         if ($missing) {
+            logImportError([
+                'type' => 'colonnes manquantes',
+                'missing' => array_values($missing),
+                'headerMap' => array_keys($headerMap),
+                'required' => $required
+            ]);
             http_response_code(422);
             echo json_encode([
                 'error'   => 'Colonnes manquantes',
@@ -281,11 +294,11 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        /* ---------- 3) numéros déjà en base ---------- */
+        // 4. Tickets déjà existants
         $existingTickets = $pdo->query('SELECT inscription_no FROM registrations')
                                ->fetchAll(PDO::FETCH_COLUMN, 0);
 
-        /* ---------- 4) requête préparée ---------- */
+        // 5. Préparation de la requête
         $stmt = $pdo->prepare(
             'INSERT INTO registrations
              (inscription_no, nom, prenom, tel, email, naissance, sexe,
@@ -294,76 +307,68 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
 
-        /* ---------- 5) parcours lignes ---------- */
+        // 6. Traitement des lignes
         $pdo->beginTransaction();
         $added = $skipped = 0;
         $duplicates = $errors = [];
 
         foreach ($sheet as $idx => $row) {
-            if ($idx === 1) continue;                       // saute l’entête
+            if ($idx === 1) continue;
 
-            $inscriptionNo = (int)$row[ $headerMap['numero billet'] ];
-            $nom           = trim($row[ $headerMap['nom participant'] ] ?? '');
-            $prenom        = trim($row[ $headerMap['prenom participant'] ] ?? '');
+            $values = [];
+            foreach ($mapFields as $excelLabel => $bddField) {
+                $col = $headerMap[$excelLabel] ?? null;
+                $value = $col ? trim($row[$col]) : null;
 
-            /* -- données minimales ? -- */
-            if (!$inscriptionNo || !$nom || !$prenom) {
-                $skipped++;  $errors[] = ['ligne'=>$idx,'erreur'=>'Données manquantes'];
-                continue;
-            }
-
-            /* -- doublon ? -- */
-            if (in_array($inscriptionNo, $existingTickets, true)) {
-                $skipped++;  $duplicates[] = ['ligne'=>$idx,'ticket'=>$inscriptionNo];
-                continue;
-            }
-
-            /* -- année de naissance -- */
-            $naissance = null;
-            $nRaw = $row[ $headerMap['annee de naissance'] ] ?? null;
-            if (is_numeric($nRaw) && $nRaw >= 1900 && $nRaw <= date('Y')) $naissance = $nRaw;
-
-            /* -- date de création (Excel ou texte) -- */
-            $createdRaw = $row[ $headerMap['date de creation'] ] ?? '';
-            $createdAt  = null;
-            if ($createdRaw !== '') {
-                if (is_numeric($createdRaw)) {                   // série Excel
-                    $createdAt = date(
-                        'Y-m-d H:i:s',
-                        \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($createdRaw)
-                    );
-                } else {                                         // texte
-                    $fmt = ['d/m/Y H:i:s','d/m/Y','Y-m-d'];
-                    foreach ($fmt as $f) {
-                        $dt = DateTime::createFromFormat($f, $createdRaw);
-                        if ($dt) { $createdAt = $dt->format('Y-m-d H:i:s'); break; }
-                    }
+                if ($bddField === 'inscription_no') {
+                    $value = (int)$value;
+                } elseif ($bddField === 'naissance') {
+                    $value = (is_numeric($value) && $value >= 1900 && $value <= date('Y')) ? $value : null;
+                } elseif ($bddField === 'created_at') {
+                    $value = convertExcelDate($value);
+                } elseif ($bddField === 'sexe') {
+                    $value = normaliseSexe($value);
                 }
-            }
-            $createdAt ??= date('Y-m-d H:i:s');                  // fallback
 
-            /* -- insertion -- */
+                $values[$bddField] = $value ?: null;
+            }
+
+            if (!$values['inscription_no'] || !$values['nom'] || !$values['prenom']) {
+                $skipped++;
+                $errors[] = ['ligne' => $idx, 'erreur' => 'Données manquantes'];
+                logImportError([
+                    'type' => 'ligne ignorée',
+                    'ligne' => $idx,
+                    'raison' => 'Données manquantes',
+                    'valeurs' => $values
+                ]);
+                continue;
+            }
+
+            if (in_array($values['inscription_no'], $existingTickets, true)) {
+                $skipped++;
+                $duplicates[] = ['ligne' => $idx, 'ticket' => $values['inscription_no']];
+                logImportError([
+                    'type' => 'doublon',
+                    'ligne' => $idx,
+                    'ticket' => $values['inscription_no']
+                ]);
+                continue;
+            }
+
             $stmt->execute([
-                $inscriptionNo, $nom, $prenom,
-                $row[ $headerMap['telephone mobile'] ] ?: null,
-                $row[ $headerMap['adresse email'] ]    ?: null,
-                $naissance,
-                normaliseSexe($row[ $headerMap['sexe'] ] ?? null),
-                '-',                                    // tshirt_size fixe
-                $row[ $headerMap['ville'] ]             ?: null,
-                $row[ $headerMap['nom de l\'equipe'] ]  ?: null,
-                $row[ $headerMap['pays'] ]              ?: null,
-                'en ligne (CB)',                        // paiement_mode fixe
-                $createdAt,
-                currentUserId()
+                $values['inscription_no'], $values['nom'], $values['prenom'],
+                $values['tel'], $values['email'], $values['naissance'], $values['sexe'],
+                '-', $values['ville'], $values['entreprise'], 'AssoConnect',
+                'en ligne (CB)', $values['created_at'], currentUserId()
             ]);
 
-            $existingTickets[] = $inscriptionNo;
+            $existingTickets[] = $values['inscription_no'];
             $added++;
         }
+
         $pdo->commit();
 
-        /* ---------- 6) réponse ---------- */
         echo json_encode([
             'ok'            => true,
             'rows_added'    => $added,
@@ -375,6 +380,11 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
+        logImportError([
+            'type' => 'exception',
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
         error_log('Import Excel : '.$e->getMessage());
         http_response_code(500);
         echo json_encode([
@@ -387,15 +397,12 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* ---------- Petites fonctions utilitaires ---------- */
-
-/** Normalise l'intitulé d'une colonne : minuscules, accents retirés, espaces simples */
 function normaliseLabel(string $label): string {
-    // supprime les accents, remplace \s+ par un espace, trim, lower
-    $noAccents = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $label);
-    return strtolower(trim(preg_replace('/\s+/', ' ', $noAccents)));
+    $label = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $label);
+    $label = preg_replace('/[^a-zA-Z0-9 ]/', '', $label);
+    return strtolower(trim(preg_replace('/\s+/', ' ', $label)));
 }
 
-/** Convertit des libellés divers en valeurs ENUM acceptées */
 function normaliseSexe(?string $val): ?string {
     $v = strtoupper(trim($val ?? ''));
     return match ($v) {
@@ -405,6 +412,25 @@ function normaliseSexe(?string $val): ?string {
         default                    => 'Autre'
     };
 }
+
+function convertExcelDate($value): ?string {
+    if (is_numeric($value)) {
+        return date('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($value));
+    } else {
+        $formats = ['d/m/Y H:i:s', 'd/m/Y', 'Y-m-d'];
+        foreach ($formats as $f) {
+            $dt = DateTime::createFromFormat($f, $value);
+            if ($dt) return $dt->format('Y-m-d H:i:s');
+        }
+    }
+    return date('Y-m-d H:i:s');
+}
+
+function logImportError(array $data, string $filename = 'import_errors.log') {
+    $entry = date('Y-m-d H:i:s') . " | " . json_encode($data, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    file_put_contents($filename, $entry, FILE_APPEND);
+}
+
 
 /* ───── EXPORT EXCEL (admin) ─────────────────── */
 if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
