@@ -23,9 +23,6 @@ if ($route === 'users') {
 
     // 🔁 POST : suppression d’un compte
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
-        error_log("🔧 Bloc suppression atteint");
-        error_log("POST reçu : " . print_r($_POST, true));
-
         $id = $_POST['id'] ?? null;
         $force = $_POST['force'] ?? false;
 
