@@ -52,14 +52,25 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $required_fields[$row['fields']] = $row['required'] ? 1 : 0;
 }
 
-$required_name = $required_fields['required_name'] ?? 0;
-$required_firstname = $required_fields['required_firstname'] ?? 0;
-$required_phone = $required_fields['required_phone'] ?? 0;
-$required_email = $required_fields['required_email'] ?? 0;
-$required_date_of_birth = $required_fields['required_date_of_birth'] ?? 0;
-$required_sex = $required_fields['required_sex'] ?? 0;
-$required_city = $required_fields['required_city'] ?? 0;
-$required_company = $required_fields['required_company'] ?? 0;
+$fields = ['required_name','required_firstname','required_phone','required_email','required_date_of_birth','required_sex','required_city','required_company'];
+foreach ($fields as $field) {
+    $$field = $required_fields[$field] ?? 0;
+}
+
+
+// Import excel ---------------------------------------------------------------------------------
+$stmt = $pdo->prepare('SELECT * FROM import');
+$stmt->execute();
+
+$import_fields = [];
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $import_fields[$row['fields_bdd']] = $row['fields_excel'] ?? '';
+}
+
+$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'origine', 'created_at'];
+foreach ($fields as $field) {
+    $$field = $import_fields[$field] ?? '';
+}
 
 /******************************************************************
  * Génère une alerte Bootstrap fermable + auto-dismiss
@@ -460,40 +471,81 @@ if (isset($_POST['reglementation'])) {
 }
 
 /* --------------------------------------------------------------------------
-   Carte 5 : Formulaire
+   Carte : Formulaire
 -------------------------------------------------------------------------- */
 $alertRequired = '';
 if (isset($_POST['required'])) {
-    $required_fields = [
-        1 => isset($_POST['required_name']) ? 1 : 0,
-        2 => isset($_POST['required_firstname']) ? 1 : 0,
-        3 => isset($_POST['required_phone']) ? 1 : 0,
-        4 => isset($_POST['required_email']) ? 1 : 0,
-        5 => isset($_POST['required_date_of_birth']) ? 1 : 0,
-        6 => isset($_POST['required_sex']) ? 1 : 0,
-        7 => isset($_POST['required_city']) ? 1 : 0,
-        8 => isset($_POST['required_company']) ? 1 : 0,
+    $field_keys = [
+        'required_name',
+        'required_firstname',
+        'required_phone',
+        'required_email',
+        'required_date_of_birth',
+        'required_sex',
+        'required_city',
+        'required_company',
     ];
 
-    $upd = $pdo->prepare('UPDATE forms SET required = :required WHERE id = :id');
+    $required_fields = [];
+    foreach ($field_keys as $field) {
+        $required_fields[$field] = isset($_POST[$field]) ? 1 : 0;
+    }
 
-    foreach ($required_fields as $id => $required) {
+    $upd = $pdo->prepare('UPDATE forms SET required = :required WHERE fields = :fields');
+
+    foreach ($required_fields as $field => $required) {
         $upd->execute([
             'required' => $required,
-            'id' => $id
+            'fields' => $field
         ]);
     }
 
     $alertRequired = makeAlert('success', 'Configuration enregistrée !');
 
-    $required_name = $_POST['required_name'] ?? 0;
-    $required_firstname = $_POST['required_firstname'] ?? 0;
-    $required_phone = $_POST['required_phone'] ?? 0;
-    $required_email = $_POST['required_email'] ?? 0;
-    $required_date_of_birth = $_POST['required_date_of_birth'] ?? 0;
-    $required_sex = $_POST['required_sex'] ?? 0;
-    $required_city = $_POST['required_city'] ?? 0;
-    $required_company = $_POST['required_company'] ?? 0;
+    // Création dynamique des variables
+    foreach ($field_keys as $field) {
+        $$field = $_POST[$field] ?? 0;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Carte : Import excel
+-------------------------------------------------------------------------- */
+$alertImport = '';
+if (isset($_POST['importExcel'])) {
+    $field_keys = [
+        'inscription_no',
+        'nom',
+        'prenom',
+        'tel',
+        'email',
+        'naissance',
+        'sexe',
+        'ville',
+        'origine',
+        'date',
+        'entreprise'
+    ];
+
+    $import_fields = [];
+    foreach ($field_keys as $key) {
+        $import_fields[$key] = $_POST[$key] ?? '';
+    }
+
+    $upd = $pdo->prepare('UPDATE import SET fields_excel = :fields_excel WHERE fields_bdd = :fields_bdd');
+
+    foreach ($import_fields as $bdd_field => $import) {
+        $upd->execute([
+            'fields_excel' => $import,
+            'fields_bdd' => $bdd_field
+        ]);
+    }
+
+    $alertImport = makeAlert('success', 'Configuration enregistrée !');
+
+    foreach ($field_keys as $key) {
+        $$key = $_POST[$key] ?? '';
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -1035,49 +1087,40 @@ document.addEventListener('DOMContentLoaded', () => {
             <!-- Carte 7 -->
             <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
                 <h2 class="mb-4">Informations d'import excel</h2>
-                 <?php if ($alertRequired) echo $alertRequired; ?>
+                 <?php if ($alertImport) echo $alertImport; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale = </label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">N° d'inscription</label>
+                        <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale = </label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Nom = </label>
+                        <input type="text" class="form-control" name="nom" value="<?= htmlspecialchars($nom, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Prénom =</label>
+                        <input type="text" class="form-control" name="prenom" value="<?= htmlspecialchars($prenom, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Téléphone =</label>
+                        <input type="text" class="form-control" name="tel" value="<?= htmlspecialchars($tel, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Email =</label>
+                        <input type="text" class="form-control" name="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Date de naissance =</label>
+                        <input type="text" class="form-control" name="naissance" value="<?= htmlspecialchars($naissance, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Sexe =</label>
+                        <input type="text" class="form-control" name="sexe" value="<?= htmlspecialchars($sexe, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Ville =</label>
+                        <input type="text" class="form-control" name="ville" value="<?= htmlspecialchars($ville, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Entreprise =</label>
+                        <input type="text" class="form-control" name="entreprise" value="<?= htmlspecialchars($entreprise, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Origine du payement =</label>
+                        <input type="text" class="form-control" name="origine" value="<?= htmlspecialchars($origine, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
-                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
+                        <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
                     <button type="submit" name="importExcel" class="btn btn-primary">Sauvegarder</button>
                 </form>
