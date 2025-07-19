@@ -11,7 +11,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $st->execute([$d['username']]); $u=$st->fetch();
     if($u && password_verify($d['password'],$u['password_hash'])){
         $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role'];
-        echo json_encode(['ok'=>true]); exit;
+        echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;  // ← Ajout du role
     }
     http_response_code(401); echo json_encode(['ok'=>false]); exit;
 }
@@ -135,7 +135,7 @@ if ($route === 'users') {
 if ($route==='registrations'){
     /* GET : tous rôles */
     if($_SERVER['REQUEST_METHOD']==='GET'){
-        requireRole(['admin','user','viewer']);
+        requireRole(['admin','user','viewer','saisie']);
         echo json_encode(
           $pdo->query('SELECT * FROM registrations ORDER BY inscription_no DESC')->fetchAll()
         ); exit;
@@ -408,7 +408,7 @@ function normaliseSexe(?string $val): ?string {
 
 /* ───── EXPORT EXCEL (admin) ─────────────────── */
 if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    requireRole(['admin']);
+    requireRole(['admin','user']);
 
     require_once __DIR__.'/../vendor/autoload.php';
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
@@ -453,7 +453,7 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $year         = (int) date('Y');                // année en cours
     $tableArchive = "registrations_$year";
 
-    /* 0) s’il n’y a rien à archiver, on sort proprement */
+    /* 0) s'il n'y a rien à archiver, on sort proprement */
     $nbActives = $pdo->query('SELECT COUNT(*) FROM registrations')->fetchColumn();
     if (!$nbActives) { echo json_encode(['ok'=>true,'archived'=>0]); exit; }
 
@@ -464,7 +464,7 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     $pdo->exec("INSERT INTO `$tableArchive` SELECT * FROM registrations");
 
-    /* 3) Statistiques (à partir de la table qu’on vient de remplir) */
+    /* 3) Statistiques (à partir de la table qu'on vient de remplir) */
     $s = $pdo->query("
         SELECT COUNT(*)                           AS total,
                SUM(tshirt_size='XS')              AS xs,
@@ -482,8 +482,8 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->prepare("
         INSERT INTO registrations_stats
           (year,total_inscrits,tshirt_xs,tshirt_s,tshirt_m,
-           tshirt_l,tshirt_xl,tshirt_xxl,age_moyen)
-        VALUES (?,?,?,?,?,?,?,?,?)
+           tshirt_l,tshirt_xl,tshirt_xxl,age_moyen,table_name)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE
            total_inscrits = VALUES(total_inscrits),
            tshirt_xs      = VALUES(tshirt_xs),
@@ -492,20 +492,55 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
            tshirt_l       = VALUES(tshirt_l),
            tshirt_xl      = VALUES(tshirt_xl),
            tshirt_xxl     = VALUES(tshirt_xxl),
-           age_moyen      = VALUES(age_moyen)
+           age_moyen      = VALUES(age_moyen),
+           table_name     = VALUES(table_name)
     ")->execute([
         $year, $s['total'],$s['xs'],$s['s'],$s['m'],$s['l'],$s['xl'],$s['xxl'],
-        $s['age_moyen']
+        $s['age_moyen'], $tableArchive
     ]);
 
     /* 4) On vide la table active pour la nouvelle saison */
     $pdo->exec('TRUNCATE TABLE registrations');
     $pdo->commit();
 
-    echo json_encode(['ok'=>true,'archived'=>$s['total'],'year'=>$year]);
+    echo json_encode(['ok'=>true,'archived'=>$s['total'],'year'=>$year,'table_name'=>$tableArchive]);
     exit;
 }
 
+// Dans votre api.php, section registrations-archive
+if ($route === 'registrations-archive') {
+    requireRole(['admin', 'viewer']);
+    
+    $year = (int) ($_GET['year'] ?? date('Y'));
+    $tableName = $_GET['table_name'] ?? '';
+    
+    // Utilise table_name si disponible, sinon fallback sur le format standard
+    if (!empty($tableName)) {
+        $tableArchive = $tableName;
+    } else {
+        $tableArchive = "registrations_$year";
+    }
+    
+    try {
+        // Vérifie si la table existe
+        $checkTable = $pdo->query("SHOW TABLES LIKE '$tableArchive'")->rowCount();
+        if (!$checkTable) {
+            echo json_encode([]);
+            exit;
+        }
+        
+        $registrations = $pdo->query(
+            "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size 
+             FROM `$tableArchive` 
+             ORDER BY inscription_no DESC"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo json_encode($registrations);
+    } catch (Exception $e) {
+        echo json_encode([]);
+    }
+    exit;
+}
 
 http_response_code(404); 
 echo json_encode(['error'=>'route inconnue']);
