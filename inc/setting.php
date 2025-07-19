@@ -715,8 +715,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
                                 required>
                         </div>
-
-                        <button type="submit" name="LinkAssoConnect" class="btn btn-primary">Sauvegarder</button>
+                        <div class="col-12 text-end">
+                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
+                        </div>
                     </form>
             </div>
 
@@ -790,7 +791,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <?php endfor; ?>
                             </select>
                         </div>
-                        <button type="submit" name="config" class="btn btn-primary">Sauvegarder</button>
+                        <div class="col-12 text-end">
+                            <button type="submit" name="config" class="btn btn-primary w-auto">Sauvegarder</button>
+                        </div>
                     </form>
             </div>
 
@@ -878,7 +881,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="col-md-6"><label class="form-label">Lien de la ligne contre le cancer</label>
                         <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la ligne contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <button type="submit" name="accueil" class="btn btn-primary">Sauvegarder</button>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="accueil" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
                 </form>
         </div>
         </div><!-- /col droite -->
@@ -941,7 +946,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             Gérer la galerie d'images
                         </button>
                     </div>
-                    <button type="submit" name="parcours" class="btn btn-primary">Sauvegarder</button>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="parcours" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
                 </form>
         </div>
         </div><!-- /col droite -->
@@ -1015,7 +1022,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <?= htmlspecialchars($div_reglementation) ?>
                         </textarea>
                     </div>
-                    <button type="submit" name="reglementation" class="btn btn-primary">Sauvegarder</button>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="reglementation" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -1122,7 +1131,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
                         <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <button type="submit" name="importExcel" class="btn btn-primary">Sauvegarder</button>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="importExcel" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -1189,7 +1200,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <label class="form-check-label" for="required_company">Oui / Non</label>
                         </div>
                     </div>
-                    <button type="submit" name="required" class="btn btn-primary">Sauvegarder</button>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="required" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
                 </form>
             </div>
         </div>
