@@ -406,5 +406,106 @@ function normaliseSexe(?string $val): ?string {
     };
 }
 
+/* ───── EXPORT EXCEL (admin) ─────────────────── */
+if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    requireRole(['admin']);
+
+    require_once __DIR__.'/../vendor/autoload.php';
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet       = $spreadsheet->getActiveSheet();
+
+    /* 1. Entêtes */
+    $headers = ['No', 'Nom', 'Prénom', 'Tel', 'Email', 'Naissance',
+                'Sexe', 'T-shirt', 'Ville', 'Entreprise', 'Origine',
+                'Paiement', 'Créé le', 'Par'];
+    $sheet->fromArray($headers, null, 'A1');
+
+    /* 2. Données */
+    $rows = $pdo->query(
+        'SELECT inscription_no, nom, prenom, tel, email, naissance,
+                sexe, tshirt_size, ville, entreprise, origine,
+                paiement_mode, created_at, created_by
+         FROM registrations
+         ORDER BY inscription_no'
+    )->fetchAll(PDO::FETCH_NUM);
+
+    $sheet->fromArray($rows, null, 'A2');
+
+    /* 3. Style minimal */
+    $sheet->getStyle('A1:N1')->getFont()->setBold(true);
+    foreach (range('A', 'N') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+
+    /* 4. Téléchargement */
+    $filename = 'inscriptions_'.date('Ymd_His').'.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header("Content-Disposition: attachment; filename=\"$filename\"");
+    header('Cache-Control: max-age=0');
+
+    $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+    $writer->save('php://output');
+    exit;
+}
+
+/* ───── ARCHIVE CURRENT YEAR (admin) ─────────────────── */
+if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireRole(['admin']);
+
+    $year         = (int) date('Y');                // année en cours
+    $tableArchive = "registrations_$year";
+
+    /* 0) s’il n’y a rien à archiver, on sort proprement */
+    $nbActives = $pdo->query('SELECT COUNT(*) FROM registrations')->fetchColumn();
+    if (!$nbActives) { echo json_encode(['ok'=>true,'archived'=>0]); exit; }
+
+    /* 1) Créer la table archive si nécessaire */
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `$tableArchive` LIKE registrations");
+
+    /* 2) Copier toutes les lignes */
+    $pdo->beginTransaction();
+    $pdo->exec("INSERT INTO `$tableArchive` SELECT * FROM registrations");
+
+    /* 3) Statistiques (à partir de la table qu’on vient de remplir) */
+    $s = $pdo->query("
+        SELECT COUNT(*)                           AS total,
+               SUM(tshirt_size='XS')              AS xs,
+               SUM(tshirt_size='S')               AS s,
+               SUM(tshirt_size='M')               AS m,
+               SUM(tshirt_size='L')               AS l,
+               SUM(tshirt_size='XL')              AS xl,
+               SUM(tshirt_size='XXL')             AS xxl,
+               AVG(YEAR(NOW()) - naissance)       AS age_moyen
+        FROM `$tableArchive`
+    ")->fetch(PDO::FETCH_ASSOC);
+
+    foreach (['xs','s','m','l','xl','xxl'] as $k) $s[$k] = (int)($s[$k] ?? 0);
+
+    $pdo->prepare("
+        INSERT INTO registrations_stats
+          (year,total_inscrits,tshirt_xs,tshirt_s,tshirt_m,
+           tshirt_l,tshirt_xl,tshirt_xxl,age_moyen)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+           total_inscrits = VALUES(total_inscrits),
+           tshirt_xs      = VALUES(tshirt_xs),
+           tshirt_s       = VALUES(tshirt_s),
+           tshirt_m       = VALUES(tshirt_m),
+           tshirt_l       = VALUES(tshirt_l),
+           tshirt_xl      = VALUES(tshirt_xl),
+           tshirt_xxl     = VALUES(tshirt_xxl),
+           age_moyen      = VALUES(age_moyen)
+    ")->execute([
+        $year, $s['total'],$s['xs'],$s['s'],$s['m'],$s['l'],$s['xl'],$s['xxl'],
+        $s['age_moyen']
+    ]);
+
+    /* 4) On vide la table active pour la nouvelle saison */
+    $pdo->exec('TRUNCATE TABLE registrations');
+    $pdo->commit();
+
+    echo json_encode(['ok'=>true,'archived'=>$s['total'],'year'=>$year]);
+    exit;
+}
+
+
 http_response_code(404); 
 echo json_encode(['error'=>'route inconnue']);

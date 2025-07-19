@@ -13,3 +13,13 @@ Stack trace:
 #0 {main}
   thrown in /var/www/html/FER/config/api.php on line 273
 [18-Jul-2025 21:43:42 UTC] Import Excel : Call to undefined function normaliseLabel()
+[19-Jul-2025 09:11:12 UTC] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1364 Field 'tshirt_xxl' doesn't have a default value in /var/www/html/FER/config/api.php:493
+Stack trace:
+#0 /var/www/html/FER/config/api.php(493): PDOStatement->execute()
+#1 {main}
+  thrown in /var/www/html/FER/config/api.php on line 493
+[19-Jul-2025 09:16:17 UTC] PHP Fatal error:  Uncaught PDOException: There is no active transaction in /var/www/html/FER/config/api.php:503
+Stack trace:
+#0 /var/www/html/FER/config/api.php(503): PDO->commit()
+#1 {main}
+  thrown in /var/www/html/FER/config/api.php on line 503
