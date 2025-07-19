@@ -32,7 +32,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-  .first-750 td{background:#ffe5ff!important;font-weight:600}
+  .first-750 td{background:linear-gradient(135deg, #ffe5ff 0%, #fff0ff 100%)!important;font-weight:600;border-left: 4px solid var(--rose-500)!important;}
   .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
   .hero h1{margin:0;font-size:2.2rem}
   .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
@@ -43,6 +43,78 @@ $titleColor = $data['title_color'] ?? '#ffffff';
   tr.filters th[class*="sorting"]::after{display:none!important}
   .statCard{min-width:180px}
   .hide-stats #stats {display: none !important;}
+  
+/* Styles pour l'en-tête moderne */
+/* ═══ En-tête ============================================================== */
+#tbl thead tr:first-child th{
+  background:#fafafa;                /* fond clair uniforme        */
+  color:#4a4a4a;                     /* texte gris foncé           */
+  font-weight:600;
+  font-size:.78rem;
+  letter-spacing:.4px;
+  border-top:2px solid var(--rose-500);
+  border-bottom:2px solid #e0e0e0;   /* petite ligne de séparation */
+  padding:.9rem .65rem;
+}
+#tbl thead tr:first-child th:first-child { border-radius:10px 0 0 0; }
+#tbl thead tr:first-child th:last-child  { border-radius:0 10px 0 0; }
+
+/* sur-vol des lignes plus subtil */
+#tbl tbody tr:hover{background:#fffdfd;transform:none;}
+
+/* ═══ Lignes =============================================================== */
+/* 1. taille & espacement */
+#tbl tbody td{
+  padding:.65rem .8rem;
+  vertical-align:middle;
+  font-size:.86rem;
+}
+
+/* 2. zébrage léger */
+#tbl tbody tr:nth-child(even){background:#faf8fd}
+
+#tbl tbody tr:hover{
+  background:#fffdfd;
+  box-shadow:0 2px 6px rgba(0,0,0,.04);
+}
+
+/* 4. coins arrondis en bas quand la pagination montre peu de lignes */
+#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 12px}
+#tbl tbody tr:last-child td:last-child  {border-radius:0 0 12px 0}
+
+/* 5. garde ta règle “first-750” mais on la rend plus douce */
+.first-750 td{
+  background:linear-gradient(90deg,#fff2f8 0%,#fcecff 100%)!important;
+  border-left:2px solid var(--rose-500)!important;
+}
+
+/* ═══ Petite retouche des filtres sous l’en-tête =========================== */
+tr.filters th{
+  background:#f2f4f8;
+  border-bottom:2px solid #e0e4ec;
+  padding:.4rem;
+}
+tr.filters select{
+  font-size:.8rem;
+  border-radius:8px;
+}
+
+/* ═══ Boutons action dans le tableau ====================================== */
+.action-buttons .btn{
+  --bs-btn-padding-y: .20rem;
+  --bs-btn-padding-x: .45rem;
+  --bs-btn-font-size: .75rem;
+}
+.btn-delete{
+  background:#e63946;
+  background:linear-gradient(135deg,#e63946 0%,#c5303d 100%);
+}
+.btn-delete:hover{
+  background:linear-gradient(135deg,#c5303d 0%,#a32634 100%);
+  box-shadow:0 3px 6px rgba(230,57,70,.35);
+}
+
+
 </style>
 </head>
 
@@ -135,7 +207,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 
 <div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog">
   <div class="modal-content"><div class="modal-header">
-    <h5 class="modal-title">Modifier l’inscription</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <h5 class="modal-title">Modifier l'inscription</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
     <form id="fEdit">
       <div class="modal-body row g-2">
         <input type="hidden" name="id">
@@ -190,6 +262,8 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 
 <script>
 const userRole = '<?= $role ?>';
+let tableData = []; // Pour stocker les données triées par date
+
 /* ══ Outils ════ */
 function normalizeBirth(fd){
   let v=(fd.get('naissance')||'').trim();
@@ -221,7 +295,14 @@ function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Remise T-shi
 refreshButtons();
 
 const tbl=$('#tbl').DataTable({
-  ajax:{url:'../config/api.php?route=registrations',dataSrc:''},
+  ajax:{
+    url:'../config/api.php?route=registrations',
+    dataSrc: function(json) {
+      // Trier les données par date d'ajout (du plus ancien au plus récent)
+      tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      return tableData;
+    }
+  },
   columns:[
     {data:'id',visible:false},
     {data:'inscription_no',title:'N°'},
@@ -243,22 +324,62 @@ const tbl=$('#tbl').DataTable({
     {data:'naissance',title:'Naissance'},
     {data:'paiement_mode',title:'Paiement'},
     {data:'entreprise',title:'Entreprise'},
-    {data:'created_at',title:'Date ajout'},
+    {data   : 'created_at',
+      title  : 'Date ajout',
+      render : function (val, type){
+        // le type "display" (cellule visible) et "filter" (recherche) → JJ/MM/AAAA
+        if(type === 'display' || type === 'filter'){
+          if(!val) return '';
+          const d = new Date(val);
+          return d.toLocaleDateString('fr-FR');      // 15/05/2025
+        }
+        // pour le tri ("sort") on renvoie la valeur brute ISO
+        return val;
+      },
+      width  : '110px',
+      className : 'text-nowrap text-center'
+    },
     {data:'origine',title:'Origine'}
-    <?php if($role==='admin'): ?>,
-    {data:null,title:'',orderable:false,render:()=>'<button class="btn btn-sm btn-outline-primary edit">✏️</button>'}
+    <?php if($role !== 'viewer'): ?>,
+    {
+      data:null,
+      title:'Actions',
+      orderable:false,
+      className:'text-center',
+      width:'120px',
+      render: function(data, type, row) {
+        let buttons = '';
+        <?php if($role==='admin'): ?>
+        buttons += '<button class="btn btn-sm btn-outline-primary edit me-1" title="Modifier">✏️</button>';
+        buttons += '<button class="btn btn-sm btn-delete delete-row" title="Supprimer">🗑️</button>';
+        <?php endif; ?>
+        return `<div class="action-buttons">${buttons}</div>`;
+      }
+    }
     <?php endif; ?>
   ],
   dom:'lrtip',
   autoWidth:false,
   orderCellsTop:true,
-  rowCallback:(row,d)=>{if(+d.inscription_no<=750)$(row).addClass('first-750')},
+  order: [[11, 'asc']], // Trier par date d'ajout par défaut (colonne 11 = created_at)
+  rowCallback: function(row, data, index) {
+    // Surligner les 750 premiers inscrits par ordre de date d'ajout
+    if(index < 750) {
+      $(row).addClass('first-750');
+    }
+  },
   initComplete:function(){
     buildFilters(this.api());
     updateStats(this.api().data().toArray());
   }
 });
-tbl.on('xhr.dt',(e,s,json)=>updateStats(json||[]));
+
+tbl.on('xhr.dt',(e,s,json)=>{
+  if(json) {
+    tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    updateStats(tableData);
+  }
+});
 
 // Événements pour détecter l'ouverture/fermeture des menus t-shirt
 $('#tbl').on('mousedown', '.tshirt-dd', function(e) {
@@ -270,13 +391,11 @@ $('#tbl').on('focus', '.tshirt-dd', function() {
 });
 
 $('#tbl').on('blur change', '.tshirt-dd', function() {
-  // Petit délai pour permettre la sélection d'une option
   setTimeout(() => {
     isDropdownOpen = false;
   }, 150);
 });
 
-// Détecter les clics ailleurs pour fermer le flag
 $(document).on('click', function(e) {
   if (!$(e.target).hasClass('tshirt-dd')) {
     setTimeout(() => {
@@ -292,14 +411,12 @@ let isDropdownOpen = false;
 // Fonction pour démarrer le refresh automatique
 function startAutoRefresh() {
   refreshInterval = setInterval(() => {
-    // Ne pas recharger si un menu déroulant t-shirt est ouvert
     if (!isDropdownOpen) {
       tbl.ajax.reload(null, false);
     }
   }, 5000);
 }
 
-// Démarrer le refresh automatique
 startAutoRefresh();
 $('#quickSearch').on('keyup',function(){tbl.search(this.value).draw();});
 
@@ -353,20 +470,17 @@ function buildFilters(api){
 
 /* ══ Bascule Remise T-shirts ════ */
 function applyTshirtMode() {
-  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine', ''];
-  // Masquer certaines colonnes
+  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine', 'Actions'];
   tbl.columns().every(function () {
     const h = $(this.header()).text().trim();
     if (hideHeaders.includes(h)) this.visible(!tshirtMode, false);
   });
-  // Masquer les filtres
   $('.filters').toggle(!tshirtMode);
-  // Masquer ou afficher les stats via une classe CSS
   if (tshirtMode) {
     $('body').addClass('hide-stats');
   } else {
     $('body').removeClass('hide-stats');
-    updateStats(tbl.data().toArray()); // on remet à jour les stats si on revient au mode normal
+    updateStats(tbl.data().toArray());
   }
   tbl.rows().invalidate().draw(false);
 }
@@ -380,12 +494,43 @@ applyTshirtMode();
 
 /* ══ MAJ taille T-shirt ════ */
 $('#tbl').on('change','.tshirt-dd',function(){
-  // Sécurité supplémentaire côté client
   if(userRole === 'viewer') {
     alert('Vous n\'avez pas les droits pour modifier les tailles de t-shirts.');
     return;
   }
   fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id:this.dataset.id,tshirt_size:this.value})});
+});
+
+/* ══ SUPPRESSION ════ */
+$('#tbl').on('click', '.delete-row', function() {
+  const row = tbl.row($(this).closest('tr'));
+  const data = row.data();
+  
+  if (!confirm(`Êtes-vous sûr de vouloir supprimer l'inscription de ${data.prenom} ${data.nom} ?`)) {
+    return;
+  }
+  
+  fetch('../config/api.php?route=registrations', {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({id: data.id})
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success || result.ok) {
+      // Supprimer la ligne du tableau
+      row.remove().draw(false);
+      // Mettre à jour les statistiques
+      updateStats(tbl.data().toArray());
+      alert('Inscription supprimée avec succès');
+    } else {
+      alert('Erreur lors de la suppression : ' + (result.message || 'Erreur inconnue'));
+    }
+  })
+  .catch(error => {
+    console.error('Erreur:', error);
+    alert('Erreur de communication avec le serveur');
+  });
 });
 
 /* ══ AJOUT ════ */
