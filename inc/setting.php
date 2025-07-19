@@ -67,7 +67,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $import_fields[$row['fields_bdd']] = $row['fields_excel'] ?? '';
 }
 
-$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'origine', 'created_at'];
+$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'paiement_mode', 'created_at'];
 foreach ($fields as $field) {
     $$field = $import_fields[$field] ?? '';
 }
@@ -522,9 +522,9 @@ if (isset($_POST['importExcel'])) {
         'naissance',
         'sexe',
         'ville',
-        'origine',
+        'paiement_mode',
         'date',
-        'entreprise'
+        'entreprise',
     ];
 
     $import_fields = [];
@@ -1116,8 +1116,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="col-md-4"><label class="form-label">Entreprise =</label>
                         <input type="text" class="form-control" name="entreprise" value="<?= htmlspecialchars($entreprise, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
-                    <div class="col-md-4"><label class="form-label">Origine du payement =</label>
-                        <input type="text" class="form-control" name="origine" value="<?= htmlspecialchars($origine, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
+                        <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
                     <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
                         <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
