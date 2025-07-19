@@ -189,6 +189,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
 
 <script>
+const userRole = '<?= $role ?>';
 /* ══ Outils ════ */
 function normalizeBirth(fd){
   let v=(fd.get('naissance')||'').trim();
@@ -228,6 +229,10 @@ const tbl=$('#tbl').DataTable({
     {data:'prenom',title:'Prénom'},
     {data:'tshirt_size',title:'T-shirt',render:(v,t,r)=>{
       if(t!=='display') return v??''; if(!tshirtMode) return v??'';
+      // Si c'est un viewer, on affiche juste le texte grisé
+      if(userRole === 'viewer') {
+        return `<span class="text-muted" style="font-style: italic; opacity: 0.6;">${v || '-'}</span>`;
+      }
       const sz=['-','XS','S','M','L','XL','XXL'];
       return `<select class="form-select form-select-sm tshirt-dd" data-id="${r.id}">
               ${sz.map(s=>`<option${s===v?' selected':''}>${s}</option>`).join('')}</select>`;
@@ -308,7 +313,7 @@ function buildFilters(api){
 
 /* ══ Bascule Remise T-shirts ════ */
 function applyTshirtMode() {
-  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine', ''];
+  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine'];
   // Masquer certaines colonnes
   tbl.columns().every(function () {
     const h = $(this.header()).text().trim();
@@ -335,6 +340,11 @@ applyTshirtMode();
 
 /* ══ MAJ taille T-shirt ════ */
 $('#tbl').on('change','.tshirt-dd',function(){
+  // Sécurité supplémentaire côté client
+  if(userRole === 'viewer') {
+    alert('Vous n\'avez pas les droits pour modifier les tailles de t-shirts.');
+    return;
+  }
   fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id:this.dataset.id,tshirt_size:this.value})});
 });
 
