@@ -101,3 +101,8 @@ Stack trace:
 #0 /var/www/html/FER/config/api.php(504): PDO->commit()
 #1 {main}
   thrown in /var/www/html/FER/config/api.php on line 504
+[19-Jul-2025 12:04:46 UTC] PHP Fatal error:  Uncaught PDOException: There is no active transaction in /var/www/html/FER/config/api.php:555
+Stack trace:
+#0 /var/www/html/FER/config/api.php(555): PDO->commit()
+#1 {main}
+  thrown in /var/www/html/FER/config/api.php on line 555

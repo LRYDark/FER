@@ -14,9 +14,10 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 $footer= $data['footer'] ?? ''; 
 
-// 1. Récupère toutes les stats agrégées par année avec table_name
+// 1. Récupère toutes les stats agrégées par année avec table_name ET les nouvelles colonnes
 $stats = $pdo->query(
-    'SELECT year,total_inscrits,tshirt_xs,tshirt_s,tshirt_m,tshirt_l,tshirt_xl,tshirt_xxl,age_moyen,table_name
+    'SELECT year, total_inscrits, tshirt_xs, tshirt_s, tshirt_m, tshirt_l, tshirt_xl, tshirt_xxl, 
+            age_moyen, table_name, ville_top, entreprise_top, plus_vieux_h, plus_vieille_f
        FROM registrations_stats
        ORDER BY year'
 )->fetchAll(PDO::FETCH_ASSOC);
@@ -61,7 +62,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   .statCard{min-width:180px}
   .hide-stats #stats {display: none !important;}
   .stat-card{border-radius:1rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
-  .stat-title{font-size:.9rem;color:#6c757d}
+  .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
 </style>
 </head>
 
@@ -69,7 +70,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <?php include '../inc/nav-settings.php'; ?>
 
-<div class="container py-4">
+<div class="container py-4" style="max-width: 90%;">
   <!-- ===== CARTES RÉCAP GÉNÉRAL ===== -->
   <div class="row row-cols-1 row-cols-md-3 g-4 mb-4 text-center">
     <div class="col">
@@ -127,7 +128,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   </div>
 
   <!-- Cartes de stats année sélectionnée -->
-  <div class="row row-cols-2 row-cols-md-4 g-3 mb-3" id="cardsYear"></div>
+  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-3" id="cardsYear"></div>
 
   <!-- Tableau des inscriptions -->
   <table id="tbl" class="table table-sm table-striped w-100">
@@ -144,6 +145,9 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
 <script>
 const stats = <?= json_encode($stats) ?>;
+
+console.log('Stats disponibles:', stats); // Debug pour vérifier les données
+
 /* ─────────── 1. Graphiques généraux ─────────── */
 const lblYears = stats.map(s=>s.year);
 const sizeKeys = ['tshirt_xs','tshirt_s','tshirt_m','tshirt_l','tshirt_xl','tshirt_xxl'];
@@ -153,7 +157,7 @@ const palette = ['#f9c5d1','#f6a2b4','#f37e98','#ef5b7b','#ec3860','#d60d3a'];
 // a) barres empilées tailles
 const sizeDatasets = sizeKeys.map((k,i)=>({
   label:sizeLabels[i],
-  data:stats.map(s=>s[k]),
+  data:stats.map(s=>s[k] || 0), // Valeur par défaut 0 si undefined
   backgroundColor:palette[i]
 }));
 new Chart(document.getElementById('chartSizes'),{
@@ -171,7 +175,7 @@ new Chart(document.getElementById('chartCombined'),{
     datasets:[
       {
         label:'Inscriptions',
-        data:stats.map(s=>s.total_inscrits),
+        data:stats.map(s=>s.total_inscrits || 0),
         borderColor:'#ef5b7b',
         backgroundColor:'rgba(239,91,123,.2)',
         tension:.3,
@@ -179,7 +183,7 @@ new Chart(document.getElementById('chartCombined'),{
       },
       {
         label:'Âge moyen',
-        data:stats.map(s=>s.age_moyen),
+        data:stats.map(s=>s.age_moyen || null),
         borderColor:'#6c757d',
         backgroundColor:'rgba(108,117,125,.2)',
         tension:.3,
@@ -202,14 +206,24 @@ new Chart(document.getElementById('chartCombined'),{
 /* ─────────── 2. Stat cards année sélectionnée ─────────── */
 function fillYearCards(year){
   const s = stats.find(x=>x.year==year);
-  if(!s) return;
+  if(!s) {
+    console.error('Statistiques non trouvées pour l\'année:', year);
+    return;
+  }
+  
+  console.log('Données pour l\'année', year, ':', s); // Debug
+  
   const wrap = document.getElementById('cardsYear');
   wrap.innerHTML = `
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">Total</div><div class="h4 fw-bold">${s.total_inscrits}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">Âge moyen</div><div class="h4 fw-bold">${s.age_moyen?Number(s.age_moyen).toFixed(1)+' ans':'–'}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">T‑shirt L</div><div class="h4 fw-bold">${s.tshirt_l}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">T‑shirt XXL</div><div class="h4 fw-bold">${s.tshirt_xxl}</div></div></div>`;
+  <div class="col"><div class="stat-card text-center"><div class="stat-title">Total</div><div class="h5 ">${s.total_inscrits || 0}</div></div></div>
+  <div class="col"><div class="stat-card text-center"><div class="stat-title">Âge moyen</div><div class="h5 ">${s.age_moyen?Number(s.age_moyen).toFixed(1)+' ans':'–'}</div></div></div>
+  <div class="col"><div class="stat-card text-center"><div class="stat-title">Ville top</div><div class="h5 ">${s.ville_top || '–'}</div></div></div>
+  <div class="col"><div class="stat-card text-center"><div class="stat-title">Entreprise top</div><div class="h5 ">${s.entreprise_top || '–'}</div></div></div>
+  <div class="col"><div class="stat-card text-center"><div class="stat-title">+ Vieux H</div><div class="h5 ">${s.plus_vieux_h || '–'}</div></div></div>
+  <div class="col"><div class="stat-card text-center"><div class="stat-title">+ Vieille F</div><div class="h5 ">${s.plus_vieille_f || '–'}</div></div></div>`;
 }
+
+// Initialiser avec l'année courante
 fillYearCards(<?= $currentYear ?>);
 
 /* ─────────── 3. DataTable inscriptions ─────────── */
@@ -223,7 +237,10 @@ let tbl = $('#tbl').DataTable({
       d.table_name = selectedStat ? selectedStat.table_name : 'registrations_' + selectedYear;
     },
     dataSrc:'',
-    error:function(){ $('#tbl').hide(); }
+    error:function(xhr, error, thrown){ 
+      console.error('Erreur DataTable:', error, thrown);
+      $('#tbl').hide(); 
+    }
   },
   columns:[
     {data:'inscription_no'},
@@ -244,9 +261,11 @@ let tbl = $('#tbl').DataTable({
 
 /* ─────────── 4. Interaction : année + recherche ─────────── */
 document.getElementById('selYear').addEventListener('change',()=>{
+  const selectedYear = document.getElementById('selYear').value;
   tbl.ajax.reload();
-  fillYearCards(document.getElementById('selYear').value);
+  fillYearCards(selectedYear);
 });
+
 document.getElementById('searchInput').addEventListener('input',e=>{
   tbl.search(e.target.value).draw();
 });
