@@ -24,7 +24,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 
 // Correction : Construction de l'URL de base correcte
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-$baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/formulaire.php';
+$baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 ?>
 <!doctype html>
 <html lang="fr">
