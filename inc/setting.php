@@ -43,6 +43,24 @@ $picture_gradient= $data['picture_gradient'] ?? '';
 // reglementation
 $div_reglementation = $data['div_reglementation'] ?? ''; 
 
+// Formulaire ---------------------------------------------------------------------------------
+$stmt = $pdo->prepare('SELECT * FROM forms');
+$stmt->execute();
+
+$required_fields = [];
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $required_fields[$row['fields']] = $row['required'] ? 1 : 0;
+}
+
+$required_name = $required_fields['required_name'] ?? 0;
+$required_firstname = $required_fields['required_firstname'] ?? 0;
+$required_phone = $required_fields['required_phone'] ?? 0;
+$required_email = $required_fields['required_email'] ?? 0;
+$required_date_of_birth = $required_fields['required_date_of_birth'] ?? 0;
+$required_sex = $required_fields['required_sex'] ?? 0;
+$required_city = $required_fields['required_city'] ?? 0;
+$required_company = $required_fields['required_company'] ?? 0;
+
 /******************************************************************
  * Génère une alerte Bootstrap fermable + auto-dismiss
  *  $type    : success | danger | warning | info …
@@ -305,8 +323,6 @@ if ($date_course) {
    Carte 4 : PARCOURS
 -------------------------------------------------------------------------- */
 $alertParcours = '';
-
-
 if (isset($_POST['parcours'])) {
 
 $parcoursDesc = $_POST['parcoursDesc'] ?? '';  
@@ -441,6 +457,43 @@ if (isset($_POST['reglementation'])) {
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
         $alertReglementation = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
     }
+}
+
+/* --------------------------------------------------------------------------
+   Carte 5 : Formulaire
+-------------------------------------------------------------------------- */
+$alertRequired = '';
+if (isset($_POST['required'])) {
+    $required_fields = [
+        1 => isset($_POST['required_name']) ? 1 : 0,
+        2 => isset($_POST['required_firstname']) ? 1 : 0,
+        3 => isset($_POST['required_phone']) ? 1 : 0,
+        4 => isset($_POST['required_email']) ? 1 : 0,
+        5 => isset($_POST['required_date_of_birth']) ? 1 : 0,
+        6 => isset($_POST['required_sex']) ? 1 : 0,
+        7 => isset($_POST['required_city']) ? 1 : 0,
+        8 => isset($_POST['required_company']) ? 1 : 0,
+    ];
+
+    $upd = $pdo->prepare('UPDATE forms SET required = :required WHERE id = :id');
+
+    foreach ($required_fields as $id => $required) {
+        $upd->execute([
+            'required' => $required,
+            'id' => $id
+        ]);
+    }
+
+    $alertRequired = makeAlert('success', 'Configuration enregistrée !');
+
+    $required_name = $_POST['required_name'] ?? 0;
+    $required_firstname = $_POST['required_firstname'] ?? 0;
+    $required_phone = $_POST['required_phone'] ?? 0;
+    $required_email = $_POST['required_email'] ?? 0;
+    $required_date_of_birth = $_POST['required_date_of_birth'] ?? 0;
+    $required_sex = $_POST['required_sex'] ?? 0;
+    $required_city = $_POST['required_city'] ?? 0;
+    $required_company = $_POST['required_company'] ?? 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -977,6 +1030,167 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             </script>
         <!-- ############################ Réglementation course ############################ -->
+
+        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
+            <!-- Carte 6 -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <h2 class="mb-4">Formulaire : Champs requis</h2>
+                 <?php if ($alertRequired) echo $alertRequired; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="col-md-6">
+                        <label class="form-label">Nom</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_name" id="required_name" <?= isset($required_name) && $required_name ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_name">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Prénom</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_firstname" id="required_firstname" <?= isset($required_firstname) && $required_firstname ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_firstname">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Téléphone</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_phone" id="required_phone" <?= isset($required_phone) && $required_phone ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_phone">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email </label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_email" id="required_email" <?= isset($required_email) && $required_email ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_email">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Date de naissance</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_date_of_birth" id="required_date_of_birth" <?= isset($required_date_of_birth) && $required_date_of_birth ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_date_of_birth">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Sexe</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_sex" id="required_sex" <?= isset($required_sex) && $required_sex ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_sex">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ville</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_city" id="required_city" <?= isset($required_city) && $required_city ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_city">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Entreprise</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_company" id="required_company" <?= isset($required_company) && $required_company ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_company">Oui / Non</label>
+                        </div>
+                    </div>
+                    <button type="submit" name="required" class="btn btn-primary">Sauvegarder</button>
+                </form>
+            </div>
+        </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                <div class="col-12 col-lg-6 d-flex flex-column gap-4">
+            <!-- Carte 6 -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <h2 class="mb-4">Formulaire : Champs requis</h2>
+                 <?php if ($alertRequired) echo $alertRequired; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="col-md-6">
+                        <label class="form-label">Nom</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_name" id="required_name" <?= isset($required_name) && $required_name ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_name">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Prénom</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_firstname" id="required_firstname" <?= isset($required_firstname) && $required_firstname ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_firstname">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Téléphone</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_phone" id="required_phone" <?= isset($required_phone) && $required_phone ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_phone">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email </label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_email" id="required_email" <?= isset($required_email) && $required_email ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_email">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Date de naissance</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_date_of_birth" id="required_date_of_birth" <?= isset($required_date_of_birth) && $required_date_of_birth ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_date_of_birth">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Sexe</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_sex" id="required_sex" <?= isset($required_sex) && $required_sex ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_sex">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Ville</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_city" id="required_city" <?= isset($required_city) && $required_city ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_city">Oui / Non</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Entreprise</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="required_company" id="required_company" <?= isset($required_company) && $required_company ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required_company">Oui / Non</label>
+                        </div>
+                    </div>
+                    <button type="submit" name="required" class="btn btn-primary">Sauvegarder</button>
+                </form>
+            </div>
+        </div>
+
+
+
+
+
 
     </div><!-- /row -->
 </main>
