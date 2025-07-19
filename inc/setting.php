@@ -1127,38 +1127,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         <div class="col-12 col-lg-6 d-flex flex-column gap-4">
             <!-- Carte 6 -->
             <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
