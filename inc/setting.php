@@ -1031,6 +1031,91 @@ document.addEventListener('DOMContentLoaded', () => {
             </script>
         <!-- ############################ Réglementation course ############################ -->
 
+                        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
+            <!-- Carte 7 -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <h2 class="mb-4">Informations d'import excel</h2>
+                 <?php if ($alertRequired) echo $alertRequired; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale = </label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale = </label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Titre de l'image principale =</label>
+                        <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <button type="submit" name="importExcel" class="btn btn-primary">Sauvegarder</button>
+                </form>
+            </div>
+        </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         <div class="col-12 col-lg-6 d-flex flex-column gap-4">
             <!-- Carte 6 -->
             <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
@@ -1097,101 +1182,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </form>
             </div>
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                <div class="col-12 col-lg-6 d-flex flex-column gap-4">
-            <!-- Carte 6 -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <h2 class="mb-4">Formulaire : Champs requis</h2>
-                 <?php if ($alertRequired) echo $alertRequired; ?>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <div class="col-md-6">
-                        <label class="form-label">Nom</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_name" id="required_name" <?= isset($required_name) && $required_name ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_name">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Prénom</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_firstname" id="required_firstname" <?= isset($required_firstname) && $required_firstname ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_firstname">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Téléphone</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_phone" id="required_phone" <?= isset($required_phone) && $required_phone ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_phone">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Email </label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_email" id="required_email" <?= isset($required_email) && $required_email ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_email">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Date de naissance</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_date_of_birth" id="required_date_of_birth" <?= isset($required_date_of_birth) && $required_date_of_birth ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_date_of_birth">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Sexe</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_sex" id="required_sex" <?= isset($required_sex) && $required_sex ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_sex">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Ville</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_city" id="required_city" <?= isset($required_city) && $required_city ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_city">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Entreprise</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_company" id="required_company" <?= isset($required_company) && $required_company ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_company">Oui / Non</label>
-                        </div>
-                    </div>
-                    <button type="submit" name="required" class="btn btn-primary">Sauvegarder</button>
-                </form>
-            </div>
-        </div>
-
-
-
-
-
-
     </div><!-- /row -->
 </main>
 
