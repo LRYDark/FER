@@ -7,6 +7,7 @@
         'albums.php'    => 'Albums',
         'partners.php'  => 'Partenaires',
         'news.php'  => 'Actualités',
+        'stats.php'  => 'Statistiques',
         ];
 
     // Définir le titre ou fallback par défaut
@@ -33,6 +34,7 @@
         <a href="albums.php" class="btn-action <?= $currentPage == 'albums.php' ? 'active' : '' ?>">Albums</a>
         <a href="partners.php" class="btn-action <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
         <a href="news.php" class="btn-action <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
+        <a href="stats.php" class="btn-action <?= $currentPage == 'stats.php' ? 'active' : '' ?>">Statistiques</a>
       <?php endif; ?>
     </div>
 
@@ -81,6 +83,10 @@
                 <i class="bi bi-gear me-2 "></i>
                 <a id="news" href="news.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
             </li>
+            <li class="list-group-item d-flex align-items-center p-3">
+                <i class="bi bi-gear me-2 "></i>
+                <a id="news" href="stats.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'stats.php' ? 'active' : '' ?>">Statistiques</a>
+            </li>
 
             <li class="list-group-item d-flex align-items-center p-3">
                 <i class="bi bi-box-arrow-right me-2 text-danger"></i>
@@ -99,45 +105,53 @@
                 <?php endif; ?>
 
                 <?php if($role==='admin'): ?>
-                <li class="list-group-item px-3">
-                    <button class="btn btn-secondary w-100" data-bs-toggle="modal" data-bs-target="#importModal">
-                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Import Excel
-                    </button>
-                </li>
-                <li class="list-group-item px-3">
-                    <button id="btnExport" class="btn btn-info w-100">Export Excel</button>
-                    <script>
-                    document.getElementById('btnExport').addEventListener('click', () => {
-                        // simple redirection => déclenche le téléchargement
-                        window.location = '../config/api.php?route=export-excel';
-                    });
-                    </script>
-                </li>
-                <li class="list-group-item px-3">
-                    <button id="btnArchiveNow" class="btn btn-danger w-100">Archiver&nbsp;<?= date('Y') ?></button>
-                    <script>
-                    document.getElementById('btnArchiveNow').addEventListener('click', async () => {
-                        if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
+                    <li class="list-group-item px-3">
+                        <button class="btn btn-secondary w-100" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Import Excel
+                        </button>
+                    </li>
+                <?php endif; ?>
+                <?php if($role==='admin' || $role==='user'): ?>
+                    <li class="list-group-item px-3">
+                        <button class="btn btn-info w-100 export-excel-btn">Export Excel</button>
+                    </li>
+                <?php endif; ?>
+                <?php if($role==='admin'): ?>
+                    <li class="list-group-item px-3">
+                        <button class="btn btn-danger w-100 archive-now-btn">Archiver <?= date('Y') ?></button>
+                    </li>
 
-                        const res  = await fetch('../config/api.php?route=archive-current', {
-                        method: 'POST',
-                        credentials: 'same-origin'
+                    <script>
+                    // Utiliser des classes au lieu d'IDs pour éviter les conflits
+                    document.querySelectorAll('.export-excel-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            window.location = '../config/api.php?route=export-excel';
                         });
-                        const json = await res.json();
-                        if (json.ok) {
-                        alert(`✅ ${json.archived} inscription(s) archivées (${json.year}).`);
-                        location.reload();                 // tableau vide prêt pour la nouvelle année
-                        } else {
-                        alert('Erreur archivage : ' + JSON.stringify(json));
-                        }
+                    });
+
+                    document.querySelectorAll('.archive-now-btn').forEach(btn => {
+                        btn.addEventListener('click', async () => {
+                            if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
+
+                            const res = await fetch('../config/api.php?route=archive-current', {
+                                method: 'POST',
+                                credentials: 'same-origin'
+                            });
+                            const json = await res.json();
+                            if (json.ok) {
+                                alert(`✅ ${json.archived} inscription(s) archivées (${json.year}).`);
+                                location.reload();
+                            } else {
+                                alert('Erreur archivage : ' + JSON.stringify(json));
+                            }
+                        });
                     });
                     </script>
-                </li>
-                <li class="list-group-item px-3 pb-4">
-                    <button class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#usersModal">
-                    <i class="bi bi-people-fill me-1"></i> Utilisateurs
-                    </button>
-                </li>
+                    <li class="list-group-item px-3 pb-4">
+                        <button class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#usersModal">
+                        <i class="bi bi-people-fill me-1"></i> Utilisateurs
+                        </button>
+                    </li>
                 <?php endif; ?>
             <?php endif; ?>
         </ul>

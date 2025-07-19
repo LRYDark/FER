@@ -1,5 +1,5 @@
 <?php require 'config/config.php'; 
-if (currentRole()) header('Location: inc/dashboard.php'); 
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -90,6 +90,7 @@ $picture= $data['picture'] ?? '';
               location = 'inc/dashboard.php';
               break;
             case 'saisie':
+              console.log('Redirection vers saisie.php'); // Debug
               location = 'inc/saisie.php';
               break;
             default:
