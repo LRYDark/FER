@@ -63,6 +63,60 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   .hide-stats #stats {display: none !important;}
   .stat-card{border-radius:1rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
   .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
+  /* ─── Harmonisation DataTable (stats.php) ───────────────────────── */
+
+/* ===== En-tête du tableau ===== */
+#tbl thead tr:first-child th{
+  background:#ffffff;                     /* fond blanc */
+  color:#dc267f;                          /* rose identitaire (ou var(--rose-500) ) */
+  font-weight:600;
+  font-size:.8rem;
+  text-transform:uppercase;
+  letter-spacing:.45px;
+  padding:.9rem .75rem;
+  border-top:2px solid var(--rose-500);
+  border:0;
+  border-bottom:3px solid #dc267f;        /* fine barre d’accent */
+}
+#tbl thead th.sorting_asc,
+#tbl thead th.sorting_desc{
+  background:#fafafa;                     /* colonne triée légèrement grisée */
+}
+
+#tbl thead tr:first-child th:first-child{border-radius:12px 0 0 0}
+#tbl thead tr:first-child th:last-child {border-radius:0 12px 0 0}
+
+/* ===== Corps du tableau ===== */
+#tbl tbody td{
+  padding:.65rem .8rem;
+  vertical-align:middle;
+  font-size:.86rem;
+}
+#tbl tbody tr:nth-child(even){background:#fcfcfd}    /* zébrage soft */
+
+#tbl tbody tr{
+  transition:background .2s,box-shadow .2s;
+}
+#tbl tbody tr:hover{
+  background:#f9f9fb;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+
+/* Coins arrondis bas (quand peu de lignes) */
+#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 12px}
+#tbl tbody tr:last-child td:last-child  {border-radius:0 0 12px 0}
+
+/* ===== Boutons/éventuels badges (si tu en ajoutes plus tard) ===== */
+.action-buttons .btn{
+  --bs-btn-padding-y: .20rem;
+  --bs-btn-padding-x: .45rem;
+  --bs-btn-font-size: .75rem;
+}
+
+/* Exemple de badge rose pour les tailles T-shirt si tu les ajoutes :
+.badge-size{background:#dc267f1a;color:#dc267f;font-weight:600;font-size:.75rem}
+*/
+
 </style>
 </head>
 
