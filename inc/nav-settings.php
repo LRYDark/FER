@@ -104,6 +104,35 @@
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i> Import Excel
                     </button>
                 </li>
+                <li class="list-group-item px-3">
+                    <button id="btnExport" class="btn btn-info w-100">Export Excel</button>
+                    <script>
+                    document.getElementById('btnExport').addEventListener('click', () => {
+                        // simple redirection => déclenche le téléchargement
+                        window.location = '../config/api.php?route=export-excel';
+                    });
+                    </script>
+                </li>
+                <li class="list-group-item px-3">
+                    <button id="btnArchiveNow" class="btn btn-danger w-100">Archiver&nbsp;<?= date('Y') ?></button>
+                    <script>
+                    document.getElementById('btnArchiveNow').addEventListener('click', async () => {
+                        if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
+
+                        const res  = await fetch('../config/api.php?route=archive-current', {
+                        method: 'POST',
+                        credentials: 'same-origin'
+                        });
+                        const json = await res.json();
+                        if (json.ok) {
+                        alert(`✅ ${json.archived} inscription(s) archivées (${json.year}).`);
+                        location.reload();                 // tableau vide prêt pour la nouvelle année
+                        } else {
+                        alert('Erreur archivage : ' + JSON.stringify(json));
+                        }
+                    });
+                    </script>
+                </li>
                 <li class="list-group-item px-3 pb-4">
                     <button class="btn btn-warning w-100" data-bs-toggle="modal" data-bs-target="#usersModal">
                     <i class="bi bi-people-fill me-1"></i> Utilisateurs

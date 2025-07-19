@@ -63,6 +63,34 @@ $titleColor = $data['title_color'] ?? '#ffffff';
         <?php endif; ?>
         <?php if($role==='admin'): ?>
           <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel</button>
+
+            <button id="btnExport" class="btn btn-info">Export Excel</button>
+              <script>
+              document.getElementById('btnExport').addEventListener('click', () => {
+                // simple redirection => déclenche le téléchargement
+                window.location = '../config/api.php?route=export-excel';
+              });
+              </script>
+
+            <button id="btnArchiveNow" class="btn btn-danger">Archiver&nbsp;<?= date('Y') ?></button>
+              <script>
+              document.getElementById('btnArchiveNow').addEventListener('click', async () => {
+                if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
+
+                const res  = await fetch('../config/api.php?route=archive-current', {
+                  method: 'POST',
+                  credentials: 'same-origin'
+                });
+                const json = await res.json();
+                if (json.ok) {
+                  alert(`✅ ${json.archived} inscription(s) archivées (${json.year}).`);
+                  location.reload();                 // tableau vide prêt pour la nouvelle année
+                } else {
+                  alert('Erreur archivage : ' + JSON.stringify(json));
+                }
+              });
+              </script>
+              
           <button class="btn btn-warning"   data-bs-toggle="modal" data-bs-target="#usersModal">Utilisateurs</button>
         <?php endif; ?>
       </div>
