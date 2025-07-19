@@ -34,6 +34,8 @@
         <a href="albums.php" class="btn-action <?= $currentPage == 'albums.php' ? 'active' : '' ?>">Albums</a>
         <a href="partners.php" class="btn-action <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
         <a href="news.php" class="btn-action <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
+      <?php endif; ?>
+      <?php if($role==='admin' || $role==='user' || $role==='viewer'): ?>
         <a href="stats.php" class="btn-action <?= $currentPage == 'stats.php' ? 'active' : '' ?>">Statistiques</a>
       <?php endif; ?>
     </div>
@@ -63,30 +65,34 @@
                 </li>
             <?php endif; ?>
         <li class="list-group-item small text-muted fw-semibold">Actions rapides</li>
-            <li class="list-group-item d-flex align-items-center p-3">
-                <i class="bi bi-gear me-2 "></i>
-                <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'dashboard.php' ? 'active' : '' ?>">Tableau de bord</a>
-            </li>
-            <li class="list-group-item d-flex align-items-center p-3">
-                <i class="bi bi-gear me-2 "></i>
-                <a id="setting" href="setting.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'setting.php' ? 'active' : '' ?>">Réglages</a>
-            </li>
-            <li class="list-group-item d-flex align-items-center p-3">
-                <i class="bi bi-gear me-2 "></i>
-                <a id="albums" href="albums.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'albums.php' ? 'active' : '' ?>">Albums</a>
-            </li>
-            <li class="list-group-item d-flex align-items-center p-3">
-                <i class="bi bi-gear me-2 "></i>
-                <a id="partners" href="partners.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
-            </li>
-            <li class="list-group-item d-flex align-items-center p-3">
-                <i class="bi bi-gear me-2 "></i>
-                <a id="news" href="news.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
-            </li>
-            <li class="list-group-item d-flex align-items-center p-3">
-                <i class="bi bi-gear me-2 "></i>
-                <a id="news" href="stats.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'stats.php' ? 'active' : '' ?>">Statistiques</a>
-            </li>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <a id="dashboard" href="dashboard.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'dashboard.php' ? 'active' : '' ?>">Tableau de bord</a>
+                </li>
+            <?php if($role==='admin'): ?>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <a id="setting" href="setting.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'setting.php' ? 'active' : '' ?>">Réglages</a>
+                </li>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <a id="albums" href="albums.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'albums.php' ? 'active' : '' ?>">Albums</a>
+                </li>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <a id="partners" href="partners.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'partners.php' ? 'active' : '' ?>">Partenaires</a>
+                </li>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <a id="news" href="news.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'news.php' ? 'active' : '' ?>">Actualités</a>
+                </li>
+            <?php endif; ?>
+            <?php if($role==='admin' || $role==='user' || $role==='viewer'): ?>
+                <li class="list-group-item d-flex align-items-center p-3">
+                    <i class="bi bi-gear me-2 "></i>
+                    <a id="news" href="stats.php" class="btn btn-link text-start p-0 flex-grow-1 <?= $currentPage == 'stats.php' ? 'active' : '' ?>">Statistiques</a>
+                </li>
+            <?php endif; ?>
 
             <li class="list-group-item d-flex align-items-center p-3">
                 <i class="bi bi-box-arrow-right me-2 text-danger"></i>
