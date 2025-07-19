@@ -464,7 +464,7 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     $pdo->exec("INSERT INTO `$tableArchive` SELECT * FROM registrations");
 
-    /* 3) Statistiques (à partir de la table qu'on vient de remplir) */
+    /* 3) Statistiques de base */
     $s = $pdo->query("
         SELECT COUNT(*)                           AS total,
                SUM(tshirt_size='XS')              AS xs,
@@ -479,11 +479,57 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     foreach (['xs','s','m','l','xl','xxl'] as $k) $s[$k] = (int)($s[$k] ?? 0);
 
+    /* 4) Ville la plus représentée */
+    $villeTop = $pdo->query("
+        SELECT ville, COUNT(*) as nb 
+        FROM `$tableArchive` 
+        WHERE ville IS NOT NULL AND ville != '' 
+        GROUP BY ville 
+        ORDER BY nb DESC 
+        LIMIT 1
+    ")->fetch(PDO::FETCH_ASSOC);
+    $ville_top = $villeTop ? $villeTop['ville'] : null;
+
+    /* 5) Entreprise la plus représentée */
+    $entrepriseTop = $pdo->query("
+        SELECT entreprise, COUNT(*) as nb 
+        FROM `$tableArchive` 
+        WHERE entreprise IS NOT NULL AND entreprise != '' 
+        GROUP BY entreprise 
+        ORDER BY nb DESC 
+        LIMIT 1
+    ")->fetch(PDO::FETCH_ASSOC);
+    $entreprise_top = $entrepriseTop ? $entrepriseTop['entreprise'] : null;
+
+    /* 6) Plus vieille personne masculine */
+    $plusVieuxH = $pdo->query("
+        SELECT CONCAT(prenom, ' ', nom) as nom_complet, 
+               (YEAR(NOW()) - naissance) as age
+        FROM `$tableArchive` 
+        WHERE sexe = 'H' AND naissance IS NOT NULL 
+        ORDER BY naissance ASC 
+        LIMIT 1
+    ")->fetch(PDO::FETCH_ASSOC);
+    $plus_vieux_h = $plusVieuxH ? $plusVieuxH['nom_complet'] : null;
+
+    /* 7) Plus vieille personne féminine */
+    $plusVieilleF = $pdo->query("
+        SELECT CONCAT(prenom, ' ', nom) as nom_complet, 
+               (YEAR(NOW()) - naissance) as age
+        FROM `$tableArchive` 
+        WHERE sexe = 'F' AND naissance IS NOT NULL 
+        ORDER BY naissance ASC 
+        LIMIT 1
+    ")->fetch(PDO::FETCH_ASSOC);
+    $plus_vieille_f = $plusVieilleF ? $plusVieilleF['nom_complet'] : null;
+
+    /* 8) Insérer/Mettre à jour les statistiques */
     $pdo->prepare("
         INSERT INTO registrations_stats
-          (year,total_inscrits,tshirt_xs,tshirt_s,tshirt_m,
-           tshirt_l,tshirt_xl,tshirt_xxl,age_moyen,table_name)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
+          (year, total_inscrits, tshirt_xs, tshirt_s, tshirt_m,
+           tshirt_l, tshirt_xl, tshirt_xxl, age_moyen, table_name,
+           ville_top, entreprise_top, plus_vieux_h, plus_vieille_f)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE
            total_inscrits = VALUES(total_inscrits),
            tshirt_xs      = VALUES(tshirt_xs),
@@ -493,17 +539,27 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
            tshirt_xl      = VALUES(tshirt_xl),
            tshirt_xxl     = VALUES(tshirt_xxl),
            age_moyen      = VALUES(age_moyen),
-           table_name     = VALUES(table_name)
+           table_name     = VALUES(table_name),
+           ville_top      = VALUES(ville_top),
+           entreprise_top = VALUES(entreprise_top),
+           plus_vieux_h   = VALUES(plus_vieux_h),
+           plus_vieille_f = VALUES(plus_vieille_f)
     ")->execute([
-        $year, $s['total'],$s['xs'],$s['s'],$s['m'],$s['l'],$s['xl'],$s['xxl'],
-        $s['age_moyen'], $tableArchive
+        $year, $s['total'], $s['xs'], $s['s'], $s['m'], $s['l'], $s['xl'], $s['xxl'],
+        $s['age_moyen'], $tableArchive, $ville_top, $entreprise_top, 
+        $plus_vieux_h, $plus_vieille_f
     ]);
 
-    /* 4) On vide la table active pour la nouvelle saison */
+    /* 9) On vide la table active pour la nouvelle saison */
     $pdo->exec('TRUNCATE TABLE registrations');
     $pdo->commit();
 
-    echo json_encode(['ok'=>true,'archived'=>$s['total'],'year'=>$year,'table_name'=>$tableArchive]);
+    echo json_encode([
+        'ok' => true,
+        'archived' => $s['total'],
+        'year' => $year,
+        'table_name' => $tableArchive
+    ]);
     exit;
 }
 
