@@ -1,0 +1,6 @@
+[2025-07-20 21:21:20] Jeton d'accès non trouvé. Veuillez autoriser l'accès via OAuth2.
+[2025-07-20 21:21:20] Regénération du token ou Redirection vers l'authentification Google...
+[2025-07-20 21:27:22] Jeton d'accès non trouvé. Veuillez autoriser l'accès via OAuth2.
+[2025-07-20 21:27:22] Regénération du token ou Redirection vers l'authentification Google...
+[2025-07-20 21:28:48] Le jeton d'accès est valide.
+[2025-07-20 21:28:48] ✅ Mail envoyé avec succès à : reinert.joris@gmail.com | Sujet : test mail FER
