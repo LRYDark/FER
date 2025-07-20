@@ -1,4 +1,6 @@
-<?php require '../config/config.php';
+<?php 
+require '../config/config.php';
+require '../config/googleMail.php';
 
 // Variables d'état
 $hasGetParams = !empty($_GET);
@@ -90,6 +92,8 @@ if ($_POST) {
             $stmt->execute($formData);
             
             $success_message = "👍 Inscription enregistrée avec succès !";
+            sendMail('reinert.joris@gmail.com','test mail FER','Bonjour, TEST FER');
+
             
         } catch (PDOException $e) {
             $error_message = "Erreur lors de l'enregistrement : " . $e->getMessage();

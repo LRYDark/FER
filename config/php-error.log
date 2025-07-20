@@ -1,0 +1,31 @@
+[20-Jul-2025 21:07:55 UTC] PHP Fatal error:  Uncaught Error: Class "Google_Client" not found in /var/www/html/FER/oauth2callback.php:18
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/oauth2callback.php on line 18
+[20-Jul-2025 21:08:05 UTC] PHP Fatal error:  Uncaught Error: Class "Google_Client" not found in /var/www/html/FER/oauth2callback.php:18
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/oauth2callback.php on line 18
+[20-Jul-2025 21:08:14 UTC] PHP Fatal error:  Uncaught Error: Class "Google_Client" not found in /var/www/html/FER/oauth2callback.php:16
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/oauth2callback.php on line 16
+[20-Jul-2025 21:09:01 UTC] PHP Fatal error:  Uncaught Error: Class "Google_Client" not found in /var/www/html/FER/oauth2callback.php:16
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/oauth2callback.php on line 16
+[20-Jul-2025 21:09:02 UTC] PHP Fatal error:  Uncaught Error: Class "Google_Client" not found in /var/www/html/FER/oauth2callback.php:16
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/oauth2callback.php on line 16
+[20-Jul-2025 21:09:03 UTC] PHP Fatal error:  Uncaught Error: Class "Google_Client" not found in /var/www/html/FER/oauth2callback.php:16
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/oauth2callback.php on line 16
+[20-Jul-2025 21:20:07 UTC] PHP Fatal error:  Cannot redeclare currentRole() (previously declared in /var/www/html/FER/config/config.php:39) in /var/www/html/FER/config/config.php on line 39
+[20-Jul-2025 21:20:13 UTC] PHP Fatal error:  Cannot redeclare currentRole() (previously declared in /var/www/html/FER/config/config.php:39) in /var/www/html/FER/config/config.php on line 39
+[20-Jul-2025 21:20:38 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function sendMail() in /var/www/html/FER/public/register.php:95
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/public/register.php on line 95
+[20-Jul-2025 21:28:48 UTC] PHP Warning:  Undefined variable $dateBlock in /var/www/html/FER/config/googleMail.php on line 101
