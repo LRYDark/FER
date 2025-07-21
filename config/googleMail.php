@@ -1,12 +1,20 @@
 <?php
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__); // .env est dans le dossier config
-$dotenv->load();
+require_once 'config.php'; // Inclure le fichier fusionné (même dossier)
 
-$clientID = $_ENV['GOOGLE_CLIENT_ID'] ?? null;
-$clientSecret = $_ENV['GOOGLE_CLIENT_SECRET'] ?? null;
+$stmt = $pdo->prepare(
+    'SELECT *
+       FROM setting
+      WHERE id = :id
+      LIMIT 1');
+$stmt->execute(['id' => 1]);
+
+$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$clientID = decrypt($data['client_id'] ?? null);
+$clientSecret = decrypt($data['client_secret'] ?? null);
 
 if (!$clientID || !$clientSecret) {
-    die("Clé OAuth manquante. Veuillez vérifier le fichier .env.");
+    die("Clé OAuth manquante. (googleMail.php)");
 }
 
 // Fonction pour enregistrer des logs dans un fichier texte

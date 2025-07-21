@@ -1,14 +1,20 @@
 <?php
 require 'config/config.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/config/');
-$dotenv->load();
+$stmt = $pdo->prepare(
+    'SELECT *
+       FROM setting
+      WHERE id = :id
+      LIMIT 1');
+$stmt->execute(['id' => 1]);
 
-$clientID = $_ENV['GOOGLE_CLIENT_ID'] ?? null;
-$clientSecret = $_ENV['GOOGLE_CLIENT_SECRET'] ?? null;
+$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$clientID = decrypt($data['client_id'] ?? null);
+$clientSecret = decrypt($data['client_secret'] ?? null);
 
 if (!$clientID || !$clientSecret) {
-    die("Clé OAuth manquante. Veuillez vérifier le fichier .env.");
+    die("Clé OAuth manquante. (oauth2callback.php)");
 }
 
 // Fonction pour enregistrer des logs
