@@ -1,6 +1,6 @@
 <?php
 require '../config/config.php';
-require_once '../config/googleMail.php'; // Inclure le fichier fusionné (même dossier)
+require '../config/googleMail.php';
 
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
