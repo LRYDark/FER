@@ -1,1 +1,4 @@
 [2025-07-21 13:53:32] Connexion Google valide.
+[2025-07-21 16:03:07] Token rafraîchi automatiquement.
+[2025-07-21 16:03:18] Connexion Google valide.
+[2025-07-21 16:03:18] Connexion Google valide.
