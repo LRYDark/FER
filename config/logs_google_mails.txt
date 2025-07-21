@@ -4,3 +4,186 @@
 [2025-07-20 21:27:22] Regénération du token ou Redirection vers l'authentification Google...
 [2025-07-20 21:28:48] Le jeton d'accès est valide.
 [2025-07-20 21:28:48] ✅ Mail envoyé avec succès à : reinert.joris@gmail.com | Sujet : test mail FER
+[2025-07-21 09:40:00] Fichier token.json non trouvé.
+[2025-07-21 09:40:05] Fichier token.json non trouvé.
+[2025-07-21 09:40:05] Fichier token.json non trouvé.
+[2025-07-21 09:40:51] Fichier token.json non trouvé.
+[2025-07-21 09:40:53] Fichier token.json non trouvé.
+[2025-07-21 09:41:25] Fichier token.json non trouvé.
+[2025-07-21 09:44:51] Fichier token.json non trouvé.
+[2025-07-21 09:44:53] Fichier token.json non trouvé.
+[2025-07-21 09:44:53] Fichier token.json non trouvé.
+[2025-07-21 09:47:36] Fichier token.json non trouvé.
+[2025-07-21 09:50:17] Fichier token.json non trouvé.
+[2025-07-21 09:50:19] Fichier token.json non trouvé.
+[2025-07-21 09:50:51] Fichier token.json non trouvé.
+[2025-07-21 09:52:27] Fichier token.json non trouvé.
+[2025-07-21 09:54:59] Fichier token.json non trouvé.
+[2025-07-21 09:54:59] Fichier token.json non trouvé.
+[2025-07-21 09:55:02] Fichier token.json non trouvé.
+[2025-07-21 10:09:36] Fichier token.json non trouvé.
+[2025-07-21 10:10:10] Fichier token.json non trouvé.
+[2025-07-21 10:10:42] Fichier token.json non trouvé.
+[2025-07-21 10:11:02] Fichier token.json non trouvé.
+[2025-07-21 10:11:25] Fichier token.json non trouvé.
+[2025-07-21 10:11:49] Fichier token.json non trouvé.
+[2025-07-21 10:11:51] Fichier token.json non trouvé.
+[2025-07-21 10:12:41] Fichier token.json non trouvé.
+[2025-07-21 10:12:52] Fichier token.json non trouvé.
+[2025-07-21 10:13:53] Fichier token.json non trouvé.
+[2025-07-21 10:13:55] Fichier token.json non trouvé.
+[2025-07-21 10:14:46] Fichier token.json non trouvé.
+[2025-07-21 10:17:32] Fichier token.json non trouvé.
+[2025-07-21 10:17:48] Fichier token.json non trouvé.
+[2025-07-21 10:18:01] Token OAuth2 généré et sauvegardé avec succès.
+[2025-07-21 10:18:45] Connexion Google valide.
+[2025-07-21 10:19:01] Connexion Google valide.
+[2025-07-21 10:19:01] Connexion Google valide.
+[2025-07-21 10:19:04] Connexion Google valide.
+[2025-07-21 10:19:07] Connexion Google valide.
+[2025-07-21 10:19:11] Connexion Google valide.
+[2025-07-21 10:19:12] Connexion Google valide.
+[2025-07-21 10:19:36] Fichier token.json non trouvé.
+[2025-07-21 10:19:46] Fichier token.json non trouvé.
+[2025-07-21 10:20:02] Erreur OAuth : Bad Request
+[2025-07-21 10:20:15] Erreur OAuth : Bad Request
+[2025-07-21 10:21:30] Fichier token.json non trouvé.
+[2025-07-21 10:21:38] Erreur OAuth : Bad Request
+[2025-07-21 10:23:15] Fichier token.json non trouvé.
+[2025-07-21 10:23:39] Fichier token.json non trouvé.
+[2025-07-21 11:29:43] Fichier token.json non trouvé.
+[2025-07-21 11:30:21] Fichier token.json non trouvé.
+[2025-07-21 11:30:48] Fichier token.json non trouvé.
+[2025-07-21 11:31:10] Fichier token.json non trouvé.
+[2025-07-21 11:31:41] Fichier token.json non trouvé.
+[2025-07-21 11:32:24] Fichier token.json non trouvé.
+[2025-07-21 11:32:26] Fichier token.json non trouvé.
+[2025-07-21 11:32:33] Fichier token.json non trouvé.
+[2025-07-21 11:33:12] Fichier token.json non trouvé.
+[2025-07-21 11:33:12] Fichier token.json non trouvé.
+[2025-07-21 11:33:12] Fichier token.json non trouvé.
+[2025-07-21 11:33:12] Fichier token.json non trouvé.
+[2025-07-21 11:33:12] Fichier token.json non trouvé.
+[2025-07-21 11:34:05] Fichier token.json non trouvé.
+[2025-07-21 11:34:06] Fichier token.json non trouvé.
+[2025-07-21 11:34:31] Fichier token.json non trouvé.
+[2025-07-21 11:34:32] Fichier token.json non trouvé.
+[2025-07-21 11:34:41] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/../token.json
+[2025-07-21 11:34:41] Redirection vers : config/settings.php
+[2025-07-21 11:34:41] Fichier token.json non trouvé.
+[2025-07-21 11:34:50] Fichier token.json non trouvé.
+[2025-07-21 11:34:50] Fichier token.json non trouvé.
+[2025-07-21 11:34:51] Fichier token.json non trouvé.
+[2025-07-21 11:34:51] Fichier token.json non trouvé.
+[2025-07-21 11:36:12] Fichier token.json non trouvé.
+[2025-07-21 11:36:19] Fichier token.json non trouvé.
+[2025-07-21 11:36:28] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/token.json
+[2025-07-21 11:36:28] Redirection vers : config/settings.php
+[2025-07-21 11:36:28] Connexion Google valide.
+[2025-07-21 11:36:41] Token supprimé - Déconnexion Google effectuée.
+[2025-07-21 11:36:41] Fichier token.json non trouvé.
+[2025-07-21 11:36:47] Fichier token.json non trouvé.
+[2025-07-21 11:36:55] Fichier token.json non trouvé.
+[2025-07-21 11:36:56] Fichier token.json non trouvé.
+[2025-07-21 11:37:04] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/token.json
+[2025-07-21 11:37:04] Redirection vers : config/settings.php
+[2025-07-21 11:37:04] Connexion Google valide.
+[2025-07-21 11:37:13] Connexion Google valide.
+[2025-07-21 11:37:13] Connexion Google valide.
+[2025-07-21 11:44:59] Connexion Google valide.
+[2025-07-21 11:44:59] Connexion Google valide.
+[2025-07-21 11:45:03] Connexion Google valide.
+[2025-07-21 11:45:05] Connexion Google valide.
+[2025-07-21 11:59:12] Connexion Google valide.
+[2025-07-21 11:59:14] Connexion Google valide.
+[2025-07-21 12:00:02] Connexion Google valide.
+[2025-07-21 12:00:07] Connexion Google valide.
+[2025-07-21 12:00:07] Connexion Google valide.
+[2025-07-21 12:00:52] Connexion Google valide.
+[2025-07-21 12:01:08] Connexion Google valide.
+[2025-07-21 12:01:22] Connexion Google valide.
+[2025-07-21 12:01:25] Connexion Google valide.
+[2025-07-21 12:01:25] Connexion Google valide.
+[2025-07-21 12:02:04] Connexion Google valide.
+[2025-07-21 12:02:10] Connexion Google valide.
+[2025-07-21 12:02:10] Connexion Google valide.
+[2025-07-21 12:02:17] Connexion Google valide.
+[2025-07-21 12:02:22] Token supprimé - Déconnexion Google effectuée.
+[2025-07-21 12:02:22] Fichier token.json non trouvé.
+[2025-07-21 12:02:33] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/token.json
+[2025-07-21 12:02:33] Redirection vers : inc/setting.php
+[2025-07-21 12:02:33] Connexion Google valide.
+[2025-07-21 12:02:38] Connexion Google valide.
+[2025-07-21 12:03:42] Connexion Google valide.
+[2025-07-21 12:03:55] Connexion Google valide.
+[2025-07-21 12:05:32] Connexion Google valide.
+[2025-07-21 12:05:34] Connexion Google valide.
+[2025-07-21 12:09:28] Connexion Google valide.
+[2025-07-21 12:09:34] Connexion Google valide.
+[2025-07-21 12:09:41] Connexion Google valide.
+[2025-07-21 12:09:51] Connexion Google valide.
+[2025-07-21 12:09:59] Token supprimé - Déconnexion Google effectuée.
+[2025-07-21 12:09:59] Fichier token.json non trouvé.
+[2025-07-21 12:10:12] Fichier token.json non trouvé.
+[2025-07-21 12:11:26] Fichier token.json non trouvé.
+[2025-07-21 12:14:41] Fichier token.json non trouvé.
+[2025-07-21 12:21:18] Fichier token.json non trouvé.
+[2025-07-21 12:22:14] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/token.json
+[2025-07-21 12:22:14] Redirection vers : inc/setting.php
+[2025-07-21 12:22:14] Connexion Google valide.
+[2025-07-21 12:34:14] Connexion Google valide.
+[2025-07-21 12:34:32] Connexion Google valide.
+[2025-07-21 12:34:40] Connexion Google valide.
+[2025-07-21 12:35:10] Connexion Google valide.
+[2025-07-21 12:35:14] Connexion Google valide.
+[2025-07-21 12:35:39] Connexion Google valide.
+[2025-07-21 12:40:40] Connexion Google valide.
+[2025-07-21 12:40:52] Connexion Google valide.
+[2025-07-21 12:49:56] Connexion Google valide.
+[2025-07-21 12:51:02] Connexion Google valide.
+[2025-07-21 12:51:37] Connexion Google valide.
+[2025-07-21 12:51:48] Connexion Google valide.
+[2025-07-21 12:52:07] Connexion Google valide.
+[2025-07-21 12:53:16] Connexion Google valide.
+[2025-07-21 12:53:27] Connexion Google valide.
+[2025-07-21 12:54:16] Connexion Google valide.
+[2025-07-21 12:55:01] Connexion Google valide.
+[2025-07-21 12:55:07] Connexion Google valide.
+[2025-07-21 12:57:10] Connexion Google valide.
+[2025-07-21 12:57:56] Connexion Google valide.
+[2025-07-21 12:59:09] Connexion Google valide.
+[2025-07-21 12:59:15] Connexion Google valide.
+[2025-07-21 13:00:36] Connexion Google valide.
+[2025-07-21 13:00:44] Connexion Google valide.
+[2025-07-21 13:01:27] Connexion Google valide.
+[2025-07-21 13:03:09] Connexion Google valide.
+[2025-07-21 13:03:23] Connexion Google valide.
+[2025-07-21 13:04:43] Connexion Google valide.
+[2025-07-21 13:04:47] Connexion Google valide.
+[2025-07-21 13:14:59] Connexion Google valide.
+[2025-07-21 13:15:03] Connexion Google valide.
+[2025-07-21 13:16:07] Connexion Google valide.
+[2025-07-21 13:16:14] Connexion Google valide.
+[2025-07-21 13:16:20] Connexion Google valide.
+[2025-07-21 13:17:21] Connexion Google valide.
+[2025-07-21 13:17:34] Connexion Google valide.
+[2025-07-21 13:17:39] Connexion Google valide.
+[2025-07-21 13:17:48] Connexion Google valide.
+[2025-07-21 13:17:59] Connexion Google valide.
+[2025-07-21 13:18:07] Connexion Google valide.
+[2025-07-21 13:23:00] Token rafraîchi automatiquement.
+[2025-07-21 13:23:13] Connexion Google valide.
+[2025-07-21 13:23:26] Connexion Google valide.
+[2025-07-21 13:24:22] Connexion Google valide.
+[2025-07-21 13:24:38] Connexion Google valide.
+[2025-07-21 13:24:43] Connexion Google valide.
+[2025-07-21 13:25:17] Connexion Google valide.
+[2025-07-21 13:25:23] Connexion Google valide.
+[2025-07-21 13:25:45] Connexion Google valide.
+[2025-07-21 13:26:06] Connexion Google valide.
+[2025-07-21 13:26:08] Connexion Google valide.
+[2025-07-21 13:28:59] Connexion Google valide.
+[2025-07-21 13:29:03] Connexion Google valide.
+[2025-07-21 13:29:13] Connexion Google valide.
+[2025-07-21 13:29:20] Connexion Google valide.
+[2025-07-21 13:29:23] Connexion Google valide.

@@ -1,5 +1,7 @@
 <?php
 require '../config/config.php';
+require_once '../config/googleMail.php'; // Inclure le fichier fusionné (même dossier)
+
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
 
@@ -42,6 +44,51 @@ $picture_gradient= $data['picture_gradient'] ?? '';
 
 // reglementation
 $div_reglementation = $data['div_reglementation'] ?? ''; 
+
+// google
+$client_id = decrypt($data['client_id'] ?? '');
+$client_secret = decrypt($data['client_secret'] ?? '');
+
+// Traitement des messages de retour OAuth
+if (isset($_GET['auth'])) {
+    if ($_GET['auth'] === 'success') {
+        $message = "✅ Connexion Google établie avec succès !";
+        $messageClass = 'success';
+    } elseif ($_GET['auth'] === 'error') {
+        $errorMsg = $_GET['message'] ?? 'Erreur inconnue';
+        $message = "❌ Erreur lors de la connexion : " . htmlspecialchars($errorMsg);
+        $messageClass = 'error';
+    }
+}
+
+// Traitement des actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'test_connection':
+                $connectionStatus = isGoogleConnectionValid();
+                $message = $connectionStatus ? 
+                    "✅ Connexion Google OK - Prêt à envoyer des emails" : 
+                    "❌ Connexion Google non valide";
+                $messageClass = $connectionStatus ? 'success' : 'error';
+                break;
+                
+            case 'disconnect':
+                if (revokeGoogleConnection()) {
+                    $message = "✅ Déconnexion Google effectuée";
+                    $messageClass = 'success';
+                } else {
+                    $message = "❌ Erreur lors de la déconnexion";
+                    $messageClass = 'error';
+                }
+                break;
+        }
+    }
+}
+
+// Vérifier l'état actuel de la connexion
+$isConnected = isGoogleConnectionValid();
+$authUrl = getGoogleAuthUrl('setting.php');
 
 // Formulaire ---------------------------------------------------------------------------------
 $stmt = $pdo->prepare('SELECT * FROM forms');
@@ -546,6 +593,47 @@ if (isset($_POST['importExcel'])) {
     foreach ($field_keys as $key) {
         $$key = $_POST[$key] ?? '';
     }
+}
+
+/* --------------------------------------------------------------------------
+   Carte : Google
+-------------------------------------------------------------------------- */
+$alertGoogle = '';
+if (isset($_POST['google'])) {
+
+    /* a) Lecture & validation */
+    $client_id = encrypt($_POST['client_id'] ?? '');
+    $client_secret = encrypt($_POST['client_secret'] ?? '');
+
+    /* b) Requête préparée */
+    $upd = $pdo->prepare(
+        'UPDATE setting
+            SET client_id = :client_id,
+                client_secret = :client_secret
+            WHERE id = :id'
+    );
+
+    $ok = $upd->execute([
+        'client_id' => $client_id,
+        'client_secret' => $client_secret,
+        'id'     => 1
+    ]);
+
+    /* c) Gestion du résultat */
+    if ($ok) {
+        if ($upd->rowCount() > 0) {
+            $alertGoogle = makeAlert('success', 'Clés google enregistrées !');
+        } else {
+                $alertGoogle = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d’auto-close
+        }
+    } else {
+        /* $execute a échoué : on affiche le message renvoyé par PDO */
+        $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
+        $alertGoogle = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
+    }
+
+    $client_id = decrypt($client_id);
+    $client_secret = decrypt($client_secret);
 }
 
 /* --------------------------------------------------------------------------
@@ -1138,6 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>
 
+        <link href="../css/gmail-settings.css" rel="stylesheet">
         <div class="col-12 col-lg-6 d-flex flex-column gap-4">
             <!-- Carte 6 -->
             <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
@@ -1204,6 +1293,104 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="submit" name="required" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
+            <!-- Carte 6 -->
+            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+                <h2 class="mb-4">🔧 Paramètres Gmail</h2>
+                <div class="header">
+                    <p>Gestion de la connexion avec l'API Gmail de Google</p>
+                </div>
+
+                <?php if ($alertGoogle) echo $alertGoogle; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="col-md-6"><label class="form-label">Client ID</label>
+                        <input type="text" class="form-control" name="client_id" value="<?= htmlspecialchars($client_id, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Client secret</label>
+                        <input type="text" class="form-control" name="client_secret" value="<?= htmlspecialchars($client_secret, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
+                </form>
+        
+                <?php if (isset($message)): ?>
+                    <div class="message <?php echo $messageClass; ?>">
+                        <?php echo htmlspecialchars($message); ?>
+                    </div>
+                <?php endif; ?>
+                
+                <div class="status <?php echo $isConnected ? 'connected' : 'disconnected'; ?>">
+                    <div>
+                        <strong>Statut de la connexion :</strong>
+                        <?php if ($isConnected): ?>
+                            ✅ Connecté à Gmail - Prêt à envoyer des emails
+                        <?php else: ?>
+                            ❌ Non connecté - Configuration requise
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="actions">
+                    <?php if ($isConnected): ?>
+                        <!-- Actions pour utilisateur connecté -->
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="action" value="test_connection">
+                            <button type="submit" class="btn btn-success">
+                                🔍 Tester la connexion
+                            </button>
+                        </form>
+                        
+                        <form method="post" style="display: inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir vous déconnecter de Gmail ?');">
+                            <input type="hidden" name="action" value="disconnect">
+                            <button type="submit" class="btn btn-danger">
+                                🔓 Se déconnecter
+                            </button>
+                        </form>
+                        
+                    <?php else: ?>
+                        <!-- Actions pour utilisateur non connecté -->
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="action" value="test_connection">
+                            <button type="submit" class="btn btn-warning">
+                                🔍 Vérifier la connexion
+                            </button>
+                        </form>
+                        
+                        <a href="<?php echo htmlspecialchars($authUrl); ?>" class="btn btn-primary">
+                            <svg class="google-icon" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                            Se connecter avec Google
+                        </a>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="info">
+                    <h3>ℹ️ Informations</h3>
+                    <ul>
+                        <li><strong>Fichier token :</strong> <?php echo file_exists(__DIR__ . '/../token.json') ? '✅ Présent' : '❌ Absent'; ?></li>
+                        <li><strong>Dernière vérification :</strong> <?php echo date('d/m/Y H:i:s'); ?></li>
+                        <li><strong>Scopes requis :</strong> Gmail Send (envoi d'emails)</li>
+                    </ul>
+                    
+                    <?php if (!$isConnected): ?>
+                        <hr>
+                        <p><strong>⚠️ Actions requises :</strong></p>
+                        <ol>
+                            <li>API Google : ajouté dans "URI de redirection autorisés" -> <?= oauth2_callback_url() ?></li>
+                            <li>Cliquez sur "Se connecter avec Google"</li>
+                            <li>Autorisez l'accès à votre compte Gmail</li>
+                            <li>Vous serez redirigé automatiquement</li>
+                        </ol>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div><!-- /row -->

@@ -31,6 +31,10 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 if($data['debogage'] == 1){
     ini_set('log_errors', 1);
     ini_set('error_log', __DIR__.'/php-error.log');
+
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
 }
 
 session_start();
@@ -95,4 +99,44 @@ function getAssoConnectCodes(int $id = 1): array
         'assoconnect_js'      => null,
         'assoconnect_iframe'  => null,
     ];
+}
+
+/**
+ * Renvoie l’URL absolue vers oauth2callback.php,
+ * quel que soit le dossier racine du site.
+ */
+function oauth2_callback_url(): string
+{
+    // 1) Schéma : http ou https ?
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+    // 2) Domaine + éventuel port
+    $host = $_SERVER['HTTP_HOST'];          // ex. jr.zerobug-57.fr ou jr.zerobug-57.fr:8443
+
+    // 3) Dossier qui contient le script courant
+    //    SCRIPT_NAME  = /FER/inc/setting.php   (si site dans /FER)
+    //    SCRIPT_NAME  = /inc/setting.php       (si /FER devient DocumentRoot)
+    $baseDir = dirname(dirname($_SERVER['SCRIPT_NAME']));  // remonte de 2 niveaux
+
+    // 4) Normalisation : si on est déjà à la racine, $baseDir vaudra '/'
+    if ($baseDir === DIRECTORY_SEPARATOR) {
+        $baseDir = '';
+    }
+
+    // 5) Construction de l’URL cible
+    return $scheme . '://' . $host . $baseDir . '/oauth2callback.php';
+}
+
+function encrypt($data) {
+    $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+    $encrypted = openssl_encrypt($data, 'aes-256-cbc', $_ENV['ENCRYPTION_KEY'], 0, $iv);
+    return base64_encode($iv . $encrypted);
+}
+
+function decrypt($data) {
+    $data = base64_decode($data);
+    $ivLength = openssl_cipher_iv_length('aes-256-cbc');
+    $iv = substr($data, 0, $ivLength);
+    $encrypted = substr($data, $ivLength);
+    return openssl_decrypt($encrypted, 'aes-256-cbc', $_ENV['ENCRYPTION_KEY'], 0, $iv);
 }
