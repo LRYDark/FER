@@ -1,6 +1,5 @@
 <?php
-require_once __DIR__ . '/../vendor/autoload.php';   // charge l’autoloader Composer
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__); // si .env est à la racine de config
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__); // .env est dans le dossier config
 $dotenv->load();
 
 $clientID = $_ENV['GOOGLE_CLIENT_ID'] ?? null;
@@ -17,23 +16,88 @@ function writeLog($message) {
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND); // Écrit le message dans le fichier
 }
 
-// Fonction pour obtenir le jeton d'accès OAuth2
-function getAccessToken() {
+// Fonction pour vérifier si la connexion Google est OK
+function isGoogleConnectionValid() {
     global $clientID, $clientSecret;
     
-    $token = __DIR__ .'/../token.json';
+    $tokenFile = __DIR__ .'/../token.json';
+    
+    if (!file_exists($tokenFile)) {
+        writeLog('Fichier token.json non trouvé.');
+        return false;
+    }
+
+    try {
+        $client = new Google_Client();
+        $client->setClientId($clientID);
+        $client->setClientSecret($clientSecret);
+        $client->setRedirectUri('https://jr.zerobug-57.fr/FER/oauth2callback.php');
+        $client->addScope(Google_Service_Gmail::GMAIL_SEND);
+        $client->setAccessType('offline');
+
+        $accessToken = json_decode(file_get_contents($tokenFile), true);
+        $client->setAccessToken($accessToken);
+
+        // Vérifier si le token est valide (pas expiré ou rafraîchissable)
+        if ($client->isAccessTokenExpired()) {
+            $refreshToken = $accessToken['refresh_token'] ?? null;
+            if ($refreshToken) {
+                $newAccessToken = $client->fetchAccessTokenWithRefreshToken($refreshToken);
+                if (isset($newAccessToken['error'])) {
+                    writeLog('Token expiré et non rafraîchissable : ' . $newAccessToken['error_description']);
+                    return false;
+                }
+                // Sauvegarder le nouveau token
+                $newAccessToken['refresh_token'] = $refreshToken;
+                file_put_contents($tokenFile, json_encode($newAccessToken));
+                writeLog('Token rafraîchi automatiquement.');
+                return true;
+            } else {
+                writeLog('Token expiré et aucun refresh token disponible.');
+                return false;
+            }
+        }
+
+        writeLog('Connexion Google valide.');
+        return true;
+    } catch (Exception $e) {
+        writeLog('Erreur lors de la vérification de la connexion Google : ' . $e->getMessage());
+        return false;
+    }
+}
+
+// Fonction pour générer l'URL d'autorisation Google
+function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
+    global $clientID, $clientSecret;
+    
     $client = new Google_Client();
     $client->setClientId($clientID);
     $client->setClientSecret($clientSecret);
-    $client->setRedirectUri('https://jr.zerobug-57.fr/FER/oauth2callback.php'); // URI de redirection configurée dans Google Cloud
+    $client->setRedirectUri('https://jr.zerobug-57.fr/FER/oauth2callback.php');
     $client->addScope(Google_Service_Gmail::GMAIL_SEND);
     $client->setAccessType('offline');
     $client->setPrompt('consent');
     $client->setIncludeGrantedScopes(true);
-    $client->setAccessType('offline');
 
-    if (file_exists($token)) {
-        $accessToken = json_decode(file_get_contents($token), true);
+    return $client->createAuthUrl();
+}
+
+// Fonction pour obtenir le jeton d'accès OAuth2
+function getAccessToken(bool $autoRedirect = true) {
+    global $clientID, $clientSecret;
+    
+    $tokenFile = __DIR__ .'/../token.json';
+    $client = new Google_Client();
+    $client->setClientId($clientID);
+    $client->setClientSecret($clientSecret);
+    $client->setRedirectUri('https://jr.zerobug-57.fr/FER/oauth2callback.php');
+    $client->addScope(Google_Service_Gmail::GMAIL_SEND);
+    $client->setAccessType('offline');
+    $client->setPrompt('consent');
+    $client->setIncludeGrantedScopes(true);
+
+    if (file_exists($tokenFile)) {
+        $accessToken = json_decode(file_get_contents($tokenFile), true);
         $client->setAccessToken($accessToken);
 
         if ($client->isAccessTokenExpired()) {
@@ -45,17 +109,29 @@ function getAccessToken() {
 
                 if (isset($newAccessToken['error'])) {
                     writeLog('Erreur lors du rafraîchissement du token : ' . $newAccessToken['error_description']);
-                    die('Erreur OAuth : ' . $newAccessToken['error_description']);
+                    if ($autoRedirect) {
+                        $authUrl = $client->createAuthUrl();
+                        writeLog('Redirection vers l\'authentification Google...');
+                        header("Location: " . $authUrl);
+                        exit();
+                    }
+                    return false;
                 }
 
                 $newAccessToken['refresh_token'] = $refreshToken;
-                file_put_contents($token, json_encode($newAccessToken));
+                file_put_contents($tokenFile, json_encode($newAccessToken));
 
                 writeLog('Jeton d\'accès rafraîchi avec succès.');
                 return $newAccessToken['access_token'];
             } else {
                 writeLog('Aucun refresh token disponible. Veuillez ré-authentifier.');
-                die('Aucun refresh token disponible. Veuillez ré-authentifier.');
+                if ($autoRedirect) {
+                    $authUrl = $client->createAuthUrl();
+                    writeLog('Redirection vers l\'authentification Google...');
+                    header("Location: " . $authUrl);
+                    exit();
+                }
+                return false;
             }
         }
 
@@ -63,18 +139,23 @@ function getAccessToken() {
         return $client->getAccessToken()['access_token'];
     } else {
         writeLog('Jeton d\'accès non trouvé. Veuillez autoriser l\'accès via OAuth2.');
-        if (!file_exists($token)) {
-            // Rediriger l'utilisateur vers l'authentification OAuth2
+        if ($autoRedirect) {
             $authUrl = $client->createAuthUrl();
-            writeLog('Regénération du token ou Redirection vers l\'authentification Google...');
+            writeLog('Redirection vers l\'authentification Google...');
             header("Location: " . $authUrl);
             exit();
         }
+        return false;
     }
 }
 
-function sendMail($to, $subject, $htmlMessage) {
+function sendMail($to, $subject, $htmlMessage, $dateBlock = '') {
     $accessToken = getAccessToken();
+    if (!$accessToken) {
+        writeLog("❌ Impossible d'obtenir un token d'accès valide pour l'envoi de mail.");
+        return false;
+    }
+
     $client = new Google_Client();
     $client->setAccessToken($accessToken);
     $service = new Google_Service_Gmail($client);
@@ -131,3 +212,17 @@ function sendMail($to, $subject, $htmlMessage) {
         return false;
     }
 }
+
+// Fonction pour supprimer le token (déconnexion)
+function revokeGoogleConnection() {
+    $tokenFile = __DIR__ .'/../token.json';
+    
+    if (file_exists($tokenFile)) {
+        unlink($tokenFile);
+        writeLog('Token supprimé - Déconnexion Google effectuée.');
+        return true;
+    }
+    
+    return false;
+}
+?>
