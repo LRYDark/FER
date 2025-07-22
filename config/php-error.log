@@ -1,0 +1,2 @@
+[22-Jul-2025 21:03:14 UTC] PHP Warning:  Undefined array key "mail_data" in /var/www/html/FER/inc/send-mail.php on line 5
+[22-Jul-2025 21:03:23 UTC] PHP Warning:  Undefined array key "mail_data" in /var/www/html/FER/inc/send-mail.php on line 5
