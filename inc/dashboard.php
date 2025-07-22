@@ -31,6 +31,8 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 <link href="../css/forbach-style.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<!-- TinyMCE pour l'éditeur de texte enrichi -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <style>
   .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
   .hero h1{margin:0;font-size:2.2rem}
@@ -82,14 +84,14 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 #tbl tbody tr:last-child td:first-child {border-radius:0 0 0 12px}
 #tbl tbody tr:last-child td:last-child  {border-radius:0 0 12px 0}
 
-/* 5. garde ta règle “first-750” mais on la rend plus douce */
+/* 5. garde ta règle "first-750" mais on la rend plus douce */
 .first-750 td{
   background:linear-gradient(90deg,#fff2f8 0%,#fcecff 100%)!important; /* couleur finale */
   font-weight:600;                      /* conservé si tu le souhaites */
   
 }
 
-/* ═══ Petite retouche des filtres sous l’en-tête =========================== */
+/* ═══ Petite retouche des filtres sous l'en-tête =========================== */
 tr.filters th{
   background:#f2f4f8;
   border-bottom:2px solid #e0e4ec;
@@ -115,6 +117,75 @@ tr.filters select{
   box-shadow:0 3px 6px rgba(230,57,70,.35);
 }
 
+/* Styles pour le modal d'envoi de mail */
+.mail-modal .modal-dialog {
+  max-width: 800px;
+}
+
+.recipients-counter {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+.select-all-btn {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+}
+
+#mailDescription {
+  min-height: 300px;
+}
+
+#selectedRecipients .badge {
+  font-size: 0.8rem !important;
+}
+
+#selectedRecipients .btn-close {
+  padding: 0.2rem;
+  font-size: 0.6rem;
+}
+
+#selectedRecipients:empty::after {
+  content: "Aucun destinataire sélectionné";
+  color: #6c757d;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Styles pour la zone de recherche */
+.email-search-container {
+  position: relative;
+}
+
+.email-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-top: none;
+  border-radius: 0 0 0.375rem 0.375rem;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1050;
+  display: none;
+}
+
+.suggestion-item {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+}
+
+.suggestion-item:hover {
+  background-color: #f8f9fa;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
 
 </style>
 </head>
@@ -133,6 +204,11 @@ tr.filters select{
       <div class="d-none d-lg-flex flex-wrap gap-2">
         <?php if($role!=='viewer'): ?>
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
+        <?php endif; ?>
+        <?php if($role==='admin' || $role==='user'): ?>
+          <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#mailModal">
+            <i class="bi bi-envelope"></i> Envoyer Mail
+          </button>
         <?php endif; ?>
         <?php if($role==='admin'): ?>
           <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel</button>
@@ -184,6 +260,106 @@ tr.filters select{
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
 <!-- ═════════ MODALES ═════════ -->
+
+<!-- Modal d'envoi de mail -->
+<div class="modal fade mail-modal" id="mailModal" tabindex="-1" aria-labelledby="mailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mailModalLabel">
+          <i class="bi bi-envelope"></i> Envoi de mail groupé
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <form id="fMail">
+        <div class="modal-body">
+          <div class="row g-3">
+            <!-- Destinataires -->
+            <div class="col-12">
+              <label for="mailRecipients" class="form-label">
+                <i class="bi bi-people"></i> Destinataires
+              </label>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted">Tapez un nom, prénom ou email. Si l'email n'existe pas, il sera ajouté automatiquement.</small>
+                <div>
+                  <button type="button" class="btn btn-outline-primary select-all-btn" id="selectAllBtn">
+                    Tout sélectionner
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary select-all-btn" id="clearAllBtn">
+                    Tout désélectionner
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Zone de recherche unique -->
+              <div class="email-search-container">
+                <input type="text" id="emailSearchInput" class="form-control" 
+                       placeholder="Tapez un nom, prénom ou email puis appuyez sur Entrée">
+                <div id="emailSuggestions" class="email-suggestions"></div>
+              </div>
+              
+              <!-- Zone d'affichage des destinataires sélectionnés -->
+              <div id="selectedRecipients" class="border rounded p-2 bg-light mt-3" style="min-height: 120px; max-height: 200px; overflow-y: auto;">
+                <small class="text-muted">Aucun destinataire sélectionné</small>
+              </div>
+              
+              <div class="recipients-counter mt-2" id="recipientsCounter">
+                0 destinataire(s) sélectionné(s)
+              </div>
+              
+              <!-- Input caché pour stocker les emails sélectionnés -->
+              <input type="hidden" name="recipients" id="hiddenRecipients">
+            </div>
+
+            <!-- Objet du mail -->
+            <div class="col-12">
+              <label for="mailSubject" class="form-label">
+                <i class="bi bi-tag"></i> Objet du mail
+              </label>
+              <input type="text" name="subject" id="mailSubject" class="form-control" 
+                     placeholder="Objet de votre mail" required maxlength="255">
+            </div>
+
+            <!-- Titre du contenu -->
+            <div class="col-12">
+              <label for="mailTitle" class="form-label">
+                <i class="bi bi-type-h1"></i> Titre du contenu
+              </label>
+              <input type="text" name="mail_title" id="mailTitle" class="form-control" 
+                     placeholder="Titre qui apparaîtra dans le mail" maxlength="255">
+              <small class="form-text text-muted">
+                Ce titre sera affiché en tant que titre principal dans le contenu du mail
+              </small>
+            </div>
+
+            <!-- Description avec éditeur de texte enrichi -->
+            <div class="col-12">
+              <label for="mailDescription" class="form-label">
+                <i class="bi bi-file-text"></i> Contenu du mail
+              </label>
+              <textarea name="description" id="mailDescription" class="form-control">
+                <!-- Le contenu sera géré par TinyMCE -->
+              </textarea>
+              <small class="form-text text-muted">
+                Utilisez l'éditeur pour formater votre message avec du texte en gras, des couleurs, des listes, etc.
+              </small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle"></i> Annuler
+          </button>
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-send"></i> Envoyer le mail
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Autres modales existantes... -->
 <div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog">
   <div class="modal-content"><div class="modal-header">
     <h5 class="modal-title">Nouvel inscrit</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -264,6 +440,7 @@ tr.filters select{
 <script>
 const userRole = '<?= $role ?>';
 let tableData = []; // Pour stocker les données triées par date
+let availableEmails = []; // Pour stocker tous les emails disponibles
 
 /* ══ Outils ════ */
 function normalizeBirth(fd){
@@ -290,6 +467,12 @@ function ageFromBirth(b){
   return a;
 }
 
+// Fonction pour valider une adresse email
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
 /* ══ DataTable ════ */
 let tshirtMode=false;
 function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Remise T-shirts':'Mode standard'); }
@@ -301,6 +484,8 @@ const tbl=$('#tbl').DataTable({
     dataSrc: function(json) {
       // Trier les données par date d'ajout (du plus ancien au plus récent)
       tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      // Mettre à jour la liste des destinataires du modal
+      updateAvailableEmails(tableData);
       return tableData;
     }
   },
@@ -387,6 +572,295 @@ tbl.on('xhr.dt',(e,s,json)=>{
   if(json) {
     tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     updateStats(tableData);
+    updateAvailableEmails(tableData);
+  }
+});
+
+/* ══ Gestion du modal de mail ════ */
+// Initialisation de TinyMCE pour l'éditeur de texte enrichi
+let tinymceInitialized = false;
+let selectedRecipients = []; // Array pour stocker les destinataires sélectionnés
+
+function initTinyMCE() {
+  if (tinymceInitialized) return;
+  
+  tinymce.init({
+    selector: '#mailDescription',
+    height: 300,
+    menubar: false,
+    plugins: [
+      'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
+      'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+      'insertdatetime', 'media', 'table', 'preview', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | formatselect | ' +
+      'bold italic forecolor backcolor | alignleft aligncenter ' +
+      'alignright alignjustify | bullist numlist outdent indent | ' +
+      'removeformat | help',
+    content_style: 'body { font-family:Arial,sans-serif; font-size:14px }',
+    language: 'fr_FR'
+  });
+  
+  tinymceInitialized = true;
+}
+
+// Mettre à jour la liste des emails disponibles
+function updateAvailableEmails(data) {
+  availableEmails = [];
+  
+  data.forEach(person => {
+    if (person.email && person.email.trim() !== '') {
+      availableEmails.push({
+        email: person.email,
+        name: `${person.prenom || ''} ${person.nom || ''}`.trim(),
+        id: person.id
+      });
+    }
+  });
+}
+
+// Fonction de recherche dans les emails disponibles
+function searchEmails(query) {
+  if (!query || query.length < 1) return [];
+  
+  query = query.toLowerCase();
+  
+  return availableEmails.filter(person => {
+    return person.name.toLowerCase().includes(query) || 
+           person.email.toLowerCase().includes(query);
+  });
+}
+
+// Afficher les suggestions de recherche
+function showEmailSuggestions(suggestions) {
+  const suggestionsDiv = document.getElementById('emailSuggestions');
+  
+  if (suggestions.length === 0) {
+    suggestionsDiv.style.display = 'none';
+    return;
+  }
+  
+  let html = '';
+  suggestions.forEach(person => {
+    html += `
+      <div class="suggestion-item" 
+           data-email="${person.email}" 
+           data-name="${person.name}" 
+           data-id="${person.id}">
+        <strong>${person.name}</strong><br>
+        <small class="text-muted">${person.email}</small>
+      </div>
+    `;
+  });
+  
+  suggestionsDiv.innerHTML = html;
+  suggestionsDiv.style.display = 'block';
+}
+
+// Cacher les suggestions
+function hideEmailSuggestions() {
+  setTimeout(() => {
+    document.getElementById('emailSuggestions').style.display = 'none';
+  }, 200);
+}
+
+// Ajouter un destinataire à la liste
+function addRecipient(email, name, id) {
+  // Vérifier si déjà sélectionné
+  if (selectedRecipients.find(r => r.email === email)) {
+    return;
+  }
+  
+  const recipient = { email, name: name || 'Email externe', id: id || null };
+  selectedRecipients.push(recipient);
+  
+  updateSelectedRecipientsDisplay();
+  updateRecipientsCounter();
+  updateHiddenInput();
+}
+
+// Supprimer un destinataire de la liste
+function removeRecipient(email) {
+  selectedRecipients = selectedRecipients.filter(r => r.email !== email);
+  
+  updateSelectedRecipientsDisplay();
+  updateRecipientsCounter();
+  updateHiddenInput();
+}
+
+// Mettre à jour l'affichage des destinataires sélectionnés
+function updateSelectedRecipientsDisplay() {
+  const container = document.getElementById('selectedRecipients');
+  if (!container) return;
+  
+  if (selectedRecipients.length === 0) {
+    container.innerHTML = '<small class="text-muted">Aucun destinataire sélectionné</small>';
+    return;
+  }
+  
+  let html = '';
+  selectedRecipients.forEach(recipient => {
+    html += `
+      <span class="badge bg-primary me-2 mb-2 d-inline-flex align-items-center" style="font-size: 0.8rem;">
+        <span class="me-2">${recipient.name} (${recipient.email})</span>
+        <button type="button" class="btn-close btn-close-white" 
+                onclick="removeRecipient('${recipient.email}')" 
+                style="font-size: 0.6rem;" 
+                title="Supprimer"></button>
+      </span>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+// Mettre à jour le compteur de destinataires
+function updateRecipientsCounter() {
+  const counter = document.getElementById('recipientsCounter');
+  if (!counter) return;
+  
+  counter.textContent = `${selectedRecipients.length} destinataire(s) sélectionné(s)`;
+}
+
+// Mettre à jour l'input caché avec les emails sélectionnés
+function updateHiddenInput() {
+  const hiddenInput = document.getElementById('hiddenRecipients');
+  if (!hiddenInput) return;
+  
+  hiddenInput.value = JSON.stringify(selectedRecipients);
+}
+
+// Gestionnaires d'événements pour le modal de mail
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialiser TinyMCE quand le modal s'ouvre
+  const mailModal = document.getElementById('mailModal');
+  if (mailModal) {
+    mailModal.addEventListener('shown.bs.modal', function() {
+      initTinyMCE();
+    });
+  }
+  
+  // Gestion de la recherche d'emails
+  const emailSearchInput = document.getElementById('emailSearchInput');
+  if (emailSearchInput) {
+    emailSearchInput.addEventListener('input', function() {
+      const query = this.value.trim();
+      
+      if (query.length === 0) {
+        hideEmailSuggestions();
+        return;
+      }
+      
+      const suggestions = searchEmails(query);
+      showEmailSuggestions(suggestions);
+    });
+    
+    emailSearchInput.addEventListener('blur', hideEmailSuggestions);
+    
+    // Gestion de la sélection par clavier
+    emailSearchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const query = this.value.trim();
+        
+        if (!query) return;
+        
+        // Si c'est un email valide, l'ajouter directement (priorité aux emails externes)
+        if (isValidEmail(query)) {
+          addRecipient(query, 'Email externe', null);
+          this.value = '';
+          hideEmailSuggestions();
+        } else {
+          // Sinon, sélectionner la première suggestion si elle existe
+          const firstSuggestion = document.querySelector('.suggestion-item');
+          if (firstSuggestion) {
+            firstSuggestion.click();
+          }
+        }
+      }
+    });
+  }
+  
+  // Gestion des clics sur les suggestions
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.suggestion-item')) {
+      const suggestionItem = e.target.closest('.suggestion-item');
+      const email = suggestionItem.dataset.email;
+      const name = suggestionItem.dataset.name;
+      const id = suggestionItem.dataset.id;
+      
+      addRecipient(email, name, id);
+      
+      // Vider le champ de recherche et cacher les suggestions
+      document.getElementById('emailSearchInput').value = '';
+      hideEmailSuggestions();
+    }
+  });
+  
+  // Sélectionner/désélectionner tous les destinataires
+  const selectAllBtn = document.getElementById('selectAllBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', function() {
+      // Ajouter tous les destinataires disponibles
+      availableEmails.forEach(person => {
+        addRecipient(person.email, person.name, person.id);
+      });
+    });
+  }
+  
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', function() {
+      selectedRecipients = [];
+      updateSelectedRecipientsDisplay();
+      updateRecipientsCounter();
+      updateHiddenInput();
+    });
+  }
+  
+  // Gestion de la soumission du formulaire de mail
+  const mailForm = document.getElementById('fMail');
+  if (mailForm) {
+    mailForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      // Vérifier qu'il y a des destinataires sélectionnés
+      if (selectedRecipients.length === 0) {
+        alert('Veuillez sélectionner au moins un destinataire.');
+        return;
+      }
+      
+      // Récupérer le contenu de TinyMCE
+      const description = tinymce.get('mailDescription') ? tinymce.get('mailDescription').getContent() : '';
+      
+      // Préparer les données à envoyer
+      const mailData = {
+        recipients: selectedRecipients,
+        subject: document.getElementById('mailSubject').value,
+        mail_title: document.getElementById('mailTitle').value,
+        description: description
+      };
+      
+      // Créer un formulaire caché pour transmettre les données
+      const hiddenForm = document.createElement('form');
+      hiddenForm.method = 'POST';
+      hiddenForm.action = 'send-mail.php'; // À créer
+      hiddenForm.style.display = 'none';
+      
+      // Ajouter les données au formulaire
+      const dataInput = document.createElement('input');
+      dataInput.type = 'hidden';
+      dataInput.name = 'mail_data';
+      dataInput.value = JSON.stringify(mailData);
+      hiddenForm.appendChild(dataInput);
+      
+      document.body.appendChild(hiddenForm);
+      hiddenForm.submit();
+      
+      // Fermer le modal
+      bootstrap.Modal.getInstance(mailModal).hide();
+    });
   }
 });
 
@@ -470,7 +944,7 @@ function buildFilters(api){
     if(['T-shirt','Sexe','Paiement','Entreprise','Origine'].includes(title)){
       const $sel=$('<select class="form-select form-select-sm"><option value="">Tous</option></select>')
         .appendTo($cell)
-        .on('change',function(){ api.column(i).search(this.value? '^'+this.value+'$':'',true,false).draw();});
+        .on('change',function(){ api.column(i).search(this.value ? '^'+this.value+'$' : '', true, false).draw();});
       this.data().unique().sort().each(v=>{if(v)$sel.append(`<option>${v}</option>`);});
     }
   });
