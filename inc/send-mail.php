@@ -23,7 +23,7 @@ requireRole(['admin','user']);
                     array_keys($adresses), $adresses));
 
     // Appel de la fonction sendMail et gestion du retour
-    $mailSent = sendMail($toHeader, $subject, $mailTitle, $description, 'null', 'null', 'info');
+    $mailSent = sendMail($toHeader, $subject, $mailTitle, $description, null, null, 'info');
 
     // Définir le message flash selon le résultat
     if ($mailSent) {

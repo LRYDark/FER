@@ -136,12 +136,6 @@
             margin-top: 2px;
         }
 
-        /* Bouton d'action */
-        .action-button {
-            text-align: center;
-            margin: 30px 0;
-        }
-
         .btn-primary {
             background: linear-gradient(135deg, #ff4f9c 0%,  #e03f8a 100%);
             color: white;
@@ -190,14 +184,6 @@
             padding: 8px 0;
             padding-left: 25px;
             position: relative;
-        }
-
-        .tips-list li::before {
-            content: "♥";
-            position: absolute;
-            left: 0;
-            color: #ff4f9c;
-            font-weight: bold;
         }
 
         /* Footer */
@@ -308,7 +294,7 @@
                     </svg>
                     <div class="info-text">
                         <div class="info-label">Participant</div>
-                        <div class="info-value">[NOM_PARTICIPANT]</div>
+                        <div class="info-value"><?= mb_strtoupper($lastname, 'UTF-8') . ' ' .mb_convert_case($firstname, MB_CASE_TITLE, 'UTF-8') ?></div>
                     </div>
                 </div>
 
@@ -318,7 +304,7 @@
                     </svg>
                     <div class="info-text">
                         <div class="info-label">Date de l'événement</div>
-                        <div class="info-value">[DATE_COURSE]</div>
+                        <div class="info-value"><?= $date ?></div>
                     </div>
                 </div>
 
@@ -343,19 +329,14 @@
                 </div>-->
             </div>
 
-            <!-- Bouton d'action -->
-            <div class="action-button">
-                <a href="#" class="btn-primary">📱 Ajouter à mon calendrier</a>
-            </div>
-
             <!-- Conseils de préparation -->
             <div class="tips-section">
                 <h3>Conseils pour le jour J</h3>
                 <ul class="tips-list">
-                    <li>Arrivez 30 minutes avant le départ</li>
-                    <li>Portez des vêtements roses pour soutenir la cause</li>
+                    <li>❤️ Arrivez 30 minutes avant le départ</li>
+                    <li>❤️ Portez des vêtements roses pour soutenir la cause</li>
                     <!-- <li>N'oubliez pas votre bouteille d'eau et de la crème solaire</li> -->
-                    <li>Prenez vos chaussures de course les plus confortables</li>
+                    <li>❤️ Prenez vos chaussures de course les plus confortables</li>
                     <!-- <li>Invitez vos proches à venir vous encourager</li >-->
                 </ul>
             </div>
