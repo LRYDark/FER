@@ -115,7 +115,11 @@
                     </button>
                 </li>
                 <?php endif; ?>
-
+                <?php if($role==='admin' || $role==='user'): ?>
+                    <li class="list-group-item px-3">
+                    <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#mailModal"><i class="bi bi-envelope"></i> Envoyer Mail</button>
+                    </li>
+                <?php endif; ?>
                 <?php if($role==='admin'): ?>
                     <li class="list-group-item px-3">
                         <button class="btn btn-secondary w-100" data-bs-toggle="modal" data-bs-target="#importModal">
