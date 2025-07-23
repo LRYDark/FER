@@ -18,6 +18,13 @@ $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
 $footer= $data['footer'] ?? '';  
 $titleColor = $data['title_color'] ?? '#ffffff';
+
+// Gestion des messages flash
+$flashMessage = null;
+if (isset($_SESSION['flash_message'])) {
+    $flashMessage = $_SESSION['flash_message'];
+    unset($_SESSION['flash_message']); // Supprimer après récupération
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -198,6 +205,28 @@ tr.filters select{
 <!-- ═════════ MAIN ═════════ -->
 <main class="container-fluid flex-grow-1">
   <div class="bg-white p-4 card-dashboard">
+    <!-- Message flash de confirmation -->
+    <?php if ($flashMessage): ?>
+    <div class="container-fluid">
+      <div class="alert alert-<?= $flashMessage['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show mt-3" role="alert">
+        <i class="bi bi-<?= $flashMessage['type'] === 'success' ? 'check-circle' : 'exclamation-triangle' ?>"></i>
+        <?= htmlspecialchars($flashMessage['message']) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    </div>
+    <?php endif; ?>
+    <script>
+      // Auto-masquage des messages flash au bout de 5 secondes
+      document.addEventListener('DOMContentLoaded', function() {
+        const flashAlert = document.querySelector('.alert');
+        if (flashAlert && flashAlert.classList.contains('alert-success')) {
+          setTimeout(function() {
+            const bsAlert = new bootstrap.Alert(flashAlert);
+            bsAlert.close();
+          }, 5000); // 5 secondes
+        }
+      });
+    </script>
 
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
       <h2 class="mb-0">Inscriptions</h2>
@@ -288,8 +317,7 @@ tr.filters select{
               
               <!-- Zone de recherche unique -->
               <div class="email-search-container">
-                <input type="text" id="emailSearchInput" class="form-control" 
-                       placeholder="Tapez un nom, prénom ou email puis appuyez sur Entrée">
+                  <input type="text" id="emailSearchInput" class="form-control" placeholder="Tapez un nom, prénom ou email (ou plusieurs emails séparés par des virgules) puis appuyez sur Entrée">
                 <div id="emailSuggestions" class="email-suggestions"></div>
               </div>
               
@@ -759,16 +787,66 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!query) return;
         
-        // Si c'est un email valide, l'ajouter directement (priorité aux emails externes)
-        if (isValidEmail(query)) {
-          addRecipient(query, 'Email externe', null);
+        // Vérifier s'il y a plusieurs emails séparés par des virgules
+        if (query.includes(',')) {
+          // Traitement de plusieurs emails
+          const emails = query.split(',');
+          let addedCount = 0;
+          let invalidEmails = [];
+          let duplicateEmails = [];
+          
+          emails.forEach(email => {
+            const cleanEmail = email.trim();
+            if (!cleanEmail) return; // Ignorer les éléments vides
+            
+            if (isValidEmail(cleanEmail)) {
+              // Vérifier si l'email n'est pas déjà sélectionné
+              if (selectedRecipients.find(r => r.email === cleanEmail)) {
+                duplicateEmails.push(cleanEmail);
+              } else {
+                addRecipient(cleanEmail, 'Email externe', null);
+                addedCount++;
+              }
+            } else {
+              invalidEmails.push(cleanEmail);
+            }
+          });
+          
+          // Feedback à l'utilisateur
+          let message = '';
+          if (invalidEmails.length > 0) {
+            message += `\n❌ ${invalidEmails.length} email(s) invalide(s): ${invalidEmails.join(', ')}`;
+          }
+          if (duplicateEmails.length > 0) {
+            message += `\n⚠️ ${duplicateEmails.length} email(s) déjà sélectionné(s): ${duplicateEmails.join(', ')}`;
+          }
+          
+          if (message) {
+            alert(message);
+          }
+          
           this.value = '';
           hideEmailSuggestions();
+          
         } else {
-          // Sinon, sélectionner la première suggestion si elle existe
-          const firstSuggestion = document.querySelector('.suggestion-item');
-          if (firstSuggestion) {
-            firstSuggestion.click();
+          // Traitement d'un seul email (code existant)
+          if (isValidEmail(query)) {
+            // Vérifier si l'email n'est pas déjà sélectionné
+            if (selectedRecipients.find(r => r.email === query)) {
+              alert('Cet email est déjà sélectionné.');
+            } else {
+              addRecipient(query, 'Email externe', null);
+              this.value = '';
+              hideEmailSuggestions();
+            }
+          } else {
+            // Sinon, sélectionner la première suggestion si elle existe
+            const firstSuggestion = document.querySelector('.suggestion-item');
+            if (firstSuggestion) {
+              firstSuggestion.click();
+            } else {
+              alert('Email invalide et aucune suggestion trouvée.');
+            }
           }
         }
       }
