@@ -314,7 +314,7 @@
                     </svg>
                     <div class="info-text">
                         <div class="info-label">Lieu de départ</div>
-                        <div class="info-value">Forbach, Moselle</div>
+                        <div class="info-value">Piscine de Forbach, Moselle</div>
                     </div>
                 </div>
 
@@ -354,12 +354,8 @@
         <!-- Footer -->
         <div class="email-footer">
             <div class="social-links">
-                <a href="[LINK_FACEBOOK]" target="_blank">
-                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAzMCAzMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTUiIGN5PSIxNSIgcj0iMTUiIGZpbGw9IiMzYjU5OTgiLz4KPHA" alt="Facebook">
-                </a>
-                <a href="[LINK_INSTAGRAM]" target="_blank">
-                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAzMCAzMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTUiIGN5PSIxNSIgcj0iMTUiIGZpbGw9IiNlNDQwNWYiLz4KPHA" alt="Instagram">
-                </a>
+                <a href="<?= $facebook ?>" target="_blank">Facebook</a>
+                <a href="<?= $instagram ?>" target="_blank">Instagram</a>
             </div>
             
             <div class="footer-text">

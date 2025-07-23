@@ -197,12 +197,6 @@
             font-weight: 500;
         }
 
-        /* Boutons d'action */
-        .action-buttons {
-            text-align: center;
-            margin: 30px 0;
-        }
-
         .btn-primary {
             background: linear-gradient(135deg, #ff4f9c 0%, #e03f8a 100%);
             color: white;
@@ -363,10 +357,6 @@
                 gap: 10px;
             }
 
-            .action-buttons {
-                flex-direction: column;
-            }
-
             .btn-primary,
             .btn-secondary {
                 margin: 5px 0;
@@ -410,13 +400,7 @@
             <div class="info-section">
                 <p><?= $description ?></p>
             </div>
-
-            <!-- Boutons d'action (optionnels) -->
-            <div class="action-buttons">
-                <a href="[LIEN_ACTION_1]" class="btn-primary">[TEXTE_BOUTON_1]</a>
-                <!-- <a href="[LIEN_ACTION_2]" class="btn-secondary">[TEXTE_BOUTON_2]</a> -->
-            </div>
-
+            
             <!-- Carte de contact -->
             <div class="contact-card">
                 <h3>💬 Besoin d'aide ?</h3>
