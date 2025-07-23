@@ -119,8 +119,8 @@ tr.filters select{
 }
 
 /* Styles pour le modal d'envoi de mail */
-.mail-modal .modal-dialog {
-  max-width: 800px;
+.xl-modal .modal-dialog {
+  max-width: 1300px;
 }
 
 .recipients-counter {
@@ -260,7 +260,7 @@ tr.filters select{
 
 <!-- ═════════ MODALES ═════════ -->
 <!-- Modal d'envoi de mail -->
-<div class="modal fade mail-modal" id="mailModal" tabindex="-1" aria-labelledby="mailModalLabel" aria-hidden="true">
+<div class="modal fade xl-modal" id="mailModal" tabindex="-1" aria-labelledby="mailModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
@@ -354,7 +354,7 @@ tr.filters select{
 </div>
 
 <!-- Autres modales existantes... -->
-<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog">
+<div class="modal fade xl-modal" id="addModal" tabindex="-1"><div class="modal-dialog">
   <div class="modal-content"><div class="modal-header">
     <h5 class="modal-title">Nouvel inscrit</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
     <form id="fAdd">
@@ -409,7 +409,7 @@ tr.filters select{
   </div></form></div></div></div>
 
 <?php if($role==='admin'): ?>
-<div class="modal fade" id="usersModal" tabindex="-1"><div class="modal-dialog modal-lg">
+<div class="modal fade xl-modal" id="usersModal" tabindex="-1"><div class="modal-dialog modal-lg">
  <div class="modal-content"><div class="modal-header">
    <h5 class="modal-title">Comptes utilisateurs</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">
