@@ -262,10 +262,10 @@ foreach ($years as $y) {
                             </div>
                             <div class="col-md-1 d-grid">
                                 
-            <div class="d-flex gap-2">
-            <button type="submit" name="update_album" class="btn btn-sm btn-success">✔</button>
-            <button type="submit" name="delete_album" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet album ?');">🗑</button>
-            </div>
+                          <div class="d-flex gap-2">
+                            <button type="submit" name="update_album" class="btn btn-sm btn-success">✔</button>
+                            <button type="submit" name="delete_album" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet album ?');">🗑</button>
+                          </div>
 
                             </div>
                             </form>
@@ -343,7 +343,8 @@ foreach ($years as $y) {
             border-radius: 0.375rem !important;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.0/tinymce.min.js"></script>
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
         tinymce.init({
             selector: '#partner_desc',

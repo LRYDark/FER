@@ -432,7 +432,7 @@
         <div class="email-content">
             <!-- Message principal - À personnaliser -->
             <div class="main-message">
-                <h2>📢 [TITRE_INFORMATION]</h2>
+                <h2>📢 <?= $mailTitle ?></h2>
             </div>
 
             <!-- Section d'information 2 - Modulaire -->
@@ -444,7 +444,7 @@
             <!-- Section d'information 3 - Modulaire -->
             <div class="info-section">
                 <h3><span class="emoji">📍</span> [TITRE_SECTION_3]</h3>
-                <p>[CONTENU_SECTION_3]</p>
+                <p><?= $description ?></p>
             </div>
 
             <!-- Boutons d'action (optionnels) -->

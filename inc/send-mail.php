@@ -3,6 +3,7 @@ $mailData = json_decode($_POST['mail_data'], true);
 
 $recipients = $mailData['recipients'] ?? [];
 $subject = $mailData['subject'] ?? '';
+
 $mailTitle = $mailData['mail_title'] ?? '';
 $description = $mailData['description'] ?? '';
 
@@ -14,6 +15,8 @@ foreach ($recipients as $r) {
     echo "<li>" . htmlspecialchars($r['name']) . " (" . htmlspecialchars($r['email']) . ")</li>";
 }
 echo "</ul>";
+
+include_once 'mail2.php';
 
 
 

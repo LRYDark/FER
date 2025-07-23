@@ -33,6 +33,7 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <!-- TinyMCE pour l'éditeur de texte enrichi -->
 <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <style>
   .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
   .hero h1{margin:0;font-size:2.2rem}
@@ -206,9 +207,7 @@ tr.filters select{
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
         <?php endif; ?>
         <?php if($role==='admin' || $role==='user'): ?>
-          <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#mailModal">
-            <i class="bi bi-envelope"></i> Envoyer Mail
-          </button>
+          <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#mailModal">Envoyer Mail</button>
         <?php endif; ?>
         <?php if($role==='admin'): ?>
           <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel</button>
@@ -260,15 +259,12 @@ tr.filters select{
 <footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
 <!-- ═════════ MODALES ═════════ -->
-
 <!-- Modal d'envoi de mail -->
 <div class="modal fade mail-modal" id="mailModal" tabindex="-1" aria-labelledby="mailModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="mailModalLabel">
-          <i class="bi bi-envelope"></i> Envoi de mail groupé
-        </h5>
+        <h5 class="modal-title" id="mailModalLabel">Envoi de mail</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
       </div>
       <form id="fMail">
@@ -280,7 +276,6 @@ tr.filters select{
                 <i class="bi bi-people"></i> Destinataires
               </label>
               <div class="d-flex justify-content-between align-items-center mb-2">
-                <small class="text-muted">Tapez un nom, prénom ou email. Si l'email n'existe pas, il sera ajouté automatiquement.</small>
                 <div>
                   <button type="button" class="btn btn-outline-primary select-all-btn" id="selectAllBtn">
                     Tout sélectionner
@@ -337,6 +332,7 @@ tr.filters select{
               <label for="mailDescription" class="form-label">
                 <i class="bi bi-file-text"></i> Contenu du mail
               </label>
+              
               <textarea name="description" id="mailDescription" class="form-control">
                 <!-- Le contenu sera géré par TinyMCE -->
               </textarea>
@@ -347,9 +343,7 @@ tr.filters select{
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="bi bi-x-circle"></i> Annuler
-          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
           <button type="submit" class="btn btn-success">
             <i class="bi bi-send"></i> Envoyer le mail
           </button>
@@ -586,7 +580,7 @@ function initTinyMCE() {
   
   tinymce.init({
     selector: '#mailDescription',
-    height: 300,
+    height: 400,
     menubar: false,
     plugins: [
       'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
