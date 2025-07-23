@@ -1,4 +1,8 @@
 <?php 
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+    
 require '../config/config.php';
 require '../config/googleMail.php';
 
@@ -90,11 +94,14 @@ if ($_POST) {
             );
             
             $stmt->execute($formData);
-            
-            $success_message = "👍 Inscription enregistrée avec succès !";
-            sendMail('reinert.joris@gmail.com','test mail FER','Bonjour, TEST FER');
+    
+            $subject = 'Inscription enregistrée - Forbach en Rose';
 
-            
+            if($_POST['email'] != ''){
+              sendMail($_POST['email'], $subject, null, null, $_POST['nom'], $_POST['prenom'], 'inscription');
+            }       
+          $success_message = "👍 Inscription enregistrée avec succès !";
+
         } catch (PDOException $e) {
             $error_message = "Erreur lors de l'enregistrement : " . $e->getMessage();
         }
