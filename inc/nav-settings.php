@@ -1,18 +1,20 @@
 <?php
-    $currentPage = basename($_SERVER['PHP_SELF']); // Ex: dashboard.php
+requireRole(['admin','user','viewer']);
 
-    $pageTitles = [
-        'dashboard.php' => 'Tableau de bord',
-        'setting.php'   => 'Réglages',
-        'albums.php'    => 'Albums',
-        'partners.php'  => 'Partenaires',
-        'news.php'  => 'Actualités',
-        'stats.php'  => 'Statistiques',
-        'qr_code.php'  => 'QrCode',
-        ];
+$currentPage = basename($_SERVER['PHP_SELF']); // Ex: dashboard.php
 
-    // Définir le titre ou fallback par défaut
-    $pageTitle = $pageTitles[$currentPage] ?? 'Page';
+$pageTitles = [
+    'dashboard.php' => 'Tableau de bord',
+    'setting.php'   => 'Réglages',
+    'albums.php'    => 'Albums',
+    'partners.php'  => 'Partenaires',
+    'news.php'  => 'Actualités',
+    'stats.php'  => 'Statistiques',
+    'qr_code.php'  => 'QrCode',
+    ];
+
+// Définir le titre ou fallback par défaut
+$pageTitle = $pageTitles[$currentPage] ?? 'Page';
 ?>
 
 <link href="../css/nav-settings.css" rel="stylesheet">

@@ -157,10 +157,19 @@ function getAccessToken(bool $autoRedirect = true) {
     }
 }
 
-function sendMail($to, $subject, $htmlMessage, $dateBlock = '') {
+function render(string $path, array $vars = []): string
+{
+    extract($vars, EXTR_SKIP);  // 1) crée $logoUrl, $subject, etc.
+    ob_start();                 // 2) démarre le tampon
+    include $path;              // 3) exécute le template
+    return ob_get_clean();      // 4) récupère le rendu
+}
+
+function sendMail($to, string  $subject, string  $mailTitle = '', string  $description = '', string  $lastname = '', string  $firstname = '', string  $type = 'info') {
+    /* ---------- Auth Gmail ---------- */
     $accessToken = getAccessToken();
     if (!$accessToken) {
-        writeLog("❌ Impossible d'obtenir un token d'accès valide pour l'envoi de mail.");
+        writeLog("❌ Impossible d'obtenir un token d'accès valide.");
         return false;
     }
 
@@ -168,55 +177,62 @@ function sendMail($to, $subject, $htmlMessage, $dateBlock = '') {
     $client->setAccessToken($accessToken);
     $service = new Google_Service_Gmail($client);
 
+    /* ---------- Destinataires ---------- */
+    // $to  peut être tableau ou chaîne déjà formatée
+    if (is_array($to)) {
+        // Tableau → on place tout en Bcc:
+        $bccHeader = implode(', ', $to);           // mail1, mail2, ...
+        $toHeader  = 'undisclosed-recipients:;';   // champ To “public” vide
+    } else {
+        // Chaîne (déjà "Nom <mail>, Nom2 <mail2>")
+        $toHeader  = $to;
+        $bccHeader = '';                           // pas de Bcc
+    }
+
+    /* ---------- Sujet ---------- */
+    $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+
+    /* ---------- Corps ---------- */
+    switch ($type) {
+        case 'info':
+            $body = render('mail_info.php', [
+                'mailTitle'   => $mailTitle,
+                'description' => $description,
+            ]);
+            break;
+
+        case 'inscription':
+            $body = render('mail_inscription.php', [
+                'firstname' => $firstname,
+                'lastname'  => $lastname,
+            ]);
+            break;
+
+        default:
+            throw new InvalidArgumentException('Type de mail inconnu : ' . $type);
+    }
+
+    /* ---------- Construction du message ---------- */
     $from = 'reinert.joris@gmail.com';
-    $encodedSubject = '=?UTF-8?B?' . base64_encode('JR | Maintenance Serveur') . '?=';
 
-    $logoUrl = "https://jr.zerobug-57.fr/reset-password/images/jr-black.png";
+    $raw  = "From: $from\r\n";
+    $raw .= "To: $toHeader\r\n";
+    if ($bccHeader) $raw .= "Bcc: $bccHeader\r\n";
+    $raw .= "Subject: $encodedSubject\r\n";
+    $raw .= "MIME-Version: 1.0\r\n";
+    $raw .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+    $raw .= $body;
 
-    // Construction du mail HTML
-    $body = <<<HTML
-    <!DOCTYPE html>
-    <html>
-    <body style="font-family: Arial, sans-serif; color: #333;">
-        <div style="max-width: 600px; margin: auto; padding: 20px; border-radius: 8px; background: #f9f9f9;">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <img src="$logoUrl" alt="Logo JR" style="max-width: 90px;">
-            </div>
-            <h2 style="text-align: center;">Maintenance : $subject</h2>
-            <p style="font-size: 16px;">Bonjour,</p>
-            <p style="font-size: 16px;">
-                Une opération de maintenance est en cours ou programmée.
-            </p>
-            $dateBlock
-            <p style="font-size: 16px; background: #fff3cd; padding: 10px; border-left: 5px solid #ffc107;">
-                <strong>Description :</strong><br>
-                $htmlMessage
-            </p>
-            <p style="font-size: 16px;">
-                Merci pour votre compréhension.
-            </p>
-        </div>
-    </body>
-    </html>
-    HTML;
-
-    $strRawMessage = "From: $from\r\n";
-    $strRawMessage .= "To: $to\r\n";
-    $strRawMessage .= "Subject: $encodedSubject\r\n";
-    $strRawMessage .= "MIME-Version: 1.0\r\n";
-    $strRawMessage .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-    $strRawMessage .= $body;
-
-    $mime = rtrim(strtr(base64_encode($strRawMessage), '+/', '-_'), '=');
-    $message = new Google_Service_Gmail_Message();
-    $message->setRaw($mime);
+    $mime = rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+    $msg  = new Google_Service_Gmail_Message();
+    $msg->setRaw($mime);
 
     try {
-        $service->users_messages->send('me', $message);
-        writeLog("✅ Mail envoyé avec succès à : $to | Sujet : $subject");
+        $service->users_messages->send('me', $msg);
+        writeLog("✅ Mail envoyé à : " . (is_array($to) ? implode(', ', $to) : $toHeader));
         return true;
     } catch (Exception $e) {
-        writeLog("❌ Erreur d'envoi de mail à $to : " . $e->getMessage());
+        writeLog("❌ Erreur d'envoi : " . $e->getMessage());
         return false;
     }
 }

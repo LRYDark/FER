@@ -9,3 +9,28 @@
 [2025-07-23 08:33:35] Connexion Google valide.
 [2025-07-23 08:35:22] Connexion Google valide.
 [2025-07-23 08:59:07] Connexion Google valide.
+[2025-07-23 09:16:32] Token rafraîchi automatiquement.
+[2025-07-23 09:43:45] Le jeton d'accès est valide.
+[2025-07-23 09:44:55] Le jeton d'accès est valide.
+[2025-07-23 09:44:56] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 09:51:44] Le jeton d'accès est valide.
+[2025-07-23 09:51:44] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>, "joris.reinert@gmail.com" <joris.reinert@gmail.com>
+[2025-07-23 11:40:37] Le jeton d'accès est expiré, tentative de rafraîchissement...
+[2025-07-23 11:40:37] Jeton d'accès rafraîchi avec succès.
+[2025-07-23 11:40:38] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 11:44:26] Le jeton d'accès est valide.
+[2025-07-23 11:44:27] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 11:52:44] Le jeton d'accès est valide.
+[2025-07-23 11:52:44] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 11:57:20] Le jeton d'accès est valide.
+[2025-07-23 11:57:20] 🔍 Type reçu : 'info'
+[2025-07-23 11:57:21] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 12:00:57] Le jeton d'accès est valide.
+[2025-07-23 12:00:57] 🔍 Type reçu : 'info'
+[2025-07-23 12:00:58] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 12:06:22] Le jeton d'accès est valide.
+[2025-07-23 12:06:22] 🔍 Type reçu : 'info'
+[2025-07-23 12:06:23] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-23 12:07:27] Le jeton d'accès est valide.
+[2025-07-23 12:07:27] 🔍 Type reçu : 'info'
+[2025-07-23 12:07:27] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>

@@ -5,14 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirmation d'inscription - Forbach en Rose</title>
     <style>
-        /* Variables CSS similaires à votre site */
-        :root {
-            --rose-500: #ff4f9c;
-            --rose-600: #e03f8a;
-            --rose-light: #ffe1f0;
-            --bg-grad: linear-gradient(135deg, #ffe1f0 0%, #fff 40%, #ffe1f0 100%);
-        }
-
         /* Reset pour emails */
         * {
             margin: 0;
@@ -24,7 +16,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333;
-            background: var(--bg-grad);
+            background: linear-gradient(135deg, #ffe1f0 0%, #fff 40%, #ffe1f0 100%);
             padding: 20px;
         }
 
@@ -40,12 +32,12 @@
 
         /* Header avec dégradé rose */
         .email-header {
-            background: var(--rose-500);
+            background: #ff4f9c;
             color: white;
             padding: 40px 30px;
             text-align: center;
             position: relative;
-            background: linear-gradient(135deg, var(--rose-500) 0%, var(--rose-600) 100%);
+            background: linear-gradient(135deg, #ff4f9c 0%,  #e03f8a 100%);
         }
 
         .email-header::before {
@@ -55,7 +47,6 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="hearts" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><text x="10" y="15" text-anchor="middle" fill="rgba(255,255,255,0.1)" font-size="12">♥</text></pattern></defs><rect width="100%" height="100%" fill="url(%23hearts)"/></svg>') repeat;
             opacity: 0.3;
         }
 
@@ -75,30 +66,10 @@
             z-index: 2;
         }
 
-        /* Icône de confirmation */
-        .confirmation-icon {
-            width: 80px;
-            height: 80px;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 20px auto 0;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            position: relative;
-            z-index: 2;
-        }
-
-        .confirmation-icon svg {
-            width: 40px;
-            height: 40px;
-            fill: var(--rose-500);
-        }
-
         /* Contenu principal */
         .email-content {
             padding: 40px 30px;
+            background: #f5f5f5ff;
         }
 
         .welcome-message {
@@ -107,7 +78,7 @@
         }
 
         .welcome-message h2 {
-            color: var(--rose-600);
+            color:  #e03f8a;
             font-size: 1.8rem;
             margin-bottom: 15px;
             font-weight: 600;
@@ -125,7 +96,7 @@
             border-radius: 15px;
             padding: 25px;
             margin: 25px 0;
-            border-left: 5px solid var(--rose-500);
+            border-left: 5px solid #ff4f9c;
         }
 
         .info-item {
@@ -143,7 +114,7 @@
             width: 24px;
             height: 24px;
             margin-right: 15px;
-            fill: var(--rose-500);
+            fill: #ff4f9c;
             flex-shrink: 0;
         }
 
@@ -153,7 +124,7 @@
 
         .info-label {
             font-weight: 600;
-            color: var(--rose-600);
+            color:  #e03f8a;
             font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -172,7 +143,7 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--rose-500) 0%, var(--rose-600) 100%);
+            background: linear-gradient(135deg, #ff4f9c 0%,  #e03f8a 100%);
             color: white;
             text-decoration: none;
             padding: 15px 30px;
@@ -198,7 +169,7 @@
         }
 
         .tips-section h3 {
-            color: var(--rose-600);
+            color:  #e03f8a;
             font-size: 1.3rem;
             margin-bottom: 15px;
             display: flex;
@@ -225,7 +196,7 @@
             content: "♥";
             position: absolute;
             left: 0;
-            color: var(--rose-500);
+            color: #ff4f9c;
             font-weight: bold;
         }
 
@@ -320,11 +291,6 @@
         <div class="email-header">
             <h1><span style="color: #ff69b4; font-size: 1.2em;">🎀</span> Forbach en Rose</h1>
             <p>Course caritative contre le cancer du sein</p>
-            <div class="confirmation-icon">
-                <svg viewBox="0 0 24 24">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                </svg>
-            </div>
         </div>
 
         <!-- Contenu principal -->
@@ -395,7 +361,7 @@
             </div>
 
             <div style="text-align: center; margin: 30px 0; padding: 20px; background: var(--rose-light); border-radius: 15px;">
-                <p style="font-size: 1.1rem; color: var(--rose-600); font-weight: 600;">
+                <p style="font-size: 1.1rem; color:  #e03f8a; font-weight: 600;">
                     🎗️ Ensemble, courons pour la recherche contre le cancer du sein
                 </p>
                 <p style="margin-top: 10px; color: #666;">
