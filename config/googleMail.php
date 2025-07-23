@@ -218,14 +218,18 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
             $body = render('mail_info.php', [
                 'mailTitle'   => $mailTitle,
                 'description' => $description,
+                'instagram'   => $data['link_instagram'],
+                'facebook'    => $data['link_facebook'],
             ]);
             break;
 
         case 'inscription':
             $body = render('mail_inscription.php', [
-                'firstname' => $firstname,
-                'lastname'  => $lastname,
-                'date'      => $formattedDate,
+                'firstname'   => $firstname,
+                'lastname'    => $lastname,
+                'date'        => $formattedDate,
+                'instagram'   => $data['link_instagram'],
+                'facebook'    => $data['link_facebook'],
             ]);
             break;
 
