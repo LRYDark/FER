@@ -1,49 +1,14 @@
-document.addEventListener("DOMContentLoaded", function () {
-  const nav = document.querySelector(".nav-flottante");
-
-  // Fonction utilitaire : vérifier si un élément est visible (display ≠ none)
-  function isVisible(el) {
-    return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-  }
-
-  // Ne compte que les <a> visibles
-  const links = Array.from(nav.querySelectorAll("a")).filter(isVisible);
-  const nbElements = links.length;
-
-  const gapValue = 11 - nbElements;
-  nav.style.gap = `${gapValue}rem`;
-});
-
 function updateNavGap() {
   const nav = document.querySelector(".nav-flottante");
+  if (!nav) return;
 
-  // Désactiver si mobile
+  // Mobile : petit espacement fixe
   if (window.innerWidth < 767) {
     nav.style.gap = "2rem";
-    return;
+  } else {
+    // Desktop : on laisse le CSS gérer un gap fixe défini dans le CSS
+    nav.style.gap = "";
   }
-
-  // Liens visibles
-  const links = Array.from(nav.querySelectorAll('a')).filter(el => {
-    const style = window.getComputedStyle(el);
-    return style.display !== "none" && style.visibility !== "hidden";
-  });
-
-  // Largeur totale disponible
-  const containerWidth = nav.clientWidth;
-
-  // Largeur totale utilisée par les liens
-  const totalLinksWidth = links.reduce((sum, link) => {
-    const rect = link.getBoundingClientRect();
-    return sum + rect.width;
-  }, 0);
-
-  const nbGaps = links.length - 1;
-  const maxAllowedGap = (containerWidth - totalLinksWidth) / (nbGaps || 1);
-
-  // Fixe entre 1rem et 7rem max pour éviter les excès
-  const gapRem = Math.min(Math.max(1, maxAllowedGap / 16), 7);
-  nav.style.gap = `${gapRem.toFixed(2)}rem`;
 }
 
 window.addEventListener("DOMContentLoaded", updateNavGap);
@@ -102,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Tu peux faire pareil pour photos.php si besoin :
+  // Même chose pour photos.php
   if (currentUrl.includes("photos.php")) {
     const photosToggle = document.querySelector(".photos-toggle");
     if (photosToggle) {
@@ -111,76 +76,73 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 
-function toggleDropdown(event) {
-  event.preventDefault();
-
-  const current = document.getElementById('dropdownPartenaires');
-  const other = document.getElementById('dropdownPhotos');
-
-  // Ferme l'autre menu si ouvert
-  if (other && other.style.display === 'block') {
-    other.style.display = 'none';
-  }
-
-  // Bascule le menu actuel
-  current.style.display = (current.style.display === 'block') ? 'none' : 'block';
+function openDropdown(id) {
+  // Desktop uniquement : sur mobile on laisse le comportement existant
+  if (window.innerWidth < 767) return;
+  const current = document.getElementById(id);
+  if (!current) return;
+  current.style.display = "block";
 }
 
-function togglePhotosDropdown(event) {
-  event.preventDefault();
-
-  const current = document.getElementById('dropdownPhotos');
-  const other = document.getElementById('dropdownPartenaires');
-
-  if (other && other.style.display === 'block') {
-    other.style.display = 'none';
-  }
-
-  current.style.display = (current.style.display === 'block') ? 'none' : 'block';
+function closeDropdown(id) {
+  if (window.innerWidth < 767) return;
+  const current = document.getElementById(id);
+  if (!current) return;
+  current.style.display = "none";
 }
 
 function toggleMobileDropdown(event) {
   event.preventDefault();
   event.stopPropagation();
 
-  const current = document.getElementById('dropdownMobilePartenaires');
-  const other = document.getElementById('dropdownMobilePhotos');
+  const current = document.getElementById("dropdownMobilePartenaires");
+  const other = document.getElementById("dropdownMobilePhotos");
 
-  if (other && other.style.display === 'flex') {
-    other.style.display = 'none';
+  if (other && other.style.display === "flex") {
+    other.style.display = "none";
   }
 
-  current.style.display = (current.style.display === 'flex') ? 'none' : 'flex';
+  current.style.display = current.style.display === "flex" ? "none" : "flex";
 }
 
 function toggleMobilePhotosDropdown(event) {
   event.preventDefault();
   event.stopPropagation();
 
-  const current = document.getElementById('dropdownMobilePhotos');
-  const other = document.getElementById('dropdownMobilePartenaires');
+  const current = document.getElementById("dropdownMobilePhotos");
+  const other = document.getElementById("dropdownMobilePartenaires");
 
-  if (other && other.style.display === 'flex') {
-    other.style.display = 'none';
+  if (other && other.style.display === "flex") {
+    other.style.display = "none";
   }
 
-  current.style.display = (current.style.display === 'flex') ? 'none' : 'flex';
+  current.style.display = current.style.display === "flex" ? "none" : "flex";
 }
 
-document.addEventListener('click', function(event) {
-  const partenairesDropdown = document.getElementById('dropdownPartenaires');
-  const partenairesToggle = document.querySelector('.partenaires-toggle');
+document.addEventListener("click", function (event) {
+  const partenairesDropdown = document.getElementById("dropdownPartenaires");
+  const partenairesToggle = document.querySelector(".partenaires-toggle");
 
-  const photosDropdown = document.getElementById('dropdownPhotos');
-  const photosToggle = document.querySelector('.photos-toggle');
+  const photosDropdown = document.getElementById("dropdownPhotos");
+  const photosToggle = document.querySelector(".photos-toggle");
 
   // Fermer le menu Partenaires si on clique ailleurs
-  if (partenairesDropdown && !partenairesDropdown.contains(event.target) && !partenairesToggle.contains(event.target)) {
-    partenairesDropdown.style.display = 'none';
+  if (
+    partenairesDropdown &&
+    !partenairesDropdown.contains(event.target) &&
+    partenairesToggle &&
+    !partenairesToggle.contains(event.target)
+  ) {
+    partenairesDropdown.style.display = "none";
   }
 
   // Fermer le menu Photos si on clique ailleurs
-  if (photosDropdown && !photosDropdown.contains(event.target) && !photosToggle.contains(event.target)) {
-    photosDropdown.style.display = 'none';
+  if (
+    photosDropdown &&
+    !photosDropdown.contains(event.target) &&
+    photosToggle &&
+    !photosToggle.contains(event.target)
+  ) {
+    photosDropdown.style.display = "none";
   }
 });

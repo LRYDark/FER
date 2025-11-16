@@ -1,0 +1,25 @@
+[2025-07-23 21:50:20] Le jeton d'accès est expiré, tentative de rafraîchissement...
+[2025-07-23 21:50:20] Jeton d'accès rafraîchi avec succès.
+[2025-07-23 21:50:20] ✅ Mail envoyé à : "reinert.joris@gmail.com" <reinert.joris@gmail.com>
+[2025-07-25 19:32:47] Token rafraîchi automatiquement.
+[2025-07-25 19:34:07] Connexion Google valide.
+[2025-08-11 08:17:56] Token rafraîchi automatiquement.
+[2025-08-11 08:20:09] Connexion Google valide.
+[2025-08-11 08:20:18] Connexion Google valide.
+[2025-08-29 13:10:44] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/token.json
+[2025-08-29 13:10:44] Redirection vers : inc/setting.php
+[2025-09-09 21:11:06] Token rafraîchi automatiquement.
+[2025-09-09 21:14:02] Connexion Google valide.
+[2025-09-09 21:14:34] Connexion Google valide.
+[2025-09-09 21:14:34] Connexion Google valide.
+[2025-11-14 22:57:42] Token rafraîchi automatiquement.
+[2025-11-14 22:57:42] Connexion Google valide.
+[2025-11-14 23:00:38] Connexion Google valide.
+[2025-11-14 23:00:38] Connexion Google valide.
+[2025-11-14 23:02:29] Connexion Google valide.
+[2025-11-14 23:02:30] Connexion Google valide.
+[2025-11-14 23:05:13] Connexion Google valide.
+[2025-11-14 23:05:13] Connexion Google valide.
+[2025-11-16 13:08:40] Token rafraîchi automatiquement.
+[2025-11-16 13:08:42] Connexion Google valide.
+[2025-11-16 13:08:46] Connexion Google valide.

@@ -1,0 +1,5 @@
+[11-Aug-2025 08:19:05 UTC] PHP Fatal error:  Uncaught PDOException: SQLSTATE[22003]: Numeric value out of range: 1264 Out of range value for column 'age_moyen' at row 1 in /var/www/html/FER/config/api.php:570
+Stack trace:
+#0 /var/www/html/FER/config/api.php(570): PDOStatement->execute()
+#1 {main}
+  thrown in /var/www/html/FER/config/api.php on line 570

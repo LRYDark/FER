@@ -25,8 +25,8 @@ $albumsNav = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
 <a href="register.php" class="nav-item">Inscription</a>
 <a href="parcours.php" class="nav-item menu-cache">Parcours</a>
 <div class="nav-item dropdown menu-cache" style="position: relative;">
-    <a href="#" class="nav-link partenaires-toggle" onclick="toggleDropdown(event)">
-        Partenaires <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/></svg>
+    <a href="#" class="nav-item partenaires-toggle" onclick="return false;">
+        Partenaires
     </a>
     <div class="dropdown-content-custom" id="dropdownPartenaires">
         <?php
@@ -43,11 +43,8 @@ $albumsNav = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <div class="nav-item dropdown menu-cache" style="position: relative;">
-    <a href="#" class="nav-link photos-toggle" onclick="togglePhotosDropdown(event)">
+    <a href="#" class="nav-item photos-toggle" onclick="return false;">
         Photos
-        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#e91e63" viewBox="0 0 16 16">
-        <path fill-rule="evenodd" d="M1.646 5.646a.5.5 0 0 1 .708 0L8 11.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-        </svg>
     </a>
     <div class="dropdown-content-custom" id="dropdownPhotos">
         <?php

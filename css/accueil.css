@@ -18,6 +18,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
+    gap: 2rem; /* espacement un peu plus large entre les boutons en desktop */
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
     position: relative;
     transition: gap 0.3s ease;
@@ -44,6 +45,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
 
   .nav-flottante a:hover,
   .menu-deroulant a:hover {
+    color: #e91e63;            /* rester rose au survol */
     text-decoration: underline;
   }
 
@@ -374,7 +376,7 @@ transition: transform 0.2s ease;
 .dropdown-content-custom {
 display: none;
 position: absolute;
-top: calc(100% + 15px);
+top: 100%; /* collé juste sous le lien pour éviter la perte de hover */
 left: 0;
 background-color: white;
 border-radius: 2rem;
@@ -383,6 +385,18 @@ z-index: 1000;
 min-width: 280px;
 padding: 0.2rem 0;
 text-align: center;
+}
+
+/* Desktop : ouvrir le menu au survol et le laisser ouvert
+   tant que la souris est sur le bloc (lien + menu),
+   avec un petit espace visuel grǸce au padding du parent */
+@media (min-width: 767px) {
+  .nav-item.dropdown {
+    padding-bottom: 0.6rem;
+  }
+  .nav-item.dropdown:hover .dropdown-content-custom {
+    display: block;
+  }
 }
 
 .dropdown-content-custom a {
@@ -395,8 +409,9 @@ font-size: 1.05rem;
 }
 
 .dropdown-content-custom a:hover {
-background-color: #f8f8f8;
-text-decoration: underline;
+  background-color: transparent;
+  color: #e91e63;          /* liens du menu restent roses */
+  text-decoration: underline;
 }
 
 /* Style du lien actif identique aux autres */
@@ -406,14 +421,6 @@ font-weight: 700;
 text-decoration: none;
 }
 .nav-link.partenaires-toggle:hover {
-text-decoration: underline;
-}
-.dropdown-content-custom a {
-background-color: transparent !important;
-}
-
-.dropdown-content-custom a:hover {
-background-color: transparent !important;
 text-decoration: underline;
 }
 
@@ -437,6 +444,26 @@ font-weight: normal;
 
 .dropdown-content-mobile a:hover {
 text-decoration: underline;
+}
+
+/* Override desktop comportement dropdown pour garder les textes alignes
+   et une zone de hover continue entre le lien et le menu */
+@media (min-width: 767px) {
+  .nav-item.dropdown {
+    position: relative;
+    padding-bottom: 0; /* annule le padding ajoute precedemment */
+  }
+  .nav-item.dropdown::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 100%;
+    height: 0.6rem; /* zone invisible pour traverser jusqu'au menu */
+  }
+  .nav-item.dropdown:hover .dropdown-content-custom {
+    display: block;
+  }
 }
 
 
