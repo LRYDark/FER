@@ -247,8 +247,10 @@ $required_company = $required_fields['required_company'] ?? 0;
 
 <!-- ───────── HERO ───────── -->
 <header class="hero">
+  <?php if (!empty($picture)): ?>
   <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
        alt="Logo Forbach en Rose" class="logo-top">
+  <?php endif; ?>
   <div class="hero-inner">
     <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($title) ?></h1>
     <p class="mb-3">7 km solidaires contre le cancer du sein</p>

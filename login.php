@@ -41,7 +41,9 @@ $picture= $data['picture'] ?? '';
 
   <!-- ───────── Bandeau rose ───────── -->
   <header class="hero">
+    <?php if (!empty($picture)): ?>
     <img src="files/_pictures/<?= htmlspecialchars($picture) ?>" alt="Logo Forbach en Rose" class="logo-top">
+    <?php endif; ?>
     <div class="hero-inner">
       <h1>Connexion</h1>
       <p class="mb-0">Accédez à votre espace</p>

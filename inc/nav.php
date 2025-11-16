@@ -1,7 +1,9 @@
 <!-- Barre HERO en haut -->
 <section class="hero">
+<?php if (!empty($picture)): ?>
 <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
     alt="Logo Forbach en Rose" class="logo-top">
+<?php endif; ?>
 <div class="hero-inner">
     <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($titleAccueil) ?></h1>
     <span class="badge-donation"><?= htmlspecialchars($edition) ?></span>

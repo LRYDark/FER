@@ -72,9 +72,11 @@ $required_company = $required_fields['required_company'] ?? 0;
 
   <!-- HERO identique à register.php -->
 <header class="hero position-relative"><!-- position:relative indispensable -->
+  <?php if (!empty($picture)): ?>
   <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
        alt="Logo Forbach en Rose"
        class="logo-top">
+  <?php endif; ?>
 
   <!-- Actions en haut à droite -->
   <div class="top-actions">
