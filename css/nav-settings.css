@@ -3,7 +3,7 @@
   top: 55px; /* chevauche légèrement le header */
   z-index: 20;
   background: white;
-  border-radius: 3rem;
+  border-radius: 1.25rem;
   padding: 0.3rem 2rem;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
   justify-content: center;
@@ -24,7 +24,7 @@
   color: #e91e63;
   text-decoration: none;
   padding: 0.5rem 1.2rem;
-  border-radius: 2rem;
+  border-radius: 1.25rem;
   transition: all 0.3s ease;
 }
 
@@ -40,7 +40,7 @@
 .btn-link.active {
   color: #c2185b !important;
   font-weight: bold;
-  border-radius: 0.5rem;
+  border-radius: 1.25rem;
   padding: 0.4rem 0.6rem;
 }
 .hero-inner {

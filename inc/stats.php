@@ -55,13 +55,13 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   .hero h1{margin:0;font-size:2.2rem}
   .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
   @media (max-width:991.98px){.top-actions{display:none}}
-  .card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+  .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
   tr.filters th[class*="sorting"]::before,
   tr.filters th[class*="sorting"]::after{display:none!important}
   .statCard{min-width:180px}
   .hide-stats #stats {display: none !important;}
-  .stat-card{border-radius:1rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
+  .stat-card{border-radius:1.25rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
   .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
   /* ─── Harmonisation DataTable (stats.php) ───────────────────────── */
 
@@ -83,8 +83,8 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   background:#fafafa;                     /* colonne triée légèrement grisée */
 }
 
-#tbl thead tr:first-child th:first-child{border-radius:12px 0 0 0}
-#tbl thead tr:first-child th:last-child {border-radius:0 12px 0 0}
+#tbl thead tr:first-child th:first-child{border-radius:8px 0 0 0}
+#tbl thead tr:first-child th:last-child {border-radius:0 8px 0 0}
 
 /* ===== Corps du tableau ===== */
 #tbl tbody td{
@@ -103,8 +103,8 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 }
 
 /* Coins arrondis bas (quand peu de lignes) */
-#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 12px}
-#tbl tbody tr:last-child td:last-child  {border-radius:0 0 12px 0}
+#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 8px}
+#tbl tbody tr:last-child td:last-child  {border-radius:0 0 8px 0}
 
 /* ===== Boutons/éventuels badges (si tu en ajoutes plus tard) ===== */
 .action-buttons .btn{

@@ -75,7 +75,7 @@ if ($selectedYearId) {
                 <div class="col-md-4 mb-4">
                     <a href="<?= htmlspecialchars($album['album_link']) ?>" target="_blank" class="text-decoration-none">
                     <div class="card shadow text-center d-flex flex-column"
-                        style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff;">
+                        style="border-radius: 0.75rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff;">
 
                         <div class="card-body p-3">
                         <h5 class="card-title mb-3" style="color: #111; font-weight: bold;">

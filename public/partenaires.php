@@ -74,7 +74,7 @@ if ($selectedYearId) {
         <?php foreach ($partners as $partner): ?>
           <div class="col-md-3 mb-3">
             <div class="card shadow text-center d-flex flex-column"
-                style="border-radius: 2rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff; cursor: pointer;"
+                style="border-radius: 0.75rem; overflow: hidden; transition: transform 0.3s ease; border: none; background: #fff; cursor: pointer;"
                 onclick="showImageModal('../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>')">
                 
                 <div class="card-body p-3">

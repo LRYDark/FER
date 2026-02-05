@@ -46,7 +46,7 @@ if (isset($_SESSION['flash_message'])) {
   .hero h1{margin:0;font-size:2.2rem}
   .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
   @media (max-width:991.98px){.top-actions{display:none}}
-  .card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+  .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
   tr.filters th[class*="sorting"]::before,
   tr.filters th[class*="sorting"]::after{display:none!important}
@@ -65,8 +65,8 @@ if (isset($_SESSION['flash_message'])) {
   border-bottom:2px solid #e0e0e0;   /* petite ligne de séparation */
   padding:.9rem .65rem;
 }
-#tbl thead tr:first-child th:first-child { border-radius:10px 0 0 0; }
-#tbl thead tr:first-child th:last-child  { border-radius:0 10px 0 0; }
+#tbl thead tr:first-child th:first-child { border-radius:8px 0 0 0; }
+#tbl thead tr:first-child th:last-child  { border-radius:0 8px 0 0; }
 
 /* sur-vol des lignes plus subtil */
 #tbl tbody tr:hover{background:#fffdfd;transform:none;}
@@ -89,8 +89,8 @@ if (isset($_SESSION['flash_message'])) {
 }
 
 /* 4. coins arrondis en bas quand la pagination montre peu de lignes */
-#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 12px}
-#tbl tbody tr:last-child td:last-child  {border-radius:0 0 12px 0}
+#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 8px}
+#tbl tbody tr:last-child td:last-child  {border-radius:0 0 8px 0}
 
 /* 5. garde ta règle "first-750" mais on la rend plus douce */
 .first-750 td{

@@ -145,7 +145,7 @@ foreach ($years as $y) {
   .hero h1{margin:0;font-size:2.2rem}
   .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
   @media (max-width:991.98px){.top-actions{display:none}}
-  .card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+  .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
   tr.filters th[class*="sorting"]::before,
   tr.filters th[class*="sorting"]::after{display:none!important}
