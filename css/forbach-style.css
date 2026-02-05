@@ -21,7 +21,7 @@ main {
   text-align:center;
 }
 .hero h1{font-size:2.6rem;font-weight:700;letter-spacing:1px;}
-.badge-donation{background:#fff;color:var(--rose-600);border-radius:1rem;padding:.4rem .9rem;font-weight:600;}
+.badge-donation{background:#fff;color:var(--rose-600);border-radius:0.75rem;padding:.35rem 1.1rem;font-weight:600;}
 .hero-inner{max-width:800px;margin:0 auto;}
 
 /* logo en haut à droite */
@@ -135,7 +135,7 @@ main {
 
 /* ##############  PARCOURS ############## */ 
 .main-img {
-  border-radius: 20px;
+  border-radius: 12px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
   transition: transform 0.4s ease;
 }
@@ -146,7 +146,7 @@ main {
 .img-separatrice {
   max-width: 100%;
   max-height: 400px;
-  border-radius: 10px;
+  border-radius: 8px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
   cursor: zoom-in;
   display: inline-block;
@@ -187,7 +187,7 @@ main {
 .masonry-img {
   width: 100%;
   margin-bottom: 15px;
-  border-radius: 10px;
+  border-radius: 8px;
   transition: transform 0.2s ease;
   cursor: zoom-in;
   box-shadow: 0 3px 10px rgba(0,0,0,0.1);
@@ -211,7 +211,7 @@ main {
 .lightbox-content {
   max-width: 90%;
   max-height: 90%;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 .lightbox-close {
   position: absolute;

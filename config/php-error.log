@@ -3,3 +3,10 @@ Stack trace:
 #0 /var/www/html/FER/config/api.php(570): PDOStatement->execute()
 #1 {main}
   thrown in /var/www/html/FER/config/api.php on line 570
+[16-Nov-2025 16:42:08 UTC] PHP Warning:  Undefined array key "year_id" in /var/www/html/FER/inc/albums.php on line 35
+[24-Nov-2025 14:42:52 UTC] PHP Warning:  Undefined array key "year_id" in /var/www/html/FER/inc/albums.php on line 35
+[02-Feb-2026 12:15:54 UTC] PHP Warning:  Undefined variable $stmtPhotos in /var/www/html/FER/public/accueil.php on line 25
+[02-Feb-2026 12:15:54 UTC] PHP Fatal error:  Uncaught Error: Call to a member function fetchAll() on null in /var/www/html/FER/public/accueil.php:25
+Stack trace:
+#0 {main}
+  thrown in /var/www/html/FER/public/accueil.php on line 25

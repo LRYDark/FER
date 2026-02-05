@@ -40,8 +40,8 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 
 <style>
-.card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-.qr-preview{max-width:200px;max-height:200px;border:2px solid #dee2e6;border-radius:8px;padding:10px;margin:10px 0}
+.card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+.qr-preview{max-width:200px;max-height:200px;border:2px solid #dee2e6;border-radius:6px;padding:10px;margin:10px 0}
 .qr-actions .btn{margin:2px}
 .token-display{font-family:monospace;font-size:0.85rem;background:#f8f9fa;padding:5px 10px;border-radius:4px;word-break:break-all}
   .first-750 td{background:#ffe5ff!important;font-weight:600}
@@ -49,7 +49,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
   .hero h1{margin:0;font-size:2.2rem}
   .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
   @media (max-width:991.98px){.top-actions{display:none}}
-  .card-dashboard{margin-top:1rem;border-radius:2rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
+  .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
   tr.filters th[class*="sorting"]::before,
   tr.filters th[class*="sorting"]::after{display:none!important}

@@ -9,7 +9,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
   /* NAVIGATION flottante */
   .nav-flottante {
     background: white;
-    border-radius: 3rem;
+    border-radius: 1.25rem;
     padding: 0.3rem 2rem;
     margin: -1.7rem auto 2rem;
     width: calc(100% - 100px);
@@ -18,7 +18,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 2rem; /* espacement un peu plus large entre les boutons en desktop */
+    gap: 3.75rem; /* espacement encore plus large entre les boutons en desktop */
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
     position: relative;
     transition: gap 0.3s ease;
@@ -39,8 +39,8 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
   .nav-flottante a.active,
   .menu-deroulant a.active {
     background: #ffe3f0;
-    border-radius: 1rem;
-    padding: 0.3rem 0.8rem;
+    border-radius: 0.75rem;
+    padding: 0.3rem 1.1rem; /* un peu plus de blanc gauche/droite */
   }
 
   .nav-flottante a:hover,
@@ -193,7 +193,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
 
   .image-container img {
     max-width: 100%;
-    border-radius: 1rem;
+    border-radius: 0.75rem;
   }
 
   .countdown-group {
@@ -209,7 +209,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
   .bloc {
     background-color: #1d2344;
     color: white;
-    border-radius: 2.5rem;
+    border-radius: 1.25rem;
     width: 120px;
     height: 120px;
     display: flex;
@@ -258,7 +258,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
     .partenaires img {
       width: 350px;
       max-width: 95%;
-      border-radius: 1rem;
+      border-radius: 0.75rem;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
 
@@ -275,7 +275,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
       width: 68px;
       height: 68px;
       font-size: 0.9rem;
-      border-radius: 1rem;
+      border-radius: 0.75rem;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -317,7 +317,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
     color: white;
     padding: 0.8rem 2rem;
     font-size: 1.2rem;
-    border-radius: 2rem;
+    border-radius: 1.25rem;
     border: none;
   }
 
@@ -332,7 +332,7 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
 
   .partenaires img {
     max-width: 800px;
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   }
 
@@ -353,8 +353,8 @@ body{background:var(--bg-grad);min-height:100vh;display:flex;flex-direction:colu
 /* Style par défaut pour Accueil : fond gris clair */
 .nav-flottante a.accueil-style {
   background: #f2f2f2;
-  border-radius: 1rem;
-  padding: 0.3rem 0.8rem;
+  border-radius: 1.25rem;
+  padding: 0.3rem 1.1rem;
   color: #e91e63;
   font-weight: 700;
 }
@@ -379,7 +379,7 @@ position: absolute;
 top: 100%; /* collé juste sous le lien pour éviter la perte de hover */
 left: 0;
 background-color: white;
-border-radius: 2rem;
+border-radius: 1.25rem;
 box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 z-index: 1000;
 min-width: 280px;
@@ -400,16 +400,17 @@ text-align: center;
 }
 
 .dropdown-content-custom a {
-display: block;
-padding: 0.2rem 1rem;
-color: #e91e63;
-font-weight: 700;
-text-decoration: none;
-font-size: 1.05rem;
+  display: block;
+  padding: 0.3rem 1.1rem;  /* même arrondi visuel que les boutons de nav */
+  color: #e91e63;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 1.05rem;
+  border-radius: 1.25rem;
 }
 
 .dropdown-content-custom a:hover {
-  background-color: transparent;
+  background-color: #ffe3f0;
   color: #e91e63;          /* liens du menu restent roses */
   text-decoration: underline;
 }
@@ -444,6 +445,25 @@ font-weight: normal;
 
 .dropdown-content-mobile a:hover {
 text-decoration: underline;
+}
+
+/* Overrides pour harmoniser Accueil dans la nav */
+.nav-flottante a.accueil-style {
+  color: #e91e63;
+  font-weight: 700;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+.nav-flottante a.accueil-style.active {
+  background: #ffe3f0;
+  border-radius: 0.75rem;
+  padding: 0.3rem 1.1rem;
+}
+
+.nav-flottante a.accueil-style:not(.active) {
+  text-decoration: underline;
 }
 
 /* Override desktop comportement dropdown pour garder les textes alignes
