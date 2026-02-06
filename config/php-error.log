@@ -10,3 +10,7 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in /var/www/html/FER/public/accueil.php on line 25
+[06-Feb-2026 16:34:07 UTC] PHP Warning:  Undefined variable $title in /var/www/html/FER/public/accueil.php on line 3294
+[06-Feb-2026 16:34:07 UTC] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /var/www/html/FER/public/accueil.php on line 3294
+[06-Feb-2026 16:34:43 UTC] PHP Warning:  Undefined variable $title in /var/www/html/FER/public/accueil.php on line 3293
+[06-Feb-2026 16:34:43 UTC] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /var/www/html/FER/public/accueil.php on line 3293
