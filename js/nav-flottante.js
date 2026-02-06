@@ -1,19 +1,3 @@
-function updateNavGap() {
-  const nav = document.querySelector(".nav-flottante");
-  if (!nav) return;
-
-  // Mobile : petit espacement fixe
-  if (window.innerWidth < 767) {
-    nav.style.gap = "2rem";
-  } else {
-    // Desktop : on laisse le CSS gérer un gap fixe défini dans le CSS
-    nav.style.gap = "";
-  }
-}
-
-window.addEventListener("DOMContentLoaded", updateNavGap);
-window.addEventListener("resize", updateNavGap);
-
 document.addEventListener("DOMContentLoaded", function () {
   const btn = document.querySelector(".burger-toggle");
   const menu = document.querySelector(".menu-deroulant");
@@ -146,3 +130,35 @@ document.addEventListener("click", function (event) {
     photosDropdown.style.display = "none";
   }
 });
+
+// Navbar flottante au scroll (desktop uniquement)
+(function () {
+  const isMobile = () => window.innerWidth < 768;
+  const threshold = 70;
+  let ticking = false;
+
+  function handleScroll() {
+    if (isMobile()) {
+      document.body.classList.remove("nav-scrolled");
+      return;
+    }
+    if (window.scrollY > threshold) {
+      document.body.classList.add("nav-scrolled");
+    } else {
+      document.body.classList.remove("nav-scrolled");
+    }
+  }
+
+  window.addEventListener("scroll", function () {
+    if (!ticking) {
+      window.requestAnimationFrame(function () {
+        handleScroll();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  });
+
+  window.addEventListener("resize", handleScroll);
+  handleScroll();
+})();

@@ -14,10 +14,10 @@ $searchStatus = '';
 if (isset($_GET['check_registration'])) {
     if ($searchEmail === '') {
         $searchStatus = 'warn';
-        $searchMessage = "Merci d'indiquer votre email.";
+        $searchMessage = "Indiquez votre email pour vérifier votre inscription.";
     } elseif (!filter_var($searchEmail, FILTER_VALIDATE_EMAIL)) {
         $searchStatus = 'warn';
-        $searchMessage = "Merci d'indiquer un email valide.";
+        $searchMessage = "Oups, cet email ne semble pas valide. Pouvez‑vous le vérifier ?";
     } else {
         $stmtSearch = $pdo->prepare(
             'SELECT COUNT(*) AS total FROM registrations WHERE LOWER(email) = LOWER(:email)'
@@ -27,12 +27,21 @@ if (isset($_GET['check_registration'])) {
 
         if ($matchCount > 0) {
             $searchStatus = 'success';
-            $searchMessage = "Merci, votre inscription est bien enregistrée.";
+            $searchMessage = "Merci ! Votre inscription est bien enregistrée. Hâte de vous voir le jour J 😊";
         } else {
             $searchStatus = 'danger';
-            $searchMessage = "Vous n'êtes pas encore inscrit(e).";
+            $searchMessage = "On ne retrouve pas d'inscription avec cet email 😔. Vérifiez l'adresse ou inscrivez‑vous en 1 minute 😁";
         }
     }
+}
+
+if (isset($_GET['ajax']) && isset($_GET['check_registration'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'status' => $searchStatus,
+        'message' => $searchMessage,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 // Récupération des paramètres
@@ -46,6 +55,8 @@ $titleColor = $data['title_color'] ?? '#ffffff';
 $edition = $data['edition'] ?? '';  
 $link_instagram = $data['link_instagram'] ?? null;
 $link_facebook = $data['link_facebook'] ?? null; 
+$link_twitter = $data['link_twitter'] ?? null;
+$link_youtube = $data['link_youtube'] ?? null;
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d\TH:i:s', strtotime($date_course)) : '2026-07-05T09:00:00';
 $picture_partner = $data['picture_partner'] ?? ''; 
@@ -63,7 +74,7 @@ try {
 
 // Récupération des actualités pour le menu
 try {
-    $stmtActus = $pdo->prepare('SELECT id, title_article as title, img_article, date_publication FROM news ORDER BY date_publication DESC LIMIT 5');
+    $stmtActus = $pdo->prepare('SELECT id, title_article as title, img_article, date_publication FROM news ORDER BY date_publication DESC LIMIT 10');
     $stmtActus->execute();
     $actualites = $stmtActus->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -78,6 +89,10 @@ try {
 } catch (PDOException $e) {
     $partenaires = [];
 }
+
+$actualites_cols2 = count($actualites) > 5;
+$galeries_cols2 = count($galeries) > 5;
+$partenaires_cols2 = count($partenaires) > 5;
 
 $link_cancer = $data['link_cancer'] ?? null;
 ?>
@@ -239,9 +254,28 @@ $link_cancer = $data['link_cancer'] ?? null;
     .links{
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:center;
       gap: 14px;
-      width: 100%;
+      width: auto;
+    }
+
+    .nav-right{
+      display:flex;
+      align-items:center;
+      gap: 12px;
+      margin-left: auto;
+    }
+    .nav-card{
+      display:flex;
+      align-items:center;
+      background: rgba(15,23,42,.04);
+      border: none;
+      border-radius: 12px;
+      padding: 6px 10px;
+    }
+    body.nav-scrolled .nav-card{
+      background: transparent;
+      padding: 0;
     }
 
     .menu{
@@ -252,6 +286,36 @@ $link_cancer = $data['link_cancer'] ?? null;
       margin:0;
       padding:0;
     }
+
+    .menu.nav-secondary{
+      gap: 6px;
+    }
+    .menu.nav-secondary .link,
+    .menu.nav-secondary .trigger{
+      font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      letter-spacing: .01em;
+      padding: 8px 12px;
+    }
+    .nav-icon{
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: rgba(236,72,153,.12);
+      color: var(--pink);
+      flex: 0 0 auto;
+    }
+    .nav-icon svg{
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .nav-label{ white-space: nowrap; }
 
     .item{ position: static; }
 
@@ -286,7 +350,6 @@ $link_cancer = $data['link_cancer'] ?? null;
       display:flex;
       align-items:center;
       gap: 8px;
-      margin-left: auto;
       white-space: nowrap;
     }
     .btn{
@@ -335,6 +398,17 @@ $link_cancer = $data['link_cancer'] ?? null;
       box-shadow: 0 8px 24px rgba(236,72,153,.35);
       gap: 12px;
     }
+    .nav-cta{
+      min-height: 56px;
+      padding: 0 18px;
+      border-radius: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+    .nav-cta svg{
+      width: 20px;
+      height: 20px;
+    }
 
     /* ===== Desktop mega menu (inset) ===== */
     /* ===== Overlay - floute tout l'écran (navbar au-dessus) ===== */
@@ -368,7 +442,7 @@ $link_cancer = $data['link_cancer'] ?? null;
     /* ===== Mega menu - s'ouvre juste sous la navbar ===== */
     .mega{
       position: fixed;
-      left: 50%;
+      left: var(--mega-left, 50%);
       top: 82px; /* Juste sous la navbar */
       background: #ffffff;
       border: 1px solid rgba(15,23,42,.10);
@@ -380,8 +454,12 @@ $link_cancer = $data['link_cancer'] ?? null;
       visibility: hidden;
       transform: translateX(-50%) translateY(-12px);
       transition: opacity .25s ease, transform .25s ease, visibility 0s .25s;
-      width: 900px;
+      width: var(--mega-width, 900px);
       max-width: calc(100vw - 40px);
+    }
+
+    .mega.mega--wide{
+      --mega-width: 1040px;
     }
 
     /* En mode scrolled, ajuster la position */
@@ -438,6 +516,20 @@ $link_cancer = $data['link_cancer'] ?? null;
       display: flex;
       flex-direction: column;
       gap: 4px;
+    }
+
+    .mega-list.mega-list--2col{
+      display: block;
+      columns: 2;
+      column-gap: 16px;
+    }
+    .mega-list.mega-list--2col li{
+      break-inside: avoid;
+      -webkit-column-break-inside: avoid;
+      margin-bottom: 4px;
+    }
+    .mega-list.mega-list--2col .mega-link{
+      width: 100%;
     }
 
     .mega-link{
@@ -548,7 +640,10 @@ $link_cancer = $data['link_cancer'] ?? null;
     /* Responsive */
     @media (max-width: 1100px){
       .mega{
-        width: 720px;
+        --mega-width: 720px;
+      }
+      .mega.mega--wide{
+        --mega-width: 860px;
       }
       .mega-grid{
         grid-template-columns: 1fr 280px;
@@ -596,7 +691,7 @@ $link_cancer = $data['link_cancer'] ?? null;
       height: 48px;
       width: auto;
     }
-    /* ===== MOBILE BOTTOM BAR (Vimeo style with glassmorphism) ===== */
+    /* ===== MOBILE BOTTOM BAR — Vimeo unified menu ===== */
     .mobile-bottom-bar{
       display: none;
       position: fixed;
@@ -607,30 +702,404 @@ $link_cancer = $data['link_cancer'] ?? null;
       padding: 0 10px 10px;
       pointer-events: none;
     }
-    .mobile-bottom-inner{
+
+    /* ---- Outer wrapper: holds nav-row + CTA side by side (closed) ---- */
+    .mobile-bottom-wrapper{
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      pointer-events: auto;
+      transition: gap .35s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* When menu open: see below */
+
+    /* ---- The main nav block (contains menu panel + action buttons) ---- */
+    .mobile-bottom-unified{
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.18);
+      overflow: hidden;
+      flex: 1;
+      min-width: 0;
+      transition: border-radius .35s cubic-bezier(.4,0,.2,1),
+                  box-shadow .35s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ---- CTA button (Inscription) - separate block when closed ---- */
+    .mobile-bottom-cta{
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #ffffff;
+      background: var(--pink);
+      color: #ffffff;
       border: none;
       border-radius: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
+      pointer-events: auto;
+      box-shadow: 0 8px 18px rgba(0,0,0,.16);
+      padding: 0 20px;
+      overflow: hidden;
+      max-width: 140px;
+      opacity: 1;
+      transition: max-width .35s cubic-bezier(.4,0,.2,1),
+                  opacity .2s ease,
+                  padding .35s cubic-bezier(.4,0,.2,1),
+                  box-shadow .3s ease,
+                  border-radius .3s ease;
+    }
+    .mobile-bottom-cta:hover{
+      background: var(--pink-dark);
+    }
+
+    /* ---- When menu is open or closing ---- */
+    .mobile-bottom-bar.menu-open .mobile-bottom-wrapper,
+    .mobile-bottom-bar.menu-closing .mobile-bottom-wrapper{
+      gap: 0;
+    }
+
+    .mobile-bottom-bar.menu-open .mobile-bottom-unified,
+    .mobile-bottom-bar.menu-closing .mobile-bottom-unified{
+      border-radius: 16px;
+      box-shadow: 0 20px 80px rgba(0,0,0,.28);
+      flex: 1;
+    }
+
+    .mobile-bottom-bar.menu-open .mobile-bottom-actions,
+    .mobile-bottom-bar.menu-closing .mobile-bottom-actions{
+      border-top: 1px solid rgba(15,23,42,.08);
+    }
+
+    /* ---- Menu panel (hidden by default, slides in when open) ---- */
+    /* ---- Menu panel: slide-based navigation (Vimeo style) ---- */
+    .mobile-menu-panel{
+      max-height: 0;
+      opacity: 0;
+      pointer-events: none;
+      overflow: hidden;
+      transition: max-height .45s cubic-bezier(.4,0,.2,1),
+                  opacity .3s ease .05s;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mobile-bottom-bar.menu-open .mobile-menu-panel{
+      max-height: 55vh;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ---- Header ---- */
+    .mobile-menu-header{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 20px 10px;
+      flex-shrink: 0;
+      position: relative;
+      min-height: 48px;
+    }
+    .mobile-menu-title{
+      color: #0f172a;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+      text-align: center;
+    }
+    .mobile-menu-back{
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(15,23,42,.06);
+      border: none;
+      color: rgba(15,23,42,.6);
+      font-size: 16px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s ease;
+    }
+    .mobile-menu-back:hover{
+      background: rgba(15,23,42,.12);
+      color: #0f172a;
+    }
+    .mobile-menu-back.visible{
+      display: flex;
+    }
+    .mobile-menu-close{
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(15,23,42,.06);
+      border: none;
+      color: rgba(15,23,42,.55);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .2s ease;
+    }
+    .mobile-menu-close:hover{
+      background: rgba(15,23,42,.12);
+      color: #0f172a;
+    }
+
+    /* ---- Slide container (holds main view + sub views) ---- */
+    .mobile-menu-slides{
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .mobile-menu-slide{
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .25s ease;
+    }
+
+    /* Main view */
+    .mobile-menu-slide-main{
+      position: relative;
+      transform: translateX(0);
+      opacity: 1;
+    }
+    .mobile-menu-slide-main.pushed{
+      transform: translateX(-30%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Sub view */
+    .mobile-menu-slide-sub{
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .mobile-menu-slide-sub.active{
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .mobile-menu-slide-sub .mobile-menu-body{
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ---- Menu body (inside each slide) ---- */
+    .mobile-menu-body{
+      padding: 4px 12px 8px;
+      padding-bottom: 70px;
+    }
+    .mobile-menu-nav{
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .mobile-menu-item{
+      border-radius: 12px;
+    }
+    .mobile-menu-trigger{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 14px 12px;
+      background: transparent;
+      border: none;
+      color: #0f172a;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: background .15s ease;
+    }
+    @media (hover: hover) and (pointer: fine){
+      .mobile-menu-trigger:hover{
+        background: rgba(15,23,42,.05);
+      }
+    }
+    .mobile-menu-trigger svg{
+      width: 18px;
+      height: 18px;
+      opacity: .4;
+      flex-shrink: 0;
+      color: #0f172a;
+    }
+    .mobile-menu-icon{
+      width: 32px;
+      height: 32px;
+      background: rgba(236,72,153,.08);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 12px;
+      font-size: 15px;
+      flex-shrink: 0;
+      color: #0f172a;
+    }
+
+    .mobile-menu-icon svg{
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .mobile-menu-trigger-content{
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+
+    /* Sub-view links */
+    .mobile-menu-sublink{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 12px;
+      color: rgba(15,23,42,.7);
+      text-decoration: none;
+      font-size: 15px;
+      border-radius: 12px;
+      transition: all .15s ease;
+    }
+    .mobile-menu-sublink:hover{
+      background: rgba(15,23,42,.05);
+      color: #0f172a;
+    }
+
+    .mobile-menu-sublink .menu-bullet{
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--pink);
+      display: inline-flex;
+      flex: 0 0 auto;
+      box-shadow: 0 2px 5px rgba(236,72,153,.2);
+    }
+
+    /* "See all" link — always at bottom of sub-view */
+    .mobile-menu-see-all{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: auto 12px 12px;
+      padding: 14px 20px;
+      background: rgba(15,23,42,.04);
+      border-radius: 14px;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .2s ease;
+      flex-shrink: 0;
+    }
+    .mobile-menu-see-all:hover{
+      background: rgba(15,23,42,.08);
+    }
+    .mobile-menu-see-all svg{
+      width: 16px;
+      height: 16px;
+      opacity: .5;
+    }
+
+    /* Footer */
+    .mobile-menu-footer{
+      padding: 10px 12px;
+      border-top: 1px solid rgba(15,23,42,.06);
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .mobile-menu-footer-btn{
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      padding: 10px 8px;
+      background: rgba(15,23,42,.04);
+      border: none;
+      border-radius: 12px;
+      color: rgba(15,23,42,.55);
+      font-size: 10px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+    .mobile-menu-footer-btn:hover{
+      background: rgba(15,23,42,.08);
+      color: #0f172a;
+    }
+    .mobile-menu-footer-btn svg{
+      width: 20px;
+      height: 20px;
+    }
+
+    /* Simple link (Tarification) */
+    .mobile-menu-simple-link{
+      display: flex;
+      align-items: center;
+      padding: 14px 12px;
+      color: #0f172a;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      border-radius: 12px;
+      transition: background .15s ease;
+    }
+    .mobile-menu-simple-link:hover{
+      background: rgba(15,23,42,.05);
+    }
+    .mobile-menu-simple-link .mobile-menu-icon{
+      margin-right: 12px;
+    }
+    .mobile-menu-simple-link svg{
+      width: 18px;
+      height: 18px;
+      opacity: .4;
+      margin-left: auto;
+    }
+
+    /* ---- Bottom action buttons row ---- */
+    .mobile-bottom-actions{
+      display: flex;
+      align-items: center;
       padding: 5px 4px;
       gap: 0;
-      pointer-events: auto;
-      transition: all .35s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 8px 18px rgba(0,0,0,.18);
+      min-height: 58px;
+      flex-shrink: 0;
+    }
+    .mobile-bottom-bar.menu-open .mobile-bottom-actions{
+      border-top: 1px solid rgba(15,23,42,.08);
       flex: 1;
-      min-height: 56px;
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
-    }
-    .mobile-bottom-inner::before{
-      display: none;
-    }
-    .mobile-bottom-inner > *{
-      position: relative;
-      z-index: 1;
     }
     .mobile-bottom-btn{
       display: flex;
@@ -651,307 +1120,93 @@ $link_cancer = $data['link_cancer'] ?? null;
       flex: 1;
       min-width: 0;
     }
+
+    #mobileMenuBtn{
+      background: rgba(15,23,42,.06);
+      border-radius: 12px;
+      margin: 2px 0 2px 2px;
+    }
     .mobile-bottom-btn:hover,
     .mobile-bottom-btn:active{
-      background: rgba(15,23,42,.08);
-      color: #0f172a;
+      background: rgba(15,23,42,.06);
     }
     .mobile-bottom-btn svg{
       width: 21px;
       height: 21px;
-      opacity: .9;
+      opacity: .85;
     }
     .mobile-bottom-btn span{
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    
-    /* Wrapper for bar + CTA */
-    .mobile-bottom-wrapper{
-      display: flex;
-      align-items: stretch;
-      justify-content: center;
-      gap: 8px;
-      transition: gap .35s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    /* CTA button (Inscription) - OUTSIDE the bar, same height */
-    .mobile-bottom-cta{
+
+    /* ---- Inner CTA (inside actions bar, shown only when open) ---- */
+    .mobile-bottom-cta-inner{
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--pink);
-      color: #ffffff;
+      background: transparent;
+      color: #0f172a;
       border: none;
-      border-radius: 16px;
+      border-left: 1px solid rgba(15,23,42,.08);
       font-size: 13px;
       font-weight: 600;
       text-decoration: none;
       cursor: pointer;
       white-space: nowrap;
-      pointer-events: auto;
-      box-shadow: 0 8px 18px rgba(0,0,0,.16);
-      transition: all .35s cubic-bezier(0.4, 0, 0.2, 1);
-      opacity: 1;
-      width: auto;
-      padding: 0 20px;
       overflow: hidden;
-    }
-    .mobile-bottom-cta:hover{
-      background: var(--pink-dark);
-    }
-    /* Menu open: make bar + CTA a single solid block (no blur) */
-    .mobile-bottom-bar.menu-open .mobile-bottom-wrapper{
-      gap: 0;
-      background: #ffffff;
-      border-radius: 16px;
-      padding: 5px 4px;
-      overflow: hidden;
-      box-shadow: 0 8px 20px rgba(0,0,0,.16);
-    }
-    .mobile-bottom-bar.menu-open .mobile-bottom-inner{
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
-      background: transparent;
-      box-shadow: none;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
+      max-width: 0;
       padding: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: max-width .35s cubic-bezier(.4,0,.2,1),
+                  opacity .25s ease,
+                  padding .35s cubic-bezier(.4,0,.2,1);
     }
-    .mobile-bottom-bar.menu-open .mobile-bottom-inner::before{
-      display: none;
+    .mobile-bottom-cta-inner:hover{
+      background: rgba(15,23,42,.04);
     }
-    .mobile-bottom-bar.menu-open .mobile-bottom-cta{
+    .mobile-bottom-bar.menu-open .mobile-bottom-cta-inner,
+    .mobile-bottom-bar.menu-closing .mobile-bottom-cta-inner{
+      max-width: 140px;
+      padding: 18px 20px;
       opacity: 1;
-      width: auto;
-      padding: 0 20px;
-      border-top-left-radius: 0;
-      border-bottom-left-radius: 0;
-      background: transparent;
-      color: #0f172a;
+      pointer-events: auto;
+    }
+    /* Collapse outer CTA when menu is open OR closing */
+    .mobile-bottom-bar.menu-open .mobile-bottom-cta,
+    .mobile-bottom-bar.menu-closing .mobile-bottom-cta{
+      max-width: 0;
+      padding: 0;
+      opacity: 0;
       box-shadow: none;
-      border-left: 1px solid rgba(15,23,42,.08);
+      pointer-events: none;
+      overflow: hidden;
     }
 
-    /* ===== MOBILE MENU POPUP (Vimeo floating card style) ===== */
+    /* Menu button icon toggle (hamburger to X) */
+    .mobile-bottom-btn .menu-icon-close{ display: none; }
+    .mobile-bottom-bar.menu-open #mobileMenuBtn .menu-icon-open,
+    .mobile-bottom-bar.menu-closing #mobileMenuBtn .menu-icon-open{ display: none; }
+    .mobile-bottom-bar.menu-open #mobileMenuBtn .menu-icon-close,
+    .mobile-bottom-bar.menu-closing #mobileMenuBtn .menu-icon-close{ display: block; }
+
+    /* ===== Backdrop ===== */
     .mobile-menu-backdrop{
       position: fixed;
       inset: 0;
-      z-index: 10000;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      display: none;
+      z-index: 9998;
+      background: rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       opacity: 0;
-      transition: opacity .25s ease;
+      pointer-events: none;
+      transition: opacity .3s ease;
     }
     .mobile-menu-backdrop.open{
-      display: block;
       opacity: 1;
-    }
-    .mobile-menu-popup{
-      position: fixed;
-      bottom: 90px;
-      left: 12px;
-      right: 12px;
-      z-index: 10001;
-      background: rgba(30, 30, 36, 0.97);
-      backdrop-filter: blur(30px) saturate(180%);
-      -webkit-backdrop-filter: blur(30px) saturate(180%);
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 24px;
-      max-height: calc(100vh - 180px);
-      overflow: hidden;
-      display: none;
-      flex-direction: column;
-      opacity: 0;
-      transform: translateY(20px) scale(0.97);
-      transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      box-shadow: 0 25px 80px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.3);
-    }
-    .mobile-menu-popup.open{
-      display: flex;
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-    .mobile-menu-header{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 18px 20px;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      flex-shrink: 0;
-    }
-    .mobile-menu-title{
-      color: #fff;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: .01em;
-    }
-    .mobile-menu-close{
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: rgba(255,255,255,.1);
-      border: none;
-      color: rgba(255,255,255,.7);
-      font-size: 16px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all .2s ease;
-    }
-    .mobile-menu-close:hover{
-      background: rgba(255,255,255,.18);
-      color: #fff;
-    }
-    .mobile-menu-body{
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px 12px;
-      -webkit-overflow-scrolling: touch;
-    }
-    .mobile-menu-nav{
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    /* Menu item with accordion */
-    .mobile-menu-item{
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    .mobile-menu-trigger{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      padding: 14px 12px;
-      background: transparent;
-      border: none;
-      color: #fff;
-      font-size: 15px;
-      font-weight: 500;
-      cursor: pointer;
-      text-align: left;
-      text-decoration: none;
-      border-radius: 12px;
-      transition: background .15s ease;
-    }
-    .mobile-menu-trigger:hover{
-      background: rgba(255,255,255,.06);
-    }
-    .mobile-menu-trigger svg{
-      width: 18px;
-      height: 18px;
-      opacity: .5;
-      transition: transform .2s ease;
-      flex-shrink: 0;
-    }
-    .mobile-menu-item[data-open="true"] .mobile-menu-trigger svg{
-      transform: rotate(180deg);
-    }
-    .mobile-menu-icon{
-      width: 28px;
-      height: 28px;
-      background: rgba(255,255,255,.1);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 12px;
-      font-size: 14px;
-      flex-shrink: 0;
-    }
-    .mobile-menu-trigger-content{
-      display: flex;
-      align-items: center;
-      flex: 1;
-    }
-    /* Submenu */
-    .mobile-menu-sub{
-      display: none;
-      padding: 4px 0 8px 40px;
-    }
-    .mobile-menu-item[data-open="true"] .mobile-menu-sub{
-      display: block;
-    }
-    .mobile-menu-sublink{
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      color: rgba(255,255,255,.65);
-      text-decoration: none;
-      font-size: 14px;
-      border-radius: 10px;
-      transition: all .15s ease;
-    }
-    .mobile-menu-sublink:hover{
-      background: rgba(255,255,255,.06);
-      color: #fff;
-    }
-    .mobile-menu-sublink-icon{
-      font-size: 16px;
-    }
-    /* Bottom bar in menu with dark buttons */
-    .mobile-menu-footer{
-      padding: 12px;
-      border-top: 1px solid rgba(255,255,255,.08);
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-      background: rgba(0,0,0,.2);
-    }
-    .mobile-menu-footer-btn{
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 5px;
-      padding: 10px 8px;
-      background: rgba(255,255,255,.06);
-      border: none;
-      border-radius: 12px;
-      color: rgba(255,255,255,.7);
-      font-size: 10px;
-      text-decoration: none;
-      cursor: pointer;
-      transition: all .2s ease;
-    }
-    .mobile-menu-footer-btn:hover{
-      background: rgba(255,255,255,.12);
-      color: #fff;
-    }
-    .mobile-menu-footer-btn svg{
-      width: 20px;
-      height: 20px;
-    }
-    /* Simple link style for Tarification */
-    .mobile-menu-simple-link{
-      display: flex;
-      align-items: center;
-      padding: 14px 12px;
-      color: #fff;
-      text-decoration: none;
-      font-size: 15px;
-      font-weight: 500;
-      border-radius: 12px;
-      transition: background .15s ease;
-    }
-    .mobile-menu-simple-link:hover{
-      background: rgba(255,255,255,.06);
-    }
-    .mobile-menu-simple-link .mobile-menu-icon{
-      margin-right: 12px;
-    }
-    .mobile-menu-simple-link svg{
-      width: 18px;
-      height: 18px;
-      opacity: .5;
-      margin-left: auto;
+      pointer-events: auto;
     }
 
     /* ===== Show mobile elements only on mobile ===== */
@@ -974,6 +1229,10 @@ $link_cancer = $data['link_cancer'] ?? null;
       }
       /* Hide desktop nav */
       .floating-nav{
+        display: none !important;
+      }
+      /* Hide old popup elements if any */
+      .mobile-menu-popup{
         display: none !important;
       }
     }
@@ -1129,16 +1388,19 @@ $link_cancer = $data['link_cancer'] ?? null;
     }
 
     .reg-result.success { 
-      background: #ecfdf5; 
-      color: #047857;
+      background: #ede9fe; 
+      color: #5b21b6;
+      border: 1px solid rgba(124,58,237,.25);
     }
     .reg-result.warn { 
-      background: #fffbeb; 
-      color: #b45309;
+      background: #e0f2fe; 
+      color: #0c4a6e;
+      border: 1px solid rgba(14,116,144,.25);
     }
     .reg-result.danger { 
-      background: #fef2f2; 
-      color: #dc2626;
+      background: #fce7f3; 
+      color: #9d174d;
+      border: 1px solid rgba(236,72,153,.35);
     }
 
     /* Responsive */
@@ -1167,14 +1429,27 @@ $link_cancer = $data['link_cancer'] ?? null;
       .reg-search { 
         padding: 24px; 
       }
+      .reg-title{
+        text-align: center;
+      }
       
       .reg-form {
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: nowrap;
         width: 100%;
       }
 
       .reg-input{
         width: 100%;
+        min-width: 0;
+      }
+      .reg-submit{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 46px;
+        padding: 0 14px;
+        font-size: 13px;
       }
     }
 
@@ -1454,6 +1729,7 @@ $link_cancer = $data['link_cancer'] ?? null;
       /* Hide desktop nav links/cta, keep brand + burger */
       .links{ display:none; }
       .burger{ display:inline-flex; }
+      .nav-pill .nav-right{ display:none; }
       .floating-nav{
         position: sticky;
         top: 0;
@@ -2264,11 +2540,10 @@ $link_cancer = $data['link_cancer'] ?? null;
       flex-direction: column;
       border-radius: 16px;
       background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.16);
       color: #ffffff;
       text-decoration: none;
       overflow: hidden;
-      min-height: 220px;
+      min-height: 140px;
       transition: transform .2s ease, background .2s ease, border-color .2s ease;
     }
 
@@ -2283,6 +2558,7 @@ $link_cancer = $data['link_cancer'] ?? null;
       height: 190px;
       background: linear-gradient(135deg, #1f2937, #111827);
       overflow: hidden;
+      display: none;
     }
 
     .news-media img{
@@ -2603,27 +2879,57 @@ $link_cancer = $data['link_cancer'] ?? null;
         <span class="burger-icon" aria-hidden="true"></span>
       </button>
 
-      <!-- Desktop links -->
-      <nav id="nav-links" class="links" aria-label="Navigation principale">
-        <ul class="menu">
-          <li class="item"><a class="link" href="accueil.php">Accueil</a></li>
+      <div class="nav-right">
+        <div class="nav-card">
+          <nav id="nav-links" class="links" aria-label="Navigation principale">
+            <ul class="menu nav-secondary">
+          <li class="item">
+            <a class="link" href="accueil.php">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9,22 9,12 15,12 15,22"></polyline>
+                </svg>
+              </span>
+              <span class="nav-label">Accueil</span>
+            </a>
+          </li>
+          <li class="item">
+            <a class="link" href="parcours.php">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polygon points="10,8 16,12 10,16 10,8"></polygon>
+                </svg>
+              </span>
+              <span class="nav-label">Parcours</span>
+            </a>
+          </li>
           
           <!-- Menu Actualités -->
           <li class="item" data-menu="actualites">
             <button class="trigger" type="button" aria-haspopup="true" aria-expanded="false">
-              Actualités
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                  <line x1="7" y1="8" x2="17" y2="8"></line>
+                  <line x1="7" y1="12" x2="17" y2="12"></line>
+                  <line x1="7" y1="16" x2="14" y2="16"></line>
+                </svg>
+              </span>
+              <span class="nav-label">Actualités</span>
               <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" stroke="rgba(15,23,42,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
 
-            <div class="mega" role="menu" aria-hidden="true">
+            <div class="mega<?= $actualites_cols2 ? ' mega--wide' : '' ?>" role="menu" aria-hidden="true">
               <div class="mega-grid">
                 <!-- Colonne gauche : liens -->
                 <div class="mega-content">
                   <div class="mega-section">
                     <div class="mega-title">Dernières actualités</div>
-                    <ul class="mega-list">
+                    <ul class="mega-list<?= $actualites_cols2 ? ' mega-list--2col' : '' ?>">
                       <?php if (!empty($actualites)): ?>
                         <?php foreach ($actualites as $actu): ?>
                           <li>
@@ -2666,18 +2972,24 @@ $link_cancer = $data['link_cancer'] ?? null;
           <!-- Menu Photos -->
           <li class="item" data-menu="photos">
             <button class="trigger" type="button" aria-haspopup="true" aria-expanded="false">
-              Photos
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M4 7h4l2-2h4l2 2h4v12H4z"></path>
+                  <circle cx="12" cy="13" r="3"></circle>
+                </svg>
+              </span>
+              <span class="nav-label">Photos</span>
               <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" stroke="rgba(15,23,42,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
 
-            <div class="mega" role="menu" aria-hidden="true">
+            <div class="mega<?= $galeries_cols2 ? ' mega--wide' : '' ?>" role="menu" aria-hidden="true">
               <div class="mega-grid">
                 <div class="mega-content">
                   <div class="mega-section">
                     <div class="mega-title">Albums photos</div>
-                    <ul class="mega-list">
+                    <ul class="mega-list<?= $galeries_cols2 ? ' mega-list--2col' : '' ?>">
                       <?php if (!empty($galeries)): ?>
                         <?php foreach ($galeries as $galerie): ?>
                           <li>
@@ -2719,18 +3031,26 @@ $link_cancer = $data['link_cancer'] ?? null;
           <!-- Menu Partenaires -->
           <li class="item" data-menu="partenaires">
             <button class="trigger" type="button" aria-haspopup="true" aria-expanded="false">
-              Partenaires
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </span>
+              <span class="nav-label">Partenaires</span>
               <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" stroke="rgba(15,23,42,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
 
-            <div class="mega" role="menu" aria-hidden="true">
+            <div class="mega<?= $partenaires_cols2 ? ' mega--wide' : '' ?>" role="menu" aria-hidden="true">
               <div class="mega-grid">
                 <div class="mega-content">
                   <div class="mega-section">
                     <div class="mega-title">Nos partenaires</div>
-                    <ul class="mega-list">
+                    <ul class="mega-list<?= $partenaires_cols2 ? ' mega-list--2col' : '' ?>">
                       <?php if (!empty($partenaires)): ?>
                         <?php foreach ($partenaires as $part): ?>
                           <li>
@@ -2768,12 +3088,13 @@ $link_cancer = $data['link_cancer'] ?? null;
               </div>
             </div>
           </li>
-        </ul>
-
-        <div class="cta">
-          <a class="btn pink" href="register.php">Inscription<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </ul>
+          </nav>
         </div>
-      </nav>
+        <div class="cta">
+          <a class="btn pink nav-cta" href="register.php">Inscription<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -2784,168 +3105,204 @@ $link_cancer = $data['link_cancer'] ?? null;
     </a>
   </header>
 
-  <!-- ===== MOBILE BOTTOM BAR (Vimeo style) ===== -->
+  <!-- ===== MOBILE BOTTOM BAR + UNIFIED MENU (Vimeo style) ===== -->
   <div class="mobile-bottom-bar" id="mobileBottomBar">
-    <div class="mobile-bottom-wrapper">
-      <div class="mobile-bottom-inner">
-        <button class="mobile-bottom-btn" id="mobileMenuBtn" aria-label="Menu">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-          <span>Menu</span>
-        </button>
-        <a class="mobile-bottom-btn" href="accueil.php">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9,22 9,12 15,12 15,22"></polyline>
-          </svg>
-          <span>Accueil</span>
-        </a>
-        <a class="mobile-bottom-btn" href="parcours.php">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polygon points="10,8 16,12 10,16 10,8"></polygon>
-          </svg>
-          <span>Parcours</span>
-        </a>
+    <div class="mobile-bottom-wrapper" id="mobileWrapper">
+      
+      <!-- Main nav block (unified: menu panel + action buttons) -->
+      <div class="mobile-bottom-unified" id="mobileUnified">
+
+        <!-- Menu panel (hidden, slides in on open) -->
+        <div class="mobile-menu-panel" id="mobileMenuPanel">
+          <div class="mobile-menu-header">
+            <button class="mobile-menu-back" id="mobileMenuBack" aria-label="Retour">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </button>
+            <span class="mobile-menu-title" id="mobileMenuTitleText">Menu</span>
+            <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Fermer">✕</button>
+          </div>
+
+          <div class="mobile-menu-slides" id="mobileMenuSlides">
+            <!-- MAIN VIEW -->
+            <div class="mobile-menu-slide mobile-menu-slide-main" id="slideMain">
+              <div class="mobile-menu-body">
+                <nav class="mobile-menu-nav">
+                  <div class="mobile-menu-item" data-sub="actualites">
+                    <button class="mobile-menu-trigger">
+                      <div class="mobile-menu-trigger-content">
+                        <span class="mobile-menu-icon">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+    <line x1="7" y1="8" x2="17" y2="8"></line>
+    <line x1="7" y1="12" x2="17" y2="12"></line>
+    <line x1="7" y1="16" x2="14" y2="16"></line>
+  </svg>
+</span>
+                        Actualités
+                      </div>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  </div>
+                  <div class="mobile-menu-item" data-sub="photos">
+                    <button class="mobile-menu-trigger">
+                      <div class="mobile-menu-trigger-content">
+                        <span class="mobile-menu-icon">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 7h4l2-2h4l2 2h4v12H4z"></path>
+    <circle cx="12" cy="13" r="3"></circle>
+  </svg>
+</span>
+                        Photos
+                      </div>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  </div>
+                  <div class="mobile-menu-item" data-sub="partenaires">
+                    <button class="mobile-menu-trigger">
+                      <div class="mobile-menu-trigger-content">
+                        <span class="mobile-menu-icon">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="9" cy="7" r="4"></circle>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+  </svg>
+</span>
+                        Partenaires
+                      </div>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  </div>
+
+                </nav>
+              </div>
+
+              <div class="mobile-menu-footer">
+                <?php if (!empty($link_facebook)): ?>
+                <a class="mobile-menu-footer-btn" href="<?= htmlspecialchars($link_facebook) ?>" target="_blank" rel="noopener">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  <span>Facebook</span>
+                </a>
+                <?php endif; ?>
+                <?php if (!empty($link_instagram)): ?>
+                <a class="mobile-menu-footer-btn" href="<?= htmlspecialchars($link_instagram) ?>" target="_blank" rel="noopener">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  </svg>
+                  <span>Instagram</span>
+                </a>
+                <?php endif; ?>
+                <?php if (!empty($link_cancer)): ?>
+                <a class="mobile-menu-footer-btn" href="<?= htmlspecialchars($link_cancer) ?>" target="_blank" rel="noopener" aria-label="Ligue contre le cancer">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                  <span>La ligue</span>
+                </a>
+                <?php endif; ?>
+              </div>
+            </div>
+
+            <!-- SUB VIEW: Actualités -->
+            <div class="mobile-menu-slide mobile-menu-slide-sub" id="slideSub-actualites" data-title="Actualités">
+              <div class="mobile-menu-body">
+                <?php if (!empty($actualites)): ?>
+                  <?php foreach ($actualites as $actu): ?>
+                    <a class="mobile-menu-sublink" href="actualite.php?id=<?= $actu['id'] ?>">
+                      <span class="menu-bullet" aria-hidden="true"></span>
+                      <?= htmlspecialchars($actu['title']) ?>
+                    </a>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </div>
+              <a class="mobile-menu-see-all" href="actualites.php">
+                Voir toutes les actualités
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+
+            <!-- SUB VIEW: Photos -->
+            <div class="mobile-menu-slide mobile-menu-slide-sub" id="slideSub-photos" data-title="Photos">
+              <div class="mobile-menu-body">
+                <?php if (!empty($galeries)): ?>
+                  <?php foreach ($galeries as $galerie): ?>
+                    <a class="mobile-menu-sublink" href="photos.php?year_id=<?= $galerie['id'] ?>">
+                      <span class="menu-bullet" aria-hidden="true"></span>
+                      <?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)
+                    </a>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </div>
+              <a class="mobile-menu-see-all" href="photos.php">
+                Voir tous les albums
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+
+            <!-- SUB VIEW: Partenaires -->
+            <div class="mobile-menu-slide mobile-menu-slide-sub" id="slideSub-partenaires" data-title="Partenaires">
+              <div class="mobile-menu-body">
+                <?php if (!empty($partenaires)): ?>
+                  <?php foreach ($partenaires as $part): ?>
+                    <a class="mobile-menu-sublink" href="partenaires.php?year_id=<?= $part['id'] ?>">
+                      <span class="menu-bullet" aria-hidden="true"></span>
+                      <?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)
+                    </a>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </div>
+              <a class="mobile-menu-see-all" href="partenaires.php">
+                Voir tous les partenaires
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom action buttons (always visible) -->
+        <div class="mobile-bottom-actions">
+          <button class="mobile-bottom-btn" id="mobileMenuBtn" aria-label="Menu">
+            <svg class="menu-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+            <svg class="menu-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            <span>Menu</span>
+          </button>
+          <a class="mobile-bottom-btn" href="accueil.php">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9,22 9,12 15,12 15,22"></polyline>
+            </svg>
+            <span>Accueil</span>
+          </a>
+          <a class="mobile-bottom-btn" href="parcours.php">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polygon points="10,8 16,12 10,16 10,8"></polygon>
+            </svg>
+            <span>Parcours</span>
+          </a>
+          <!-- Inner CTA: visible only when menu is open -->
+          <a class="mobile-bottom-cta-inner" href="register.php">Inscription</a>
+        </div>
       </div>
+
+      <!-- Outer CTA: visible only when menu is closed -->
       <a class="mobile-bottom-cta" href="register.php">Inscription</a>
     </div>
   </div>
 
-  <!-- ===== MOBILE MENU BACKDROP ===== -->
+    <!-- ===== MOBILE MENU BACKDROP ===== -->
   <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
-
-  <!-- ===== MOBILE MENU POPUP (Vimeo floating card style) ===== -->
-  <div class="mobile-menu-popup" id="mobileMenuPopup" aria-hidden="true">
-    <div class="mobile-menu-header">
-      <span class="mobile-menu-title">Menu</span>
-      <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Fermer">✕</button>
-    </div>
-    
-    <div class="mobile-menu-body">
-      <nav class="mobile-menu-nav">
-        <!-- Actualités -->
-        <div class="mobile-menu-item" data-open="false">
-          <button class="mobile-menu-trigger">
-            <div class="mobile-menu-trigger-content">
-              <span class="mobile-menu-icon">📰</span>
-              Actualités
-            </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
-          </button>
-          <div class="mobile-menu-sub">
-            <?php if (!empty($actualites)): ?>
-              <?php foreach ($actualites as $actu): ?>
-                <a class="mobile-menu-sublink" href="actualite.php?id=<?= $actu['id'] ?>">
-                  <span class="mobile-menu-sublink-icon">📄</span>
-                  <?= htmlspecialchars($actu['title']) ?>
-                </a>
-              <?php endforeach; ?>
-            <?php endif; ?>
-            <a class="mobile-menu-sublink" href="actualites.php">
-              <span class="mobile-menu-sublink-icon">→</span>
-              Voir toutes les actualités
-            </a>
-          </div>
-        </div>
-
-        <!-- Photos -->
-        <div class="mobile-menu-item" data-open="false">
-          <button class="mobile-menu-trigger">
-            <div class="mobile-menu-trigger-content">
-              <span class="mobile-menu-icon">📸</span>
-              Photos
-            </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
-          </button>
-          <div class="mobile-menu-sub">
-            <?php if (!empty($galeries)): ?>
-              <?php foreach ($galeries as $galerie): ?>
-                <a class="mobile-menu-sublink" href="photos.php?year_id=<?= $galerie['id'] ?>">
-                  <span class="mobile-menu-sublink-icon">🖼️</span>
-                  <?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)
-                </a>
-              <?php endforeach; ?>
-            <?php endif; ?>
-            <a class="mobile-menu-sublink" href="photos.php">
-              <span class="mobile-menu-sublink-icon">→</span>
-              Voir tous les albums
-            </a>
-          </div>
-        </div>
-
-        <!-- Partenaires -->
-        <div class="mobile-menu-item" data-open="false">
-          <button class="mobile-menu-trigger">
-            <div class="mobile-menu-trigger-content">
-              <span class="mobile-menu-icon">🤝</span>
-              Partenaires
-            </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
-          </button>
-          <div class="mobile-menu-sub">
-            <?php if (!empty($partenaires)): ?>
-              <?php foreach ($partenaires as $part): ?>
-                <a class="mobile-menu-sublink" href="partenaires.php?year_id=<?= $part['id'] ?>">
-                  <span class="mobile-menu-sublink-icon">🏢</span>
-                  <?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)
-                </a>
-              <?php endforeach; ?>
-            <?php endif; ?>
-            <a class="mobile-menu-sublink" href="partenaires.php">
-              <span class="mobile-menu-sublink-icon">→</span>
-              Voir tous les partenaires
-            </a>
-          </div>
-        </div>
-
-        <!-- Tarification (simple link) -->
-        <a class="mobile-menu-simple-link" href="register.php">
-          <span class="mobile-menu-icon">🏷️</span>
-          Tarification
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18l6-6-6-6"/>
-          </svg>
-        </a>
-      </nav>
-    </div>
-
-    <div class="mobile-menu-footer">
-      <a class="mobile-menu-footer-btn" href="accueil.php">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9,22 9,12 15,12 15,22"></polyline>
-        </svg>
-        <span>Accueil</span>
-      </a>
-      <a class="mobile-menu-footer-btn" href="parcours.php">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polygon points="10,8 16,12 10,16 10,8"></polygon>
-        </svg>
-        <span>Parcours</span>
-      </a>
-      <?php if (!empty($link_instagram)): ?>
-      <a class="mobile-menu-footer-btn" href="<?= htmlspecialchars($link_instagram) ?>" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-        </svg>
-        <span>Instagram</span>
-      </a>
-      <?php endif; ?>
-    </div>
-  </div>
 
   <!-- PAGE -->
   <main>
@@ -2960,7 +3317,7 @@ $link_cancer = $data['link_cancer'] ?? null;
         <div class="demo-overlay">
           <div class="demo-panel video-float">
             <div class="hero-text">
-              <div class="demo-kicker">FORBACH EN ROSE</div>
+              <div class="demo-kicker" style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($titleAccueil) ?></div>
               <p class="demo-desc">Course et marche solidaires contre le cancer</strong>.</p>
             </div>
 
@@ -2986,7 +3343,7 @@ $link_cancer = $data['link_cancer'] ?? null;
             </div>
 
             <div class="actions">
-              <a class="cta-pink" href="#">Je m’inscris →</a>
+              <a class="cta-pink" href="register.php">Je m’inscris →</a>
             </div>
           </div>
         </div>
@@ -3073,7 +3430,7 @@ $link_cancer = $data['link_cancer'] ?? null;
       </div>
     </section>
 
-<section class="reg-bar" aria-label="Inscriptions">
+<section class="reg-bar" id="reg-bar" aria-label="Inscriptions">
       <div class="reg-card">
         <div class="reg-count">
           <div class="reg-kicker">Déjà inscrits</div>
@@ -3082,20 +3439,28 @@ $link_cancer = $data['link_cancer'] ?? null;
 
         <div class="reg-search">
           <div class="reg-title">Vérifier mon inscription</div>
-          <form class="reg-form" method="get" action="accueil.php">
+          <form class="reg-form" method="get" action="accueil.php#reg-bar">
             <input type="hidden" name="check_registration" value="1">
             <input class="reg-input" type="email" name="search_email" placeholder="Votre adresse email"
                   value="<?= htmlspecialchars($searchEmail) ?>" autocomplete="email" required>
             <button class="reg-submit" type="submit">Vérifier →</button>
           </form>
 
-          <?php if ($searchMessage !== ''): ?>
-            <p class="reg-result <?= htmlspecialchars($searchStatus) ?>" aria-live="polite">
-              <?= htmlspecialchars($searchMessage) ?>
-            </p>
-          <?php else: ?>
-            <p class="reg-hint">Saisissez l'email utilisé lors de votre inscription.</p>
-          <?php endif; ?>
+          <p
+            id="regResult"
+            class="reg-result <?= htmlspecialchars($searchStatus) ?>"
+            aria-live="polite"
+            style="<?= $searchMessage !== '' ? '' : 'display:none;' ?>"
+          >
+            <?= htmlspecialchars($searchMessage) ?>
+          </p>
+          <p
+            id="regHint"
+            class="reg-hint"
+            style="<?= $searchMessage !== '' ? 'display:none;' : '' ?>"
+          >
+            Saisissez l'email utilisé lors de votre inscription.
+          </p>
         </div>
       </div>
     </section>
@@ -3217,9 +3582,6 @@ $link_cancer = $data['link_cancer'] ?? null;
         <?php if (!empty($news_cards)): ?>
           <?php foreach ($news_cards as $actu): ?>
             <?php
-              $imgFile = $actu['img_article'] ?? '';
-              $imgPath = '../files/_news/' . $imgFile;
-              $hasImage = !empty($imgFile) && is_file($imgPath);
               $dateLabel = '';
               $dateAttr = '';
               if (!empty($actu['date_publication'])) {
@@ -3231,11 +3593,6 @@ $link_cancer = $data['link_cancer'] ?? null;
               }
             ?>
             <a class="news-card" href="actualite.php?id=<?= $actu['id'] ?>">
-              <?php if ($hasImage): ?>
-                <div class="news-media">
-                  <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($actu['title']) ?>">
-                </div>
-              <?php endif; ?>
               <div class="news-body">
                 <span class="news-kicker">Actualité</span>
                 <span class="news-title"><?= htmlspecialchars($actu['title']) ?></span>
@@ -3268,29 +3625,39 @@ $link_cancer = $data['link_cancer'] ?? null;
         </div>
         
         <div class="footer-center">
+          <?php if (!empty($link_facebook) || !empty($link_instagram) || !empty($link_twitter) || !empty($link_youtube)): ?>
           <h3 class="footer-title">Suivez-nous</h3>
           <div class="footer-socials">
-            <a href="https://facebook.com" target="_blank" rel="noopener" class="social-link" aria-label="Facebook">
+            <?php if (!empty($link_facebook)): ?>
+            <a href="<?= htmlspecialchars($link_facebook) ?>" target="_blank" rel="noopener" class="social-link" aria-label="Facebook">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
               </svg>
             </a>
-            <a href="https://instagram.com" target="_blank" rel="noopener" class="social-link" aria-label="Instagram">
+            <?php endif; ?>
+            <?php if (!empty($link_instagram)): ?>
+            <a href="<?= htmlspecialchars($link_instagram) ?>" target="_blank" rel="noopener" class="social-link" aria-label="Instagram">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
               </svg>
             </a>
-            <a href="https://twitter.com" target="_blank" rel="noopener" class="social-link" aria-label="Twitter">
+            <?php endif; ?>
+            <?php if (!empty($link_twitter)): ?>
+            <a href="<?= htmlspecialchars($link_twitter) ?>" target="_blank" rel="noopener" class="social-link" aria-label="Twitter">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
               </svg>
             </a>
-            <a href="https://youtube.com" target="_blank" rel="noopener" class="social-link" aria-label="YouTube">
+            <?php endif; ?>
+            <?php if (!empty($link_youtube)): ?>
+            <a href="<?= htmlspecialchars($link_youtube) ?>" target="_blank" rel="noopener" class="social-link" aria-label="YouTube">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
               </svg>
             </a>
+            <?php endif; ?>
           </div>
+          <?php endif; ?>
         </div>
         
         <div class="footer-right">
@@ -3327,6 +3694,27 @@ $link_cancer = $data['link_cancer'] ?? null;
       let enterTimer = null;
       let leaveTimer = null;
 
+      function positionMega(item){
+        const trigger = item.querySelector('.trigger');
+        const mega = item.querySelector('.mega');
+        if(!trigger || !mega) return;
+
+        const triggerRect = trigger.getBoundingClientRect();
+        const megaRect = mega.getBoundingClientRect();
+        const megaWidth = megaRect.width || mega.offsetWidth || 0;
+        const center = triggerRect.left + (triggerRect.width / 2);
+        const edgeGap = 24;
+
+        let left = center;
+        if(megaWidth){
+          const minLeft = edgeGap + (megaWidth / 2);
+          const maxLeft = window.innerWidth - edgeGap - (megaWidth / 2);
+          left = Math.min(Math.max(center, minLeft), maxLeft);
+        }
+
+        mega.style.setProperty('--mega-left', `${left}px`);
+      }
+
       function switchToMenu(newItem){
         if(currentItem === newItem) return;
 
@@ -3336,6 +3724,7 @@ $link_cancer = $data['link_cancer'] ?? null;
 
         currentItem = newItem;
         newItem.dataset.open = 'true';
+        positionMega(newItem);
 
         if(overlay && !overlay.classList.contains('active')){
           overlay.classList.add('active');
@@ -3426,14 +3815,17 @@ $link_cancer = $data['link_cancer'] ?? null;
       window.addEventListener('resize', closeAllMenus);
     })();
 
-    // ===== NEW MOBILE MENU SYSTEM (Vimeo style) =====
+    // ===== MOBILE MENU SYSTEM (Vimeo slide navigation) =====
     (function(){
       const mobileHeader = document.getElementById('mobileHeader');
       const mobileBottomBar = document.getElementById('mobileBottomBar');
       const mobileMenuBtn = document.getElementById('mobileMenuBtn');
       const mobileMenuBackdrop = document.getElementById('mobileMenuBackdrop');
-      const mobileMenuPopup = document.getElementById('mobileMenuPopup');
+      const mobileMenuPanel = document.getElementById('mobileMenuPanel');
       const mobileMenuClose = document.getElementById('mobileMenuClose');
+      const mobileMenuBack = document.getElementById('mobileMenuBack');
+      const mobileMenuTitleText = document.getElementById('mobileMenuTitleText');
+      const slideMain = document.getElementById('slideMain');
       
       if(!mobileHeader || !mobileBottomBar) return;
       
@@ -3441,13 +3833,11 @@ $link_cancer = $data['link_cancer'] ?? null;
       
       let lastScrollY = 0;
       const scrollThreshold = 80;
+      let currentSubId = null;
       
-      // Handle scroll - hide/show header and transform bottom bar
       function handleMobileScroll(){
         if(!isMobile()) return;
-        
         const currentScrollY = window.scrollY;
-        
         if(currentScrollY > scrollThreshold){
           mobileHeader.classList.add('hidden');
           mobileBottomBar.classList.add('header-hidden');
@@ -3455,11 +3845,9 @@ $link_cancer = $data['link_cancer'] ?? null;
           mobileHeader.classList.remove('hidden');
           mobileBottomBar.classList.remove('header-hidden');
         }
-        
         lastScrollY = currentScrollY;
       }
       
-      // Throttled scroll handler
       let ticking = false;
       window.addEventListener('scroll', () => {
         if(!ticking){
@@ -3470,53 +3858,87 @@ $link_cancer = $data['link_cancer'] ?? null;
           ticking = true;
         }
       });
-      
-      // Initial check
       handleMobileScroll();
+
+      // Go to a sub-view
+      function goToSub(subId){
+        const subSlide = document.getElementById('slideSub-' + subId);
+        if(!subSlide) return;
+        
+        currentSubId = subId;
+        slideMain.classList.add('pushed');
+        subSlide.classList.add('active');
+        
+        // Update header
+        mobileMenuTitleText.textContent = subSlide.dataset.title || 'Menu';
+        mobileMenuBack.classList.add('visible');
+      }
       
-      // Open menu popup
+      // Go back to main view
+      function goToMain(){
+        if(!currentSubId) return;
+        const subSlide = document.getElementById('slideSub-' + currentSubId);
+        if(subSlide) subSlide.classList.remove('active');
+        
+        slideMain.classList.remove('pushed');
+        mobileMenuTitleText.textContent = 'Menu';
+        mobileMenuBack.classList.remove('visible');
+        currentSubId = null;
+      }
+      
+      // Open menu
       function openMobileMenu(){
-        mobileMenuBackdrop.classList.add('open');
-        mobileMenuPopup.classList.add('open');
-        mobileMenuPopup.setAttribute('aria-hidden', 'false');
         mobileBottomBar.classList.add('menu-open');
+        mobileMenuBackdrop.classList.add('open');
         document.documentElement.style.overflow = 'hidden';
         document.body.style.overflow = 'hidden';
       }
       
-      // Close menu popup
+      // Close menu — two-phase: 1) collapse menu, 2) then separate bar+CTA
       function closeMobileMenu(){
-        mobileMenuBackdrop.classList.remove('open');
-        mobileMenuPopup.classList.remove('open');
-        mobileMenuPopup.setAttribute('aria-hidden', 'true');
+        // Phase 1: add "closing" (keeps CTA hidden), remove "menu-open" (collapses menu)
+        mobileBottomBar.classList.add('menu-closing');
         mobileBottomBar.classList.remove('menu-open');
+        mobileMenuBackdrop.classList.remove('open');
         document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
+        
+        // Phase 2: after menu is fully collapsed, remove "closing" to reveal separated bar+CTA
+        setTimeout(() => {
+          mobileBottomBar.classList.remove('menu-closing');
+          goToMain();
+        }, 480);
       }
       
-      // Menu button click
+      // Menu button toggle
       if(mobileMenuBtn){
-        mobileMenuBtn.addEventListener('click', openMobileMenu);
+        mobileMenuBtn.addEventListener('click', () => {
+          if(mobileBottomBar.classList.contains('menu-open')){
+            closeMobileMenu();
+          } else {
+            openMobileMenu();
+          }
+        });
       }
       
-      // Close button click
       if(mobileMenuClose){
         mobileMenuClose.addEventListener('click', closeMobileMenu);
       }
       
-      // Click on backdrop to close
+      if(mobileMenuBack){
+        mobileMenuBack.addEventListener('click', goToMain);
+      }
+      
       if(mobileMenuBackdrop){
         mobileMenuBackdrop.addEventListener('click', closeMobileMenu);
       }
       
-      // Escape key
       document.addEventListener('keydown', (e) => {
-        if(e.key === 'Escape' && mobileMenuPopup.classList.contains('open')){
+        if(e.key === 'Escape' && mobileBottomBar.classList.contains('menu-open')){
           closeMobileMenu();
         }
       });
       
-      // Resize handler
       window.addEventListener('resize', () => {
         if(!isMobile()){
           closeMobileMenu();
@@ -3526,34 +3948,77 @@ $link_cancer = $data['link_cancer'] ?? null;
         handleMobileScroll();
       });
       
-      // Accordion for menu items
-      const menuItems = document.querySelectorAll('.mobile-menu-item');
-      menuItems.forEach(item => {
+      // Click on menu items with sub-views
+      document.querySelectorAll('.mobile-menu-item[data-sub]').forEach(item => {
         const trigger = item.querySelector('.mobile-menu-trigger');
         if(trigger){
           trigger.addEventListener('click', () => {
-            const isOpen = item.dataset.open === 'true';
-            // Close all other items
-            menuItems.forEach(other => {
-              if(other !== item) other.dataset.open = 'false';
-            });
-            // Toggle current
-            item.dataset.open = isOpen ? 'false' : 'true';
+            goToSub(item.dataset.sub);
           });
         }
       });
       
-      // Close menu when clicking a link
-      const menuLinks = mobileMenuPopup.querySelectorAll('a');
-      menuLinks.forEach(link => {
-        link.addEventListener('click', () => {
-          setTimeout(closeMobileMenu, 100);
+      // Close menu when clicking a real link
+      if(mobileMenuPanel){
+        mobileMenuPanel.querySelectorAll('a[href]').forEach(link => {
+          link.addEventListener('click', () => {
+            setTimeout(closeMobileMenu, 100);
+          });
         });
+      }
+    })();
+
+    // ===== Registration check (AJAX, no refresh) =====
+    (function(){
+      const form = document.querySelector('.reg-form');
+      if (!form) return;
+
+      const input = form.querySelector('input[name="search_email"]');
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const resultEl = document.getElementById('regResult');
+      const hintEl = document.getElementById('regHint');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = (input && input.value ? input.value : '').trim();
+        const action = form.getAttribute('action') || 'accueil.php';
+        const base = action.split('#')[0];
+
+        const params = new URLSearchParams();
+        params.set('check_registration', '1');
+        params.set('search_email', email);
+        params.set('ajax', '1');
+
+        if (submitBtn) submitBtn.disabled = true;
+        form.setAttribute('aria-busy', 'true');
+
+        try {
+          const res = await fetch(base + '?' + params.toString(), {
+            headers: { 'Accept': 'application/json' }
+          });
+          if (!res.ok) throw new Error('bad response');
+          const data = await res.json();
+
+          if (resultEl) {
+            resultEl.textContent = data.message || "Une erreur est survenue.";
+            resultEl.className = 'reg-result ' + (data.status || 'warn');
+            resultEl.style.display = 'inline-block';
+          }
+          if (hintEl) {
+            hintEl.style.display = 'none';
+          }
+        } catch (err) {
+          form.submit();
+          return;
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+          form.removeAttribute('aria-busy');
+        }
       });
     })();
 
-
-    // ===== COUNTDOWN =====
+        // ===== COUNTDOWN =====
     (function(){
       // Modifie la date/heure ici si besoin (YYYY-MM-DDTHH:MM:SS)
       const target = new Date("<?= $date_formatted ?>");
@@ -3633,7 +4098,7 @@ $link_cancer = $data['link_cancer'] ?? null;
         }
         if (locked && !force) return;
 
-        const bottomInner = bottomBar.querySelector('.mobile-bottom-inner') || bottomBar;
+        const bottomInner = bottomBar.querySelector('.mobile-bottom-actions') || bottomBar;
         const bottomRect = bottomInner.getBoundingClientRect();
         if (!bottomRect.height) return;
 
