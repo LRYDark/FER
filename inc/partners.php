@@ -2,6 +2,7 @@
 require '../config/config.php';
 requireRole(['admin']);
 $role = currentRole();
+require 'navbar-data.php';
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -12,23 +13,36 @@ $stmt->execute(['id' => 1]);
 
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$footer= $data['footer'] ?? '';  
+$footer= $data['footer'] ?? '';
+
+// Auto-migration : ajout colonnes partners_desc et partners_img si absentes
+try { $pdo->exec("ALTER TABLE setting ADD COLUMN partners_desc TEXT NULL"); } catch (PDOException $e) {}
+try { $pdo->exec("ALTER TABLE setting ADD COLUMN partners_img VARCHAR(255) NULL"); } catch (PDOException $e) {}
+$partners_desc = $data['partners_desc'] ?? '';
+$partners_img = $data['partners_img'] ?? '';
+
+// Sauvegarde description et image générique partenaires
+if (isset($_POST['update_partners_desc'])) {
+    if (!empty($_FILES['partners_img']['name'])) {
+        $imgName = $_FILES['partners_img']['name'];
+        move_uploaded_file($_FILES['partners_img']['tmp_name'], "../files/_partners/" . $imgName);
+        $stmt = $pdo->prepare("UPDATE setting SET partners_desc = ?, partners_img = ? WHERE id = 1");
+        $stmt->execute([$_POST['partners_desc'], $imgName]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE setting SET partners_desc = ? WHERE id = 1");
+        $stmt->execute([$_POST['partners_desc']]);
+    }
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
 
 if (isset($_POST['update_year'])) {
   $yearId = $_POST['year_id'];
   $year = $_POST['year'];
   $title = $_POST['title'];
-  $partner_desc = $_POST['partner_desc'];
 
-  if (!empty($_FILES['year_img']['name'])) {
-    $imgName = $_FILES['year_img']['name'];
-    move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_partners/" . $imgName);
-    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, img = ?, `desc` = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $imgName, $partner_desc, $yearId]);
-  } else {
-    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, `desc` = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $partner_desc, $yearId]);
-  }
+  $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
+  $stmt->execute([$year, $title, $yearId]);
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
@@ -91,10 +105,8 @@ if (isset($_POST['delete_album'])) {
 }
 
 if (isset($_POST['add_year'])) {
-  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, img, `desc`) VALUES (?, ?, ?, ?)");
-  $imgName = $_FILES['year_img']['name'];
-  move_uploaded_file($_FILES['year_img']['tmp_name'], "../files/_partners/" . $imgName);
-  $stmt->execute([$_POST['year'], $_POST['title'], $imgName, $_POST['partner_desc']]);
+  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
+  $stmt->execute([$_POST['year'], $_POST['title']]);
 }
 
 if (isset($_POST['delete_year'])) {
@@ -144,7 +156,7 @@ foreach ($years as $y) {
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
@@ -165,7 +177,7 @@ foreach ($years as $y) {
 
 <body class="d-flex flex-column">
 
-<?php include '../inc/nav-settings.php'; ?>
+<?php include '../inc/navbar-admin.php'; ?>
 
 <!-- ═════════ MAIN ═════════ -->
 <main class="container-fluid flex-grow-1">
@@ -190,6 +202,26 @@ foreach ($years as $y) {
 
             <h1 class="mb-4">Gestion des Partenaires par Année</h1>
 
+            <!-- Zone générique : description et image affichées sur la page Partenaires (sans année sélectionnée) -->
+            <div class="card shadow-sm mb-4">
+              <div class="card-header"><strong>Description générique de la page Partenaires</strong></div>
+              <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                  <div class="mb-3">
+                    <label class="form-label">Image générique</label>
+                    <input type="file" name="partners_img" class="form-control" accept="image/*">
+                    <?php if (!empty($partners_img)): ?>
+                      <div class="mt-2">
+                        <img src="../files/_partners/<?= htmlspecialchars($partners_img) ?>" class="img-fluid rounded" style="max-height:150px;">
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                  <textarea class="form-control" id="partners_desc_editor" name="partners_desc" rows="10"><?= htmlspecialchars($partners_desc) ?></textarea>
+                  <button type="submit" name="update_partners_desc" class="btn btn-primary mt-3">Enregistrer</button>
+                </form>
+              </div>
+            </div>
+
             <!-- Bouton pour ajouter une année -->
             <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">Ajouter une Année</button>
 
@@ -200,10 +232,6 @@ foreach ($years as $y) {
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></strong>
                     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">Modifier</button>
-                </div>
-                <div class="card-body">
-                    <img src="../files/_partners/<?= htmlspecialchars($year['img']) ?>" class="img-fluid mb-3" style="max-height:150px;">
-                    <ul class="list-group">
                 </div>
                 </div>
             </div>
@@ -220,21 +248,13 @@ foreach ($years as $y) {
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
-                          <div class="col-md-4">
+                          <div class="col-md-6">
                               <label class="form-label">Année</label>
                               <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
                           </div>
-                          <div class="col-md-4">
+                          <div class="col-md-6">
                               <label class="form-label">Titre</label>
                               <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
-                          </div>
-                          <div class="col-md-4">
-                              <label class="form-label">Image</label>
-                              <input type="file" name="year_img" class="form-control">
-                          </div>
-                          <div class="col-md-12">
-                            <!-- Textarea avec TinyMCE -->
-                            <textarea class="form-control" id="partner_desc" name="partner_desc" rows="10" placeholder="Description"><?= htmlspecialchars($year['desc']) ?></textarea>
                           </div>
                         </div>
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
@@ -304,22 +324,14 @@ foreach ($years as $y) {
                     <h5 class="modal-title">Ajouter une Année</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
-                    <div class="col-md-4">
+                <form method="post" class="modal-body row g-3">
+                    <div class="col-md-6">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                     <label class="form-label">Titre</label>
                     <input type="text" name="title" class="form-control" required>
-                    </div>
-                    <div class="col-md-4">
-                    <label class="form-label">Image</label>
-                    <input type="file" name="year_img" class="form-control" required>
-                    </div>
-                    <div class="col-md-12">
-                       <!-- Textarea avec TinyMCE -->
-                        <textarea class="form-control" id="partner_desc" name="partner_desc" rows="10" placeholder="Description"></textarea>
                     </div>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
@@ -347,7 +359,7 @@ foreach ($years as $y) {
     <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
         tinymce.init({
-            selector: '#partner_desc',
+            selector: '#partners_desc_editor',
             plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
             toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
             height: 200,
@@ -407,9 +419,10 @@ foreach ($years as $y) {
     </script>
 <!-- ############################ Réglementation course ############################ -->
 
-<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+<?php include 'footer-modern.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/fer-modern.js"></script>
 </body>
 </html>
 

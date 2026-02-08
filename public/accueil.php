@@ -2044,7 +2044,7 @@ $link_cancer = $data['link_cancer'] ?? null;
     }
 
     .t-pill:hover {
-      background: #f1f5f9;
+      background: rgba(15,23,42,.04);
       border-color: #e2e8f0;
     }
 
@@ -2943,7 +2943,7 @@ $link_cancer = $data['link_cancer'] ?? null;
                         <?php endforeach; ?>
                       <?php else: ?>
                         <li>
-                          <a class="mega-link" href="actualites.php">
+                          <a class="mega-link" href="news.php">
                             <span class="micon">📰</span>
                             <div class="mega-link-content">
                               <div class="mtitle">Voir toutes les actualités</div>
@@ -2960,7 +2960,7 @@ $link_cancer = $data['link_cancer'] ?? null;
                   <div class="mega-featured-img">📰</div>
                   <div class="mega-featured-title">Toutes nos actualités</div>
                   <div class="mega-featured-desc">Restez informés de tous les événements et nouveautés de Forbach en Rose</div>
-                  <a href="actualites.php" class="mega-featured-link">
+                  <a href="news.php" class="mega-featured-link">
                     Voir tout
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </a>
@@ -3219,7 +3219,7 @@ $link_cancer = $data['link_cancer'] ?? null;
                   <?php endforeach; ?>
                 <?php endif; ?>
               </div>
-              <a class="mobile-menu-see-all" href="actualites.php">
+              <a class="mobile-menu-see-all" href="news.php">
                 Voir toutes les actualités
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </a>
@@ -3575,7 +3575,7 @@ $link_cancer = $data['link_cancer'] ?? null;
     <div class="news-band-container">
       <div class="news-band-head">
         <h3 class="news-band-title">Dernières actualités</h3>
-        <a class="news-band-link" href="actualites.php">Voir tout</a>
+        <a class="news-band-link" href="news.php">Voir tout</a>
       </div>
       <div class="news-grid">
         <?php $news_cards = array_slice($actualites, 0, 4); ?>

@@ -5,6 +5,8 @@ require '../config/googleMail.php';
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
 
+require 'navbar-data.php';
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -735,7 +737,7 @@ if (isset($_POST['deleteImage'])) {
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
@@ -767,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <body class="d-flex flex-column">
 
-<?php include '../inc/nav-settings.php'; ?>
+<?php include '../inc/navbar-admin.php'; ?>
 
 <!-- ═════════ MAIN ═════════ -->
 <main class="container-fluid flex-grow-1">
@@ -1397,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     </div><!-- /row -->
 </main>
 
-<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+<?php include '../inc/footer-modern.php'; ?>
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -1473,3 +1475,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 </script>
+
+<script src="../js/fer-modern.js"></script>

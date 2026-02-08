@@ -1,8 +1,8 @@
-<?php 
-    ini_set('display_errors', 1);
-    ini_set('display_startup_errors', 1);
-    error_reporting(E_ALL);
-    
+<?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require '../config/config.php';
 require '../config/googleMail.php';
 
@@ -18,38 +18,36 @@ $error_message = '';
 if ($hasGetParams && $qrToken) {
     try {
         $stmt = $pdo->prepare(
-            'SELECT organisation, description, is_active 
-             FROM qrcodes 
+            'SELECT organisation, description, is_active
+             FROM qrcodes
              WHERE token = ? AND is_active = 1'
         );
         $stmt->execute([$qrToken]);
         $qrData = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$qrData) {
             $errorMessage = 'QR Code invalide ou expiré.';
-            $hasGetParams = false; // Empêcher l'affichage du formulaire
+            $hasGetParams = false;
         }
     } catch (Exception $e) {
         $errorMessage = 'Erreur lors de la validation du QR Code.';
         $hasGetParams = false;
     }
 } elseif ($hasGetParams && !$qrToken) {
-    // Si il y a des paramètres GET mais pas de token, c'est non autorisé
     $errorMessage = 'Paramètres non autorisés. Accès refusé.';
     $hasGetParams = false;
 }
 
 // Traitement du formulaire si soumis
 if ($_POST) {
-    // Vérifier le token lors de la soumission du formulaire
     $submittedToken = $_POST['qr_token'] ?? '';
     $validToken = false;
-    
+
     if ($submittedToken) {
         try {
             $stmt = $pdo->prepare(
-                'SELECT organisation, description, is_active 
-                 FROM qrcodes 
+                'SELECT organisation, description, is_active
+                 FROM qrcodes
                  WHERE token = ? AND is_active = 1'
             );
             $stmt->execute([$submittedToken]);
@@ -59,19 +57,16 @@ if ($_POST) {
             $validToken = false;
         }
     }
-    
-    // Si le token n'est pas valide et qu'on a des paramètres GET, erreur
+
     if ($hasGetParams && !$validToken) {
         $error_message = "Token invalide. Inscription refusée.";
     } else {
         try {
-            // Générer le prochain numéro d'inscription
             $stmt = $pdo->prepare('SELECT MAX(inscription_no) as max_no FROM registrations');
             $stmt->execute();
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $nextInscriptionNo = ($result['max_no'] ?? 0) + 1;
-            
-            // Récupération des données du formulaire
+
             $formData = [
                 'inscription_no' => $nextInscriptionNo,
                 'nom' => $_POST['nom'] ?? '',
@@ -86,21 +81,19 @@ if ($_POST) {
                 'origine' => $_POST['origine'] ?? 'en ligne',
                 'paiement_mode' => $_POST['paiement_mode'] ?? 'en ligne (CB)'
             ];
-            
-            // Enregistrement en base de données
+
             $stmt = $pdo->prepare(
-                'INSERT INTO registrations (inscription_no, nom, prenom, tel, email, naissance, sexe, ville, entreprise, tshirt_size, origine, paiement_mode, created_at) 
+                'INSERT INTO registrations (inscription_no, nom, prenom, tel, email, naissance, sexe, ville, entreprise, tshirt_size, origine, paiement_mode, created_at)
                  VALUES (:inscription_no, :nom, :prenom, :tel, :email, :naissance, :sexe, :ville, :entreprise, :tshirt_size, :origine, :paiement_mode, NOW())'
             );
-            
-            $stmt->execute($formData);
-    
-            $subject = 'Inscription enregistrée - Forbach en Rose';
 
+            $stmt->execute($formData);
+
+            $subject = 'Inscription enregistrée - Forbach en Rose';
             if($_POST['email'] != ''){
               sendMail($_POST['email'], $subject, null, null, $_POST['nom'], $_POST['prenom'], 'inscription');
-            }       
-          $success_message = "👍 Inscription enregistrée avec succès !";
+            }
+            $success_message = "👍 Inscription enregistrée avec succès !";
 
         } catch (PDOException $e) {
             $error_message = "Erreur lors de l'enregistrement : " . $e->getMessage();
@@ -109,28 +102,21 @@ if ($_POST) {
 }
 
 // Récupération des paramètres de configuration
-$stmt = $pdo->prepare(
-    'SELECT *
-       FROM setting
-      WHERE id = :id
-      LIMIT 1');
+$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
 $stmt->execute(['id' => 1]);
-
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$picture= $data['picture'] ?? '';  
-$footer= $data['footer'] ?? '';  
+$picture= $data['picture'] ?? '';
+$footer= $data['footer'] ?? '';
 $titleColor = $data['title_color'] ?? '#ffffff';
-$registration_fee = $data['registration_fee'] ?? 0;  
+$registration_fee = $data['registration_fee'] ?? 0;
 $accueil_active = $data['accueil_active'] ? 1 : 0;
+$div_reglementation = $data['div_reglementation'] ?? '';
 
-// reglementation
-$div_reglementation = $data['div_reglementation'] ?? ''; 
-
-// Formulaire ---------------------------------------------------------------------------------
+// Formulaire
 $stmt = $pdo->prepare('SELECT * FROM forms');
 $stmt->execute();
 
@@ -138,30 +124,18 @@ $required_fields = [];
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $required_fields[$row['fields']] = $row['required'] ? 1 : 0;
 }
-
-$required_name = $required_fields['required_name'] ?? 0;
-$required_firstname = $required_fields['required_firstname'] ?? 0;
-$required_phone = $required_fields['required_phone'] ?? 0;
-$required_email = $required_fields['required_email'] ?? 0;
-$required_date_of_birth = $required_fields['required_date_of_birth'] ?? 0;
-$required_sex = $required_fields['required_sex'] ?? 0;
-$required_city = $required_fields['required_city'] ?? 0;
-$required_company = $required_fields['required_company'] ?? 0;
 ?>
 <!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Forbach en Rose – Inscription</title>
-
+<title>Inscription - Forbach en Rose</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
 <style>
-  /* ───────── Palette & background ───────── */
   :root{
-    --rose-500:#ff4f9c;
-    --rose-600:#e03f8a;
+    --rose-500:#ec4899;
+    --rose-600:#db2777;
     --bg-grad:linear-gradient(135deg,#ffe1f0 0%,#fff 40%,#ffe1f0 100%);
   }
   body{
@@ -171,7 +145,6 @@ $required_company = $required_fields['required_company'] ?? 0;
     flex-direction:column;
   }
 
-  /* ───────── HERO ───────── */
   .hero{
     background:var(--rose-500);
     color:#fff;
@@ -195,9 +168,30 @@ $required_company = $required_fields['required_company'] ?? 0;
     max-width:220px;
     width:27vw;
     filter:drop-shadow(0 3px 6px rgba(0,0,0,.2));
+    cursor: pointer;
   }
 
-  /* ───────── FORMULAIRE & carte ───────── */
+  .back-link {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255,255,255,.15);
+    border-radius: 12px;
+    transition: all .2s ease;
+  }
+  .back-link:hover {
+    background: rgba(255,255,255,.25);
+    color: white;
+    transform: translateX(-4px);
+  }
+
   .card-form{
     max-width:1100px;
     margin-top:-3.2rem;
@@ -212,7 +206,6 @@ $required_company = $required_fields['required_company'] ?? 0;
   .form-control,
   .form-select{border-radius:1rem;}
 
-  /* Pleine largeur pour le widget paiement */
   .iframe-asc-container,
   .iframe-asc-container iframe{
     width:1100px !important;
@@ -220,9 +213,9 @@ $required_company = $required_fields['required_company'] ?? 0;
   }
   .iframe-asc-container{margin-bottom:2rem;}
 
-  /* ───────── MOBILE (<576 px) ───────── */
   @media (max-width:575.98px){
     .logo-top{display:none;}
+    .back-link{font-size: 0.9rem; padding: 6px 12px;}
     .hero{padding:3rem 1rem 4rem;}
     .hero h1{font-size:1.6rem;}
     .hero p{font-size:.9rem;}
@@ -240,17 +233,25 @@ $required_company = $required_fields['required_company'] ?? 0;
     }
   }
 </style>
-
 </head>
 
 <body>
 
-<!-- ───────── HERO ───────── -->
 <header class="hero">
+  <a href="accueil.php" class="back-link">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M19 12H5M12 19l-7-7 7-7"/>
+    </svg>
+    Retour
+  </a>
+
   <?php if (!empty($picture)): ?>
-  <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
-       alt="Logo Forbach en Rose" class="logo-top">
+  <a href="accueil.php">
+    <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
+         alt="Logo Forbach en Rose" class="logo-top">
+  </a>
   <?php endif; ?>
+
   <div class="hero-inner">
     <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($title) ?></h1>
     <p class="mb-3">7 km solidaires contre le cancer du sein</p>
@@ -258,7 +259,6 @@ $required_company = $required_fields['required_company'] ?? 0;
   </div>
 </header>
 
-<!-- ───────── MAIN ───────── -->
 <?php if ($accueil_active === 0): ?>
   <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
     <div class="card card-form p-4 bg-white">
@@ -273,7 +273,6 @@ $required_company = $required_fields['required_company'] ?? 0;
   <div class="card card-form p-4 bg-white">
 
     <?php if ($errorMessage): ?>
-      <!-- Affichage de l'erreur de token -->
       <div class="alert alert-danger text-center mb-4">
         <?= htmlspecialchars($errorMessage) ?>
       </div>
@@ -281,7 +280,6 @@ $required_company = $required_fields['required_company'] ?? 0;
         <a href="?" class="btn btn-rose">Retour à l'accueil</a>
       </div>
     <?php elseif ($hasGetParams && $qrData): ?>
-      <!-- Formulaire avec token valide -->
       <?php if ($success_message): ?>
         <div class="alert alert-success text-center mb-4">
           <?= htmlspecialchars($success_message) ?>
@@ -295,9 +293,8 @@ $required_company = $required_fields['required_company'] ?? 0;
       <?php endif; ?>
 
       <h2 class="text-center mb-4">Inscription via QR Code</h2>
-      
-      <?php if ($qrData['organisation']): ?>
 
+      <?php if ($qrData['organisation']): ?>
         <div class="text-center mb-4">
           <strong>Lieu d'inscription :</strong> <?= htmlspecialchars($qrData['organisation']) ?>
           <?php if ($qrData['description']): ?>
@@ -351,7 +348,6 @@ $required_company = $required_fields['required_company'] ?? 0;
           <input name="entreprise" class="form-control" <?= $required_fields['required_company'] ? 'required' : '' ?>>
         </div>
 
-        <!-- Champs masqués -->
         <input type="hidden" name="tshirt_size" value="-">
         <input type="hidden" name="qr_token" value="<?= htmlspecialchars($qrToken) ?>">
         <input type="hidden" name="origine" value="QR-<?= htmlspecialchars($qrData['organisation']) ?>">
@@ -364,7 +360,6 @@ $required_company = $required_fields['required_company'] ?? 0;
         </div>
       </form>
     <?php else: ?>
-      <!-- Widget AssoConnect (pas de paramètres GET) -->
       <?php if ($success_message): ?>
         <div class="alert alert-success text-center mb-4">
           <?= htmlspecialchars($success_message) ?>
@@ -379,13 +374,13 @@ $required_company = $required_fields['required_company'] ?? 0;
 
       <h2 class="text-center mb-4">Inscription en ligne</h2>
 
-      <?php 
+      <?php
       if ($assoconnectIframe && $assoconnectJs) {
           echo $assoconnectIframe, PHP_EOL, $assoconnectJs;
       }
       ?>
     <?php endif; ?>
-  </div><!-- /card -->
+  </div>
 </main>
 <?php endif; ?>
 
@@ -397,7 +392,6 @@ $required_company = $required_fields['required_company'] ?? 0;
   </button>
 </div>
 
-<!-- Modal -->
 <div class="modal fade" id="reglementModal" tabindex="-1" aria-labelledby="reglementModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">

@@ -2,6 +2,7 @@
 require '../config/config.php';
 requireRole(['admin']);
 $role = currentRole();
+require 'navbar-data.php';
 
 // Récupération des organisations existantes
 $stmt = $pdo->prepare('SELECT DISTINCT organisation FROM users WHERE organisation IS NOT NULL AND organisation != ""');
@@ -35,7 +36,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 
 <!-- CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 
@@ -60,7 +61,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 
 <body class="d-flex flex-column">
 
-<?php include '../inc/nav-settings.php'; ?>
+<?php include 'navbar-admin.php'; ?>
 
 <main class="container-fluid flex-grow-1">
   <div class="bg-white p-4 card-dashboard">
@@ -94,7 +95,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
   </div>
 </main>
 
-<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+<?php require 'footer-modern.php'; ?>
 
 <!-- Modal Création QR Code -->
 <div class="modal fade" id="createQrModal" tabindex="-1">
@@ -410,5 +411,6 @@ function generateToken() {
 }
 </script>
 
+<script src="../js/fer-modern.js"></script>
 </body>
 </html>

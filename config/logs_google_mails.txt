@@ -44,3 +44,6 @@
 [2025-11-24 14:14:27] Connexion Google valide.
 [2025-11-24 14:15:42] Connexion Google valide.
 [2025-11-24 14:50:22] Connexion Google valide.
+[2026-02-07 14:11:56] Token rafraîchi automatiquement.
+[2026-02-07 17:28:45] Token rafraîchi automatiquement.
+[2026-02-07 17:56:13] Connexion Google valide.

@@ -1,15 +1,37 @@
 <?php
 require '../config/config.php';
+require '../inc/navbar-data.php';
 
-// Configuration pagination
+// Récupération des paramètres du site
+$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
+$stmt->execute(['id' => 1]);
+$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$titleAccueil = $data['titleAccueil'] ?? '';
+$picture = $data['picture'] ?? '';
+$titleColor = $data['title_color'] ?? '#ffffff';
+$edition = $data['edition'] ?? '';
+$footer = $data['footer'] ?? null;
+$link_instagram = $data['link_instagram'] ?? null;
+$link_facebook = $data['link_facebook'] ?? null;
+$link_cancer = $data['link_cancer'] ?? null;
+
+// ─── Mode article unique ───
+$articleId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$singleArticle = null;
+
+if ($articleId > 0) {
+    $stmtA = $pdo->prepare('SELECT * FROM news WHERE id = :id LIMIT 1');
+    $stmtA->execute(['id' => $articleId]);
+    $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
+}
+
+// ─── Mode listing ───
 $page = max(1, intval($_GET['page'] ?? 1));
-$limit = 9; // 9 articles par page (3x3)
+$limit = 18;
 $offset = ($page - 1) * $limit;
-
-// Récupération des paramètres
 $search = $_GET['search'] ?? '';
 
-// Construction de la requête avec recherche
 $whereConditions = [];
 $params = [];
 
@@ -20,27 +42,23 @@ if (!empty($search)) {
 
 $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
 
-// Requête pour compter le total d'articles
 $countSql = "SELECT COUNT(*) as total FROM news $whereClause";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
 $totalArticles = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
 $totalPages = ceil($totalArticles / $limit);
 
-// Requête pour récupérer les articles avec tri par priorité de recherche
 if (!empty($search)) {
-    // Prioriser les résultats trouvés dans le titre
-    $sql = "SELECT *, 
-            CASE 
-                WHEN title_article LIKE :search THEN 1 
-                WHEN desc_article LIKE :search THEN 2 
-                ELSE 3 
-            END as search_priority 
-            FROM news $whereClause 
-            ORDER BY search_priority ASC, date_publication DESC 
+    $sql = "SELECT *,
+            CASE
+                WHEN title_article LIKE :search THEN 1
+                WHEN desc_article LIKE :search THEN 2
+                ELSE 3
+            END as search_priority
+            FROM news $whereClause
+            ORDER BY search_priority ASC, date_publication DESC
             LIMIT :limit OFFSET :offset";
 } else {
-    // Tri par date par défaut
     $sql = "SELECT * FROM news $whereClause ORDER BY date_publication DESC LIMIT :limit OFFSET :offset";
 }
 
@@ -53,130 +71,68 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $articles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Récupération des paramètres du site
-$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-
-$titleAccueil = $data['titleAccueil'] ?? '';
-$picture = $data['picture'] ?? '';
-$titleColor = $data['title_color'] ?? '#ffffff';
-$edition = $data['edition'] ?? '';
-$footer= $data['footer'] ?? null;  
-$link_instagram  = $data['link_instagram'] ?? null;
-$link_facebook = $data['link_facebook'] ?? null; 
-$link_cancer = $data['link_cancer'] ?? null;
-
-// Fonction pour tronquer le texte
-function truncateText($text, $maxLength = 180) {
-    if (strlen($text) <= $maxLength) return $text;
-    return substr($text, 0, $maxLength) . '...';
-}
-
-// Fonction pour surligner les termes trouvés
-function highlightSearch($text, $search) {
-    if (empty($search)) return $text;
-    
-    $highlighted = preg_replace(
-        '/(' . preg_quote($search, '/') . ')/i',
-        '<mark class="search-highlight">$1</mark>',
-        $text
-    );
-    
-    return $highlighted;
-}
-
-// Traitement AJAX pour les filtres
+// Traitement AJAX
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
+    header('Content-Type: application/json');
     ob_start();
-    
-    // Afficher les articles
+
     foreach ($articles as $article):
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
-        
-        // Déterminer si la recherche a été trouvée dans le titre ou la description
-        $titleFound = !empty($search) && stripos($article['title_article'], $search) !== false;
-        $descFound = !empty($search) && stripos($article['desc_article'], $search) !== false;
-        
-        // Surligner uniquement si trouvé dans la description et pas dans le titre
-        $displayTitle = $article['title_article'];
-        $displayDesc = $article['desc_article'];
-        
-        if (!empty($search) && !$titleFound && $descFound) {
-            $displayDesc = highlightSearch($displayDesc, $search);
-        }
-        
-        $displayDesc = truncateText($displayDesc, 180);
+        $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         ?>
-        <div class="news-card">
-            <?php if ($hasImage): ?>
-                <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" class="news-card-img">
-            <?php else: ?>
-                <div class="news-card-img news-card-placeholder">
-                    <span>📰</span>
+        <a href="news.php?id=<?= $article['id'] ?>" class="ncard">
+            <div class="ncard-img">
+                <?php if ($hasImage): ?>
+                    <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
+                <?php else: ?>
+                    <div class="ncard-placeholder">📰</div>
+                <?php endif; ?>
+            </div>
+            <div class="ncard-body">
+                <h3 class="ncard-title"><?= htmlspecialchars($article['title_article']) ?></h3>
+                <div class="ncard-meta">
+                    <span class="ncard-source">Forbach en Rose</span>
+                    <span class="ncard-dot">&middot;</span>
+                    <span class="ncard-date"><?= $dateFormatted ?></span>
                 </div>
-            <?php endif; ?>
-            
-            <div class="news-card-body">
-                <h5 class="news-card-title"><?= htmlspecialchars($displayTitle) ?></h5>
-                <p class="news-card-excerpt"><?= $displayDesc ?></p>
-                <button class="btn-read-more" onclick="openModal(<?= $article['id'] ?>)">Lire plus</button>
-                
-                <div class="news-card-footer">
-                    <small class="news-date"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
-                    <div class="news-actions">
-                        <button class="btn-feedback btn-like" data-id="<?= $article['id'] ?>">
-                            👍<span class="count-badge like-count"><?= $article['like'] ?></span>
-                        </button>
-                        <button class="btn-feedback btn-dislike" data-id="<?= $article['id'] ?>">
-                            👎<span class="count-badge dislike-count"><?= $article['dislike'] ?></span>
-                        </button>
-                    </div>
+                <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
+                    <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                        👍 <span class="nvote-count"><?= $article['like'] ?></span>
+                    </button>
+                    <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                        👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
+                    </button>
                 </div>
             </div>
-        </div>
+        </a>
     <?php endforeach;
-    
+
     $content = ob_get_clean();
-    
-    // Générer la pagination
+
     ob_start();
     if ($totalPages > 1): ?>
-        <div class="pagination-container">
-            <div class="pagination">
-                <?php if ($page > 1): ?>
-                    <button class="pagination-btn pagination-prev" data-page="<?= $page - 1 ?>">←</button>
-                <?php endif; ?>
-                
-                <?php
-                $start = max(1, $page - 2);
-                $end = min($totalPages, $page + 2);
-                
-                for ($i = $start; $i <= $end; $i++):
-                ?>
-                    <button class="pagination-btn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>">
-                        <?= $i ?>
-                    </button>
-                <?php endfor; ?>
-                
-                <?php if ($page < $totalPages): ?>
-                    <button class="pagination-btn pagination-next" data-page="<?= $page + 1 ?>">→</button>
-                <?php endif; ?>
-            </div>
-            <div class="pagination-info">
-                Page <?= $page ?> sur <?= $totalPages ?> (<?= $totalArticles ?> articles)
-            </div>
+        <div class="news-pagination">
+            <?php if ($page > 1): ?>
+                <button class="pgbtn" data-page="<?= $page - 1 ?>">←</button>
+            <?php endif; ?>
+            <?php
+            $start = max(1, $page - 2);
+            $end = min($totalPages, $page + 2);
+            for ($i = $start; $i <= $end; $i++):
+            ?>
+                <button class="pgbtn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
+            <?php endfor; ?>
+            <?php if ($page < $totalPages): ?>
+                <button class="pgbtn" data-page="<?= $page + 1 ?>">→</button>
+            <?php endif; ?>
+            <span class="pginfo">Page <?= $page ?>/<?= $totalPages ?> (<?= $totalArticles ?>)</span>
         </div>
     <?php endif;
-    
+
     $pagination = ob_get_clean();
-    
-    echo json_encode([
-        'content' => $content,
-        'pagination' => $pagination,
-        'articles' => $articles // Pour le JavaScript
-    ]);
+
+    echo json_encode(['content' => $content, 'pagination' => $pagination]);
     exit;
 }
 ?>
@@ -185,389 +141,1019 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Actualités - Forbach en Rose</title>
-  <link rel="stylesheet" href="../css/forbach-style.css">
-  <link rel="stylesheet" href="../css/accueil.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-  <script src="../js/nav-flottante.js"></script>
+  <title><?= $singleArticle ? htmlspecialchars($singleArticle['title_article']) . ' - ' : '' ?>Actualités - Forbach en Rose</title>
+  <link rel="stylesheet" href="../css/fer-modern.css">
+  <style>
+    .floating-nav { border-bottom: 1px solid rgba(0,0,0,0.06); }
+
+    /* ─── Top bar (album-reg-bar style) ─── */
+    .news-hero {
+      width: 100%;
+      margin: 174px auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    @media (max-width: 980px) {
+      .news-hero { margin-top: 36px; }
+    }
+
+    .news-reg-bar { width: min(100%, 530px); flex-shrink: 0; }
+    .news-reg-card {
+      height: 56px; min-height: 56px;
+      border-radius: 12px; overflow: hidden;
+      background: rgba(15,23,42,.04);
+      display: flex; align-items: center;
+    }
+    .news-reg-bevel {
+      align-self: stretch; flex: 0 0 148px;
+      background: var(--page-text);
+      clip-path: polygon(0 0,100% 0,78% 100%,0 100%);
+      margin-right: -6px;
+      display: flex; align-items: center; justify-content: flex-start;
+      padding-left: 12px;
+    }
+    .news-reg-bevel .back-btn {
+      color: #fff; text-decoration: none;
+      display: flex; align-items: center; line-height: 1;
+      transition: opacity .2s ease;
+    }
+    .news-reg-bevel .back-btn:hover { opacity: .7; }
+    .news-reg-title {
+      margin: 0; color: var(--page-text);
+      font-size: clamp(18px,3.2vw,20px); font-weight: 900;
+      letter-spacing: -.03em; line-height: 1.1;
+      flex: 1 1 auto; text-align: right; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+      padding: 0 22px 0 20px;
+    }
+    @media (max-width: 980px) {
+      .news-reg-bar { width: min(100%, 300px); }
+      .news-reg-bevel { flex-basis: 106px; margin-right: -5px; }
+      .news-reg-title { font-size: clamp(16px,4.6vw,19px); padding: 0 16px 0 14px; }
+    }
+
+    /* ─── Search bar (aligned right on listing) ─── */
+    .news-search-bar {
+      position: relative;
+      width: min(100%, 340px);
+      flex-shrink: 0;
+    }
+    .news-search-bar input {
+      width: 100%;
+      height: 48px;
+      border: 1px solid rgba(15,23,42,.12);
+      border-radius: 12px;
+      padding: 0 42px 0 16px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--page-text);
+      background: rgba(15,23,42,.03);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .news-search-bar input:focus {
+      border-color: var(--pink);
+      box-shadow: 0 0 0 3px rgba(236,72,153,.1);
+    }
+    .news-search-bar input::placeholder { color: rgba(15,23,42,.4); }
+    .news-search-clear {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      width: 28px; height: 28px;
+      border: none; background: rgba(15,23,42,.08); border-radius: 8px;
+      color: rgba(15,23,42,.5); font-size: 14px; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .news-search-clear.show { display: flex; }
+    .news-search-clear:hover { background: rgba(15,23,42,.14); }
+    @media (max-width: 640px) {
+      .news-hero { flex-wrap: wrap; }
+      .news-search-bar { width: 100%; }
+    }
+
+    /* ─── Votes bar (article mode – top right) ─── */
+    .news-hero-votes {
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .hero-vote {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 8px 14px;
+      background: rgba(15,23,42,.04); border: 1px solid rgba(15,23,42,.10);
+      border-radius: 10px; cursor: pointer;
+      font-size: 15px; font-weight: 500; color: var(--page-text);
+      transition: background .15s, transform .1s;
+      user-select: none;
+    }
+    .hero-vote:hover { background: rgba(15,23,42,.08); }
+    .hero-vote:active { transform: scale(.96); }
+    .hero-vote.voted { background: rgba(236,72,153,.10); border-color: rgba(236,72,153,.25); }
+
+    /* ─── Cards grid (3 colonnes, vignette + texte) ─── */
+    .ncards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px 24px;
+      margin-top: 32px;
+    }
+    .ncard {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px;
+      background: #fff;
+      border-radius: 14px;
+      text-decoration: none;
+      color: var(--page-text);
+      transition: background .18s ease;
+    }
+    .ncard:hover {
+      background: rgba(15,23,42,.04);
+    }
+    .ncard-img {
+      flex: 0 0 160px;
+      height: 120px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(15,23,42,.06);
+    }
+    .ncard-img img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    .ncard-placeholder {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; opacity: .3;
+    }
+    .ncard-body {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      gap: 5px;
+    }
+    .ncard-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700; line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .ncard-meta {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12.5px; color: rgba(15,23,42,.45); font-weight: 500;
+      flex-wrap: wrap;
+    }
+    .ncard-source { color: var(--pink); font-weight: 600; }
+    .ncard-dot { font-size: 8px; }
+    .ncard-votes {
+      display: flex; gap: 6px; margin-top: 2px;
+    }
+    .nvote {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 3px 8px;
+      background: rgba(15,23,42,.05); border: none; border-radius: 7px;
+      cursor: pointer; font-size: 13px; font-weight: 500; color: var(--page-text);
+      transition: background .15s, transform .1s;
+    }
+    .nvote:hover { background: rgba(15,23,42,.1); }
+    .nvote:active { transform: scale(.94); }
+    .nvote.voted { background: rgba(236,72,153,.12); }
+    .nvote-count { font-size: 12px; }
+
+    @media (max-width: 980px) {
+      .ncards { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    }
+    @media (max-width: 640px) {
+      .ncards { grid-template-columns: 1fr; gap: 10px; }
+      .ncard-img { flex: 0 0 110px; height: 90px; }
+    }
+
+    /* ─── Pagination ─── */
+    .news-pagination {
+      display: flex; align-items: center; justify-content: center;
+      gap: 6px; margin-top: 36px; flex-wrap: wrap;
+    }
+    .pgbtn {
+      min-width: 40px; height: 40px;
+      border: 1px solid rgba(15,23,42,.12); border-radius: 10px;
+      background: #fff; color: var(--page-text);
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all .15s;
+    }
+    .pgbtn:hover { background: rgba(15,23,42,.06); }
+    .pgbtn.active { background: var(--page-text); color: #fff; border-color: var(--page-text); }
+    .pginfo { font-size: 13px; color: rgba(15,23,42,.45); margin-left: 8px; }
+
+    /* ─── Spinner ─── */
+    .news-spinner {
+      display: none; text-align: center; padding: 40px 0;
+    }
+    .news-spinner.show { display: block; }
+    .news-spinner::after {
+      content: ''; display: inline-block;
+      width: 32px; height: 32px;
+      border: 3px solid rgba(15,23,42,.1);
+      border-top-color: var(--pink);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Article detail ─── */
+    .article-detail {
+      margin-top: 32px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .article-img {
+      width: 100%;
+      border-radius: 16px;
+      margin-bottom: 28px;
+    }
+    .article-title {
+      font-size: clamp(24px, 3.5vw, 38px);
+      font-weight: 800;
+      letter-spacing: -.02em;
+      line-height: 1.2;
+      margin: 0 0 12px;
+    }
+    .article-meta {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 14px; color: rgba(15,23,42,.5); font-weight: 500;
+      margin-bottom: 28px;
+    }
+    .article-content {
+      font-size: 16px;
+      line-height: 1.75;
+      color: rgba(15,23,42,.85);
+      max-width: 780px;
+    }
+    .article-content p { margin: 0 0 16px; }
+
+    /* ─── Separator + Share ─── */
+    .article-separator {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 40px; padding-top: 24px;
+      border-top: 1px solid rgba(15,23,42,.08);
+    }
+    .share-buttons {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .share-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid rgba(15,23,42,.10);
+      border-radius: 10px;
+      background: rgba(15,23,42,.03);
+      color: var(--page-text);
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      transition: background .15s, transform .1s;
+    }
+    .share-btn:hover { background: rgba(15,23,42,.08); }
+    .share-btn:active { transform: scale(.95); }
+    .share-btn svg { flex-shrink: 0; }
+    .share-btn.copied { background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.3); color: #059669; }
+
+    /* ─── Comments section ─── */
+    .comments-section { margin-top: 32px; }
+    .comments-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 20px;
+    }
+    .comments-header h3 {
+      margin: 0; font-size: 18px; font-weight: 700;
+      color: var(--page-text);
+    }
+    .comments-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 24px; height: 24px; padding: 0 7px;
+      background: rgba(15,23,42,.08); border-radius: 99px;
+      font-size: 12px; font-weight: 700; color: rgba(15,23,42,.6);
+    }
+
+    /* Comment form */
+    .comment-form {
+      display: flex; flex-direction: column; gap: 10px;
+      margin-bottom: 28px;
+      padding: 16px; border-radius: 14px;
+      background: rgba(15,23,42,.025);
+      border: 1px solid rgba(15,23,42,.06);
+    }
+    .comment-form-row {
+      display: flex; gap: 10px;
+    }
+    .comment-form input,
+    .comment-form textarea {
+      width: 100%;
+      border: 1px solid rgba(15,23,42,.10);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px; font-family: inherit;
+      color: var(--page-text);
+      background: #fff;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      resize: none;
+    }
+    .comment-form input:focus,
+    .comment-form textarea:focus {
+      border-color: var(--pink);
+      box-shadow: 0 0 0 3px rgba(236,72,153,.08);
+    }
+    .comment-form input { flex: 1; height: 42px; }
+    .comment-form textarea { min-height: 70px; }
+    .comment-form-actions {
+      display: flex; justify-content: flex-end;
+    }
+    .comment-submit {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 20px;
+      background: var(--page-text); color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .comment-submit:hover { opacity: .85; }
+    .comment-submit:active { transform: scale(.97); }
+    .comment-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Comment items */
+    .comment-list { display: flex; flex-direction: column; gap: 0; }
+    .comment-item {
+      display: flex; gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid rgba(15,23,42,.06);
+    }
+    .comment-item:last-child { border-bottom: none; }
+    .comment-avatar {
+      flex: 0 0 36px; width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--pink);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700;
+      text-transform: uppercase;
+      user-select: none;
+    }
+    .comment-body { flex: 1; min-width: 0; }
+    .comment-head {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 4px;
+    }
+    .comment-author {
+      font-size: 14px; font-weight: 700;
+      color: var(--page-text);
+    }
+    .comment-date {
+      font-size: 12px; color: rgba(15,23,42,.4);
+      font-weight: 500;
+    }
+    .comment-text {
+      font-size: 14px; line-height: 1.55;
+      color: rgba(15,23,42,.8);
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+    .comment-actions {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .comment-action-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px;
+      background: none; border: none;
+      border-radius: 6px;
+      font-size: 12.5px; font-weight: 600;
+      color: rgba(15,23,42,.45);
+      cursor: pointer;
+      transition: color .15s, background .15s;
+    }
+    .comment-action-btn:hover { color: var(--page-text); background: rgba(15,23,42,.05); }
+    .comment-action-btn.liked { color: var(--pink); }
+    .comment-action-btn .like-count { font-weight: 700; }
+
+    /* Replies */
+    .comment-replies {
+      margin-left: 48px;
+      border-left: 2px solid rgba(15,23,42,.06);
+      padding-left: 16px;
+    }
+    .comment-replies .comment-item {
+      padding: 12px 0;
+    }
+    .comment-replies .comment-avatar {
+      flex: 0 0 28px; width: 28px; height: 28px;
+      font-size: 12px;
+    }
+
+    /* Reply form inline */
+    .reply-form-inline {
+      display: flex; flex-direction: column; gap: 8px;
+      margin: 8px 0 4px 48px;
+      padding: 12px;
+      background: rgba(15,23,42,.025);
+      border: 1px solid rgba(15,23,42,.06);
+      border-radius: 12px;
+    }
+    .reply-form-inline textarea {
+      width: 100%;
+      border: 1px solid rgba(15,23,42,.10);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px; font-family: inherit;
+      color: var(--page-text);
+      background: #fff;
+      outline: none; resize: none;
+      min-height: 50px;
+      transition: border-color .2s;
+    }
+    .reply-form-inline textarea:focus { border-color: var(--pink); }
+    .reply-form-actions {
+      display: flex; justify-content: flex-end; gap: 8px;
+    }
+    .reply-cancel {
+      padding: 6px 14px;
+      background: none; border: 1px solid rgba(15,23,42,.12);
+      border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      color: rgba(15,23,42,.6);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .reply-cancel:hover { background: rgba(15,23,42,.05); }
+    .reply-submit {
+      padding: 6px 14px;
+      background: var(--page-text); color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .reply-submit:hover { opacity: .85; }
+    .reply-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Comment error/info */
+    .comment-msg {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px; font-weight: 500;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .comment-msg.error { display: block; background: rgba(239,68,68,.08); color: #dc2626; border: 1px solid rgba(239,68,68,.15); }
+    .comment-msg.success { display: block; background: rgba(16,185,129,.08); color: #059669; border: 1px solid rgba(16,185,129,.15); }
+
+    .comments-empty {
+      text-align: center; padding: 32px 16px;
+      color: rgba(15,23,42,.35);
+      font-size: 14px; font-weight: 500;
+    }
+
+    @media (max-width: 640px) {
+      .article-separator { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .comment-form-row { flex-direction: column; }
+      .comment-replies { margin-left: 24px; padding-left: 12px; }
+      .reply-form-inline { margin-left: 24px; }
+      .share-btn span { display: none; }
+    }
+  </style>
 </head>
 <body>
 
-<?php include '../inc/nav.php'; ?>
+<?php include '../inc/navbar-modern.php'; ?>
 
-<link rel="stylesheet" href="../css/news.css">
-<div class="news-section">
-    <h2 class="section-title">📰 Nos Actualités</h2>
-    
-    <!-- Barre de recherche simplifiée -->
-    <div class="news-search">
-        <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="🔍 Rechercher dans les actualités...">
-            <button type="button" id="searchClear" class="search-clear">✕</button>
-        </div>
-    </div>
-    
-    <!-- Spinner de chargement -->
-    <div class="loading-spinner" id="loadingSpinner">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Chargement...</span>
-        </div>
-    </div>
-    
-    <!-- Conteneur des articles -->
-    <div class="news-grid" id="articlesContainer">
-        <?php foreach ($articles as $article): ?>
-            <?php 
-            $imgPath = '../files/_news/' . $article['img_article'];
-            
-            // Déterminer si la recherche a été trouvée dans le titre ou la description
-            $titleFound = !empty($search) && stripos($article['title_article'], $search) !== false;
-            $descFound = !empty($search) && stripos($article['desc_article'], $search) !== false;
-            
-            // Surligner uniquement si trouvé dans la description et pas dans le titre
-            $displayTitle = htmlspecialchars($article['title_article'] ?? '');
-            $displayDesc = $article['desc_article'];
-            
-            if (!empty($search) && !$titleFound && $descFound) {
-                $displayDesc = highlightSearch($displayDesc, $search);
-            }
-            
-            $displayDesc = truncateText($displayDesc, 180);
-            ?>
-            
-            <div class="news-card">
-                <?php if (!empty($article['img_article']) && is_file($imgPath)): ?>
-                    <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" class="news-card-img">
-                <?php else: ?>
-                    <div class="news-card-img news-card-placeholder">
-                        <span>📰</span>
-                    </div>
-                <?php endif; ?>
-                
-                <div class="news-card-body">
-                    <h5 class="news-card-title"><?= $displayTitle ?></h5>
-                    <p class="news-card-excerpt"><?= $displayDesc ?></p>
-                    <button class="btn-read-more" onclick="openModal(<?= $article['id'] ?>)">Lire plus</button>
-                    
-                    <div class="news-card-footer">
-                        <small class="news-date"><?= date('d/m/Y', strtotime($article['date_publication'])) ?></small>
-                        <div class="news-actions">
-                            <button class="btn-feedback btn-like" data-id="<?= $article['id'] ?>">
-                                👍<span class="count-badge like-count"><?= $article['like'] ?></span>
-                            </button>
-                            <button class="btn-feedback btn-dislike" data-id="<?= $article['id'] ?>">
-                                👎<span class="count-badge dislike-count"><?= $article['dislike'] ?></span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-    
-    <!-- Pagination -->
-    <div id="paginationContainer">
-        <?php if ($totalPages > 1): ?>
-            <div class="pagination-container">
-                <div class="pagination">
-                    <?php if ($page > 1): ?>
-                        <button class="pagination-btn pagination-prev" data-page="<?= $page - 1 ?>">←</button>
-                    <?php endif; ?>
-                    
-                    <?php
-                    $start = max(1, $page - 2);
-                    $end = min($totalPages, $page + 2);
-                    
-                    for ($i = $start; $i <= $end; $i++):
-                    ?>
-                        <button class="pagination-btn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>">
-                            <?= $i ?>
-                        </button>
-                    <?php endfor; ?>
-                    
-                    <?php if ($page < $totalPages): ?>
-                        <button class="pagination-btn pagination-next" data-page="<?= $page + 1 ?>">→</button>
-                    <?php endif; ?>
-                </div>
-                <div class="pagination-info">
-                    Page <?= $page ?> sur <?= $totalPages ?> (<?= $totalArticles ?> articles)
-                </div>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
+<main>
 
-<!-- Modal pour "Lire plus" -->
-<div class="modal fade" id="newsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalTitle"></h5>
-                <button type="button" class="btn-custom-close" data-bs-dismiss="modal" aria-label="Fermer">&times;</button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Contenu dynamique -->
-            </div>
-            <div class="modal-footer">
-                <div class="w-100 d-flex justify-content-between align-items-center">
-                    <small class="text-muted" id="modalDate"></small>
-                    <div class="news-actions" id="modalActions">
-                        <!-- Boutons like/dislike -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<?php if ($singleArticle): ?>
+  <?php
+    $imgPath = '../files/_news/' . $singleArticle['img_article'];
+    $hasImg = !empty($singleArticle['img_article']) && is_file($imgPath);
+    $dateFormatted = date('d/m/Y à H\hi', strtotime($singleArticle['date_publication']));
+  ?>
 
-<!-- Footer -->
-<?php if (!empty($link_facebook) || !empty($link_instagram)) : ?>
-  <footer>
-    <div class="top-logos-footer">
-      <a href="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Ligue contre le Cancer">
-        <img src="../files/_logos/ligue-cancer-blanc.png" alt="Ligue contre le cancer">
-      </a>  
-      <?php if (!empty($link_instagram)) : ?>
-        <a href="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Instagram">
-          <img src="../files/_logos/instagram.png" alt="Instagram">
-        </a>
-      <?php endif; ?>
-      <?php if (!empty($link_facebook)) : ?>
-        <a href="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" aria-label="Facebook">
-          <img src="../files/_logos/facebook.png" alt="Facebook">
-        </a>
-      <?php endif; ?>
+  <!-- ─── Article: top bar ─── -->
+  <section class="news-hero">
+    <div class="news-reg-bar">
+      <div class="news-reg-card">
+        <div class="news-reg-bevel">
+          <a href="news.php" title="Retour" class="back-btn">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+          </a>
+        </div>
+        <h1 class="news-reg-title">Actualités</h1>
+      </div>
     </div>
-    <?php if (!empty($footer)) : ?>
-      <?= htmlspecialchars($footer) ?>
+
+    <div class="news-hero-votes">
+      <button class="hero-vote nvote-like" data-id="<?= $singleArticle['id'] ?>" onclick="handleVote(this);">
+        👍 <span class="nvote-count"><?= $singleArticle['like'] ?></span>
+      </button>
+      <button class="hero-vote nvote-dislike" data-id="<?= $singleArticle['id'] ?>" onclick="handleVote(this);">
+        👎 <span class="nvote-count"><?= $singleArticle['dislike'] ?></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ─── Article content ─── -->
+  <div class="article-detail">
+    <?php if ($hasImg): ?>
+      <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($singleArticle['title_article']) ?>" class="article-img">
     <?php endif; ?>
-  </footer>
+
+    <h2 class="article-title"><?= htmlspecialchars($singleArticle['title_article']) ?></h2>
+
+    <div class="article-meta">
+      <span class="ncard-source">Forbach en Rose</span>
+      <span class="ncard-dot">&middot;</span>
+      <span><?= $dateFormatted ?></span>
+    </div>
+
+    <div class="article-content">
+      <?= nl2br(htmlspecialchars($singleArticle['desc_article'])) ?>
+    </div>
+
+    <!-- Separator + Share -->
+    <div class="article-separator">
+      <div></div>
+      <div class="share-buttons">
+        <button class="share-btn" onclick="shareOnFacebook()" title="Partager sur Facebook">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          <span>Facebook</span>
+        </button>
+        <button class="share-btn" onclick="shareOnX()" title="Partager sur X">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          <span>X</span>
+        </button>
+        <button class="share-btn" id="copyLinkBtn" onclick="copyArticleLink()" title="Copier le lien">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Copier</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Comments section -->
+    <div class="comments-section" id="commentsSection" data-news-id="<?= $singleArticle['id'] ?>">
+      <div class="comments-header">
+        <h3>Commentaires</h3>
+        <span class="comments-count" id="commentsCount">0</span>
+      </div>
+
+      <div class="comment-msg" id="commentMsg"></div>
+
+      <div class="comment-form" id="commentForm">
+        <div class="comment-form-row">
+          <input type="text" id="commentName" placeholder="Votre nom" maxlength="100">
+        </div>
+        <textarea id="commentContent" placeholder="Ecrire un commentaire..." maxlength="2000"></textarea>
+        <div class="comment-form-actions">
+          <button class="comment-submit" onclick="submitComment()">Publier</button>
+        </div>
+      </div>
+
+      <div class="comment-list" id="commentList">
+        <div class="comments-empty">Chargement des commentaires...</div>
+      </div>
+    </div>
+  </div>
+
+<?php else: ?>
+
+  <!-- ─── Listing: top bar with search ─── -->
+  <section class="news-hero">
+    <div class="news-reg-bar">
+      <div class="news-reg-card">
+        <div class="news-reg-bevel"></div>
+        <h1 class="news-reg-title">Actualités</h1>
+      </div>
+    </div>
+
+    <div class="news-search-bar">
+      <input type="text" id="searchInput" placeholder="Rechercher une actualité..." value="<?= htmlspecialchars($search) ?>">
+      <button type="button" id="searchClear" class="news-search-clear">✕</button>
+    </div>
+  </section>
+
+  <!-- Spinner -->
+  <div class="news-spinner" id="loadingSpinner"></div>
+
+  <!-- Cards list -->
+  <div class="ncards" id="articlesContainer">
+    <?php foreach ($articles as $article): ?>
+      <?php
+        $imgPath = '../files/_news/' . $article['img_article'];
+        $hasImage = !empty($article['img_article']) && is_file($imgPath);
+        $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
+      ?>
+      <a href="news.php?id=<?= $article['id'] ?>" class="ncard">
+        <div class="ncard-img">
+          <?php if ($hasImage): ?>
+            <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
+          <?php else: ?>
+            <div class="ncard-placeholder">📰</div>
+          <?php endif; ?>
+        </div>
+        <div class="ncard-body">
+          <h3 class="ncard-title"><?= htmlspecialchars($article['title_article']) ?></h3>
+          <div class="ncard-meta">
+            <span class="ncard-source">Forbach en Rose</span>
+            <span class="ncard-dot">&middot;</span>
+            <span class="ncard-date"><?= $dateFormatted ?></span>
+          </div>
+          <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
+            <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+              👍 <span class="nvote-count"><?= $article['like'] ?></span>
+            </button>
+            <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+              👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
+            </button>
+          </div>
+        </div>
+      </a>
+    <?php endforeach; ?>
+  </div>
+
+  <!-- Pagination -->
+  <div id="paginationContainer">
+    <?php if ($totalPages > 1): ?>
+      <div class="news-pagination">
+        <?php if ($page > 1): ?>
+          <button class="pgbtn" data-page="<?= $page - 1 ?>">←</button>
+        <?php endif; ?>
+        <?php
+        $start = max(1, $page - 2);
+        $end = min($totalPages, $page + 2);
+        for ($i = $start; $i <= $end; $i++):
+        ?>
+          <button class="pgbtn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
+        <?php endfor; ?>
+        <?php if ($page < $totalPages): ?>
+          <button class="pgbtn" data-page="<?= $page + 1 ?>">→</button>
+        <?php endif; ?>
+        <span class="pginfo">Page <?= $page ?>/<?= $totalPages ?> (<?= $totalArticles ?>)</span>
+      </div>
+    <?php endif; ?>
+  </div>
+
 <?php endif; ?>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</main>
 
+<?php include '../inc/footer-modern.php'; ?>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
-// Données des articles (généré par PHP)
-let articles = <?= json_encode($articles) ?>;
+// ─── Vote system ───
+function getVoteCookie(id) {
+    const name = 'vote_' + id + '=';
+    const decoded = decodeURIComponent(document.cookie);
+    const parts = decoded.split(';');
+    for (let i = 0; i < parts.length; i++) {
+        let c = parts[i].trim();
+        if (c.indexOf(name) === 0) return c.substring(name.length);
+    }
+    return null;
+}
+function setVoteCookie(id, type) {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    document.cookie = 'vote_' + id + '=' + type + '; expires=' + d.toUTCString() + '; path=/';
+}
+
+function handleVote(btn) {
+    const id = btn.dataset.id;
+    const isLike = btn.classList.contains('nvote-like');
+    const type = isLike ? 'like' : 'dislike';
+    const currentVote = getVoteCookie(id);
+
+    if (currentVote === type) return;
+
+    btn.style.transform = 'scale(.92)';
+    setTimeout(() => { btn.style.transform = ''; }, 120);
+
+    $.ajax({
+        url: 'news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { id: id, type: type, remove: currentVote },
+        success: function(res) {
+            if (!res.success) return;
+            // Update all buttons for this article
+            document.querySelectorAll('.nvote-like[data-id="' + id + '"] .nvote-count, .hero-vote.nvote-like[data-id="' + id + '"] .nvote-count').forEach(el => el.textContent = res.count.like);
+            document.querySelectorAll('.nvote-dislike[data-id="' + id + '"] .nvote-count, .hero-vote.nvote-dislike[data-id="' + id + '"] .nvote-count').forEach(el => el.textContent = res.count.dislike);
+
+            document.querySelectorAll('[data-id="' + id + '"].nvote, [data-id="' + id + '"].hero-vote').forEach(el => el.classList.remove('voted'));
+            document.querySelectorAll('.nvote-' + type + '[data-id="' + id + '"]').forEach(el => el.classList.add('voted'));
+
+            setVoteCookie(id, type);
+        }
+    });
+}
+
+function markVotedButtons() {
+    document.querySelectorAll('.nvote[data-id], .hero-vote[data-id]').forEach(btn => {
+        const id = btn.dataset.id;
+        const type = btn.classList.contains('nvote-like') ? 'like' : 'dislike';
+        if (getVoteCookie(id) === type) btn.classList.add('voted');
+    });
+}
+
+markVotedButtons();
+
+<?php if ($singleArticle): ?>
+// ─── Comments system (article mode) ───
+var newsId = <?= $singleArticle['id'] ?>;
+
+// Restore saved name from localStorage
+(function() {
+    var saved = localStorage.getItem('comment_name');
+    if (saved) document.getElementById('commentName').value = saved;
+})();
+
+function timeAgo(dateStr) {
+    var now = new Date();
+    var date = new Date(dateStr.replace(' ', 'T'));
+    var diff = Math.floor((now - date) / 1000);
+    if (diff < 60) return 'A l\'instant';
+    if (diff < 3600) return Math.floor(diff / 60) + ' min';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' h';
+    if (diff < 2592000) return Math.floor(diff / 86400) + ' j';
+    if (diff < 31536000) return Math.floor(diff / 2592000) + ' mois';
+    return Math.floor(diff / 31536000) + ' an(s)';
+}
+
+function getLikeCookie(id) {
+    return document.cookie.split(';').some(function(c) { return c.trim().indexOf('clike_' + id + '=1') === 0; });
+}
+function setLikeCookie(id) {
+    var d = new Date(); d.setFullYear(d.getFullYear() + 1);
+    document.cookie = 'clike_' + id + '=1; expires=' + d.toUTCString() + '; path=/';
+}
+
+function renderComment(c, isReply) {
+    var initial = (c.author_name || '?').charAt(0);
+    var liked = getLikeCookie(c.id);
+    var likeCount = parseInt(c.likes) || 0;
+    var html = '<div class="comment-item" data-id="' + c.id + '">';
+    html += '<div class="comment-avatar">' + initial + '</div>';
+    html += '<div class="comment-body">';
+    html += '<div class="comment-head">';
+    html += '<span class="comment-author">' + escapeHtml(c.author_name) + '</span>';
+    html += '<span class="comment-date">' + timeAgo(c.created_at) + '</span>';
+    html += '</div>';
+    html += '<div class="comment-text">' + escapeHtml(c.content).replace(/\n/g, '<br>') + '</div>';
+    html += '<div class="comment-actions">';
+    html += '<button class="comment-action-btn' + (liked ? ' liked' : '') + '" onclick="likeComment(' + c.id + ', this)">';
+    html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="' + (liked ? 'var(--pink)' : 'none') + '" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+    html += ' <span class="like-count">' + (likeCount > 0 ? likeCount : '') + '</span>';
+    html += '</button>';
+    if (!isReply) {
+        html += '<button class="comment-action-btn" onclick="showReplyForm(' + c.id + ')">Repondre</button>';
+    }
+    html += '</div>';
+    html += '</div></div>';
+    return html;
+}
+
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+function loadComments() {
+    $.ajax({
+        url: 'news_action.php',
+        type: 'GET',
+        dataType: 'json',
+        data: { action: 'get_comments', news_id: newsId },
+        success: function(res) {
+            if (!res.success) return;
+            $('#commentsCount').text(res.total);
+            if (res.comments.length === 0) {
+                $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
+                return;
+            }
+            var html = '';
+            res.comments.forEach(function(c) {
+                html += renderComment(c, false);
+                if (c.replies && c.replies.length > 0) {
+                    html += '<div class="comment-replies">';
+                    c.replies.forEach(function(r) {
+                        html += renderComment(r, true);
+                    });
+                    html += '</div>';
+                }
+            });
+            $('#commentList').html(html);
+        }
+    });
+}
+
+function submitComment(parentId) {
+    var nameEl, contentEl, btn;
+    if (parentId) {
+        var form = document.getElementById('replyForm_' + parentId);
+        if (!form) return;
+        contentEl = form.querySelector('textarea');
+        nameEl = document.getElementById('commentName');
+        btn = form.querySelector('.reply-submit');
+    } else {
+        nameEl = document.getElementById('commentName');
+        contentEl = document.getElementById('commentContent');
+        btn = document.querySelector('.comment-submit');
+    }
+
+    var name = nameEl.value.trim();
+    var content = contentEl.value.trim();
+    if (!name || !content) {
+        showCommentMsg('Veuillez remplir tous les champs.', 'error');
+        return;
+    }
+
+    localStorage.setItem('comment_name', name);
+    btn.disabled = true;
+
+    $.ajax({
+        url: 'news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: {
+            action: 'add_comment',
+            news_id: newsId,
+            author_name: name,
+            content: content,
+            parent_id: parentId || ''
+        },
+        success: function(res) {
+            btn.disabled = false;
+            if (res.success) {
+                contentEl.value = '';
+                if (parentId) {
+                    var rf = document.getElementById('replyForm_' + parentId);
+                    if (rf) rf.remove();
+                }
+                showCommentMsg('Commentaire publie !', 'success');
+                loadComments();
+            } else {
+                showCommentMsg(res.error || 'Erreur lors de la publication.', 'error');
+            }
+        },
+        error: function() {
+            btn.disabled = false;
+            showCommentMsg('Erreur de connexion.', 'error');
+        }
+    });
+}
+
+function showReplyForm(commentId) {
+    // Remove any existing reply form
+    document.querySelectorAll('.reply-form-inline').forEach(function(el) { el.remove(); });
+
+    var commentEl = document.querySelector('.comment-item[data-id="' + commentId + '"]');
+    if (!commentEl) return;
+
+    var savedName = localStorage.getItem('comment_name') || '';
+    var form = document.createElement('div');
+    form.className = 'reply-form-inline';
+    form.id = 'replyForm_' + commentId;
+    form.innerHTML = '<textarea placeholder="Votre reponse..." maxlength="2000"></textarea>'
+        + '<div class="reply-form-actions">'
+        + '<button class="reply-cancel" onclick="this.closest(\'.reply-form-inline\').remove()">Annuler</button>'
+        + '<button class="reply-submit" onclick="submitComment(' + commentId + ')">Repondre</button>'
+        + '</div>';
+
+    // Insert after the comment item (or after replies block)
+    var next = commentEl.nextElementSibling;
+    if (next && next.classList.contains('comment-replies')) {
+        next.after(form);
+    } else {
+        commentEl.after(form);
+    }
+    form.querySelector('textarea').focus();
+}
+
+function likeComment(commentId, btn) {
+    if (getLikeCookie(commentId)) return;
+
+    $.ajax({
+        url: 'news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { action: 'like_comment', comment_id: commentId },
+        success: function(res) {
+            if (res.success) {
+                setLikeCookie(commentId);
+                btn.classList.add('liked');
+                btn.querySelector('svg').setAttribute('fill', 'var(--pink)');
+                btn.querySelector('.like-count').textContent = res.likes;
+            }
+        }
+    });
+}
+
+function showCommentMsg(msg, type) {
+    var el = document.getElementById('commentMsg');
+    el.textContent = msg;
+    el.className = 'comment-msg ' + type;
+    setTimeout(function() { el.className = 'comment-msg'; el.textContent = ''; }, 4000);
+}
+
+// ─── Share functions ───
+function shareOnFacebook() {
+    var url = encodeURIComponent(window.location.href);
+    window.open('https://www.facebook.com/sharer/sharer.php?u=' + url, '_blank', 'width=600,height=400');
+}
+function shareOnX() {
+    var url = encodeURIComponent(window.location.href);
+    var title = encodeURIComponent(document.querySelector('.article-title').textContent);
+    window.open('https://x.com/intent/tweet?url=' + url + '&text=' + title, '_blank', 'width=600,height=400');
+}
+function copyArticleLink() {
+    navigator.clipboard.writeText(window.location.href).then(function() {
+        var btn = document.getElementById('copyLinkBtn');
+        btn.classList.add('copied');
+        var spanEl = btn.querySelector('span');
+        if (spanEl) spanEl.textContent = 'Copie !';
+        setTimeout(function() {
+            btn.classList.remove('copied');
+            if (spanEl) spanEl.textContent = 'Copier';
+        }, 2000);
+    });
+}
+
+// Load comments on page load
+loadComments();
+
+<?php endif; ?>
+
+<?php if (!$singleArticle): ?>
+// ─── Search & AJAX (listing mode only) ───
 let currentPage = <?= $page ?>;
 let searchTimeout;
 
-// Fonction pour formater la date
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR');
-}
-
-// Fonction pour ouvrir le modal
-function openModal(articleId) {
-    const article = articles.find(a => a.id == articleId);
-    if (!article) return;
-
-    document.getElementById('modalTitle').textContent = article.title_article;
-    document.getElementById('modalDate').textContent = formatDate(article.date_publication);
-    
-    const modalBody = document.getElementById('modalBody');
-    let imgHtml = '';
-    
-    if (article.img_article) {
-        const imgPath = '../files/_news/' + article.img_article;
-        imgHtml = `<img src="${imgPath}" alt="${article.title_article}" class="modal-img">`;
-    }
-    
-    modalBody.innerHTML = `
-        ${imgHtml}
-        <p>${article.desc_article.replace(/\n/g, '<br>')}</p>
-    `;
-
-    const modalActions = document.getElementById('modalActions');
-    modalActions.innerHTML = `
-        <button class="btn-feedback btn-like" data-id="${article.id}">
-            👍<span class="count-badge like-count">${article.like}</span>
-        </button>
-        <button class="btn-feedback btn-dislike" data-id="${article.id}">
-            👎<span class="count-badge dislike-count">${article.dislike}</span>
-        </button>
-    `;
-
-    const modal = new bootstrap.Modal(document.getElementById('newsModal'));
-    modal.show();
-}
-
-// Fonction pour récupérer les articles avec AJAX
-function fetchArticles(page = 1) {
+function fetchArticles(page) {
     const search = $('#searchInput').val().trim();
-    
-    // Afficher le spinner
     $('#loadingSpinner').addClass('show');
-    $('#articlesContainer').addClass('loading');
-    
-    $.get('', { 
-        ajax: 1, 
-        search: search,
-        page: page 
-    }, function(response) {
-        const data = JSON.parse(response);
-        
-        // Mettre à jour le contenu
-        $('#articlesContainer').html(data.content);
-        $('#paginationContainer').html(data.pagination);
-        
-        // Mettre à jour les données JavaScript
-        articles = data.articles;
-        currentPage = page;
-        
-        // Cacher le spinner
-        $('#loadingSpinner').removeClass('show');
-        $('#articlesContainer').removeClass('loading');
-        
-        // Marquer les boutons votés
-        markVotedButtons();
-        
-        // Mettre à jour le bouton clear
-        updateClearButton();
-        
-        // Scroll vers le haut si ce n'est pas la première page
-        if (page > 1) {
-            $('html, body').animate({
-                scrollTop: $('.news-section').offset().top - 100
-            }, 500);
+    $('#articlesContainer').css('opacity', '.4');
+
+    $.ajax({
+        url: 'news.php',
+        type: 'GET',
+        dataType: 'json',
+        data: { ajax: 1, search: search, page: page },
+        success: function(data) {
+            $('#articlesContainer').html(data.content).css('opacity', '1');
+            $('#paginationContainer').html(data.pagination);
+            currentPage = page;
+            $('#loadingSpinner').removeClass('show');
+            markVotedButtons();
+            updateClear();
+            if (page > 1) {
+                $('html, body').animate({ scrollTop: $('.news-hero').offset().top - 100 }, 400);
+            }
+        },
+        error: function() {
+            $('#loadingSpinner').removeClass('show');
+            $('#articlesContainer').css('opacity', '1');
         }
-    }).fail(function() {
-        $('#loadingSpinner').removeClass('show');
-        $('#articlesContainer').removeClass('loading');
-        alert('Erreur lors du chargement des articles');
     });
 }
 
-// Fonction pour mettre à jour le bouton clear
-function updateClearButton() {
-    const search = $('#searchInput').val().trim();
-    if (search) {
-        $('#searchClear').addClass('show');
-    } else {
-        $('#searchClear').removeClass('show');
-    }
+function updateClear() {
+    const v = $('#searchInput').val().trim();
+    $('#searchClear').toggleClass('show', v.length > 0);
 }
 
-$(document).ready(function() {
-    // Mettre à jour le bouton clear au chargement
-    updateClearButton();
-    
-    // Gestion de la recherche avec debounce
+$(function() {
+    updateClear();
+
     $('#searchInput').on('input', function() {
         clearTimeout(searchTimeout);
-        const search = $(this).val().trim();
-        
-        searchTimeout = setTimeout(function() {
-            fetchArticles(1);
-        }, 300);
-        
-        updateClearButton();
+        searchTimeout = setTimeout(function() { fetchArticles(1); }, 300);
+        updateClear();
     });
 
-    // Bouton clear search
     $('#searchClear').on('click', function() {
         $('#searchInput').val('');
-        updateClearButton();
+        updateClear();
         fetchArticles(1);
     });
 
-    // Gestion de la pagination
-    $(document).on('click', '.pagination-btn', function() {
-        const page = $(this).data('page');
-        if (page && page !== currentPage) {
-            fetchArticles(page);
-        }
-    });
-
-    // Gestion des votes avec cookies
-    function getVoteCookie(articleId) {
-        const name = `vote_${articleId}=`;
-        const decodedCookie = decodeURIComponent(document.cookie);
-        const ca = decodedCookie.split(';');
-        for (let i = 0; i < ca.length; i++) {
-            let c = ca[i].trim();
-            if (c.indexOf(name) === 0) {
-                return c.substring(name.length, c.length);
-            }
-        }
-        return null;
-    }
-
-    function setVoteCookie(articleId, type) {
-        const d = new Date();
-        d.setFullYear(d.getFullYear() + 1);
-        document.cookie = `vote_${articleId}=${type}; expires=${d.toUTCString()}; path=/`;
-    }
-
-    // Marquer les boutons déjà votés
-    function markVotedButtons() {
-        $('.btn-like, .btn-dislike').each(function() {
-            const id = $(this).data('id');
-            const type = $(this).hasClass('btn-like') ? 'like' : 'dislike';
-            const currentVote = getVoteCookie(id);
-            
-            if (currentVote === type) {
-                $(this).addClass('voted');
-            }
-        });
-    }
-
-    // Appeler au chargement
-    markVotedButtons();
-
-    // Gestion des clics sur les boutons like/dislike
-    $(document).on('click', '.btn-like, .btn-dislike', function() {
-        const id = $(this).data('id');
-        const type = $(this).hasClass('btn-like') ? 'like' : 'dislike';
-        const opposite = type === 'like' ? 'dislike' : 'like';
-        const currentVote = getVoteCookie(id);
-
-        if (currentVote === type) {
-            return; // Déjà voté
-        }
-
-        // Animation de clic
-        $(this).css('transform', 'scale(0.95)');
-        setTimeout(() => {
-            $(this).css('transform', 'scale(1)');
-        }, 100);
-
-        $.ajax({
-            url: 'news_action.php',
-            type: 'POST',
-            dataType: 'json',
-            data: { id: id, type: type, remove: currentVote },
-            success: function(res) {
-                if (res.success) {
-                    // Mettre à jour tous les compteurs pour cet article
-                    $(`.btn-${type}[data-id="${id}"] .count-badge`).text(res.count[type]);
-                    if (currentVote) {
-                        $(`.btn-${opposite}[data-id="${id}"] .count-badge`).text(res.count[opposite]);
-                    }
-                    
-                    // Mettre à jour les styles
-                    $(`.btn-feedback[data-id="${id}"]`).removeClass('voted');
-                    $(`.btn-${type}[data-id="${id}"]`).addClass('voted');
-                    
-                    setVoteCookie(id, type);
-                } else {
-                    alert(res.error || "Erreur serveur.");
-                }
-            },
-            error: function() {
-                alert("Erreur AJAX.");
-            }
-        });
-    });
-
-    // Remarquer les boutons après un chargement AJAX
-    $(document).ajaxComplete(function() {
-        markVotedButtons();
+    $(document).on('click', '.pgbtn', function() {
+        const p = $(this).data('page');
+        if (p && p !== currentPage) fetchArticles(p);
     });
 });
+<?php endif; ?>
 </script>
+
+<script src="../js/fer-modern.js"></script>
 
 </body>
 </html>
