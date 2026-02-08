@@ -12,7 +12,10 @@ $stmt->execute(['id' => 1]);
 
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$footer= $data['footer'] ?? ''; 
+$footer= $data['footer'] ?? '';
+
+// Charger les données pour la navbar
+require 'navbar-data.php'; 
 
 if (isset($_POST['add_news'])) {
     $title = $_POST['title_article'];
@@ -78,7 +81,7 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
@@ -110,7 +113,7 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
 
 <body class="d-flex flex-column">
 
-<?php include '../inc/nav-settings.php'; ?>
+<?php include 'navbar-admin.php'; ?>
 
 <div class="container py-4">
   <h1 class="mb-3 fw-bold">Actualités</h1>
@@ -143,31 +146,47 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
       <div class="modal fade" id="modalEditNews<?= $n['id'] ?>" tabindex="-1">
         <div class="modal-dialog modal-lg">
           <div class="modal-content p-4">
-            <form method="post" enctype="multipart/form-data">
-              <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
-              <div class="modal-header">
-                <h5 class="modal-title">Modifier l’article</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body row g-3">
-                <div class="col-md-6">
-                  <label>Titre</label>
-                  <input type="text" name="title_article" class="form-control" value="<?= htmlspecialchars($n['title_article']) ?>" required>
+            <div class="modal-header">
+              <h5 class="modal-title">Modifier l'article</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabContent<?= $n['id'] ?>">Contenu</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabComments<?= $n['id'] ?>" onclick="loadAdminComments(<?= $n['id'] ?>)">Commentaires</a></li>
+              </ul>
+              <div class="tab-content">
+                <!-- Onglet Contenu -->
+                <div class="tab-pane fade show active" id="tabContent<?= $n['id'] ?>">
+                  <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label>Titre</label>
+                        <input type="text" name="title_article" class="form-control" value="<?= htmlspecialchars($n['title_article']) ?>" required>
+                      </div>
+                      <div class="col-md-6">
+                        <label>Image (laisser vide pour conserver)</label>
+                        <input type="file" name="img_article" class="form-control">
+                      </div>
+                      <div class="col-md-12">
+                        <label>Description</label>
+                        <textarea class="form-control tinymce-editor" name="desc_article" rows="6"><?= htmlspecialchars($n['desc_article']) ?></textarea>
+                      </div>
+                    </div>
+                    <div class="mt-3 text-end">
+                      <button type="submit" name="update_news" class="btn btn-success">Mettre à jour</button>
+                    </div>
+                  </form>
                 </div>
-                <div class="col-md-6">
-                  <label>Image (laisser vide pour conserver)</label>
-                  <input type="file" name="img_article" class="form-control">
-                </div>
-                <div class="col-md-12">
-                    <!-- Textarea avec TinyMCE -->
-                    <label>Description</label>
-                    <textarea class="form-control" id="desc_article" name="desc_article" rows="6" ><?= htmlspecialchars($n['desc_article']) ?></textarea>
+                <!-- Onglet Commentaires -->
+                <div class="tab-pane fade" id="tabComments<?= $n['id'] ?>">
+                  <div id="adminCommentsList<?= $n['id'] ?>" class="admin-comments-list">
+                    <p class="text-muted text-center py-4">Cliquez sur l'onglet pour charger les commentaires...</p>
+                  </div>
                 </div>
               </div>
-              <div class="modal-footer">
-                <button type="submit" name="update_news" class="btn btn-success">Mettre à jour</button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       </div>
@@ -281,8 +300,9 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
     </script>
 <!-- ############################ Description ############################ -->
 
-<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+<?php include 'footer-modern.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/fer-modern.js"></script>
 </body>
 </html>

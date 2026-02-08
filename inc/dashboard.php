@@ -3,6 +3,9 @@ require '../config/config.php';
 requireRole(['admin','user','viewer']);
 $role = currentRole();
 
+// Charger les données pour la navbar
+require 'navbar-data.php';
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -35,7 +38,7 @@ if (isset($_SESSION['flash_message'])) {
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/forbach-style.css" rel="stylesheet">
+<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <!-- TinyMCE pour l'éditeur de texte enrichi -->
@@ -200,7 +203,7 @@ tr.filters select{
 
 <body class="d-flex flex-column">
 
-<?php include '../inc/nav-settings.php'; ?>
+<?php include 'navbar-admin.php'; ?>
 
 <!-- ═════════ MAIN ═════════ -->
 <main class="container-fluid flex-grow-1">
@@ -285,7 +288,7 @@ tr.filters select{
   </div>
 </main>
 
-<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
+<?php include 'footer-modern.php'; ?>
 
 <!-- ═════════ MODALES ═════════ -->
 <!-- Modal d'envoi de mail -->
@@ -1248,5 +1251,6 @@ $('#logout, #logout_m').on('click',e=>{
   fetch('../config/api.php?route=logout').then(()=>location='../login.php');
 });
 </script>
+<script src="../js/fer-modern.js"></script>
 </body>
 </html>
