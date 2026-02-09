@@ -2933,7 +2933,7 @@ $link_cancer = $data['link_cancer'] ?? null;
                       <?php if (!empty($actualites)): ?>
                         <?php foreach ($actualites as $actu): ?>
                           <li>
-                            <a class="mega-link" href="actualite.php?id=<?= $actu['id'] ?>">
+                            <a class="mega-link" href="news.php?id=<?= $actu['id'] ?>">
                               <span class="micon">📰</span>
                               <div class="mega-link-content">
                                 <div class="mtitle"><?= htmlspecialchars($actu['title']) ?></div>
@@ -3212,7 +3212,7 @@ $link_cancer = $data['link_cancer'] ?? null;
               <div class="mobile-menu-body">
                 <?php if (!empty($actualites)): ?>
                   <?php foreach ($actualites as $actu): ?>
-                    <a class="mobile-menu-sublink" href="actualite.php?id=<?= $actu['id'] ?>">
+                    <a class="mobile-menu-sublink" href="news.php?id=<?= $actu['id'] ?>">
                       <span class="menu-bullet" aria-hidden="true"></span>
                       <?= htmlspecialchars($actu['title']) ?>
                     </a>
@@ -3592,7 +3592,7 @@ $link_cancer = $data['link_cancer'] ?? null;
                 }
               }
             ?>
-            <a class="news-card" href="actualite.php?id=<?= $actu['id'] ?>">
+            <a class="news-card" href="news.php?id=<?= $actu['id'] ?>">
               <div class="news-body">
                 <span class="news-kicker">Actualité</span>
                 <span class="news-title"><?= htmlspecialchars($actu['title']) ?></span>
