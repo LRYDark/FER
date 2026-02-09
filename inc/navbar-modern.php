@@ -75,7 +75,7 @@
                     <?php if (!empty($actualites)): ?>
                       <?php foreach ($actualites as $actu): ?>
                         <li>
-                          <a class="mega-link" href="actualite.php?id=<?= $actu['id'] ?>">
+                          <a class="mega-link" href="news.php?id=<?= $actu['id'] ?>">
                             <span class="micon">📰</span>
                             <div class="mega-link-content">
                               <div class="mtitle"><?= htmlspecialchars($actu['title']) ?></div>
