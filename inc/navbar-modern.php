@@ -354,7 +354,7 @@
             <div class="mobile-menu-body">
               <?php if (!empty($actualites)): ?>
                 <?php foreach ($actualites as $actu): ?>
-                  <a class="mobile-menu-sublink" href="actualite.php?id=<?= $actu['id'] ?>">
+                  <a class="mobile-menu-sublink" href="news.php?id=<?= $actu['id'] ?>">
                     <span class="menu-bullet" aria-hidden="true"></span>
                     <?= htmlspecialchars($actu['title']) ?>
                   </a>
