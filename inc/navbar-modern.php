@@ -8,6 +8,11 @@
  */
 ?>
 
+<!-- Theme: apply saved preference immediately to avoid flash -->
+<script>
+(function(){var t=localStorage.getItem('fer-theme');if(t==='dark')document.body.classList.add('dark-theme');})();
+</script>
+
 <!-- NAV -->
 <header class="floating-nav" id="navRoot">
   <div class="mega-overlay" id="megaOverlay"></div>
