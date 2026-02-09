@@ -169,7 +169,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       gap: 16px;
     }
     @media (max-width: 980px) {
-      .news-hero { margin-top: 36px; }
+      .news-hero { margin-top: 16px; }
     }
 
     .news-reg-bar { width: min(100%, 530px); flex-shrink: 0; }

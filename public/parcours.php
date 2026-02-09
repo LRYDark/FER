@@ -159,7 +159,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       .parcours-hero {
         grid-template-columns: 1fr;
         gap: 40px;
-        margin-top: 40px;
+        margin-top: 16px;
       }
 
       .masonry {

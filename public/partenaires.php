@@ -261,6 +261,113 @@ if ($selectedYearId) {
       pointer-events: auto !important;
     }
 
+    /* ─── Mobile: theme sombre ─── */
+    .mobile-header {
+      background: rgba(10,14,18,0.92) !important;
+    }
+    .mobile-header .brand-logo {
+      filter: brightness(0) invert(1);
+    }
+
+    .mobile-bottom-unified {
+      background: #141a20 !important;
+      box-shadow: 0 8px 18px rgba(0,0,0,.4) !important;
+    }
+    .mobile-bottom-bar.menu-open .mobile-bottom-unified {
+      box-shadow: 0 20px 80px rgba(0,0,0,.5) !important;
+    }
+
+    .mobile-bottom-btn {
+      color: #ffffff !important;
+    }
+    #mobileMenuBtn {
+      background: rgba(255,255,255,.08) !important;
+    }
+    .mobile-bottom-btn:hover,
+    .mobile-bottom-btn:active {
+      background: rgba(255,255,255,.1) !important;
+    }
+
+    .mobile-bottom-cta-inner {
+      color: #ffffff !important;
+      border-left-color: rgba(255,255,255,.1) !important;
+    }
+    .mobile-bottom-cta-inner:hover {
+      background: rgba(255,255,255,.06) !important;
+    }
+
+    .mobile-bottom-bar.menu-open .mobile-bottom-actions,
+    .mobile-bottom-bar.menu-closing .mobile-bottom-actions {
+      border-top-color: rgba(255,255,255,.1) !important;
+    }
+
+    /* Menu panel sombre */
+    .mobile-menu-title {
+      color: #ffffff !important;
+    }
+    .mobile-menu-back {
+      background: rgba(255,255,255,.08) !important;
+      color: rgba(255,255,255,.6) !important;
+    }
+    .mobile-menu-back:hover {
+      background: rgba(255,255,255,.15) !important;
+      color: #ffffff !important;
+    }
+    .mobile-menu-close {
+      background: rgba(255,255,255,.08) !important;
+      color: rgba(255,255,255,.55) !important;
+    }
+    .mobile-menu-close:hover {
+      background: rgba(255,255,255,.15) !important;
+      color: #ffffff !important;
+    }
+
+    .mobile-menu-trigger {
+      color: #ffffff !important;
+    }
+    .mobile-menu-trigger svg {
+      color: #ffffff !important;
+    }
+    .mobile-menu-trigger:hover {
+      background: rgba(255,255,255,.06) !important;
+    }
+    .mobile-menu-icon {
+      color: #ffffff !important;
+      background: rgba(236,72,153,.15) !important;
+    }
+
+    .mobile-menu-sublink {
+      color: rgba(255,255,255,.7) !important;
+    }
+    .mobile-menu-sublink:hover {
+      background: rgba(255,255,255,.06) !important;
+      color: #ffffff !important;
+    }
+
+    .mobile-menu-see-all {
+      background: rgba(255,255,255,.06) !important;
+      color: #ffffff !important;
+    }
+    .mobile-menu-see-all:hover {
+      background: rgba(255,255,255,.1) !important;
+    }
+
+    .mobile-menu-footer {
+      border-top-color: rgba(255,255,255,.08) !important;
+    }
+    .mobile-menu-footer-btn {
+      background: rgba(255,255,255,.06) !important;
+      color: rgba(255,255,255,.55) !important;
+    }
+    .mobile-menu-footer-btn:hover {
+      background: rgba(255,255,255,.1) !important;
+      color: #ffffff !important;
+    }
+
+    .mobile-menu-backdrop.open {
+      background: rgba(0,0,0,.5) !important;
+    }
+
     /* Hero section */
     .partners-hero {
       width: 100%;
@@ -552,7 +659,7 @@ if ($selectedYearId) {
 
     @media (max-width: 980px) {
       .partners-hero {
-        margin: 100px auto 60px;
+        margin: 16px auto 60px;
       }
 
       .partners-hero h1 {
