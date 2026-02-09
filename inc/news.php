@@ -212,9 +212,8 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
               <input type="file" name="img_article" class="form-control">
             </div>
             <div class="col-md-12">
-                <!-- Textarea avec TinyMCE -->
                 <label>Description</label>
-                <textarea class="form-control" id="desc_article" name="desc_article" rows="6" ></textarea>
+                <textarea class="form-control tinymce-editor" name="desc_article" rows="6"></textarea>
             </div>
           </div>
           <div class="modal-footer">
@@ -235,12 +234,50 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
         .tox-tinymce {
             border-radius: 0.375rem !important;
         }
+        /* Admin comments list */
+        .admin-comment {
+            display: flex; gap: 12px; padding: 12px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .admin-comment:last-child { border-bottom: none; }
+        .admin-comment-body { flex: 1; min-width: 0; }
+        .admin-comment-head {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 4px; flex-wrap: wrap;
+        }
+        .admin-comment-author { font-weight: 700; font-size: 14px; }
+        .admin-comment-ip {
+            font-size: 12px; color: #6c757d;
+            font-family: monospace; background: #f1f3f5;
+            padding: 1px 6px; border-radius: 4px;
+        }
+        .admin-comment-date { font-size: 12px; color: #adb5bd; }
+        .admin-comment-text {
+            font-size: 13px; color: #495057;
+            margin-bottom: 6px; word-break: break-word;
+        }
+        .admin-comment-meta {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; color: #adb5bd;
+        }
+        .admin-comment-actions {
+            display: flex; gap: 4px; align-items: center;
+            flex-shrink: 0;
+        }
+        .admin-comment-actions .btn { padding: 4px 8px; font-size: 12px; }
+        .badge-banned {
+            background: #dc3545; color: #fff;
+            font-size: 11px; padding: 2px 8px; border-radius: 4px;
+        }
+        .admin-comments-spinner {
+            text-align: center; padding: 24px 0; color: #adb5bd;
+        }
     </style>
     <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
         tinymce.init({
-            selector: '#desc_article',
+            selector: '.tinymce-editor',
             plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
             toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
             height: 500,
@@ -302,7 +339,125 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
 
 <?php include 'footer-modern.php'; ?>
 
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../js/fer-modern.js"></script>
+<script>
+// ─── Admin Comments Management ───
+function loadAdminComments(newsId) {
+    var container = document.getElementById('adminCommentsList' + newsId);
+    if (!container) return;
+    container.innerHTML = '<div class="admin-comments-spinner"><div class="spinner-border spinner-border-sm" role="status"></div> Chargement...</div>';
+
+    $.ajax({
+        url: '../public/news_action.php',
+        type: 'GET',
+        dataType: 'json',
+        data: { action: 'get_admin_comments', news_id: newsId },
+        success: function(res) {
+            if (!res.success) {
+                container.innerHTML = '<p class="text-danger text-center py-3">Erreur : ' + (res.error || 'Impossible de charger') + '</p>';
+                return;
+            }
+            if (res.comments.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-4">Aucun commentaire pour cet article.</p>';
+                return;
+            }
+            var html = '';
+            res.comments.forEach(function(c) {
+                html += '<div class="admin-comment" data-id="' + c.id + '">';
+                html += '<div class="admin-comment-body">';
+                html += '<div class="admin-comment-head">';
+                html += '<span class="admin-comment-author">' + escHtml(c.author_name) + '</span>';
+                html += '<span class="admin-comment-ip">' + escHtml(c.ip_address) + '</span>';
+                if (c.is_banned) {
+                    html += '<span class="badge-banned">IP bannie</span>';
+                }
+                if (c.parent_id) {
+                    html += '<span class="badge bg-secondary" style="font-size:10px;">Reponse</span>';
+                }
+                html += '</div>';
+                html += '<div class="admin-comment-text">' + escHtml(c.content) + '</div>';
+                html += '<div class="admin-comment-meta">';
+                html += '<span>' + c.created_at + '</span>';
+                html += '<span><i class="bi bi-heart-fill"></i> ' + c.likes + '</span>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="admin-comment-actions">';
+                html += '<button class="btn btn-outline-danger btn-sm" title="Supprimer" onclick="deleteAdminComment(' + c.id + ', ' + newsId + ')"><i class="bi bi-trash"></i></button>';
+                if (!c.is_banned) {
+                    html += '<button class="btn btn-outline-warning btn-sm" title="Bannir IP" onclick="banAdminIP(\'' + escHtml(c.ip_address) + '\', ' + newsId + ')"><i class="bi bi-shield-x"></i></button>';
+                } else {
+                    html += '<button class="btn btn-outline-success btn-sm" title="Debannir IP" onclick="unbanAdminIP(\'' + escHtml(c.ip_address) + '\', ' + newsId + ')"><i class="bi bi-shield-check"></i></button>';
+                }
+                html += '</div>';
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        },
+        error: function() {
+            container.innerHTML = '<p class="text-danger text-center py-3">Erreur de connexion.</p>';
+        }
+    });
+}
+
+function deleteAdminComment(commentId, newsId) {
+    if (!confirm('Supprimer ce commentaire et ses reponses ?')) return;
+    $.ajax({
+        url: '../public/news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { action: 'delete_comment', comment_id: commentId },
+        success: function(res) {
+            if (res.success) {
+                loadAdminComments(newsId);
+            } else {
+                alert('Erreur : ' + (res.error || 'Impossible de supprimer'));
+            }
+        }
+    });
+}
+
+function banAdminIP(ip, newsId) {
+    var reason = prompt('Raison du bannissement (optionnel) :');
+    if (reason === null) return;
+    $.ajax({
+        url: '../public/news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { action: 'ban_ip', ip_address: ip, reason: reason },
+        success: function(res) {
+            if (res.success) {
+                loadAdminComments(newsId);
+            } else {
+                alert('Erreur : ' + (res.error || 'Impossible de bannir'));
+            }
+        }
+    });
+}
+
+function unbanAdminIP(ip, newsId) {
+    if (!confirm('Debannir cette IP ?')) return;
+    $.ajax({
+        url: '../public/news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { action: 'unban_ip', ip_address: ip },
+        success: function(res) {
+            if (res.success) {
+                loadAdminComments(newsId);
+            } else {
+                alert('Erreur : ' + (res.error || 'Impossible de debannir'));
+            }
+        }
+    });
+}
+
+function escHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str || ''));
+    return div.innerHTML;
+}
+</script>
 </body>
 </html>

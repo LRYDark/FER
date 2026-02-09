@@ -71,6 +71,15 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $articles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Comptage des commentaires par article
+$commentCounts = [];
+try {
+    $stmtCC = $pdo->query('SELECT news_id, COUNT(*) as cnt FROM news_comments GROUP BY news_id');
+    foreach ($stmtCC->fetchAll(PDO::FETCH_ASSOC) as $ccRow) {
+        $commentCounts[(int)$ccRow['news_id']] = (int)$ccRow['cnt'];
+    }
+} catch (Exception $e) {}
+
 // Traitement AJAX
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     header('Content-Type: application/json');
@@ -80,6 +89,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
+        $nbComments = $commentCounts[$article['id']] ?? 0;
         ?>
         <a href="news.php?id=<?= $article['id'] ?>" class="ncard">
             <div class="ncard-img">
@@ -96,13 +106,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     <span class="ncard-dot">&middot;</span>
                     <span class="ncard-date"><?= $dateFormatted ?></span>
                 </div>
-                <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
-                    <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
-                        👍 <span class="nvote-count"><?= $article['like'] ?></span>
-                    </button>
-                    <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
-                        👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
-                    </button>
+                <div class="ncard-bottom">
+                    <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
+                        <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                            👍 <span class="nvote-count"><?= $article['like'] ?></span>
+                        </button>
+                        <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                            👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
+                        </button>
+                    </div>
+                    <span class="ncard-comments-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <?= $nbComments ?></span>
                 </div>
             </div>
         </a>
@@ -309,9 +322,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .ncard-source { color: var(--pink); font-weight: 600; }
     .ncard-dot { font-size: 8px; }
-    .ncard-votes {
-      display: flex; gap: 6px; margin-top: 2px;
+    .ncard-bottom {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-top: 2px;
     }
+    .ncard-votes {
+      display: flex; gap: 6px;
+    }
+    .ncard-comments-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; font-weight: 600;
+      color: rgba(15,23,42,.4);
+      white-space: nowrap;
+    }
+    .ncard-comments-badge svg { opacity: .6; }
     .nvote {
       display: inline-flex; align-items: center; gap: 3px;
       padding: 3px 8px;
@@ -523,6 +547,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .comment-actions {
       display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap;
     }
     .comment-action-btn {
       display: inline-flex; align-items: center; gap: 4px;
@@ -537,6 +562,26 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .comment-action-btn:hover { color: var(--page-text); background: rgba(15,23,42,.05); }
     .comment-action-btn.liked { color: var(--pink); }
     .comment-action-btn .like-count { font-weight: 700; }
+
+    /* Toggle replies button */
+    .comment-toggle-replies {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px;
+      background: none; border: none;
+      border-radius: 6px;
+      font-size: 12.5px; font-weight: 600;
+      color: var(--pink);
+      cursor: pointer;
+      transition: background .15s;
+      margin-left: auto;
+    }
+    .comment-toggle-replies:hover { background: rgba(236,72,153,.06); }
+    .toggle-replies-arrow {
+      transition: transform .2s;
+    }
+    .comment-toggle-replies.open .toggle-replies-arrow {
+      transform: rotate(180deg);
+    }
 
     /* Replies */
     .comment-replies {
@@ -605,9 +650,46 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       font-size: 13px; font-weight: 500;
       margin-bottom: 12px;
       display: none;
+      white-space: pre-line;
     }
     .comment-msg.error { display: block; background: rgba(239,68,68,.08); color: #dc2626; border: 1px solid rgba(239,68,68,.15); }
     .comment-msg.success { display: block; background: rgba(16,185,129,.08); color: #059669; border: 1px solid rgba(16,185,129,.15); }
+
+    /* @Mentions */
+    .comment-mention {
+      color: var(--pink);
+      font-weight: 700;
+      cursor: default;
+    }
+    .mention-dropdown {
+      position: absolute;
+      z-index: 999;
+      background: #fff;
+      border: 1px solid rgba(15,23,42,.12);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.10);
+      max-height: 160px;
+      overflow-y: auto;
+      display: none;
+      min-width: 140px;
+    }
+    .mention-dropdown.show { display: block; }
+    .mention-item {
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--page-text);
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .mention-item:first-child { border-radius: 10px 10px 0 0; }
+    .mention-item:last-child { border-radius: 0 0 10px 10px; }
+    .mention-item:only-child { border-radius: 10px; }
+    .mention-item:hover,
+    .mention-item.active {
+      background: rgba(236,72,153,.08);
+      color: var(--pink);
+    }
 
     .comments-empty {
       text-align: center; padding: 32px 16px;
@@ -716,8 +798,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         </div>
       </div>
 
+      <div class="mention-dropdown" id="mentionDropdown"></div>
+
       <div class="comment-list" id="commentList">
         <div class="comments-empty">Chargement des commentaires...</div>
+      </div>
+      <div id="commentsLoadMore" style="text-align:center;padding:16px 0;display:none;">
+        <div class="spinner-border spinner-border-sm" style="color:var(--pink);width:20px;height:20px;" role="status"></div>
       </div>
     </div>
   </div>
@@ -749,6 +836,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
+        $nbComments = $commentCounts[$article['id']] ?? 0;
       ?>
       <a href="news.php?id=<?= $article['id'] ?>" class="ncard">
         <div class="ncard-img">
@@ -765,13 +853,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             <span class="ncard-dot">&middot;</span>
             <span class="ncard-date"><?= $dateFormatted ?></span>
           </div>
-          <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
-            <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
-              👍 <span class="nvote-count"><?= $article['like'] ?></span>
-            </button>
-            <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
-              👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
-            </button>
+          <div class="ncard-bottom">
+            <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
+              <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                👍 <span class="nvote-count"><?= $article['like'] ?></span>
+              </button>
+              <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
+              </button>
+            </div>
+            <span class="ncard-comments-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <?= $nbComments ?></span>
           </div>
         </div>
       </a>
@@ -894,8 +985,11 @@ function setLikeCookie(id) {
     var d = new Date(); d.setFullYear(d.getFullYear() + 1);
     document.cookie = 'clike_' + id + '=1; expires=' + d.toUTCString() + '; path=/';
 }
+function removeLikeCookie(id) {
+    document.cookie = 'clike_' + id + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+}
 
-function renderComment(c, isReply) {
+function renderComment(c, isReply, replyCount) {
     var initial = (c.author_name || '?').charAt(0);
     var liked = getLikeCookie(c.id);
     var likeCount = parseInt(c.likes) || 0;
@@ -906,7 +1000,7 @@ function renderComment(c, isReply) {
     html += '<span class="comment-author">' + escapeHtml(c.author_name) + '</span>';
     html += '<span class="comment-date">' + timeAgo(c.created_at) + '</span>';
     html += '</div>';
-    html += '<div class="comment-text">' + escapeHtml(c.content).replace(/\n/g, '<br>') + '</div>';
+    html += '<div class="comment-text">' + highlightMentions(escapeHtml(c.content)).replace(/\n/g, '<br>') + '</div>';
     html += '<div class="comment-actions">';
     html += '<button class="comment-action-btn' + (liked ? ' liked' : '') + '" onclick="likeComment(' + c.id + ', this)">';
     html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="' + (liked ? 'var(--pink)' : 'none') + '" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
@@ -914,6 +1008,12 @@ function renderComment(c, isReply) {
     html += '</button>';
     if (!isReply) {
         html += '<button class="comment-action-btn" onclick="showReplyForm(' + c.id + ')">Repondre</button>';
+        if (replyCount > 0) {
+            html += '<button class="comment-toggle-replies" onclick="toggleReplies(' + c.id + ', this)">';
+            html += '<span class="toggle-replies-count">' + replyCount + ' reponse' + (replyCount > 1 ? 's' : '') + '</span>';
+            html += '<svg class="toggle-replies-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+            html += '</button>';
+        }
     }
     html += '</div>';
     html += '</div></div>';
@@ -926,33 +1026,222 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-function loadComments() {
+function highlightMentions(html) {
+    return html.replace(/@([\w\u00C0-\u024F\-\.]+)/g, '<span class="comment-mention">@$1</span>');
+}
+
+// ─── @Mention autocomplete ───
+var mentionNames = [];
+var mentionActive = false;
+var mentionStart = -1;
+var mentionTarget = null;
+var mentionIndex = 0;
+
+function loadMentionNames() {
     $.ajax({
         url: 'news_action.php',
         type: 'GET',
         dataType: 'json',
-        data: { action: 'get_comments', news_id: newsId },
+        data: { action: 'get_commenters', news_id: newsId },
         success: function(res) {
-            if (!res.success) return;
+            if (res.success) mentionNames = res.names;
+        }
+    });
+}
+
+function showMentionDropdown(textarea, query) {
+    var dd = document.getElementById('mentionDropdown');
+    var filtered = mentionNames.filter(function(n) {
+        return n.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+    });
+    if (filtered.length === 0) { hideMentionDropdown(); return; }
+
+    mentionIndex = 0;
+    var html = '';
+    filtered.forEach(function(name, i) {
+        html += '<div class="mention-item' + (i === 0 ? ' active' : '') + '" data-name="' + escapeHtml(name) + '" onmousedown="selectMention(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">' + escapeHtml(name) + '</div>';
+    });
+    dd.innerHTML = html;
+
+    // Position the dropdown near the textarea
+    var rect = textarea.getBoundingClientRect();
+    var scrollY = window.scrollY || window.pageYOffset;
+    dd.style.left = rect.left + 'px';
+    dd.style.top = (rect.top + scrollY - dd.offsetHeight - 4) + 'px';
+    dd.classList.add('show');
+    dd.style.position = 'absolute';
+
+    // Reposition if above viewport
+    var ddRect = dd.getBoundingClientRect();
+    if (ddRect.top < 0) {
+        dd.style.top = (rect.bottom + scrollY + 4) + 'px';
+    }
+
+    mentionActive = true;
+}
+
+function hideMentionDropdown() {
+    var dd = document.getElementById('mentionDropdown');
+    dd.classList.remove('show');
+    dd.innerHTML = '';
+    mentionActive = false;
+    mentionStart = -1;
+}
+
+function selectMention(name) {
+    if (!mentionTarget || mentionStart < 0) return;
+    var ta = mentionTarget;
+    var before = ta.value.substring(0, mentionStart);
+    var after = ta.value.substring(ta.selectionStart);
+    ta.value = before + '@' + name + ' ' + after;
+    var pos = before.length + name.length + 2;
+    ta.setSelectionRange(pos, pos);
+    ta.focus();
+    hideMentionDropdown();
+}
+
+function handleMentionKeydown(e) {
+    if (!mentionActive) return;
+    var dd = document.getElementById('mentionDropdown');
+    var items = dd.querySelectorAll('.mention-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        items[mentionIndex].classList.remove('active');
+        mentionIndex = (mentionIndex + 1) % items.length;
+        items[mentionIndex].classList.add('active');
+        items[mentionIndex].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items[mentionIndex].classList.remove('active');
+        mentionIndex = (mentionIndex - 1 + items.length) % items.length;
+        items[mentionIndex].classList.add('active');
+        items[mentionIndex].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        var name = items[mentionIndex].getAttribute('data-name');
+        selectMention(name);
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideMentionDropdown();
+    }
+}
+
+function handleMentionInput(e) {
+    var ta = e.target;
+    var val = ta.value;
+    var pos = ta.selectionStart;
+    mentionTarget = ta;
+
+    // Find the @ before cursor
+    var textBefore = val.substring(0, pos);
+    var atIdx = textBefore.lastIndexOf('@');
+
+    if (atIdx >= 0) {
+        // Check that @ is at start or preceded by a space/newline
+        var charBefore = atIdx > 0 ? textBefore.charAt(atIdx - 1) : ' ';
+        if (charBefore === ' ' || charBefore === '\n' || atIdx === 0) {
+            var query = textBefore.substring(atIdx + 1);
+            // No space in query — still typing the mention
+            if (query.indexOf(' ') === -1 && query.length <= 50) {
+                mentionStart = atIdx;
+                showMentionDropdown(ta, query);
+                return;
+            }
+        }
+    }
+    hideMentionDropdown();
+}
+
+// Attach mention listeners to a textarea
+function attachMentionListeners(textarea) {
+    textarea.addEventListener('input', handleMentionInput);
+    textarea.addEventListener('keydown', handleMentionKeydown);
+    textarea.addEventListener('blur', function() {
+        setTimeout(hideMentionDropdown, 150);
+    });
+}
+
+// Attach to main comment textarea
+(function() {
+    var mainTA = document.getElementById('commentContent');
+    if (mainTA) attachMentionListeners(mainTA);
+})();
+
+// Load mention names on page load
+loadMentionNames();
+
+var commentsPage = 1;
+var commentsLoading = false;
+var commentsHasMore = false;
+
+function loadComments(reset) {
+    if (commentsLoading) return;
+    if (reset) {
+        commentsPage = 1;
+        $('#commentList').html('<div class="comments-empty">Chargement des commentaires...</div>');
+    }
+    commentsLoading = true;
+    $('#commentsLoadMore').hide();
+
+    $.ajax({
+        url: 'news_action.php',
+        type: 'GET',
+        dataType: 'json',
+        data: { action: 'get_comments', news_id: newsId, page: commentsPage },
+        success: function(res) {
+            commentsLoading = false;
+            if (!res.success) {
+                if (commentsPage === 1) $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
+                return;
+            }
             $('#commentsCount').text(res.total);
-            if (res.comments.length === 0) {
+            if (res.comments.length === 0 && commentsPage === 1) {
                 $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
                 return;
             }
             var html = '';
             res.comments.forEach(function(c) {
-                html += renderComment(c, false);
-                if (c.replies && c.replies.length > 0) {
-                    html += '<div class="comment-replies">';
+                var rc = (c.replies && c.replies.length) || 0;
+                html += renderComment(c, false, rc);
+                if (rc > 0) {
+                    html += '<div class="comment-replies" id="replies_' + c.id + '" style="display:none;">';
                     c.replies.forEach(function(r) {
-                        html += renderComment(r, true);
+                        html += renderComment(r, true, 0);
                     });
                     html += '</div>';
                 }
             });
-            $('#commentList').html(html);
+            if (commentsPage === 1) {
+                $('#commentList').html(html);
+            } else {
+                $('#commentList').append(html);
+            }
+            commentsHasMore = res.has_more;
+            if (commentsHasMore) {
+                commentsPage++;
+                $('#commentsLoadMore').show();
+            }
+            // Refresh mention names
+            loadMentionNames();
+        },
+        error: function() {
+            commentsLoading = false;
+            if (commentsPage === 1) $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
         }
     });
+}
+
+// IntersectionObserver pour charger plus au scroll
+var loadMoreEl = document.getElementById('commentsLoadMore');
+if (loadMoreEl) {
+    var observer = new IntersectionObserver(function(entries) {
+        if (entries[0].isIntersecting && commentsHasMore && !commentsLoading) {
+            loadComments(false);
+        }
+    }, { rootMargin: '200px' });
+    observer.observe(loadMoreEl);
 }
 
 function submitComment(parentId) {
@@ -998,8 +1287,8 @@ function submitComment(parentId) {
                     var rf = document.getElementById('replyForm_' + parentId);
                     if (rf) rf.remove();
                 }
-                showCommentMsg('Commentaire publie !', 'success');
-                loadComments();
+                showCommentMsg('Commentaire publié !', 'success');
+                loadComments(true);
             } else {
                 showCommentMsg(res.error || 'Erreur lors de la publication.', 'error');
             }
@@ -1011,6 +1300,14 @@ function submitComment(parentId) {
     });
 }
 
+function toggleReplies(commentId, btn) {
+    var el = document.getElementById('replies_' + commentId);
+    if (!el) return;
+    var isOpen = el.style.display !== 'none';
+    el.style.display = isOpen ? 'none' : '';
+    btn.classList.toggle('open', !isOpen);
+}
+
 function showReplyForm(commentId) {
     // Remove any existing reply form
     document.querySelectorAll('.reply-form-inline').forEach(function(el) { el.remove(); });
@@ -1018,7 +1315,14 @@ function showReplyForm(commentId) {
     var commentEl = document.querySelector('.comment-item[data-id="' + commentId + '"]');
     if (!commentEl) return;
 
-    var savedName = localStorage.getItem('comment_name') || '';
+    // Ouvrir les reponses si elles sont masquees
+    var repliesEl = document.getElementById('replies_' + commentId);
+    if (repliesEl && repliesEl.style.display === 'none') {
+        repliesEl.style.display = '';
+        var toggleBtn = commentEl.querySelector('.comment-toggle-replies');
+        if (toggleBtn) toggleBtn.classList.add('open');
+    }
+
     var form = document.createElement('div');
     form.className = 'reply-form-inline';
     form.id = 'replyForm_' + commentId;
@@ -1035,12 +1339,12 @@ function showReplyForm(commentId) {
     } else {
         commentEl.after(form);
     }
-    form.querySelector('textarea').focus();
+    var replyTA = form.querySelector('textarea');
+    attachMentionListeners(replyTA);
+    replyTA.focus();
 }
 
 function likeComment(commentId, btn) {
-    if (getLikeCookie(commentId)) return;
-
     $.ajax({
         url: 'news_action.php',
         type: 'POST',
@@ -1048,10 +1352,16 @@ function likeComment(commentId, btn) {
         data: { action: 'like_comment', comment_id: commentId },
         success: function(res) {
             if (res.success) {
-                setLikeCookie(commentId);
-                btn.classList.add('liked');
-                btn.querySelector('svg').setAttribute('fill', 'var(--pink)');
-                btn.querySelector('.like-count').textContent = res.likes;
+                if (res.liked) {
+                    setLikeCookie(commentId);
+                    btn.classList.add('liked');
+                    btn.querySelector('svg').setAttribute('fill', 'var(--pink)');
+                } else {
+                    removeLikeCookie(commentId);
+                    btn.classList.remove('liked');
+                    btn.querySelector('svg').setAttribute('fill', 'none');
+                }
+                btn.querySelector('.like-count').textContent = res.likes > 0 ? res.likes : '';
             }
         }
     });
@@ -1061,7 +1371,8 @@ function showCommentMsg(msg, type) {
     var el = document.getElementById('commentMsg');
     el.textContent = msg;
     el.className = 'comment-msg ' + type;
-    setTimeout(function() { el.className = 'comment-msg'; el.textContent = ''; }, 4000);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function() { el.className = 'comment-msg'; el.textContent = ''; }, 10000);
 }
 
 // ─── Share functions ───
@@ -1088,7 +1399,7 @@ function copyArticleLink() {
 }
 
 // Load comments on page load
-loadComments();
+loadComments(true);
 
 <?php endif; ?>
 

@@ -13,6 +13,8 @@ switch ($action) {
 
 case 'get_comments':
     $newsId = intval($_GET['news_id'] ?? 0);
+    $page = max(1, intval($_GET['page'] ?? 1));
+    $perPage = 5;
     if ($newsId <= 0) { echo json_encode(['success' => false]); exit; }
 
     $stmt = $pdo->prepare('SELECT id, parent_id, author_name, content, likes, created_at FROM news_comments WHERE news_id = :nid ORDER BY created_at ASC');
@@ -44,7 +46,13 @@ case 'get_comments':
         return strcmp($b['created_at'], $a['created_at']);
     });
 
-    echo json_encode(['success' => true, 'comments' => $result, 'total' => count($rows)]);
+    // Pagination par commentaires parents
+    $totalParents = count($result);
+    $offset = ($page - 1) * $perPage;
+    $paged = array_slice($result, $offset, $perPage);
+    $hasMore = ($offset + $perPage) < $totalParents;
+
+    echo json_encode(['success' => true, 'comments' => $paged, 'total' => count($rows), 'has_more' => $hasMore, 'page' => $page]);
     exit;
 
 case 'add_comment':
@@ -63,10 +71,16 @@ case 'add_comment':
     if (mb_strlen($content) > 2000) $content = mb_substr($content, 0, 2000);
 
     // Check IP ban
-    $stmtBan = $pdo->prepare('SELECT id FROM news_banned_ips WHERE ip_address = :ip LIMIT 1');
+    $stmtBan = $pdo->prepare('SELECT reason FROM news_banned_ips WHERE ip_address = :ip LIMIT 1');
     $stmtBan->execute(['ip' => $ip]);
-    if ($stmtBan->fetch()) {
-        echo json_encode(['success' => false, 'error' => 'Vous ne pouvez pas commenter.']);
+    $banRow = $stmtBan->fetch(PDO::FETCH_ASSOC);
+    if ($banRow) {
+        $msg = "Vous ne pouvez pas commenter.";
+        if (!empty($banRow['reason'])) {
+            $msg .= "\n -> Raison : " . htmlspecialchars($banRow['reason']) . ".";
+        }
+        $msg .= "\nSi vous pensez qu'il s'agit d'une erreur, contactez-nous a : contact@forbachenrose.fr";
+        echo json_encode(['success' => false, 'error' => $msg]);
         exit;
     }
 
@@ -107,23 +121,25 @@ case 'like_comment':
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     if ($commentId <= 0) { echo json_encode(['success' => false]); exit; }
 
-    // Check duplicate
+    // Check if already liked → toggle (unlike)
     $stmtChk = $pdo->prepare('SELECT id FROM news_comments_likes WHERE comment_id = :cid AND ip_address = :ip LIMIT 1');
     $stmtChk->execute(['cid' => $commentId, 'ip' => $ip]);
-    if ($stmtChk->fetch()) {
-        echo json_encode(['success' => false, 'error' => 'Deja like']);
-        exit;
-    }
+    $alreadyLiked = $stmtChk->fetch();
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('INSERT INTO news_comments_likes (comment_id, ip_address) VALUES (:cid, :ip)')->execute(['cid' => $commentId, 'ip' => $ip]);
-        $pdo->prepare('UPDATE news_comments SET likes = likes + 1 WHERE id = :id')->execute(['id' => $commentId]);
+        if ($alreadyLiked) {
+            $pdo->prepare('DELETE FROM news_comments_likes WHERE comment_id = :cid AND ip_address = :ip')->execute(['cid' => $commentId, 'ip' => $ip]);
+            $pdo->prepare('UPDATE news_comments SET likes = GREATEST(likes - 1, 0) WHERE id = :id')->execute(['id' => $commentId]);
+        } else {
+            $pdo->prepare('INSERT INTO news_comments_likes (comment_id, ip_address) VALUES (:cid, :ip)')->execute(['cid' => $commentId, 'ip' => $ip]);
+            $pdo->prepare('UPDATE news_comments SET likes = likes + 1 WHERE id = :id')->execute(['id' => $commentId]);
+        }
         $stmtL = $pdo->prepare('SELECT likes FROM news_comments WHERE id = :id');
         $stmtL->execute(['id' => $commentId]);
         $likes = (int)$stmtL->fetchColumn();
         $pdo->commit();
-        echo json_encode(['success' => true, 'likes' => $likes]);
+        echo json_encode(['success' => true, 'likes' => $likes, 'liked' => !$alreadyLiked]);
     } catch (Exception $e) {
         $pdo->rollBack();
         echo json_encode(['success' => false]);
@@ -193,6 +209,15 @@ case 'unban_ip':
     if ($ipAddr === '') { echo json_encode(['success' => false]); exit; }
     $pdo->prepare('DELETE FROM news_banned_ips WHERE ip_address = :ip')->execute(['ip' => $ipAddr]);
     echo json_encode(['success' => true]);
+    exit;
+
+case 'get_commenters':
+    $newsId = intval($_GET['news_id'] ?? 0);
+    if ($newsId <= 0) { echo json_encode(['success' => false]); exit; }
+    $stmt = $pdo->prepare('SELECT DISTINCT author_name FROM news_comments WHERE news_id = :nid ORDER BY author_name ASC');
+    $stmt->execute(['nid' => $newsId]);
+    $names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    echo json_encode(['success' => true, 'names' => $names]);
     exit;
 
 // ════════════════════════════════════════════════════
