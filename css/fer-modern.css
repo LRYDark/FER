@@ -53,6 +53,12 @@ body{
   background: var(--page-bg);
   padding-top: 0;
   transition: none;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+main{
+  flex: 1;
 }
 body.nav-scrolled{
   padding-top: var(--nav-space);
@@ -1667,10 +1673,29 @@ body.dark-theme p.sub{
   color: rgba(255,255,255,.65);
 }
 
-/* Footer in dark theme - slightly lighter to differentiate */
+/* Footer: always dark regardless of theme */
 body.dark-theme .site-footer{
   background: #0b1018;
-  border-top-color: rgba(255,255,255,.06);
+  color: #ffffff;
+  border-top-color: rgba(255,255,255,.08);
+}
+body.dark-theme .site-footer .footer-brand-name,
+body.dark-theme .site-footer .footer-tagline,
+body.dark-theme .site-footer .footer-title,
+body.dark-theme .site-footer .footer-copyright,
+body.dark-theme .site-footer .footer-links a,
+body.dark-theme .site-footer .footer-contact-btn,
+body.dark-theme .site-footer .social-link{
+  color: #ffffff;
+}
+body.dark-theme .site-footer .theme-toggle{
+  border-color: rgba(255,255,255,.15);
+  background: rgba(255,255,255,.08);
+  color: #ffffff;
+}
+body.dark-theme .site-footer .theme-toggle:hover{
+  background: rgba(255,255,255,.18);
+  border-color: rgba(255,255,255,.3);
 }
 
 /* --- Page content dark overrides (shared elements) --- */
@@ -1688,6 +1713,11 @@ body.dark-theme .news-reg-card{
 body.dark-theme .album-reg-title,
 body.dark-theme .news-reg-title{
   color: #ffffff;
+}
+/* Bevel sections: always dark #0f172a */
+body.dark-theme .album-reg-bevel,
+body.dark-theme .news-reg-bevel{
+  background: #0f172a;
 }
 
 /* Album cards (photos.php) */
