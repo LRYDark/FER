@@ -290,7 +290,7 @@ function resolveAlbumDateLabel(array $album): string
 
     @media (max-width: 980px) {
       .photos-hero {
-        margin-top: 36px;
+        margin-top: 16px;
       }
 
       .album-reg-bar {
