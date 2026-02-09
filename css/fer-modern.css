@@ -1424,14 +1424,15 @@ p.sub{
   width: 20px;
   height: 20px;
   transition: transform .3s ease;
+  pointer-events: none;
 }
 .theme-toggle:hover svg{
   transform: rotate(20deg);
 }
-.theme-toggle .icon-sun{ display: none; }
-.theme-toggle .icon-moon{ display: block; }
-body.dark-theme .theme-toggle .icon-sun{ display: block; }
-body.dark-theme .theme-toggle .icon-moon{ display: none; }
+.theme-toggle .icon-sun{ display: none !important; }
+.theme-toggle .icon-moon{ display: block !important; }
+body.dark-theme .theme-toggle .icon-sun{ display: block !important; }
+body.dark-theme .theme-toggle .icon-moon{ display: none !important; }
 
 /* --- Global dark overrides --- */
 body.dark-theme{

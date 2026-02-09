@@ -303,14 +303,30 @@
   const saved = localStorage.getItem(STORAGE_KEY) || 'light';
   applyTheme(saved);
 
-  // Bind toggle button (may appear after DOM load)
-  document.addEventListener('click', function(e){
-    const btn = e.target.closest('#themeToggle');
-    if(!btn) return;
+  function toggleTheme(){
     const isDark = document.body.classList.contains('dark-theme');
     const newTheme = isDark ? 'light' : 'dark';
     localStorage.setItem(STORAGE_KEY, newTheme);
     applyTheme(newTheme);
+  }
+
+  // Bind toggle button directly for iOS compatibility
+  function bindToggle(){
+    var btn = document.getElementById('themeToggle');
+    if(btn && !btn._ferBound){
+      btn._ferBound = true;
+      btn.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); toggleTheme(); });
+    }
+  }
+
+  // Try immediately + on DOMContentLoaded + delegation fallback
+  bindToggle();
+  document.addEventListener('DOMContentLoaded', bindToggle);
+  document.addEventListener('click', function(e){
+    if(!e.target.closest) return;
+    var btn = e.target.closest('#themeToggle');
+    if(!btn) return;
+    toggleTheme();
   });
 })();
 
