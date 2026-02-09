@@ -155,6 +155,12 @@ $link_cancer = $data['link_cancer'] ?? null;
       background: var(--page-bg);
       padding-top: 0;
       transition: none;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    main{
+      flex: 1;
     }
     body.nav-scrolled{
       padding-top: var(--nav-space);

@@ -221,6 +221,9 @@ if ($selectedYearId) {
     body:not(.dark-theme) .mobile-menu-backdrop.open {
       background: rgba(0,0,0,.5) !important;
     }
+    body:not(.dark-theme) .site-footer {
+      background: #0b1018 !important;
+    }
 
     /* --- Light mode (quand le thème global est sombre = inversé) --- */
     body.dark-theme {
@@ -331,15 +334,15 @@ if ($selectedYearId) {
       color: rgba(15,23,42,.55) !important;
     }
 
-    /* Theme toggle on partenaires: adapt border for light background */
-    body.dark-theme .theme-toggle {
-      border-color: rgba(15,23,42,.15);
-      background: rgba(15,23,42,.06);
-      color: #0f172a;
+    /* Footer toggle: always light-on-dark since footer is always #0f172a */
+    body.dark-theme .site-footer .theme-toggle {
+      border-color: rgba(255,255,255,.15);
+      background: rgba(255,255,255,.08);
+      color: #ffffff;
     }
-    body.dark-theme .theme-toggle:hover {
-      background: rgba(15,23,42,.12);
-      border-color: rgba(15,23,42,.25);
+    body.dark-theme .site-footer .theme-toggle:hover {
+      background: rgba(255,255,255,.18);
+      border-color: rgba(255,255,255,.3);
     }
 
     /* Hero section */
