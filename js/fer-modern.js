@@ -287,6 +287,33 @@
   }
 })();
 
+// ===== THEME TOGGLE (dark/light) =====
+(function(){
+  const STORAGE_KEY = 'fer-theme';
+
+  function applyTheme(theme){
+    if(theme === 'dark'){
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+  }
+
+  // Apply saved theme immediately
+  const saved = localStorage.getItem(STORAGE_KEY) || 'light';
+  applyTheme(saved);
+
+  // Bind toggle button (may appear after DOM load)
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('#themeToggle');
+    if(!btn) return;
+    const isDark = document.body.classList.contains('dark-theme');
+    const newTheme = isDark ? 'light' : 'dark';
+    localStorage.setItem(STORAGE_KEY, newTheme);
+    applyTheme(newTheme);
+  });
+})();
+
 // ===== Gestion nav fixe -> flottante au scroll =====
 (function(){
   let lastScroll = 0;

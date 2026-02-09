@@ -37,335 +37,309 @@ if ($selectedYearId) {
   <title>Partenaires - Forbach en Rose</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
-    /* Theme sombre */
-    body {
+    /* ===== Page partenaires : dark par défaut, light quand dark-theme actif ===== */
+
+    /* --- Dark mode (par défaut, quand le thème global est clair) --- */
+    body:not(.dark-theme) {
       background: #0a0e12;
       color: #ffffff;
     }
 
-    /* Navbar fixe (non scrollée) */
-    .floating-nav {
+    /* Navbar */
+    body:not(.dark-theme) .floating-nav {
       border-bottom: 1px solid rgba(255,255,255,0.08);
       background: #141a20;
-      backdrop-filter: blur(10px);
     }
-
-    /* Pill transparent en version fixe */
-    .floating-nav .nav-pill {
+    body:not(.dark-theme) .floating-nav .nav-pill {
       background: transparent !important;
       border: none !important;
     }
-
-    /* En version flottante : navbar transparente, pill avec fond sombre */
-    body.nav-scrolled .floating-nav {
+    body:not(.dark-theme).nav-scrolled .floating-nav {
       background: transparent !important;
     }
-
-    body.nav-scrolled .floating-nav .nav-pill {
+    body:not(.dark-theme).nav-scrolled .floating-nav .nav-pill {
       background: #141a20 !important;
       border: 1px solid rgba(255,255,255,0.1) !important;
     }
-
-    /* Nav-card grise en version fixe - même style que le bouton inscription */
-    .floating-nav .nav-card {
+    body:not(.dark-theme) .floating-nav .nav-card {
       background: rgba(255,255,255,0.05) !important;
       border: 1px solid rgba(255,255,255,0.1) !important;
-      border-radius: 12px;
-      padding: 0 18px;
-      margin-left: 20px;
-      min-height: 56px;
-      display: flex;
-      align-items: center;
     }
-
-    /* Nav-card transparente en version flottante (après scroll) */
-    body.nav-scrolled .floating-nav .nav-card {
+    body:not(.dark-theme).nav-scrolled .floating-nav .nav-card {
       background: transparent !important;
       border: none !important;
-      border-radius: 0;
-      padding: 0;
-      margin-left: 0;
     }
-
-    /* Logo en blanc */
-    .floating-nav .brand-logo {
+    body:not(.dark-theme) .floating-nav .brand-logo {
       filter: brightness(0) invert(1);
     }
-
-    /* Tous les textes et icônes en blanc */
-    .floating-nav .link,
-    .floating-nav .nav-icon,
-    .floating-nav .item,
-    .floating-nav .trigger,
-    .floating-nav .menu .link {
+    body:not(.dark-theme) .floating-nav .link,
+    body:not(.dark-theme) .floating-nav .nav-icon,
+    body:not(.dark-theme) .floating-nav .item,
+    body:not(.dark-theme) .floating-nav .trigger,
+    body:not(.dark-theme) .floating-nav .menu .link {
       color: #ffffff !important;
     }
-
-    .floating-nav .link:hover,
-    .floating-nav .trigger:hover {
+    body:not(.dark-theme) .floating-nav .link:hover,
+    body:not(.dark-theme) .floating-nav .trigger:hover {
       color: rgba(255,255,255,0.7) !important;
     }
-
-    /* Flèches des menus en blanc */
-    .floating-nav .chev path {
+    body:not(.dark-theme) .floating-nav .chev path {
       stroke: rgba(255,255,255,0.85) !important;
     }
-
-    .floating-nav .burger-icon {
+    body:not(.dark-theme) .floating-nav .burger-icon {
       background: rgba(255,255,255,0.85) !important;
     }
-
-    .floating-nav .burger-icon::before,
-    .floating-nav .burger-icon::after {
+    body:not(.dark-theme) .floating-nav .burger-icon::before,
+    body:not(.dark-theme) .floating-nav .burger-icon::after {
       background: rgba(255,255,255,0.85) !important;
     }
-
-    /* Bouton inscription */
-    .floating-nav .btn-inscription {
+    body:not(.dark-theme) .floating-nav .btn-inscription {
       background: #19a1be !important;
       color: #ffffff !important;
     }
-
-    .floating-nav .btn-inscription:hover {
+    body:not(.dark-theme) .floating-nav .btn-inscription:hover {
       background: #1589a3 !important;
     }
-
-    /* Mega menu adapté au thème sombre */
-    .floating-nav .mega {
+    body:not(.dark-theme) .floating-nav .mega {
       background: #141a20 !important;
       border: 1px solid rgba(255,255,255,0.1);
     }
-
-    .floating-nav .mega .mega-title {
+    body:not(.dark-theme) .floating-nav .mega .mega-title {
       color: rgba(255,255,255,0.5) !important;
     }
-
-    /* Tous les liens et textes du mega menu en blanc */
-    .floating-nav .mega .mega-link,
-    .floating-nav .mega .link {
+    body:not(.dark-theme) .floating-nav .mega .mega-link,
+    body:not(.dark-theme) .floating-nav .mega .link {
       color: #ffffff !important;
     }
-
-    .floating-nav .mega .mega-link:hover,
-    .floating-nav .mega .link:hover {
+    body:not(.dark-theme) .floating-nav .mega .mega-link:hover,
+    body:not(.dark-theme) .floating-nav .mega .link:hover {
       color: rgba(255,255,255,0.7) !important;
       background: rgba(255,255,255,0.05) !important;
     }
-
-    /* Titres et descriptions des liens en blanc */
-    .floating-nav .mega .mtitle {
+    body:not(.dark-theme) .floating-nav .mega .mtitle {
       color: #ffffff !important;
     }
-
-    .floating-nav .mega .mdesc {
+    body:not(.dark-theme) .floating-nav .mega .mdesc {
       color: rgba(255,255,255,0.6) !important;
     }
-
-    .floating-nav .mega .micon {
+    body:not(.dark-theme) .floating-nav .mega .micon {
       color: rgba(255,255,255,0.7) !important;
       background: rgba(255,255,255,0.08) !important;
     }
-
-    .floating-nav .mega .mega-link:hover .micon {
+    body:not(.dark-theme) .floating-nav .mega .mega-link:hover .micon {
       background: rgba(255,255,255,0.14) !important;
     }
-
-    /* Textes génériques du mega menu */
-    .floating-nav .mega a,
-    .floating-nav .mega span,
-    .floating-nav .mega li,
-    .floating-nav .mega p,
-    .floating-nav .mega div {
+    body:not(.dark-theme) .floating-nav .mega a,
+    body:not(.dark-theme) .floating-nav .mega span,
+    body:not(.dark-theme) .floating-nav .mega li,
+    body:not(.dark-theme) .floating-nav .mega p,
+    body:not(.dark-theme) .floating-nav .mega div {
       color: #ffffff !important;
     }
-
-    /* Mega-featured garde toujours son apparence d'origine (rose clair) */
-    .floating-nav .mega .mega-featured {
+    /* Mega-featured: toujours en style clair/rose */
+    body:not(.dark-theme) .floating-nav .mega .mega-featured {
       background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%) !important;
-      border-radius: 20px;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      height: 100%;
-      min-height: 320px;
     }
-
-    .floating-nav .mega .mega-featured-img {
-      width: 100%;
-      height: 200px;
-      border-radius: 16px;
-      overflow: hidden;
-      background: rgba(255,255,255,0.5) !important;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 64px;
+    body:not(.dark-theme) .floating-nav .mega .mega-featured a,
+    body:not(.dark-theme) .floating-nav .mega .mega-featured span,
+    body:not(.dark-theme) .floating-nav .mega .mega-featured p,
+    body:not(.dark-theme) .floating-nav .mega .mega-featured div {
+      color: #0f172a !important;
     }
-
-    .floating-nav .mega .mega-featured-title {
-      font-size: 18px !important;
-      font-weight: 700;
+    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-title {
       color: #831843 !important;
-      margin: 0;
-      line-height: 1.3;
     }
-
-    .floating-nav .mega .mega-featured-desc {
-      font-size: 14px !important;
+    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-desc {
       color: rgba(15,23,42,.7) !important;
-      line-height: 1.5;
-      margin: 0;
     }
-
-    .floating-nav .mega .mega-featured-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-link {
       color: #e91e63 !important;
-      font-weight: 600;
-      font-size: 14px;
-      text-decoration: none;
-      margin-top: auto;
-      transition: gap .2s ease;
     }
-
-    .floating-nav .mega .mega-featured-link:hover {
-      gap: 10px;
+    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-link:hover {
       color: #c2185b !important;
     }
-
-    /* Overlay avec flou de fond - version sombre */
-    #megaOverlay {
-      position: fixed !important;
-      left: 0 !important;
-      right: 0 !important;
-      top: 70px !important;
-      bottom: 0 !important;
-      z-index: 9997 !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      transition: opacity .3s ease !important;
-      backdrop-filter: blur(16px) saturate(180%) !important;
-      -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    body:not(.dark-theme) #megaOverlay {
       background: rgba(10,14,18,0.75) !important;
     }
 
-    /* En mode scrolled, overlay couvre tout l'écran */
-    body.nav-scrolled #megaOverlay {
-      top: 0 !important;
-    }
-
-    #megaOverlay.active {
-      opacity: 1 !important;
-      pointer-events: auto !important;
-    }
-
-    /* ─── Mobile: theme sombre ─── */
-    .mobile-header {
+    /* Mobile dark */
+    body:not(.dark-theme) .mobile-header {
       background: rgba(10,14,18,0.92) !important;
     }
-    .mobile-header .brand-logo {
+    body:not(.dark-theme) .mobile-header .brand-logo {
       filter: brightness(0) invert(1);
     }
-
-    .mobile-bottom-unified {
+    body:not(.dark-theme) .mobile-bottom-unified {
       background: #141a20 !important;
       box-shadow: 0 8px 18px rgba(0,0,0,.4) !important;
     }
-    .mobile-bottom-bar.menu-open .mobile-bottom-unified {
-      box-shadow: 0 20px 80px rgba(0,0,0,.5) !important;
-    }
-
-    .mobile-bottom-btn {
+    body:not(.dark-theme) .mobile-bottom-btn {
       color: #ffffff !important;
     }
-    #mobileMenuBtn {
+    body:not(.dark-theme) #mobileMenuBtn {
       background: rgba(255,255,255,.08) !important;
     }
-    .mobile-bottom-btn:hover,
-    .mobile-bottom-btn:active {
-      background: rgba(255,255,255,.1) !important;
-    }
-
-    .mobile-bottom-cta-inner {
+    body:not(.dark-theme) .mobile-bottom-cta-inner {
       color: #ffffff !important;
       border-left-color: rgba(255,255,255,.1) !important;
     }
-    .mobile-bottom-cta-inner:hover {
-      background: rgba(255,255,255,.06) !important;
-    }
-
-    .mobile-bottom-bar.menu-open .mobile-bottom-actions,
-    .mobile-bottom-bar.menu-closing .mobile-bottom-actions {
-      border-top-color: rgba(255,255,255,.1) !important;
-    }
-
-    /* Menu panel sombre */
-    .mobile-menu-title {
+    body:not(.dark-theme) .mobile-menu-title {
       color: #ffffff !important;
     }
-    .mobile-menu-back {
+    body:not(.dark-theme) .mobile-menu-back {
       background: rgba(255,255,255,.08) !important;
       color: rgba(255,255,255,.6) !important;
     }
-    .mobile-menu-back:hover {
-      background: rgba(255,255,255,.15) !important;
-      color: #ffffff !important;
-    }
-    .mobile-menu-close {
+    body:not(.dark-theme) .mobile-menu-close {
       background: rgba(255,255,255,.08) !important;
       color: rgba(255,255,255,.55) !important;
     }
-    .mobile-menu-close:hover {
-      background: rgba(255,255,255,.15) !important;
+    body:not(.dark-theme) .mobile-menu-trigger {
       color: #ffffff !important;
     }
-
-    .mobile-menu-trigger {
+    body:not(.dark-theme) .mobile-menu-trigger svg {
       color: #ffffff !important;
     }
-    .mobile-menu-trigger svg {
-      color: #ffffff !important;
-    }
-    .mobile-menu-trigger:hover {
-      background: rgba(255,255,255,.06) !important;
-    }
-    .mobile-menu-icon {
+    body:not(.dark-theme) .mobile-menu-icon {
       color: #ffffff !important;
       background: rgba(236,72,153,.15) !important;
     }
-
-    .mobile-menu-sublink {
+    body:not(.dark-theme) .mobile-menu-sublink {
       color: rgba(255,255,255,.7) !important;
     }
-    .mobile-menu-sublink:hover {
+    body:not(.dark-theme) .mobile-menu-see-all {
       background: rgba(255,255,255,.06) !important;
       color: #ffffff !important;
     }
-
-    .mobile-menu-see-all {
-      background: rgba(255,255,255,.06) !important;
-      color: #ffffff !important;
-    }
-    .mobile-menu-see-all:hover {
-      background: rgba(255,255,255,.1) !important;
-    }
-
-    .mobile-menu-footer {
+    body:not(.dark-theme) .mobile-menu-footer {
       border-top-color: rgba(255,255,255,.08) !important;
     }
-    .mobile-menu-footer-btn {
+    body:not(.dark-theme) .mobile-menu-footer-btn {
       background: rgba(255,255,255,.06) !important;
       color: rgba(255,255,255,.55) !important;
     }
-    .mobile-menu-footer-btn:hover {
-      background: rgba(255,255,255,.1) !important;
-      color: #ffffff !important;
+    body:not(.dark-theme) .mobile-menu-backdrop.open {
+      background: rgba(0,0,0,.5) !important;
     }
 
-    .mobile-menu-backdrop.open {
-      background: rgba(0,0,0,.5) !important;
+    /* --- Light mode (quand le thème global est sombre = inversé) --- */
+    body.dark-theme {
+      background: #ffffff !important;
+      color: #0f172a !important;
+    }
+    body.dark-theme .floating-nav {
+      background: #ffffff !important;
+      border-bottom: none !important;
+    }
+    body.dark-theme .floating-nav .nav-pill {
+      background: #ffffff !important;
+    }
+    body.dark-theme .floating-nav .brand-logo {
+      filter: none !important;
+    }
+    body.dark-theme .floating-nav .link,
+    body.dark-theme .floating-nav .nav-icon,
+    body.dark-theme .floating-nav .item,
+    body.dark-theme .floating-nav .trigger,
+    body.dark-theme .floating-nav .menu .link {
+      color: #0f172a !important;
+    }
+    body.dark-theme .floating-nav .link:hover,
+    body.dark-theme .floating-nav .trigger:hover {
+      color: rgba(15,23,42,0.7) !important;
+    }
+    body.dark-theme .floating-nav .chev path {
+      stroke: rgba(15,23,42,0.65) !important;
+    }
+    body.dark-theme .floating-nav .nav-card {
+      background: rgba(15,23,42,0.04) !important;
+      border: none !important;
+    }
+    body.dark-theme .floating-nav .mega {
+      background: #ffffff !important;
+      border: 1px solid rgba(15,23,42,0.1) !important;
+    }
+    body.dark-theme .floating-nav .mega .mega-title {
+      color: rgba(15,23,42,0.5) !important;
+    }
+    body.dark-theme .floating-nav .mega .mega-link,
+    body.dark-theme .floating-nav .mega .link {
+      color: #0f172a !important;
+    }
+    body.dark-theme .floating-nav .mega .mtitle {
+      color: #0f172a !important;
+    }
+    body.dark-theme .floating-nav .mega .mdesc {
+      color: rgba(15,23,42,0.55) !important;
+    }
+    body.dark-theme .floating-nav .mega .micon {
+      color: #0f172a !important;
+      background: rgba(236,72,153,0.08) !important;
+    }
+    body.dark-theme .floating-nav .mega a,
+    body.dark-theme .floating-nav .mega span,
+    body.dark-theme .floating-nav .mega li,
+    body.dark-theme .floating-nav .mega p,
+    body.dark-theme .floating-nav .mega div {
+      color: #0f172a !important;
+    }
+    body.dark-theme #megaOverlay {
+      background: rgba(255,255,255,0.4) !important;
+    }
+    body.dark-theme .mobile-header {
+      background: rgba(255,255,255,0.82) !important;
+    }
+    body.dark-theme .mobile-header .brand-logo {
+      filter: none !important;
+    }
+    body.dark-theme .mobile-bottom-unified {
+      background: #ffffff !important;
+      box-shadow: 0 8px 18px rgba(0,0,0,.18) !important;
+    }
+    body.dark-theme .mobile-bottom-btn {
+      color: #0f172a !important;
+    }
+    body.dark-theme #mobileMenuBtn {
+      background: rgba(15,23,42,.06) !important;
+    }
+    body.dark-theme .mobile-bottom-cta-inner {
+      color: #0f172a !important;
+      border-left-color: rgba(15,23,42,.08) !important;
+    }
+    body.dark-theme .mobile-menu-title {
+      color: #0f172a !important;
+    }
+    body.dark-theme .mobile-menu-trigger {
+      color: #0f172a !important;
+    }
+    body.dark-theme .mobile-menu-trigger svg {
+      color: #0f172a !important;
+    }
+    body.dark-theme .mobile-menu-icon {
+      color: #0f172a !important;
+      background: rgba(236,72,153,.08) !important;
+    }
+    body.dark-theme .mobile-menu-sublink {
+      color: rgba(15,23,42,.7) !important;
+    }
+    body.dark-theme .mobile-menu-see-all {
+      background: rgba(15,23,42,.04) !important;
+      color: #0f172a !important;
+    }
+    body.dark-theme .mobile-menu-footer-btn {
+      background: rgba(15,23,42,.04) !important;
+      color: rgba(15,23,42,.55) !important;
+    }
+
+    /* Theme toggle on partenaires: adapt border for light background */
+    body.dark-theme .theme-toggle {
+      border-color: rgba(15,23,42,.15);
+      background: rgba(15,23,42,.06);
+      color: #0f172a;
+    }
+    body.dark-theme .theme-toggle:hover {
+      background: rgba(15,23,42,.12);
+      border-color: rgba(15,23,42,.25);
     }
 
     /* Hero section */
@@ -688,6 +662,64 @@ if ($selectedYearId) {
       .partner-card-desc {
         font-size: 15px;
       }
+    }
+
+    /* --- Partenaires content : light overrides when dark-theme active --- */
+    body.dark-theme .partners-hero h1 {
+      color: #0f172a;
+    }
+
+    body.dark-theme .partners-hero-desc {
+      color: rgba(15,23,42,0.65);
+    }
+
+    body.dark-theme .partners-reg-card {
+      background: rgba(15,23,42,0.06);
+    }
+
+    body.dark-theme .partners-reg-bevel {
+      background: #0f172a;
+    }
+
+    body.dark-theme .partners-reg-title {
+      color: #0f172a !important;
+    }
+
+    body.dark-theme .partner-card {
+      background: #ffffff;
+      border: 1px solid rgba(15,23,42,0.08);
+      box-shadow: 0 4px 16px rgba(0,0,0,.06);
+    }
+
+    body.dark-theme .partner-card:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,.12);
+    }
+
+    body.dark-theme .partner-card-title {
+      color: #0f172a;
+    }
+
+    body.dark-theme .partner-card-desc {
+      color: rgba(15,23,42,0.65);
+    }
+
+    body.dark-theme .year-card {
+      border-color: rgba(15,23,42,0.15);
+      color: #0f172a;
+    }
+
+    body.dark-theme .year-card:hover {
+      background: rgba(15,23,42,0.06);
+      border-color: rgba(15,23,42,0.3);
+    }
+
+    body.dark-theme .empty-state {
+      color: rgba(15,23,42,0.5);
+    }
+
+    /* Footer on light partenaires */
+    body.dark-theme .site-footer {
+      background: #0f172a;
     }
   </style>
 </head>

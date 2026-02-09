@@ -102,6 +102,7 @@ $link_cancer = $data['link_cancer'] ?? null;
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Accueil - Forbach en Rose</title>
+  <link rel="stylesheet" href="../css/fer-modern.css">
 
   <style>
     :root{
@@ -2861,12 +2862,96 @@ $link_cancer = $data['link_cancer'] ?? null;
       }
     }
 
+    /* ===== DARK THEME OVERRIDES for Accueil ===== */
+    body.dark-theme .reg-card{
+      background: linear-gradient(135deg, #1a1025, #1e1230);
+    }
+    body.dark-theme .reg-title{
+      color: #ffffff;
+    }
+    body.dark-theme .reg-input{
+      background: rgba(255,255,255,.08);
+      color: #ffffff;
+      box-shadow: none;
+      border: 1px solid rgba(255,255,255,.1);
+    }
+    body.dark-theme .reg-input::placeholder{
+      color: rgba(255,255,255,.4);
+    }
+    body.dark-theme .reg-input:focus{
+      background: rgba(255,255,255,.12);
+      border-color: var(--pink);
+    }
+    body.dark-theme .reg-hint{
+      color: rgba(255,255,255,.5);
+    }
+    body.dark-theme .reg-result.success{
+      background: rgba(91,33,182,.2);
+      color: #c4b5fd;
+      border-color: rgba(124,58,237,.35);
+    }
+    body.dark-theme .reg-result.warn{
+      background: rgba(14,116,144,.15);
+      color: #67e8f9;
+      border-color: rgba(14,116,144,.35);
+    }
+    body.dark-theme .reg-result.danger{
+      background: rgba(236,72,153,.15);
+      color: #f9a8d4;
+      border-color: rgba(236,72,153,.35);
+    }
+
+    body.dark-theme .t-card{
+      background: #141a20;
+      border-color: rgba(255,255,255,.06);
+    }
+    body.dark-theme .t-card:hover{
+      box-shadow: 0 8px 16px rgba(0,0,0,.2), 0 24px 60px rgba(0,0,0,.3);
+    }
+    body.dark-theme .t-media{
+      background: linear-gradient(135deg, #1a1025, #1e1230);
+    }
+    body.dark-theme .t-media::after{
+      background: linear-gradient(to top, #141a20, transparent);
+    }
+    body.dark-theme .t-kicker{
+      background: linear-gradient(135deg, #1a1025, #1e1230);
+      color: var(--pink);
+    }
+    body.dark-theme .t-amount{
+      color: #ffffff;
+    }
+    body.dark-theme .t-pill{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.65);
+    }
+    body.dark-theme .t-pill:hover{
+      background: rgba(255,255,255,.1);
+      border-color: rgba(255,255,255,.15);
+    }
+    body.dark-theme .t-dot{
+      background: #141a20;
+    }
+
+    body.dark-theme .timeline-title{
+      color: #ffffff;
+    }
+    body.dark-theme .timeline-desc{
+      color: rgba(255,255,255,.65);
+    }
+
 </style>
 </head>
 
 <body>
 
   <!-- NAV -->
+  <!-- Theme: apply saved preference immediately to avoid flash -->
+  <script>
+  (function(){var t=localStorage.getItem('fer-theme');if(t==='dark')document.body.classList.add('dark-theme');})();
+  </script>
+
   <header class="floating-nav" id="navRoot">
     <div class="mega-overlay" id="megaOverlay"></div>
     <div class="nav-pill">
@@ -3620,6 +3705,14 @@ $link_cancer = $data['link_cancer'] ?? null;
               <span class="footer-logo-icon">🏃</span>
             </div>
             <span class="footer-brand-name">Forbach en Rose</span>
+            <button class="theme-toggle" id="themeToggle" aria-label="Changer de thème">
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            </button>
           </div>
           <p class="footer-tagline">Courir ensemble pour la lutte contre le cancer</p>
         </div>
@@ -4183,6 +4276,7 @@ $link_cancer = $data['link_cancer'] ?? null;
       window.addEventListener('resize', handleNavScroll);
     })();
   </script>
+  <script src="../js/fer-modern.js"></script>
 
 </body>
 </html>
