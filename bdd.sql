@@ -292,6 +292,29 @@ INSERT INTO `users` (`id`, `username`, `password_hash`, `role`, `organisation`, 
 	(1, 'admin', '$2y$10$HUHB4qePa1zZOLbNqTLrue.8tYOZl1tIXVAfETNctrtMUDl2h.Ybq', 'admin', NULL, '2025-07-05 13:13:16'),
 	(9, 'tati', '$2y$10$Z3ofKz3hLWy0qzmZYHvpbO8Rv9GaErx6Qt0e0jTCDY38TtYSkwFNC', 'admin', 'USFathlé', '2025-07-07 21:18:19');
 
+-- Listage de la structure de table ForbachEnRose. timeline_items
+CREATE TABLE IF NOT EXISTS `timeline_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `content` varchar(255) NOT NULL,
+  `image` varchar(255) DEFAULT NULL,
+  `image_position` varchar(50) DEFAULT '50% 50% 1',
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Listage de la structure de table ForbachEnRose. timeline_elements
+CREATE TABLE IF NOT EXISTS `timeline_elements` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `item_id` int(11) NOT NULL,
+  `label` varchar(255) NOT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `item_id` (`item_id`),
+  CONSTRAINT `timeline_elements_ibfk_1` FOREIGN KEY (`item_id`) REFERENCES `timeline_items` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
 /*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
