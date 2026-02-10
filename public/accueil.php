@@ -95,6 +95,53 @@ $galeries_cols2 = count($galeries) > 5;
 $partenaires_cols2 = count($partenaires) > 5;
 
 $link_cancer = $data['link_cancer'] ?? null;
+
+// Récupération des items de la timeline
+try {
+    $stmtTimeline = $pdo->prepare('SELECT * FROM timeline_items ORDER BY sort_order ASC');
+    $stmtTimeline->execute();
+    $timelineItems = $stmtTimeline->fetchAll(PDO::FETCH_ASSOC);
+
+    $timelineElements = [];
+    foreach ($timelineItems as $ti) {
+        $stmtEl = $pdo->prepare('SELECT label FROM timeline_elements WHERE item_id = ? ORDER BY sort_order ASC');
+        $stmtEl->execute([$ti['id']]);
+        $timelineElements[$ti['id']] = $stmtEl->fetchAll(PDO::FETCH_COLUMN);
+    }
+    $timelineCount = count($timelineItems);
+} catch (PDOException $e) {
+    $timelineItems = [];
+    $timelineElements = [];
+    $timelineCount = 0;
+}
+
+/**
+ * Generate SVG S-curve path for the timeline based on item count.
+ * For 4 items, produces the exact same path as the original hardcoded version.
+ */
+function generateTimelineSVG(int $count): array {
+    if ($count <= 0) return ['height' => 0, 'path' => ''];
+
+    $segmentHeight = 200;
+    $totalHeight = $count * $segmentHeight;
+    $path = "M 100 0";
+
+    if ($count >= 1) {
+        $path .= " C 100 80, 190 120, 190 200";
+    }
+
+    for ($i = 1; $i < $count; $i++) {
+        $y1 = ($i * $segmentHeight) + 80;
+        $y2 = ($i + 1) * $segmentHeight;
+        if ($i % 2 === 1) {
+            $path .= " S 10 {$y1}, 10 {$y2}";
+        } else {
+            $path .= " S 190 {$y1}, 190 {$y2}";
+        }
+    }
+
+    return ['height' => $totalHeight, 'path' => $path];
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -1984,11 +2031,6 @@ $link_cancer = $data['link_cancer'] ?? null;
       height: 100%;
       object-fit: cover;
       display: block;
-      transition: transform .5s ease;
-    }
-
-    .t-item:hover .t-media img {
-      transform: scale(1.05);
     }
 
     .t-media::after {
@@ -3557,16 +3599,18 @@ $link_cancer = $data['link_cancer'] ?? null;
     </section>
     
 <!-- TIMELINE (below video) -->
+    <?php if ($timelineCount > 0):
+        $svg = generateTimelineSVG($timelineCount);
+    ?>
     <div class="timeline-wrap">
       <section class="timeline" aria-label="Timeline">
         <div class="timeline-head">
           <h2 class="timeline-title">Historique</h2>
-          <p class="timeline-sub">Bilan annuel des montants collectés lors de la course solidaire.</p>
         </div>
 
         <div class="timeline-track">
-          <!-- SVG S-Curve -->
-          <svg class="timeline-svg" viewBox="0 0 200 800" preserveAspectRatio="none" aria-hidden="true">
+          <!-- SVG S-Curve (dynamic) -->
+          <svg class="timeline-svg" viewBox="0 0 200 <?= $svg['height'] ?>" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="gradient-line" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stop-color="#fce7f3" />
@@ -3574,87 +3618,52 @@ $link_cancer = $data['link_cancer'] ?? null;
                 <stop offset="100%" stop-color="#db2777" />
               </linearGradient>
             </defs>
-            <path
-              class="timeline-path"
-              d="M 100 0 C 100 80, 190 120, 190 200 S 10 280, 10 400 S 190 480, 190 600 S 10 680, 10 800"
-            />
+            <path class="timeline-path" d="<?= $svg['path'] ?>" />
           </svg>
 
           <div class="timeline-items">
-            <div class="t-item left">
+            <?php foreach ($timelineItems as $index => $ti):
+                $side = ($index % 2 === 0) ? 'left' : 'right';
+                $elements = $timelineElements[$ti['id']] ?? [];
+            ?>
+            <div class="t-item <?= $side ?>">
               <span class="t-dot" aria-hidden="true"></span>
               <article class="t-card">
                 <div class="t-media">
-                  <img src="../files/_pictures/img_6873979ef27ef6.61742701.jpg" alt="Édition 2024">
+                  <?php if (!empty($ti['image'])):
+                    $posRaw = $ti['image_position'] ?? '50% 50% 1';
+                    $posParts = preg_split('/\s+/', trim($posRaw));
+                    $imgXPct = $posParts[0] ?? '50%';
+                    $imgYPct = $posParts[1] ?? '50%';
+                    $imgScale = floatval(str_replace('%', '', $posParts[2] ?? '1'));
+                    if ($imgScale <= 0) $imgScale = 1;
+                    $imgStyle = "object-position:{$imgXPct} {$imgYPct}";
+                    if ($imgScale > 1) {
+                      $imgStyle .= ";--zoom:{$imgScale};transform-origin:{$imgXPct} {$imgYPct}";
+                    }
+                  ?>
+                    <img src="../files/_TimeLine/<?= htmlspecialchars($ti['image']) ?>" alt="<?= htmlspecialchars($ti['title']) ?>" style="<?= $imgStyle ?>">
+                  <?php endif; ?>
                 </div>
                 <div class="t-content">
-                  <div class="t-kicker">ZEVENT 2024</div>
-                  <div class="t-amount">10 145 881 €</div>
+                  <div class="t-kicker"><?= htmlspecialchars($ti['title']) ?></div>
+                  <div class="t-amount"><?= htmlspecialchars($ti['content']) ?></div>
+                  <?php if (!empty($elements)): ?>
                   <div class="t-meta">
-                    <span class="t-pill">05–08 sept.</span>
-                    <span class="t-pill">Les Bureaux du Cœur</span>
-                    <span class="t-pill">Solidarité Paysans</span>
+                    <?php foreach ($elements as $label): ?>
+                      <span class="t-pill"><?= htmlspecialchars($label) ?></span>
+                    <?php endforeach; ?>
                   </div>
+                  <?php endif; ?>
                 </div>
               </article>
             </div>
-
-            <div class="t-item right">
-              <span class="t-dot" aria-hidden="true"></span>
-              <article class="t-card">
-                <div class="t-media">
-                  <img src="../files/_pictures/img_6873979ef35a25.30199021.png" alt="Inscriptions">
-                </div>
-                <div class="t-content">
-                  <div class="t-kicker">INSCRIPTIONS</div>
-                  <div class="t-amount">Déjà 16 inscrits</div>
-                  <div class="t-meta">
-                    <span class="t-pill">Objectif: 200</span>
-                    <span class="t-pill">Course + marche</span>
-                    <span class="t-pill">Dons reversés</span>
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <div class="t-item left">
-              <span class="t-dot" aria-hidden="true"></span>
-              <article class="t-card">
-                <div class="t-media">
-                  <img src="../files/_pictures/img_687397ae324891.78948445.jpg" alt="Jour J">
-                </div>
-                <div class="t-content">
-                  <div class="t-kicker">JOUR J</div>
-                  <div class="t-amount">05 juillet 2026</div>
-                  <div class="t-meta">
-                    <span class="t-pill">Départ 09:00</span>
-                    <span class="t-pill">Parcours découverte</span>
-                    <span class="t-pill">Accueil participants</span>
-                  </div>
-                </div>
-              </article>
-            </div>
-
-            <div class="t-item right">
-              <span class="t-dot" aria-hidden="true"></span>
-              <article class="t-card">
-                <div class="t-media">
-                  <img src="../files/_pictures/ob_75a84d_img-0002.jpg" alt="Après course">
-                </div>
-                <div class="t-content">
-                  <div class="t-kicker">APRÈS-COURSE</div>
-                  <div class="t-amount">Remise des dons</div>
-                  <div class="t-meta">
-                    <span class="t-pill">Merci aux participants</span>
-                    <span class="t-pill">Merci aux partenaires</span>
-                  </div>
-                </div>
-              </article>
-            </div>
+            <?php endforeach; ?>
           </div>
         </div>
       </section>
     </div>
+    <?php endif; ?>
 
   </main>
 

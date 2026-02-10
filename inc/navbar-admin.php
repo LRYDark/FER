@@ -16,6 +16,7 @@ $pageTitles = [
     'stats.php'     => 'Statistiques',
     'qr_code.php'   => 'QR Code',
     'saisie.php'    => 'Saisie',
+    'timeline.php'  => 'Timeline',
 ];
 
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
@@ -104,6 +105,19 @@ $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
                     </svg>
                   </span>
                   <span class="nav-label">Actualités</span>
+                </a>
+              </li>
+
+              <!-- Timeline -->
+              <li class="item">
+                <a class="link <?= $currentPage == 'timeline.php' ? 'active' : '' ?>" href="timeline.php">
+                  <span class="nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                  </span>
+                  <span class="nav-label">Timeline</span>
                 </a>
               </li>
 
