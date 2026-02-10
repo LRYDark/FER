@@ -87,6 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
             );
             $testPdo->exec("USE `$dbName`");
 
+            // Vérifier si des tables existent déjà
+            $existingTables = $testPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+            $dbExisted = count($existingTables) > 0;
+
             // Créer les tables
             foreach (getCreateTableStatements() as $sql) {
                 $testPdo->exec($sql);
@@ -103,6 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
                 'db_name' => $dbName,
                 'db_user' => $dbUser,
                 'db_pass' => $dbPass,
+                'db_existed' => $dbExisted,
+                'db_existing_tables' => count($existingTables),
             ];
 
             $dbSuccess = true;
@@ -126,8 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 3) 
     $adminPass  = $_POST['admin_password'] ?? '';
     $adminPass2 = $_POST['admin_password_confirm'] ?? '';
 
-    if ($adminUser === '')       $errors[] = "Le nom d'utilisateur est requis.";
-    if (strlen($adminPass) < 6)  $errors[] = "Le mot de passe doit contenir au moins 6 caractères.";
+    if ($adminUser === '')          $errors[] = "Le nom d'utilisateur est requis.";
+    if (strlen($adminPass) < 14)    $errors[] = "Le mot de passe doit contenir au moins 14 caractères.";
+    if (!preg_match('/[A-Z]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins une majuscule.";
+    if (!preg_match('/[0-9]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins un chiffre.";
+    if (!preg_match('/[^a-zA-Z0-9]/', $adminPass)) $errors[] = "Le mot de passe doit contenir au moins un caractère spécial.";
     if ($adminPass !== $adminPass2) $errors[] = "Les mots de passe ne correspondent pas.";
 
     if (empty($errors) && isset($_SESSION['install'])) {
@@ -712,6 +721,37 @@ $stepLabels = [
       font-weight: 600;
     }
 
+    /* ── Checks mot de passe ── */
+    .pw-checks {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .pw-check {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.2s;
+    }
+
+    .pw-check .pw-icon {
+      font-size: 0.9rem;
+      width: 16px;
+      text-align: center;
+    }
+
+    .pw-check.pw-ok {
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .pw-check.pw-fail {
+      color: #94a3b8;
+    }
+
     .env-manual {
       background: #1e293b;
       color: #e2e8f0;
@@ -834,14 +874,20 @@ $stepLabels = [
       <?php elseif ($displayStep === 2): ?>
 
         <?php if ($dbSuccess): ?>
-          <div class="alert alert-success mb-3">
-            Base de données configurée avec succès ! Toutes les tables ont été créées.
-          </div>
+          <?php if (!empty($_SESSION['install']['db_existed'])): ?>
+            <div class="alert alert-warning mb-3">
+              La base de données <strong><?= htmlspecialchars($_SESSION['install']['db_name'] ?? '') ?></strong> existait déjà avec <?= (int)($_SESSION['install']['db_existing_tables'] ?? 0) ?> table(s). Les tables manquantes ont été ajoutées.
+            </div>
+          <?php else: ?>
+            <div class="alert alert-success mb-3">
+              Base de données configurée avec succès ! Toutes les tables ont été créées.
+            </div>
+          <?php endif; ?>
         <?php endif; ?>
 
         <p class="text-muted mb-3">Créez le compte administrateur principal.</p>
 
-        <form method="post" novalidate>
+        <form method="post" novalidate id="adminForm">
           <input type="hidden" name="step" value="3">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
 
@@ -854,20 +900,67 @@ $stepLabels = [
 
           <div class="mb-3">
             <label class="form-label">Mot de passe</label>
-            <input type="password" name="admin_password" class="form-control"
-                   placeholder="Minimum 6 caractères" required>
+            <input type="password" name="admin_password" id="adminPass" class="form-control"
+                   placeholder="Min. 14 car., majuscule, chiffre, spécial" required>
+            <div class="pw-checks mt-2">
+              <div class="pw-check" id="ck-length"><span class="pw-icon">&#9675;</span> 14 caractères minimum</div>
+              <div class="pw-check" id="ck-upper"><span class="pw-icon">&#9675;</span> Une majuscule</div>
+              <div class="pw-check" id="ck-digit"><span class="pw-icon">&#9675;</span> Un chiffre</div>
+              <div class="pw-check" id="ck-special"><span class="pw-icon">&#9675;</span> Un caractère spécial</div>
+            </div>
           </div>
 
           <div class="mb-4">
             <label class="form-label">Confirmer le mot de passe</label>
-            <input type="password" name="admin_password_confirm" class="form-control"
+            <input type="password" name="admin_password_confirm" id="adminPassConfirm" class="form-control"
                    placeholder="Retapez le mot de passe" required>
+            <div class="pw-checks mt-2">
+              <div class="pw-check" id="ck-match"><span class="pw-icon">&#9675;</span> Les mots de passe correspondent</div>
+            </div>
           </div>
 
-          <button type="submit" class="btn btn-install w-100">
+          <button type="submit" class="btn btn-install w-100" id="btnSubmitAdmin" disabled>
             Créer le compte et terminer
           </button>
         </form>
+
+        <script>
+        (function() {
+          var pass  = document.getElementById('adminPass');
+          var conf  = document.getElementById('adminPassConfirm');
+          var btn   = document.getElementById('btnSubmitAdmin');
+          var checks = {
+            length:  document.getElementById('ck-length'),
+            upper:   document.getElementById('ck-upper'),
+            digit:   document.getElementById('ck-digit'),
+            special: document.getElementById('ck-special'),
+            match:   document.getElementById('ck-match')
+          };
+
+          function setCheck(el, ok) {
+            el.classList.toggle('pw-ok', ok);
+            el.classList.toggle('pw-fail', !ok);
+            el.querySelector('.pw-icon').innerHTML = ok ? '&#10003;' : '&#9675;';
+          }
+
+          function validate() {
+            var v = pass.value;
+            var c = conf.value;
+            var ok = {
+              length:  v.length >= 14,
+              upper:   /[A-Z]/.test(v),
+              digit:   /[0-9]/.test(v),
+              special: /[^a-zA-Z0-9]/.test(v),
+              match:   v.length > 0 && v === c
+            };
+            for (var k in ok) setCheck(checks[k], ok[k]);
+            btn.disabled = !(ok.length && ok.upper && ok.digit && ok.special && ok.match);
+          }
+
+          pass.addEventListener('input', validate);
+          conf.addEventListener('input', validate);
+        })();
+        </script>
 
       <?php // ─── ÉTAPE 3 : Terminé ───────────────────────── ?>
       <?php elseif ($displayStep === 3): ?>

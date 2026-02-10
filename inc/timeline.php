@@ -41,42 +41,6 @@ if (!is_dir($timelineDir)) {
     @mkdir($timelineDir, 0755, true);
 }
 
-// ─── Auto-seed: copy existing hardcoded items on first run ───
-$stmtCheck = $pdo->query("SELECT COUNT(*) FROM timeline_items");
-if ((int)$stmtCheck->fetchColumn() === 0) {
-    $imagesToCopy = [
-        'img_6873979ef27ef6.61742701.jpg',
-        'img_6873979ef35a25.30199021.png',
-        'img_687397ae324891.78948445.jpg',
-        'ob_75a84d_img-0002.jpg'
-    ];
-    foreach ($imagesToCopy as $img) {
-        $src = '../files/_pictures/' . $img;
-        $dst = '../files/_TimeLine/' . $img;
-        if (file_exists($src) && !file_exists($dst)) {
-            @copy($src, $dst);
-        }
-    }
-
-    $seedItems = [
-        ['ZEVENT 2024', '10 145 881 €', 'img_6873979ef27ef6.61742701.jpg', 1, ['05–08 sept.', 'Les Bureaux du Cœur', 'Solidarité Paysans']],
-        ['INSCRIPTIONS', 'Déjà 16 inscrits', 'img_6873979ef35a25.30199021.png', 2, ['Objectif: 200', 'Course + marche', 'Dons reversés']],
-        ['JOUR J', '05 juillet 2026', 'img_687397ae324891.78948445.jpg', 3, ['Départ 09:00', 'Parcours découverte', 'Accueil participants']],
-        ['APRÈS-COURSE', 'Remise des dons', 'ob_75a84d_img-0002.jpg', 4, ['Merci aux participants', 'Merci aux partenaires']],
-    ];
-
-    $stmtInsert = $pdo->prepare("INSERT INTO timeline_items (title, content, image, sort_order) VALUES (?, ?, ?, ?)");
-    $stmtInsertEl = $pdo->prepare("INSERT INTO timeline_elements (item_id, label, sort_order) VALUES (?, ?, ?)");
-
-    foreach ($seedItems as $seed) {
-        $stmtInsert->execute([$seed[0], $seed[1], $seed[2], $seed[3]]);
-        $itemId = $pdo->lastInsertId();
-        foreach ($seed[4] as $idx => $label) {
-            $stmtInsertEl->execute([$itemId, $label, $idx + 1]);
-        }
-    }
-}
-
 // ─── CRUD Handlers ───
 
 // Add item
@@ -414,11 +378,11 @@ foreach ($items as $item) {
         <div class="modal-body row g-3">
           <div class="col-md-6">
             <label class="form-label">Titre (kicker rose)</label>
-            <input type="text" name="title" class="form-control" placeholder="Ex: ZEVENT 2024" required>
+            <input type="text" name="title" class="form-control" placeholder="Ex: Edition 2025" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Contenu (montant / texte principal)</label>
-            <input type="text" name="content" class="form-control" placeholder="Ex: 10 145 881 €" required>
+            <input type="text" name="content" class="form-control" placeholder="Ex: 16 000 €" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">Image</label>
