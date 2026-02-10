@@ -1,7 +1,43 @@
 <?php
-require_once __DIR__ . '/../vendor/autoload.php';   // charge l’autoloader Composer
+require_once __DIR__ . '/../vendor/autoload.php';   // charge l'autoloader Composer
 
-// Charge les variables d’environnement
+// ── Garde d'installation ────────────────────────────────────
+// Si .env est absent ou incomplet → rediriger vers install.php
+$_envPath = __DIR__ . '/.env';
+$_needsInstall = false;
+
+if (!file_exists($_envPath)) {
+    $_needsInstall = true;
+} else {
+    $_envRaw = file_get_contents($_envPath);
+    foreach (['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'ENCRYPTION_KEY'] as $_k) {
+        if (strpos($_envRaw, $_k . '=') === false) {
+            $_needsInstall = true;
+            break;
+        }
+    }
+    unset($_envRaw, $_k);
+}
+
+if ($_needsInstall) {
+    // Calculer le chemin relatif vers la racine du projet
+    $_scriptDir = realpath(dirname($_SERVER['SCRIPT_FILENAME']));
+    $_rootDir   = realpath(__DIR__ . '/..');
+    $_relPath   = '';
+    if ($_scriptDir !== $_rootDir) {
+        $_depth   = substr_count(
+            str_replace($_rootDir, '', $_scriptDir),
+            DIRECTORY_SEPARATOR
+        );
+        $_relPath = str_repeat('../', $_depth);
+    }
+    header('Location: ' . $_relPath . 'install.php');
+    exit;
+}
+unset($_envPath, $_needsInstall);
+// ── Fin garde d'installation ────────────────────────────────
+
+// Charge les variables d'environnement
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__); // si .env est à la racine de config
 $dotenv->load();
 
