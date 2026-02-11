@@ -41,14 +41,14 @@ if ($selectedYearId) {
 
     /* --- Dark mode (par défaut, quand le thème global est clair) --- */
     body:not(.dark-theme) {
-      background: #0a0e12;
+      background: #16171d;
       color: #ffffff;
     }
 
     /* Navbar */
     body:not(.dark-theme) .floating-nav {
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      background: #141a20;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: #1e1f28;
     }
     body:not(.dark-theme) .floating-nav .nav-pill {
       background: transparent !important;
@@ -58,8 +58,8 @@ if ($selectedYearId) {
       background: transparent !important;
     }
     body:not(.dark-theme).nav-scrolled .floating-nav .nav-pill {
-      background: #141a20 !important;
-      border: 1px solid rgba(255,255,255,0.1) !important;
+      background: #1e1f28 !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
     }
     body:not(.dark-theme) .floating-nav .nav-card {
       background: rgba(255,255,255,0.05) !important;
@@ -101,8 +101,8 @@ if ($selectedYearId) {
       background: #1589a3 !important;
     }
     body:not(.dark-theme) .floating-nav .mega {
-      background: #141a20 !important;
-      border: 1px solid rgba(255,255,255,0.1);
+      background: #1e1f28 !important;
+      border: 1px solid rgba(255,255,255,0.08);
     }
     body:not(.dark-theme) .floating-nav .mega .mega-title {
       color: rgba(255,255,255,0.5) !important;
@@ -159,18 +159,18 @@ if ($selectedYearId) {
       color: #c2185b !important;
     }
     body:not(.dark-theme) #megaOverlay {
-      background: rgba(10,14,18,0.75) !important;
+      background: rgba(22,23,29,0.75) !important;
     }
 
     /* Mobile dark */
     body:not(.dark-theme) .mobile-header {
-      background: rgba(10,14,18,0.92) !important;
+      background: rgba(22,23,29,0.92) !important;
     }
     body:not(.dark-theme) .mobile-header .brand-logo {
       filter: brightness(0) invert(1);
     }
     body:not(.dark-theme) .mobile-bottom-unified {
-      background: #141a20 !important;
+      background: #1e1f28 !important;
       box-shadow: 0 8px 18px rgba(0,0,0,.4) !important;
     }
     body:not(.dark-theme) .mobile-bottom-btn {
@@ -222,7 +222,7 @@ if ($selectedYearId) {
       background: rgba(0,0,0,.5) !important;
     }
     body:not(.dark-theme) .site-footer {
-      background: #0b1018 !important;
+      background: #16171d !important;
     }
 
     /* --- Light mode (quand le thème global est sombre = inversé) --- */
@@ -410,7 +410,7 @@ if ($selectedYearId) {
       min-height: 56px;
       border-radius: 12px;
       overflow: hidden;
-      background: rgba(255,255,255,0.06);
+      background: #292d3f;
       display: flex;
       align-items: center;
     }
@@ -481,10 +481,10 @@ if ($selectedYearId) {
 
     /* Carte partenaire */
     .partner-card {
-      background: #141a20;
+      background: #1e1f28;
       border-radius: 12px;
       overflow: hidden;
-      transition: transform .3s ease, box-shadow .3s ease;
+      transition: transform .3s ease;
       cursor: pointer;
       display: flex;
       flex-direction: column;
@@ -493,7 +493,6 @@ if ($selectedYearId) {
 
     .partner-card:hover {
       transform: translateY(-6px);
-      box-shadow: 0 12px 40px rgba(0,0,0,.4);
     }
 
     .partner-card-image-wrapper {
