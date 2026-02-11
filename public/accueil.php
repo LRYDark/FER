@@ -2950,17 +2950,18 @@ function generateTimelineSVG(int $count): array {
     }
 
     body.dark-theme .t-card{
-      background: #141a20;
-      border-color: rgba(255,255,255,.06);
+      background: #1e1f28;
+      border-color: transparent;
+      box-shadow: none;
     }
     body.dark-theme .t-card:hover{
-      box-shadow: 0 8px 16px rgba(0,0,0,.2), 0 24px 60px rgba(0,0,0,.3);
+      box-shadow: none;
     }
     body.dark-theme .t-media{
       background: linear-gradient(135deg, #1a1025, #1e1230);
     }
     body.dark-theme .t-media::after{
-      background: linear-gradient(to top, #141a20, transparent);
+      background: linear-gradient(to top, #1e1f28, transparent);
     }
     body.dark-theme .t-kicker{
       background: linear-gradient(135deg, #1a1025, #1e1230);
@@ -2979,7 +2980,7 @@ function generateTimelineSVG(int $count): array {
       border-color: rgba(255,255,255,.15);
     }
     body.dark-theme .t-dot{
-      background: #141a20;
+      background: #1e1f28;
     }
 
     body.dark-theme .timeline-title{

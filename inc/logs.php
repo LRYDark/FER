@@ -47,13 +47,14 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 <style>
 .log-card {
   border-radius: 1.25rem;
-  box-shadow: 0 0 25px rgba(0,0,0,.08);
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
   overflow: hidden;
   margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
 }
 
 .log-card-header {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
   padding: 1rem 1.5rem;
   display: flex;
   align-items: center;
@@ -77,8 +78,8 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 }
 
 .log-content {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: #16171d;
+  color: #e2e4ed;
   font-family: 'Courier New', Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.6;
@@ -95,12 +96,12 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 }
 
 .log-content::-webkit-scrollbar-track {
-  background: #334155;
+  background: #1e1f28;
   border-radius: 4px;
 }
 
 .log-content::-webkit-scrollbar-thumb {
-  background: #64748b;
+  background: #2e2f3a;
   border-radius: 4px;
 }
 
@@ -137,7 +138,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 
 .badge-size {
   background: rgba(236,72,153,0.1);
-  color: #be185d;
+  color: #db2777;
   padding: 0.3rem 0.6rem;
   border-radius: 8px;
   font-weight: 600;
@@ -146,7 +147,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 
 .badge-lines {
   background: rgba(99,102,241,0.1);
-  color: #4338ca;
+  color: #6366f1;
   padding: 0.3rem 0.6rem;
   border-radius: 8px;
   font-weight: 600;

@@ -1436,14 +1436,14 @@ body.dark-theme .theme-toggle .icon-moon{ display: none !important; }
 
 /* --- Global dark overrides --- */
 body.dark-theme{
-  background: #0a0e12;
+  background: #16171d;
   color: #ffffff;
 }
 
 /* Navbar */
 body.dark-theme .floating-nav{
-  background: #141a20;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: #1e1f28;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 body.dark-theme .floating-nav .nav-pill{
   background: transparent;
@@ -1453,8 +1453,8 @@ body.dark-theme.nav-scrolled .floating-nav{
   background: transparent;
 }
 body.dark-theme.nav-scrolled .floating-nav .nav-pill{
-  background: #141a20;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: #1e1f28;
+  border: 1px solid rgba(255,255,255,0.08);
 }
 
 body.dark-theme .floating-nav .nav-card{
@@ -1500,8 +1500,8 @@ body.dark-theme .floating-nav .btn-inscription:hover{
 
 /* Mega menu */
 body.dark-theme .floating-nav .mega{
-  background: #141a20;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: #1e1f28;
+  border: 1px solid rgba(255,255,255,0.08);
 }
 body.dark-theme .floating-nav .mega .mega-title{
   color: rgba(255,255,255,0.5);
@@ -1561,18 +1561,18 @@ body.dark-theme .floating-nav .mega .mega-featured .mega-featured-link:hover{
 
 /* Overlay */
 body.dark-theme #megaOverlay{
-  background: rgba(10,14,18,0.75);
+  background: rgba(22,23,29,0.75);
 }
 
 /* Mobile */
 body.dark-theme .mobile-header{
-  background: rgba(10,14,18,0.92);
+  background: rgba(22,23,29,0.92);
 }
 body.dark-theme .mobile-header .brand-logo{
   filter: brightness(0) invert(1);
 }
 body.dark-theme .mobile-bottom-unified{
-  background: #141a20;
+  background: #1e1f28;
   box-shadow: 0 8px 18px rgba(0,0,0,.4);
 }
 body.dark-theme .mobile-bottom-bar.menu-open .mobile-bottom-unified{
@@ -1676,9 +1676,9 @@ body.dark-theme p.sub{
 
 /* Footer: always dark regardless of theme */
 body.dark-theme .site-footer{
-  background: #0b1018;
+  background: #16171d;
   color: #ffffff;
-  border-top-color: rgba(255,255,255,.08);
+  border-top-color: rgba(255,255,255,.06);
 }
 body.dark-theme .site-footer .footer-brand-name,
 body.dark-theme .site-footer .footer-tagline,
@@ -1703,19 +1703,19 @@ body.dark-theme .site-footer .theme-toggle:hover{
 
 /* Navbar border */
 body.dark-theme .floating-nav{
-  border-bottom-color: rgba(255,255,255,.08);
+  border-bottom-color: rgba(255,255,255,.06);
 }
 
 /* Reg bars (used on photos, news, parcours) */
 body.dark-theme .album-reg-card,
 body.dark-theme .news-reg-card{
-  background: rgba(255,255,255,.06);
+  background: #292d3f;
 }
 body.dark-theme .album-reg-title,
 body.dark-theme .news-reg-title{
   color: #ffffff;
 }
-/* Bevel sections: always dark #0f172a */
+/* Bevel sections: keep #0f172a in dark mode */
 body.dark-theme .album-reg-bevel,
 body.dark-theme .news-reg-bevel{
   background: #0f172a;
@@ -1723,11 +1723,13 @@ body.dark-theme .news-reg-bevel{
 
 /* Album cards (photos.php) */
 body.dark-theme .album-card{
-  background: #141a20;
+  background: #1e1f28;
   color: #ffffff;
+  border-color: transparent;
+  box-shadow: none;
 }
 body.dark-theme .album-card:hover{
-  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  box-shadow: none;
 }
 body.dark-theme .album-card-title{
   color: #ffffff;
@@ -1752,11 +1754,12 @@ body.dark-theme .year-card:hover{
 
 /* News cards (news.php) */
 body.dark-theme .ncard{
-  background: #141a20;
-  border-color: rgba(255,255,255,.06);
+  background: #1e1f28;
+  border-color: transparent;
+  box-shadow: none;
 }
 body.dark-theme .ncard:hover{
-  box-shadow: 0 8px 28px rgba(0,0,0,.4);
+  box-shadow: none;
 }
 body.dark-theme .ncard-title{
   color: #ffffff;
@@ -1810,8 +1813,9 @@ body.dark-theme .comments-section{
   color: #ffffff;
 }
 body.dark-theme .comment-card{
-  background: #141a20;
-  border-color: rgba(255,255,255,.06);
+  background: #1e1f28;
+  border-color: transparent;
+  box-shadow: none;
 }
 body.dark-theme .comment-author{
   color: #ffffff;
@@ -1907,7 +1911,7 @@ body.dark-theme .comment-form textarea:focus{
 }
 body.dark-theme .comment-submit{
   background: #ffffff;
-  color: #0a0e12;
+  color: #16171d;
 }
 
 /* Comment items - separators */
@@ -1966,7 +1970,7 @@ body.dark-theme .reply-cancel:hover{
 }
 body.dark-theme .reply-submit{
   background: #ffffff;
-  color: #0a0e12;
+  color: #16171d;
 }
 
 /* Vote buttons (news cards) */
@@ -2004,8 +2008,8 @@ body.dark-theme .ncard-comments-badge{
 
 /* Mention dropdown */
 body.dark-theme .mention-dropdown{
-  background: #1a2028;
-  border-color: rgba(255,255,255,.12);
+  background: #262730;
+  border-color: rgba(255,255,255,.1);
   box-shadow: 0 4px 16px rgba(0,0,0,.3);
 }
 body.dark-theme .mention-item{
@@ -2033,7 +2037,7 @@ body.dark-theme .pgbtn:hover{
 }
 body.dark-theme .pgbtn.active{
   background: #ffffff;
-  color: #0a0e12;
+  color: #16171d;
   border-color: #ffffff;
 }
 body.dark-theme .pginfo{
