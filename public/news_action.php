@@ -192,7 +192,7 @@ case 'ban_ip':
     }
     $ipAddr = trim($_POST['ip_address'] ?? '');
     $reason = trim(strip_tags($_POST['reason'] ?? ''));
-    $bannedBy = $_SESSION['username'] ?? 'admin';
+    $bannedBy = $_SESSION['email'] ?? 'admin';
     if ($ipAddr === '') { echo json_encode(['success' => false]); exit; }
 
     $stmt = $pdo->prepare('INSERT IGNORE INTO news_banned_ips (ip_address, reason, banned_by) VALUES (:ip, :reason, :by)');

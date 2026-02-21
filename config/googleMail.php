@@ -193,43 +193,33 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     /* ---------- Sujet ---------- */
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
-    // 1) Instancier un objet DateTime à partir de la valeur SQL
-    $dateCourse = new DateTime($data['date_course']);   // ⇒ 7 juin 2026
-
-    // 2) Préparer un formateur pour la locale française
-    $formatter = new IntlDateFormatter(
-        'fr_FR',                       // locale
-        IntlDateFormatter::NONE,       // on ne veut pas la partie "date/heure" préformatée
-        IntlDateFormatter::NONE,       // pas d'heure
-        'Europe/Paris',                // fuseau (facultatif mais propre)
-        IntlDateFormatter::GREGORIAN,  // calendrier
-        'd MMMM yyyy'                  // pattern 
-        // - d : jour sur 1 ou 2 chiffres (pas de zéro en tête)
-        // - MMMM : nom complet du mois
-        // - yyyy : année sur 4 chiffres
-    );
-
-    // 3) Formater la date
-    $formattedDate = $formatter->format($dateCourse); 
-
     /* ---------- Corps ---------- */
     switch ($type) {
         case 'info':
             $body = render('mail_info.php', [
                 'mailTitle'   => $mailTitle,
                 'description' => $description,
-                'instagram'   => $data['link_instagram'],
-                'facebook'    => $data['link_facebook'],
+                'instagram'   => $data['link_instagram'] ?? '',
+                'facebook'    => $data['link_facebook'] ?? '',
             ]);
             break;
 
         case 'inscription':
+            $formattedDate = '';
+            if (!empty($data['date_course'])) {
+                $dateCourse = new DateTime($data['date_course']);
+                $formatter = new IntlDateFormatter(
+                    'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
+                    'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
+                );
+                $formattedDate = $formatter->format($dateCourse);
+            }
             $body = render('mail_inscription.php', [
                 'firstname'   => $firstname,
                 'lastname'    => $lastname,
                 'date'        => $formattedDate,
-                'instagram'   => $data['link_instagram'],
-                'facebook'    => $data['link_facebook'],
+                'instagram'   => $data['link_instagram'] ?? '',
+                'facebook'    => $data['link_facebook'] ?? '',
             ]);
             break;
 

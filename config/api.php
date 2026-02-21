@@ -7,21 +7,194 @@ $route = $_GET['route'] ?? '';
 /* ───── LOGIN / LOGOUT ───────────────────────── */
 if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $d = json_decode(file_get_contents('php://input'), true);
-    $st=$pdo->prepare('SELECT id,password_hash,role FROM users WHERE username=?');
-    $st->execute([$d['username']]); $u=$st->fetch();
+    $st=$pdo->prepare('SELECT id,password_hash,role,must_change_password,is_active FROM users WHERE email=?');
+    $st->execute([$d['email']]); $u=$st->fetch();
     if($u && password_verify($d['password'],$u['password_hash'])){
-        $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role'];
-        echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;  // ← Ajout du role
+        if(!$u['is_active']){
+            http_response_code(403);
+            echo json_encode(['ok'=>false, 'err'=>'Compte désactivé. Contactez un administrateur.']); exit;
+        }
+        $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$d['email'];
+        if($u['must_change_password']){
+            echo json_encode(['ok'=>true, 'role'=>$u['role'], 'must_change_password'=>true]); exit;
+        }
+        echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
     }
     http_response_code(401); echo json_encode(['ok'=>false]); exit;
 }
 if ($route==='logout'){ session_destroy(); echo json_encode(['ok'=>true]); exit; }
 
+/* ───── FORGOT PASSWORD (public) ────────────── */
+if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $email = trim($d['email'] ?? '');
+
+    if (!$email) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'Email requis']);
+        exit;
+    }
+
+    $stmt = $pdo->prepare('SELECT id, email FROM users WHERE email = ?');
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+
+    if ($user) {
+        $token   = bin2hex(random_bytes(32));
+        $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+
+        $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
+            ->execute([$token, $expires, $user['id']]);
+
+        // Envoyer le mail si Gmail est configuré
+        try {
+            require_once __DIR__ . '/googleMail.php';
+            if (isGoogleConnectionValid()) {
+                $resetUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                          . '://' . $_SERVER['HTTP_HOST']
+                          . dirname(dirname($_SERVER['SCRIPT_NAME']))
+                          . '/reset-password.php?token=' . $token;
+
+                sendMail(
+                    $user['email'],
+                    'Réinitialisation de votre mot de passe – Forbach en Rose',
+                    'Mot de passe oublié ?',
+                    '<p>Vous avez demandé la réinitialisation de votre mot de passe.</p>'
+                      . '<p>Cliquez sur le lien ci-dessous pour définir un nouveau mot de passe :</p>'
+                      . '<p><a href="' . htmlspecialchars($resetUrl) . '">' . htmlspecialchars($resetUrl) . '</a></p>'
+                      . '<p><em>Ce lien expire dans 10 minutes.</em></p>',
+                    null, null, 'info'
+                );
+            }
+        } catch (Exception $e) {
+            error_log('Forgot password mail error: ' . $e->getMessage());
+        }
+    }
+
+    // Toujours retourner succès (ne pas révéler si email existe)
+    echo json_encode(['ok' => true, 'message' => 'Si un compte existe avec cette adresse, un email de réinitialisation a été envoyé.']);
+    exit;
+}
+
+/* ───── CHANGE PASSWORD (authentifié) ────────── */
+if ($route==='change-password' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) {
+        http_response_code(401);
+        echo json_encode(['ok' => false]); exit;
+    }
+    $d = json_decode(file_get_contents('php://input'), true);
+    $password = $d['password'] ?? '';
+
+    $errors = validatePasswordPolicy($password);
+    if (!empty($errors)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'errors' => $errors]); exit;
+    }
+
+    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
+        ->execute([password_hash($password, PASSWORD_DEFAULT), $_SESSION['uid']]);
+    echo json_encode(['ok' => true]); exit;
+}
+
+/* ───── RESET PASSWORD CONFIRM (token) ───────── */
+if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $token    = $d['token'] ?? '';
+    $password = $d['password'] ?? '';
+
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()');
+    $stmt->execute([$token]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'Token invalide ou expiré']); exit;
+    }
+
+    $errors = validatePasswordPolicy($password);
+    if (!empty($errors)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'errors' => $errors]); exit;
+    }
+
+    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
+        ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+    echo json_encode(['ok' => true]); exit;
+}
+
 /* ───── USERS (admin) ────────────────────────── */
 if ($route === 'users') {
     requireRole(['admin']);
 
-    // 🔁 POST : suppression d’un compte
+    // 🔑 POST : reset mot de passe d'un compte
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'reset-password') {
+        $id = $_POST['id'] ?? null;
+        if (!$id) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'id manquant']);
+            exit;
+        }
+
+        $tempPassword = generateTemporaryPassword();
+
+        $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?')
+            ->execute([password_hash($tempPassword, PASSWORD_DEFAULT), $id]);
+
+        // Récupérer l'email pour envoi
+        $userStmt = $pdo->prepare('SELECT email FROM users WHERE id = ?');
+        $userStmt->execute([$id]);
+        $userEmail = $userStmt->fetchColumn();
+
+        $emailSent = false;
+        if ($userEmail) {
+            try {
+                require_once __DIR__ . '/googleMail.php';
+                if (isGoogleConnectionValid()) {
+                    $emailSent = sendMail(
+                        $userEmail,
+                        'Réinitialisation de votre mot de passe – Forbach en Rose',
+                        'Mot de passe réinitialisé',
+                        '<p>Votre mot de passe a été réinitialisé.</p>'
+                          . '<p><strong>Nouveau mot de passe temporaire :</strong> ' . htmlspecialchars($tempPassword) . '</p>'
+                          . '<p>Vous devrez changer votre mot de passe lors de votre prochaine connexion.</p>',
+                        null, null, 'info'
+                    );
+                }
+            } catch (Exception $e) {
+                error_log('Reset password mail error: ' . $e->getMessage());
+            }
+        }
+
+        echo json_encode(['ok' => true, 'temp_password' => $tempPassword, 'email_sent' => $emailSent]);
+        exit;
+    }
+
+    // 🔄 POST : activer/désactiver un compte
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle-active') {
+        $id = $_POST['id'] ?? null;
+        if (!$id) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'id manquant']);
+            exit;
+        }
+
+        $stmt = $pdo->prepare('SELECT is_active FROM users WHERE id = ?');
+        $stmt->execute([$id]);
+        $current = $stmt->fetchColumn();
+
+        if ($current === false) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'err' => 'Utilisateur introuvable']);
+            exit;
+        }
+
+        $newState = $current ? 0 : 1;
+        $pdo->prepare('UPDATE users SET is_active = ? WHERE id = ?')->execute([$newState, $id]);
+        echo json_encode(['ok' => true, 'is_active' => $newState]);
+        exit;
+    }
+
+    // 🔁 POST : suppression d'un compte
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
         $id = $_POST['id'] ?? null;
         $force = $_POST['force'] ?? false;
@@ -64,27 +237,51 @@ if ($route === 'users') {
     }
 
 
-    // ✅ POST : création d’un compte
+    // ✅ POST : création d'un compte (mot de passe temporaire auto-généré)
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $d = json_decode(file_get_contents('php://input'), true);
+
+        $tempPassword = generateTemporaryPassword();
+
         $stmt = $pdo->prepare(
-            'INSERT INTO users(username,password_hash,role,organisation)
-             VALUES(?,?,?,?)'
+            'INSERT INTO users(email,password_hash,role,organisation,must_change_password)
+             VALUES(?,?,?,?,1)'
         );
         $stmt->execute([
-            $d['username'],
-            password_hash($d['password'], PASSWORD_DEFAULT),
+            $d['email'],
+            password_hash($tempPassword, PASSWORD_DEFAULT),
             $d['role'],
             $d['organisation'] ?: null
         ]);
-        echo json_encode(['ok' => true]);
+
+        // Tenter l'envoi du mail avec le mot de passe temporaire
+        $emailSent = false;
+        try {
+            require_once __DIR__ . '/googleMail.php';
+            if (isGoogleConnectionValid()) {
+                $emailSent = sendMail(
+                    $d['email'],
+                    'Votre compte Forbach en Rose',
+                    'Bienvenue sur Forbach en Rose',
+                    '<p>Votre compte a été créé.</p>'
+                      . '<p><strong>Email :</strong> ' . htmlspecialchars($d['email']) . '</p>'
+                      . '<p><strong>Mot de passe temporaire :</strong> ' . htmlspecialchars($tempPassword) . '</p>'
+                      . '<p>Vous devrez changer votre mot de passe lors de votre première connexion.</p>',
+                    null, null, 'info'
+                );
+            }
+        } catch (Exception $e) {
+            error_log('Create user mail error: ' . $e->getMessage());
+        }
+
+        echo json_encode(['ok' => true, 'temp_password' => $tempPassword, 'email_sent' => $emailSent]);
         exit;
     }
 
     // GET : liste
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         echo json_encode(
-            $pdo->query('SELECT id,username,role,organisation,created_at FROM users')->fetchAll()
+            $pdo->query('SELECT id,email,role,organisation,is_active,created_at FROM users')->fetchAll()
         );
         exit;
     }
@@ -98,19 +295,14 @@ if ($route === 'users') {
             exit;
         }
 
-        $allowed = ['username', 'password', 'role', 'organisation'];
+        $allowed = ['email', 'role', 'organisation'];
         $fields = [];
         $params = [];
 
         foreach ($allowed as $key) {
             if (isset($d[$key])) {
-                if ($key === 'password') {
-                    $fields[] = "password_hash = :password_hash";
-                    $params['password_hash'] = password_hash($d['password'], PASSWORD_DEFAULT);
-                } else {
-                    $fields[] = "$key = :$key";
-                    $params[$key] = $d[$key];
-                }
+                $fields[] = "$key = :$key";
+                $params[$key] = $d[$key];
             }
         }
 

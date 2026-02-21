@@ -55,6 +55,71 @@ if (isset($_SESSION['flash_message'])) {
   tr.filters th[class*="sorting"]::after{display:none!important}
   .statCard{min-width:180px}
   .hide-stats #stats {display: none !important;}
+  .dashboard-actions .btn-rose{
+    background:linear-gradient(135deg,#ec4899,#db2777)!important;
+    color:#fff!important;
+    border:none!important;
+  }
+  .dashboard-actions .btn-rose:hover,
+  .dashboard-actions .btn-rose:focus{
+    background:linear-gradient(135deg,#db2777,#be185d)!important;
+    color:#fff!important;
+  }
+  .dashboard-actions .btn-success{
+    background:#22c55e!important;
+    color:#fff!important;
+    border-color:#22c55e!important;
+  }
+  .dashboard-actions .btn-success:hover,
+  .dashboard-actions .btn-success:focus{
+    background:#16a34a!important;
+    color:#fff!important;
+    border-color:#16a34a!important;
+  }
+  .dashboard-actions .btn-secondary{
+    background:#2e2f3a!important;
+    color:#e2e4ed!important;
+    border-color:#383942!important;
+  }
+  .dashboard-actions .btn-secondary:hover,
+  .dashboard-actions .btn-secondary:focus{
+    background:#383942!important;
+    color:#fff!important;
+    border-color:#383942!important;
+  }
+  .dashboard-actions .btn-info{
+    background:#0ea5e9!important;
+    color:#fff!important;
+    border-color:#0ea5e9!important;
+  }
+  .dashboard-actions .btn-info:hover,
+  .dashboard-actions .btn-info:focus{
+    background:#0284c7!important;
+    color:#fff!important;
+    border-color:#0284c7!important;
+  }
+  .dashboard-actions .btn-danger{
+    background:#ef4444!important;
+    color:#fff!important;
+    border-color:#ef4444!important;
+  }
+  .dashboard-actions .btn-danger:hover,
+  .dashboard-actions .btn-danger:focus{
+    background:#dc2626!important;
+    color:#fff!important;
+    border-color:#dc2626!important;
+  }
+  .dashboard-actions .btn-warning{
+    background:#f59e0b!important;
+    color:#16171d!important;
+    border-color:#f59e0b!important;
+  }
+  .dashboard-actions .btn-warning:hover,
+  .dashboard-actions .btn-warning:focus{
+    background:#d97706!important;
+    color:#fff!important;
+    border-color:#d97706!important;
+  }
   
 /* Styles pour l'en-tête moderne */
 /* ═══ En-tête ============================================================== */
@@ -164,6 +229,107 @@ tr.filters select{
   font-style: italic;
 }
 
+/* ═══ Dark theme pour #tblUsers ═══ */
+html.adm-dark #usersModal #tblUsers {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--adm-text);
+  --bs-table-border-color: var(--adm-border);
+}
+html.adm-dark #usersModal #tblUsers.table > :not(caption) > * > * {
+  background-color: transparent !important;
+  color: var(--adm-text) !important;
+  border-color: var(--adm-border) !important;
+}
+html.adm-dark #usersModal #tblUsers thead th {
+  background: var(--adm-elevated) !important;
+  color: var(--adm-accent) !important;
+  border-color: var(--adm-accent) !important;
+}
+html.adm-dark #usersModal #tblUsers tbody tr:nth-child(even) > * {
+  background: rgba(255,255,255,.02) !important;
+}
+html.adm-dark #usersModal #tblUsers tbody tr:hover > * {
+  background: var(--adm-hover) !important;
+}
+html.adm-dark #usersModal hr {
+  border-color: var(--adm-border);
+}
+html.adm-dark #usersModal h6 {
+  color: var(--adm-text);
+}
+html.adm-dark #usersModal .dataTables_wrapper .dataTables_info,
+html.adm-dark #usersModal .dataTables_wrapper .dataTables_length label,
+html.adm-dark #usersModal .dataTables_wrapper .dataTables_filter label {
+  color: var(--adm-text-dim) !important;
+}
+html.adm-dark #usersModal .dataTables_wrapper .page-link {
+  background: var(--adm-elevated) !important;
+  border-color: var(--adm-border) !important;
+  color: var(--adm-text-dim) !important;
+}
+html.adm-dark #usersModal .dataTables_wrapper .page-item.active .page-link {
+  background: var(--adm-accent) !important;
+  border-color: var(--adm-accent) !important;
+  color: #fff !important;
+}
+html.adm-dark #usersModal .dataTables_wrapper .page-item.disabled .page-link {
+  background: var(--adm-surface) !important;
+  border-color: var(--adm-border) !important;
+  color: var(--adm-text-muted) !important;
+}
+
+/* ═══ Inactive user rows ═══ */
+#tblUsers tbody tr.user-inactive td {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+#tblUsers tbody tr.user-inactive td:last-child {
+  opacity: 1;
+  text-decoration: none;
+}
+
+/* ═══ Responsive #usersModal ═══ */
+@media (max-width: 767.98px) {
+  #usersModal .modal-dialog {
+    margin: 0;
+    max-width: 100%;
+    min-height: 100dvh;
+  }
+  #usersModal .modal-content {
+    border-radius: 0;
+    min-height: 100dvh;
+  }
+  #usersModal #tblUsers {
+    font-size: .78rem;
+  }
+  #usersModal #tblUsers th,
+  #usersModal #tblUsers td {
+    padding: .35rem .25rem;
+    white-space: nowrap;
+  }
+  #usersModal #fUser .col-md-4,
+  #usersModal #fUser .col-md-3,
+  #usersModal #fUser .col-md-2 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+@media (max-width: 575.98px) {
+  #tblUsers td:nth-child(5),
+  #tblUsers th:nth-child(5),
+  #tblUsers td:nth-child(6),
+  #tblUsers th:nth-child(6) {
+    display: none;
+  }
+}
+
+/* ═══ Temp password modal ═══ */
+html.adm-dark #tempPasswordModal .font-monospace {
+  background: var(--adm-elevated) !important;
+  color: var(--adm-accent) !important;
+  border-color: var(--adm-border) !important;
+}
+
 /* Styles pour la zone de recherche */
 .email-search-container {
   position: relative;
@@ -234,7 +400,7 @@ tr.filters select{
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
       <h2 class="mb-0">Inscriptions</h2>
 
-      <div class="d-none d-lg-flex flex-wrap gap-2">
+      <div class="dashboard-actions d-none d-lg-flex flex-wrap gap-2">
         <?php if($role!=='viewer'): ?>
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
         <?php endif; ?>
@@ -444,18 +610,46 @@ tr.filters select{
  <div class="modal-content"><div class="modal-header">
    <h5 class="modal-title">Comptes utilisateurs</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">
-    <table id="tblUsers" class="table table-sm w-100"></table>
+    <div class="table-responsive">
+      <table id="tblUsers" class="table table-sm w-100"></table>
+    </div>
     <hr><h6>Nouveau compte</h6>
     <form id="fUser" class="row g-2">
       <input type="hidden" name="id">
-      <div class="col-md-3"><input name="username" placeholder="login" class="form-control" required></div>
-      <div class="col-md-3"><input name="password" placeholder="mot de passe" class="form-control" required></div>
-      <div class="col-md-2"><select name="role" class="form-select"><option>viewer</option><option>user</option><option>saisie</option><option>admin</option></select></div>
+      <div class="col-md-4"><input name="email" type="email" placeholder="adresse email" class="form-control" required></div>
+      <div class="col-md-3"><select name="role" class="form-select"><option>viewer</option><option>user</option><option>saisie</option><option>admin</option></select></div>
       <div class="col-md-3"><input name="organisation" placeholder="organisation" class="form-control"></div>
-      <div class="col-md-1 d-grid"><button class="btn btn-rose">OK</button></div>
+      <div class="col-md-2 d-grid"><button class="btn btn-rose">OK</button></div>
     </form>
   </div></div></div></div>
 <?php endif; ?>
+
+<!-- Modal mot de passe temporaire -->
+<div class="modal fade" id="tempPasswordModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mot de passe temporaire</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p id="tempPwdEmailStatus" class="mb-3"></p>
+        <p class="text-muted mb-2">Mot de passe temporaire :</p>
+        <div class="input-group mb-3">
+          <input type="text" id="tempPwdValue" class="form-control text-center font-monospace fs-5" readonly>
+          <button class="btn btn-outline-secondary" type="button" id="copyTempPwd" title="Copier">
+            <i class="bi bi-clipboard"></i>
+          </button>
+        </div>
+        <div id="copyConfirm" class="text-success d-none">Copie !</div>
+        <p class="text-muted small">L'utilisateur devra changer ce mot de passe a sa prochaine connexion.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -1159,43 +1353,131 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 /* ══ COMPTES UTILISATEURS (ADMIN) ════ */
 <?php if($role==='admin'): ?>
 let usrTbl;
+
+// Fonction pour afficher le modal de mot de passe temporaire
+function showTempPasswordModal(password, email, emailSent) {
+  document.getElementById('tempPwdValue').value = password;
+  const statusEl = document.getElementById('tempPwdEmailStatus');
+  if (emailSent) {
+    statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Email envoy\u00e9 \u00e0 ' + email + '</span>';
+  } else {
+    statusEl.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Email non envoy\u00e9 (Gmail non configur\u00e9). Communiquez le mot de passe manuellement.</span>';
+  }
+  document.getElementById('copyConfirm').classList.add('d-none');
+  new bootstrap.Modal('#tempPasswordModal').show();
+}
+
+// Bouton copier
+document.getElementById('copyTempPwd').addEventListener('click', function() {
+  const val = document.getElementById('tempPwdValue').value;
+  navigator.clipboard.writeText(val).then(() => {
+    const el = document.getElementById('copyConfirm');
+    el.classList.remove('d-none');
+    setTimeout(() => el.classList.add('d-none'), 2000);
+  });
+});
+
 $('#usersModal').on('shown.bs.modal',()=>{
   if(usrTbl) return;
   usrTbl=$('#tblUsers').DataTable({
     ajax:{url:'../config/api.php?route=users',dataSrc:''},
     columns: [
       { data: 'id', title: '#' },
-      { data: 'username', title: 'Login' },
-      { data: 'role', title: 'Rôle' },
+      { data: 'email', title: 'Email' },
+      { data: 'role', title: 'R\u00f4le' },
+      {
+        data: 'is_active',
+        title: 'Statut',
+        className: 'text-center',
+        render: function (val) {
+          return val == 1
+            ? '<span class="badge bg-success">Actif</span>'
+            : '<span class="badge bg-secondary">Inactif</span>';
+        }
+      },
       { data: 'organisation', title: 'Organisation' },
-      { data: 'created_at', title: 'Créé le' },
+      { data: 'created_at', title: 'Cr\u00e9\u00e9 le' },
       {
         data: null,
-        title: '',
+        title: 'Actions',
         orderable: false,
-        render: function () {
+        className: 'text-nowrap',
+        render: function (data) {
+          const toggleIcon = data.is_active == 1 ? '\u23f8\ufe0f' : '\u25b6\ufe0f';
+          const toggleTitle = data.is_active == 1 ? 'D\u00e9sactiver' : 'Activer';
+          const toggleClass = data.is_active == 1 ? 'btn-outline-secondary' : 'btn-outline-success';
           return `
-            <button class="btn btn-sm btn-outline-primary edit-user">✏️</button>
-            <button class="btn btn-sm btn-outline-danger delete-user">🗑️</button>
+            <button class="btn btn-sm btn-outline-primary edit-user me-1" title="Modifier">\u270f\ufe0f</button>
+            <button class="btn btn-sm btn-outline-warning reset-pwd me-1" title="Reset MDP">\ud83d\udd11</button>
+            <button class="btn btn-sm ${toggleClass} toggle-active me-1" title="${toggleTitle}">${toggleIcon}</button>
+            <button class="btn btn-sm btn-outline-danger delete-user" title="Supprimer">\ud83d\uddd1\ufe0f</button>
           `;
         }
       }
-    ]
+    ],
+    createdRow: function (row, data) {
+      if (data.is_active != 1) {
+        $(row).addClass('user-inactive');
+      }
+    }
   });
 });
 
+// Modifier un utilisateur
 $('#tblUsers').on('click', '.edit-user', function () {
   const data = usrTbl.row($(this).closest('tr')).data();
   $('#fUser [name="id"]').val(data.id);
-  $('#fUser [name="username"]').val(data.username);
+  $('#fUser [name="email"]').val(data.email);
   $('#fUser [name="role"]').val(data.role);
   $('#fUser [name="organisation"]').val(data.organisation);
-  $('#fUser [name="password"]').val(''); // vide pour ne pas écraser si non modifié
 });
 
+// Reset mot de passe
+$('#tblUsers').on('click', '.reset-pwd', function () {
+  const data = usrTbl.row($(this).closest('tr')).data();
+  if (!confirm(`R\u00e9initialiser le mot de passe de "${data.email}" ?`)) return;
+
+  fetch('../config/api.php?route=users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ action: 'reset-password', id: data.id })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.ok) {
+      showTempPasswordModal(j.temp_password, data.email, j.email_sent);
+      usrTbl.ajax.reload();
+    } else {
+      alert('Erreur : ' + (j.err || 'inconnue'));
+    }
+  });
+});
+
+// Activer/Désactiver un utilisateur
+$('#tblUsers').on('click', '.toggle-active', function () {
+  const data = usrTbl.row($(this).closest('tr')).data();
+  const action = data.is_active == 1 ? 'D\u00e9sactiver' : 'Activer';
+  if (!confirm(`${action} le compte "${data.email}" ?`)) return;
+
+  fetch('../config/api.php?route=users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ action: 'toggle-active', id: data.id })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.ok) {
+      usrTbl.ajax.reload();
+    } else {
+      alert('Erreur : ' + (j.err || 'inconnue'));
+    }
+  });
+});
+
+// Supprimer un utilisateur
 $('#tblUsers').on('click', '.delete-user', function () {
   const data = usrTbl.row($(this).closest('tr')).data();
-  if (!confirm(`Supprimer le compte "${data.username}" ?`)) return;
+  if (!confirm(`Supprimer le compte "${data.email}" ?`)) return;
 
   const deleteUser = (force = false) => {
     const params = new URLSearchParams({ action: 'delete', id: data.id });
@@ -1223,6 +1505,7 @@ $('#tblUsers').on('click', '.delete-user', function () {
   deleteUser();
 });
 
+// Creer / Modifier un utilisateur
 $('#fUser').on('submit', e => {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -1236,11 +1519,20 @@ $('#fUser').on('submit', e => {
       'Content-Type': id ? 'application/x-www-form-urlencoded' : 'application/json'
     },
     body
-  }).then(() => {
-    usrTbl.ajax.reload();
-    e.target.reset();
-    $('#fUser [name="id"]').val('');
-    $('#fUser [name="password"]').val('');
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.ok) {
+      usrTbl.ajax.reload();
+      // Si creation, afficher le mot de passe temporaire
+      if (!id && j.temp_password) {
+        showTempPasswordModal(j.temp_password, fd.get('email'), j.email_sent);
+      }
+      e.target.reset();
+      $('#fUser [name="id"]').val('');
+    } else {
+      alert('Erreur : ' + (j.err || 'inconnue'));
+    }
   });
 });
 <?php endif; ?>

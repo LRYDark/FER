@@ -162,6 +162,47 @@ function oauth2_callback_url(): string
     return $scheme . '://' . $host . $baseDir . '/oauth2callback.php';
 }
 
+/**
+ * Génère un mot de passe temporaire conforme à la politique de sécurité.
+ * 14+ caractères, au moins 1 majuscule, 1 chiffre, 1 caractère spécial.
+ */
+function generateTemporaryPassword(int $length = 16): string
+{
+    $upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $lower   = 'abcdefghijklmnopqrstuvwxyz';
+    $digits  = '0123456789';
+    $special = '!@#$%^&*()-_=+[]{}|;:,.<>?';
+
+    // Garantir au moins un de chaque type requis
+    $password  = $upper[random_int(0, strlen($upper) - 1)];
+    $password .= $lower[random_int(0, strlen($lower) - 1)];
+    $password .= $digits[random_int(0, strlen($digits) - 1)];
+    $password .= $special[random_int(0, strlen($special) - 1)];
+
+    // Remplir le reste avec des caractères aléatoires de tous les types
+    $all = $upper . $lower . $digits . $special;
+    for ($i = 4; $i < $length; $i++) {
+        $password .= $all[random_int(0, strlen($all) - 1)];
+    }
+
+    // Mélanger pour randomiser les positions
+    return str_shuffle($password);
+}
+
+/**
+ * Valide un mot de passe selon la politique de sécurité.
+ * Retourne un tableau d'erreurs (vide si valide).
+ */
+function validatePasswordPolicy(string $password): array
+{
+    $errors = [];
+    if (strlen($password) < 14)                    $errors[] = "Le mot de passe doit contenir au moins 14 caractères.";
+    if (!preg_match('/[A-Z]/', $password))          $errors[] = "Le mot de passe doit contenir au moins une majuscule.";
+    if (!preg_match('/[0-9]/', $password))          $errors[] = "Le mot de passe doit contenir au moins un chiffre.";
+    if (!preg_match('/[^a-zA-Z0-9]/', $password))   $errors[] = "Le mot de passe doit contenir au moins un caractère spécial.";
+    return $errors;
+}
+
 function encrypt($data) {
     $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
     $encrypted = openssl_encrypt($data, 'aes-256-cbc', $_ENV['ENCRYPTION_KEY'], 0, $iv);
