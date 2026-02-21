@@ -377,6 +377,49 @@ html.adm-dark a:hover { color: #f472b6; }
 html.adm-dark small, html.adm-dark .text-muted { color: var(--adm-text-muted) !important; }
 html.adm-dark .text-dark { color: var(--adm-text) !important; }
 
+/* ── Navbar admin: garder les couleurs du theme clair pour les boutons/liens ── */
+html.adm-dark .adm-link {
+  color: #475569 !important;
+}
+html.adm-dark .adm-icon {
+  stroke: #94a3b8 !important;
+}
+html.adm-dark .adm-link:hover {
+  background: rgba(236,72,153,.08) !important;
+  color: #ec4899 !important;
+}
+html.adm-dark .adm-link:hover .adm-icon {
+  stroke: #ec4899 !important;
+}
+html.adm-dark .adm-link.active {
+  background: linear-gradient(135deg, #ec4899, #db2777) !important;
+  color: #fff !important;
+}
+html.adm-dark .adm-link.active .adm-icon {
+  stroke: #fff !important;
+}
+html.adm-dark .adm-btn-mode,
+html.adm-dark .adm-drawer-btn-mode {
+  background: rgba(236,72,153,.08) !important;
+  color: #ec4899 !important;
+  border-color: rgba(236,72,153,.25) !important;
+}
+html.adm-dark .adm-drawer-link {
+  color: #475569 !important;
+}
+html.adm-dark .adm-drawer-link:hover {
+  background: rgba(236,72,153,.08) !important;
+  color: #ec4899 !important;
+}
+html.adm-dark .adm-drawer-link.active {
+  background: rgba(236,72,153,.08) !important;
+  color: #ec4899 !important;
+  border-left-color: #ec4899 !important;
+}
+html.adm-dark .adm-drawer-link.active .adm-icon {
+  stroke: #ec4899 !important;
+}
+
 /* ── Cards & surfaces ── */
 html.adm-dark .bg-white,
 html.adm-dark .card,
@@ -597,7 +640,40 @@ html.adm-dark .suggestion-item { border-color: var(--adm-border) !important; col
 html.adm-dark .suggestion-item:hover { background: var(--adm-hover) !important; }
 
 /* ── Page-specific: Timeline ── */
-html.adm-dark .tl-card { background: var(--adm-card) !important; border-color: transparent !important; box-shadow: none !important; }
+html.adm-dark .tl-card {
+  background: var(--adm-elevated) !important;
+  border-color: rgba(148,153,176,.28) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.28) !important;
+}
+html.adm-dark .tl-card:hover {
+  border-color: rgba(236,72,153,.35) !important;
+  box-shadow: 0 14px 34px rgba(0,0,0,.36) !important;
+}
+html.adm-dark .tl-amount { color: #eef2ff !important; }
+html.adm-dark .tl-pill {
+  background: rgba(255,255,255,.08) !important;
+  border-color: rgba(148,153,176,.35) !important;
+  color: #d8deec !important;
+}
+html.adm-dark .tl-order { color: #b4bdd1 !important; }
+html.adm-dark .move-btn { color: #b4bdd1 !important; }
+html.adm-dark .move-btn:hover { color: #ec4899 !important; }
+html.adm-dark .tl-card .btn-outline-primary,
+html.adm-dark .tl-card .btn-outline-danger {
+  background: rgba(255,255,255,.08) !important;
+  border-color: rgba(148,153,176,.35) !important;
+  color: #d8deec !important;
+}
+html.adm-dark .tl-card .btn-outline-primary:hover {
+  background: rgba(236,72,153,.15) !important;
+  border-color: rgba(236,72,153,.5) !important;
+  color: #f9a8d4 !important;
+}
+html.adm-dark .tl-card .btn-outline-danger:hover {
+  background: rgba(239,68,68,.18) !important;
+  border-color: rgba(239,68,68,.45) !important;
+  color: #fca5a5 !important;
+}
 html.adm-dark .img-positioner { background: var(--adm-elevated) !important; }
 
 /* ── Page-specific: News ── */

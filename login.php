@@ -60,24 +60,6 @@ $picture= $data['picture'] ?? '';
       position: relative;
     }
 
-    .login-logo {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 1rem;
-      background: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    .login-logo img {
-      max-width: 60px;
-      max-height: 60px;
-      object-fit: contain;
-    }
-
     .login-header h1 {
       font-size: 1.75rem;
       font-weight: 700;
@@ -172,6 +154,14 @@ $picture= $data['picture'] ?? '';
       padding: 1.5rem;
       color: #64748b;
       font-size: 0.85rem;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .login-footer .footer-copy {
+      position: relative;
+      z-index: 1;
     }
 
     @media (max-width: 575.98px) {
@@ -197,7 +187,7 @@ $picture= $data['picture'] ?? '';
   <div class="login-container">
     <div class="login-card">
 
-      <!-- En-tête avec logo et titre -->
+      <!-- En-tête de connexion -->
       <div class="login-header">
         <a href="public/accueil.php" class="back-link">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,12 +195,6 @@ $picture= $data['picture'] ?? '';
           </svg>
           Retour
         </a>
-
-        <?php if (!empty($picture)): ?>
-        <div class="login-logo">
-          <img src="files/_pictures/<?= htmlspecialchars($picture) ?>" alt="Logo Forbach en Rose">
-        </div>
-        <?php endif; ?>
 
         <h1>Connexion</h1>
         <p>Accédez à votre espace d'administration</p>
@@ -222,8 +206,8 @@ $picture= $data['picture'] ?? '';
 
         <form id="fLogin" novalidate>
           <div class="mb-3">
-            <label class="form-label">Nom d'utilisateur</label>
-            <input name="username" class="form-control" placeholder="Entrez votre identifiant" required autofocus>
+            <label class="form-label">Adresse email</label>
+            <input name="email" type="email" class="form-control" placeholder="Entrez votre adresse email" required autofocus>
           </div>
 
           <div class="mb-4">
@@ -235,11 +219,27 @@ $picture= $data['picture'] ?? '';
             Se connecter
           </button>
         </form>
+
+        <!-- Mot de passe oublie -->
+        <div class="text-center mt-3">
+          <a href="#" id="forgotLink" style="color:#ec4899;font-size:0.9rem;text-decoration:none;">Mot de passe oubli&eacute; ?</a>
+        </div>
+
+        <!-- Formulaire mot de passe oublie (cache par defaut) -->
+        <div id="forgotForm" class="mt-3" style="display:none;">
+          <hr>
+          <p class="text-muted mb-2" style="font-size:0.85rem;">Entrez votre adresse email pour recevoir un lien de r&eacute;initialisation (valable 10 minutes).</p>
+          <div class="input-group">
+            <input type="email" id="forgotEmail" class="form-control" placeholder="Votre adresse email">
+            <button id="forgotBtn" class="btn btn-login">Envoyer</button>
+          </div>
+          <div id="forgotMsg" class="mt-2" style="font-size:0.85rem;"></div>
+        </div>
       </div>
 
       <!-- Footer -->
       <div class="login-footer">
-        <?= htmlspecialchars($footer) ?>
+        <span class="footer-copy"><?= htmlspecialchars($footer) ?></span>
       </div>
 
     </div>
@@ -256,9 +256,21 @@ $picture= $data['picture'] ?? '';
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
       })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(j => {
-          if (!j.ok) throw 0;
+      .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })))
+      .then(({ ok, status, json: j }) => {
+          if (!ok || !j.ok) {
+            if (status === 403 && j.err) {
+              $('#err').text(j.err).removeClass('d-none');
+            } else {
+              $('#err').text('Identifiants incorrects').removeClass('d-none');
+            }
+            return;
+          }
+          // Changement de mot de passe obligatoire
+          if (j.must_change_password) {
+            location = 'change-password.php';
+            return;
+          }
           switch (j.role) {
             case 'admin':
             case 'user':
@@ -266,7 +278,6 @@ $picture= $data['picture'] ?? '';
               location = 'inc/dashboard.php';
               break;
             case 'saisie':
-              console.log('Redirection vers saisie.php'); // Debug
               location = 'inc/saisie.php';
               break;
             default:
@@ -276,6 +287,37 @@ $picture= $data['picture'] ?? '';
       .catch(() => $('#err')
               .text('Identifiants incorrects')
               .removeClass('d-none'));
+    });
+
+    // Mot de passe oublie
+    document.getElementById('forgotLink').addEventListener('click', function(e) {
+      e.preventDefault();
+      const form = document.getElementById('forgotForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+
+    document.getElementById('forgotBtn').addEventListener('click', async function() {
+      const email = document.getElementById('forgotEmail').value.trim();
+      const msgEl = document.getElementById('forgotMsg');
+      if (!email) { msgEl.innerHTML = '<span class="text-danger">Veuillez entrer votre email.</span>'; return; }
+
+      this.disabled = true;
+      this.textContent = 'Envoi...';
+
+      try {
+        const res = await fetch('config/api.php?route=forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const j = await res.json();
+        msgEl.innerHTML = '<span class="text-success">Si un compte existe avec cette adresse, un email de r\u00e9initialisation a \u00e9t\u00e9 envoy\u00e9.</span>';
+      } catch {
+        msgEl.innerHTML = '<span class="text-danger">Erreur de communication avec le serveur.</span>';
+      } finally {
+        this.disabled = false;
+        this.textContent = 'Envoyer';
+      }
     });
   </script>
 </body>

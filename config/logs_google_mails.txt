@@ -2,3 +2,28 @@
 [2026-02-10 16:04:16] Connexion Google valide.
 [2026-02-10 19:42:13] Token rafraîchi automatiquement.
 [2026-02-10 19:43:32] Connexion Google valide.
+[2026-02-18 21:07:04] Token rafraîchi automatiquement.
+[2026-02-18 21:07:04] Le jeton d'accès est valide.
+[2026-02-18 21:07:05] ❌ Erreur d'envoi : {
+  "error": {
+    "code": 400,
+    "message": "Invalid To header",
+    "errors": [
+      {
+        "message": "Invalid To header",
+        "domain": "global",
+        "reason": "invalidArgument"
+      }
+    ],
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+[2026-02-19 00:00:14] Token rafraîchi automatiquement.
+[2026-02-19 00:01:19] Connexion Google valide.
+[2026-02-19 00:06:26] Connexion Google valide.
+[2026-02-19 00:06:26] Le jeton d'accès est valide.
+[2026-02-19 00:06:27] ✅ Mail envoyé à : reinert.joris@gmail.com
+[2026-02-19 00:08:08] Connexion Google valide.
+[2026-02-19 00:08:08] Le jeton d'accès est valide.
+[2026-02-19 00:08:09] ✅ Mail envoyé à : reinert.joris@gmail.com

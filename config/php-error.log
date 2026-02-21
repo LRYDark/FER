@@ -1,0 +1,5 @@
+[13-Feb-2026 14:27:13 UTC] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'must_change_password' in 'SELECT' in /var/www/html/FER/config/api.php:11
+Stack trace:
+#0 /var/www/html/FER/config/api.php(11): PDOStatement->execute()
+#1 {main}
+  thrown in /var/www/html/FER/config/api.php on line 11

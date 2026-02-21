@@ -109,7 +109,6 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$picture= $data['picture'] ?? '';
 $footer= $data['footer'] ?? '';
 $titleColor = $data['title_color'] ?? '#ffffff';
 $registration_fee = $data['registration_fee'] ?? 0;
@@ -136,10 +135,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
   :root{
     --rose-500:#ec4899;
     --rose-600:#db2777;
-    --bg-grad:linear-gradient(135deg,#ffe1f0 0%,#fff 40%,#ffe1f0 100%);
   }
   body{
-    background:var(--bg-grad);
+    background:#fff;
     min-height:100vh;
     display:flex;
     flex-direction:column;
@@ -148,11 +146,11 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
   .hero{
     background:var(--rose-500);
     color:#fff;
-    padding:4rem 1rem 5rem;
+    padding:1.55rem 1rem calc(1.95rem + 16px);
+    min-height:120px;
     position:relative;
     text-align:center;
   }
-  .hero h1{font-size:2.6rem;font-weight:700;letter-spacing:1px;}
   .badge-donation{
     background:#fff;
     color:var(--rose-600);
@@ -160,20 +158,15 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     padding:.4rem .9rem;
     font-weight:600;
   }
-  .hero-inner{max-width:800px;margin:0 auto;}
-  .logo-top{
-    position:absolute;
-    top:1rem;
-    right:1rem;
-    max-width:220px;
-    width:27vw;
-    filter:drop-shadow(0 3px 6px rgba(0,0,0,.2));
-    cursor: pointer;
+  .hero-inner{max-width:800px;margin:.15rem auto 0;}
+  .hero-lead{
+    margin:0 0 .45rem;
+    font-size:1rem;
+    font-weight:500;
   }
-
   .back-link {
     position: absolute;
-    top: 1rem;
+    top: .65rem;
     left: 1rem;
     color: white;
     text-decoration: none;
@@ -181,7 +174,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 7px 13px;
     background: rgba(255,255,255,.15);
     border-radius: 12px;
     transition: all .2s ease;
@@ -194,9 +187,50 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
   .card-form{
     max-width:1100px;
-    margin-top:-3.2rem;
+    margin-top:calc(-.75rem - 20px);
+    margin-bottom:12px;
     border:0;
     box-shadow:0 0 25px rgba(0,0,0,.1);
+  }
+
+  .reglement-wrap{
+    width:min(100%,1100px);
+    margin:0 auto 8px;
+    padding:0 12px;
+    display:flex;
+    justify-content:center;
+  }
+
+  .reglement-cta{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    border:0;
+    border-radius:12px;
+    background:var(--rose-600);
+    color:#fff;
+    padding:12px 16px;
+    font-size:.96rem;
+    font-weight:600;
+    box-shadow:0 8px 18px rgba(219,39,119,.25);
+    transition:transform .16s ease, box-shadow .16s ease, background .16s ease;
+  }
+  .reglement-cta:hover{
+    transform:translateY(-1px);
+    box-shadow:0 12px 24px rgba(219,39,119,.32);
+    background:#c2256a;
+  }
+
+  .register-page-title{
+    color:#111827;
+    font-size:clamp(1.42rem,2.6vw,1.98rem);
+    font-weight:400;
+    letter-spacing:-.02em;
+  }
+
+  .register-online-title{
+    font-size:clamp(.98rem,1.35vw,1.16rem);
+    font-weight:400;
   }
   .btn-rose{
     background:var(--rose-600);
@@ -213,15 +247,57 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
   }
   .iframe-asc-container{margin-bottom:2rem;}
 
-  @media (max-width:575.98px){
-    .logo-top{display:none;}
-    .back-link{font-size: 0.9rem; padding: 6px 12px;}
-    .hero{padding:3rem 1rem 4rem;}
-    .hero h1{font-size:1.6rem;}
+  @media (max-width:767.98px){
+    .hero{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      padding:1rem .75rem calc(1.15rem + 10px);
+      min-height:108px;
+    }
+    .back-link{
+      position:relative;
+      top:auto;
+      left:auto;
+      align-self:flex-start;
+      margin:0 0 .5rem;
+      padding:6px 10px;
+      font-size:.84rem;
+      gap:6px;
+      border-radius:10px;
+    }
+    .back-link svg{
+      width:16px;
+      height:16px;
+    }
+    .hero-inner{
+      width:100%;
+      margin:0;
+      padding:0 4px;
+    }
+    .hero-lead{
+      font-size:.8rem;
+      line-height:1.25;
+      margin:0 0 .38rem;
+    }
+    .badge-donation{
+      font-size:.94rem;
+      padding:.32rem .72rem;
+    }
     .hero p{font-size:.9rem;}
     .card-form{
       max-width:100%;
-      margin-top:-2rem;
+      margin-top:0;
+      margin-bottom:4px;
+    }
+    .reglement-wrap{
+      padding:0 10px;
+      margin:0 auto 10px;
+    }
+    .reglement-cta{
+      font-size:.9rem;
+      padding:10px 14px;
     }
     #fPub .col-md-6{
       flex:0 0 100%;
@@ -245,18 +321,11 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     Retour
   </a>
 
-  <?php if (!empty($picture)): ?>
-  <a href="accueil.php">
-    <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
-         alt="Logo Forbach en Rose" class="logo-top">
-  </a>
-  <?php endif; ?>
-
   <div class="hero-inner">
-    <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($title) ?></h1>
-    <p class="mb-3">7 km solidaires contre le cancer du sein</p>
+    <p class="hero-lead">7 km course et marche solidaire contre le cancer du sein</p>
     <span class="badge-donation"><?= htmlspecialchars($registration_fee) ?> € intégralement reversés</span>
   </div>
+
 </header>
 
 <?php if ($accueil_active === 0): ?>
@@ -271,6 +340,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
 <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
   <div class="card card-form p-4 bg-white">
+    <h1 class="register-page-title text-center mb-3"><?= htmlspecialchars($title) ?></h1>
 
     <?php if ($errorMessage): ?>
       <div class="alert alert-danger text-center mb-4">
@@ -372,7 +442,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         </div>
       <?php endif; ?>
 
-      <h2 class="text-center mb-4">Inscription en ligne</h2>
+      <h2 class="register-online-title text-center mb-4">Inscription en ligne</h2>
 
       <?php
       if ($assoconnectIframe && $assoconnectJs) {
@@ -386,8 +456,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<div class="col-12 d-grid">
-  <button type="button" class="btn btn-link mt-2" data-bs-toggle="modal" data-bs-target="#reglementModal">
+<div class="reglement-wrap">
+  <button type="button" class="reglement-cta" data-bs-toggle="modal" data-bs-target="#reglementModal">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 12h6M12 9l3 3-3 3"/>
+      <path d="M5 4h11a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5z"/>
+    </svg>
     Voir la réglementation de la course
   </button>
 </div>

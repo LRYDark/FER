@@ -128,11 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 3) 
     checkCsrf();
     $step = 3; // pour le rendu en cas d'erreur
 
-    $adminUser  = trim($_POST['admin_username'] ?? '');
+    $adminUser  = trim($_POST['admin_email'] ?? '');
     $adminPass  = $_POST['admin_password'] ?? '';
     $adminPass2 = $_POST['admin_password_confirm'] ?? '';
 
-    if ($adminUser === '')          $errors[] = "Le nom d'utilisateur est requis.";
+    if ($adminUser === '')          $errors[] = "L'adresse email est requise.";
+    if (!filter_var($adminUser, FILTER_VALIDATE_EMAIL)) $errors[] = "L'adresse email n'est pas valide.";
     if (strlen($adminPass) < 14)    $errors[] = "Le mot de passe doit contenir au moins 14 caractères.";
     if (!preg_match('/[A-Z]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins une majuscule.";
     if (!preg_match('/[0-9]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins un chiffre.";
@@ -151,13 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 3) 
             );
 
             // Vérifier si un admin existe déjà
-            $exists = $pdo->prepare('SELECT COUNT(*) FROM users WHERE username = ?');
+            $exists = $pdo->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
             $exists->execute([$adminUser]);
             if ($exists->fetchColumn() > 0) {
-                $errors[] = "Ce nom d'utilisateur existe déjà.";
+                $errors[] = "Cette adresse email existe déjà.";
             } else {
                 $hash = password_hash($adminPass, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)');
+                $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)');
                 $stmt->execute([$adminUser, $hash, 'admin']);
 
                 // Générer clé d'encryption
@@ -243,13 +244,17 @@ function getCreateTableStatements(): array
 
         "CREATE TABLE IF NOT EXISTS `users` (
           `id` int(11) NOT NULL AUTO_INCREMENT,
-          `username` varchar(60) NOT NULL,
+          `email` varchar(255) NOT NULL,
           `password_hash` varchar(255) NOT NULL,
           `role` enum('admin','user','viewer','saisie') NOT NULL DEFAULT 'viewer',
           `organisation` varchar(120) DEFAULT NULL,
+          `must_change_password` TINYINT(1) NOT NULL DEFAULT 0,
+          `reset_token` VARCHAR(64) DEFAULT NULL,
+          `reset_token_expires` DATETIME DEFAULT NULL,
+          `is_active` TINYINT(1) NOT NULL DEFAULT 1,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`),
-          UNIQUE KEY `username` (`username`)
+          UNIQUE KEY `email` (`email`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
         "CREATE TABLE IF NOT EXISTS `forms` (
@@ -655,6 +660,27 @@ $stepLabels = [
       padding: 1.25rem;
       color: #64748b;
       font-size: 0.85rem;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .install-footer::after {
+      content: "";
+      position: absolute;
+      right: 12px;
+      bottom: 8px;
+      width: clamp(110px, 16vw, 150px);
+      aspect-ratio: 7680 / 3561;
+      background: url('files/_logos/logo_fer_noir2.png') no-repeat center / contain;
+      opacity: 0.12;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .install-footer .footer-copy {
+      position: relative;
+      z-index: 1;
     }
 
     .icon-db {
@@ -892,10 +918,10 @@ $stepLabels = [
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
 
           <div class="mb-3">
-            <label class="form-label">Nom d'utilisateur</label>
-            <input name="admin_username" class="form-control"
-                   value="<?= htmlspecialchars($_POST['admin_username'] ?? 'admin') ?>"
-                   placeholder="admin" required autofocus>
+            <label class="form-label">Adresse email</label>
+            <input name="admin_email" type="email" class="form-control"
+                   value="<?= htmlspecialchars($_POST['admin_email'] ?? '') ?>"
+                   placeholder="admin@example.com" required autofocus>
           </div>
 
           <div class="mb-3">
@@ -1014,7 +1040,7 @@ $stepLabels = [
 
     <!-- Footer -->
     <div class="install-footer">
-      Forbach en Rose &mdash; Assistant d'installation
+      <span class="footer-copy">Forbach en Rose &mdash; Assistant d'installation</span>
     </div>
 
   </div>
