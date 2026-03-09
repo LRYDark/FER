@@ -69,14 +69,14 @@ if ($_POST) {
 
             $formData = [
                 'inscription_no' => $nextInscriptionNo,
-                'nom' => $_POST['nom'] ?? '',
-                'prenom' => $_POST['prenom'] ?? '',
-                'tel' => $_POST['tel'] ?? '',
-                'email' => $_POST['email'] ?? '',
-                'naissance' => $_POST['naissance'] ?? '',
+                'nom' => encrypt($_POST['nom'] ?? ''),
+                'prenom' => encrypt($_POST['prenom'] ?? ''),
+                'tel' => encrypt($_POST['tel'] ?? ''),
+                'email' => encrypt($_POST['email'] ?? ''),
+                'naissance' => encrypt($_POST['naissance'] ?? ''),
                 'sexe' => $_POST['sexe'] ?? '',
-                'ville' => $_POST['ville'] ?? '',
-                'entreprise' => $_POST['entreprise'] ?? '',
+                'ville' => encrypt($_POST['ville'] ?? ''),
+                'entreprise' => encrypt($_POST['entreprise'] ?? ''),
                 'tshirt_size' => $_POST['tshirt_size'] ?? '-',
                 'origine' => $_POST['origine'] ?? 'en ligne',
                 'paiement_mode' => $_POST['paiement_mode'] ?? 'en ligne (CB)'

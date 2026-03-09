@@ -1,0 +1,14 @@
+# Bloquer l'accès aux fichiers sensibles
+<FilesMatch "\.(env|log|bak|sql|old|json)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquer les fichiers cachés
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Bloquer les fichiers de migration
+<FilesMatch "^migrate">
+    Require all denied
+</FilesMatch>

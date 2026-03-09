@@ -259,7 +259,7 @@ $picture= $data['picture'] ?? '';
       .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })))
       .then(({ ok, status, json: j }) => {
           if (!ok || !j.ok) {
-            if (status === 403 && j.err) {
+            if (j.err) {
               $('#err').text(j.err).removeClass('d-none');
             } else {
               $('#err').text('Identifiants incorrects').removeClass('d-none');

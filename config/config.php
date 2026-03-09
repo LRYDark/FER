@@ -203,16 +203,48 @@ function validatePasswordPolicy(string $password): array
     return $errors;
 }
 
-function encrypt($data) {
-    $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
-    $encrypted = openssl_encrypt($data, 'aes-256-cbc', $_ENV['ENCRYPTION_KEY'], 0, $iv);
-    return base64_encode($iv . $encrypted);
+/* ── Chiffrement AES-256-GCM (authentifié) ──────────────────────────────── */
+define('CIPHER_ALGO', 'aes-256-gcm');
+define('CIPHER_KEY', base64_decode($_ENV['ENCRYPTION_KEY']));
+define('PII_FIELDS', ['nom', 'prenom', 'tel', 'email', 'naissance', 'ville', 'entreprise']);
+
+function encrypt(?string $data): ?string {
+    if ($data === null || $data === '') return $data;
+    $iv  = random_bytes(12); // 96 bits pour GCM
+    $tag = '';
+    $encrypted = openssl_encrypt($data, CIPHER_ALGO, CIPHER_KEY, OPENSSL_RAW_DATA, $iv, $tag, '', 16);
+    return base64_encode($iv . $tag . $encrypted);
 }
 
-function decrypt($data) {
-    $data = base64_decode($data);
-    $ivLength = openssl_cipher_iv_length('aes-256-cbc');
-    $iv = substr($data, 0, $ivLength);
-    $encrypted = substr($data, $ivLength);
-    return openssl_decrypt($encrypted, 'aes-256-cbc', $_ENV['ENCRYPTION_KEY'], 0, $iv);
+function decrypt(?string $data): ?string {
+    if ($data === null || $data === '') return $data;
+    $raw = base64_decode($data, true);
+    if ($raw === false) return $data; // Donnée non chiffrée, retourner telle quelle
+    if (strlen($raw) < 28) return $data; // Trop court pour être chiffré (12 IV + 16 tag)
+    $iv  = substr($raw, 0, 12);
+    $tag = substr($raw, 12, 16);
+    $encrypted = substr($raw, 28);
+    $result = openssl_decrypt($encrypted, CIPHER_ALGO, CIPHER_KEY, OPENSSL_RAW_DATA, $iv, $tag);
+    return $result !== false ? $result : $data; // Fallback si déchiffrement échoue (donnée non chiffrée)
+}
+
+function encryptFields(array &$data): void {
+    foreach (PII_FIELDS as $f) {
+        if (array_key_exists($f, $data)) {
+            $data[$f] = encrypt($data[$f]);
+        }
+    }
+}
+
+function decryptRow(array $row): array {
+    foreach (PII_FIELDS as $f) {
+        if (array_key_exists($f, $row)) {
+            $row[$f] = decrypt($row[$f]);
+        }
+    }
+    return $row;
+}
+
+function decryptRows(array $rows): array {
+    return array_map('decryptRow', $rows);
 }

@@ -6,6 +6,6 @@ if (!file_exists(__DIR__ . '/config/.env')) {
 }
 
 // Redirige vers une autre page
-header("Location: public/register.php");
+header("Location: public/accueil.php");
 exit;
 ?>
