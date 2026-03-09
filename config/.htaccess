@@ -1,3 +1,9 @@
+# Bloquer l'accès à tous les fichiers cachés (.env, .htaccess, etc.)
 <FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Bloquer aussi les fichiers sensibles par extension
+<FilesMatch "\.(env|log|bak|sql|old)$">
     Require all denied
 </FilesMatch>

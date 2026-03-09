@@ -1,0 +1,12 @@
+# Fichiers sensibles
+config/.env
+config/.env.test
+*.log
+debug_import.log
+import_errors.log
+
+# Fichiers de migration (one-shot)
+migrate_*.php
+
+# Dépendances
+vendor/

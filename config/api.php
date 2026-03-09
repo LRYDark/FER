@@ -7,12 +7,20 @@ $route = $_GET['route'] ?? '';
 /* ───── LOGIN / LOGOUT ───────────────────────── */
 if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $d = json_decode(file_get_contents('php://input'), true);
-    $st=$pdo->prepare('SELECT id,password_hash,role,must_change_password,is_active FROM users WHERE email=?');
+    $st=$pdo->prepare('SELECT id,email,password_hash,role,must_change_password,is_active,failed_attempts,locked_at FROM users WHERE email=?');
     $st->execute([$d['email']]); $u=$st->fetch();
+
     if($u && password_verify($d['password'],$u['password_hash'])){
         if(!$u['is_active']){
             http_response_code(403);
-            echo json_encode(['ok'=>false, 'err'=>'Compte désactivé. Contactez un administrateur.']); exit;
+            $msg = $u['locked_at']
+                ? 'Compte verrouillé suite à 3 tentatives échouées. Utilisez "Mot de passe oublié" ou contactez un administrateur.'
+                : 'Compte désactivé. Contactez un administrateur.';
+            echo json_encode(['ok'=>false, 'err'=>$msg]); exit;
+        }
+        // Connexion réussie : remettre le compteur à 0
+        if ($u['failed_attempts'] > 0) {
+            $pdo->prepare('UPDATE users SET failed_attempts = 0 WHERE id = ?')->execute([$u['id']]);
         }
         $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$d['email'];
         if($u['must_change_password']){
@@ -20,7 +28,48 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
         }
         echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
     }
-    http_response_code(401); echo json_encode(['ok'=>false]); exit;
+
+    // Échec de connexion : incrémenter le compteur
+    if ($u) {
+        $attempts = $u['failed_attempts'] + 1;
+        if ($attempts >= 3) {
+            // Verrouiller le compte
+            $pdo->prepare('UPDATE users SET failed_attempts = ?, is_active = 0, locked_at = NOW() WHERE id = ?')
+                ->execute([$attempts, $u['id']]);
+
+            // Envoyer un mail aux administrateurs
+            try {
+                require_once __DIR__ . '/googleMail.php';
+                if (isGoogleConnectionValid()) {
+                    $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                    foreach ($admins as $adminEmail) {
+                        sendMail(
+                            $adminEmail,
+                            'Compte verrouillé – Forbach en Rose',
+                            'Compte verrouillé après 3 tentatives',
+                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> a été verrouillé automatiquement après 3 tentatives de connexion échouées.</p>'
+                              . '<p>Si cette action est légitime, l\'utilisateur peut utiliser la fonction "Mot de passe oublié".</p>'
+                              . '<p>Vous pouvez également réactiver le compte depuis le panneau d\'administration.</p>',
+                            null, null, 'warning'
+                        );
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Lock notification mail error: ' . $e->getMessage());
+            }
+
+            http_response_code(403);
+            echo json_encode(['ok'=>false, 'err'=>'Compte verrouillé après 3 tentatives échouées. Utilisez "Mot de passe oublié" ou contactez un administrateur.']); exit;
+        } else {
+            $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')
+                ->execute([$attempts, $u['id']]);
+            $remaining = 3 - $attempts;
+            http_response_code(401);
+            echo json_encode(['ok'=>false, 'err'=>"Identifiants incorrects. Il vous reste $remaining tentative(s) avant le verrouillage du compte."]); exit;
+        }
+    }
+
+    http_response_code(401); echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects.']); exit;
 }
 if ($route==='logout'){ session_destroy(); echo json_encode(['ok'=>true]); exit; }
 
@@ -41,10 +90,9 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     if ($user) {
         $token   = bin2hex(random_bytes(32));
-        $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
 
-        $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?')
-            ->execute([$token, $expires, $user['id']]);
+        $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 10 MINUTE) WHERE id = ?')
+            ->execute([$token, $user['id']]);
 
         // Envoyer le mail si Gmail est configuré
         try {
@@ -117,7 +165,7 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok' => false, 'errors' => $errors]); exit;
     }
 
-    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
+    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0, reset_token = NULL, reset_token_expires = NULL, is_active = 1, failed_attempts = 0, locked_at = NULL WHERE id = ?')
         ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
     echo json_encode(['ok' => true]); exit;
 }
@@ -137,7 +185,7 @@ if ($route === 'users') {
 
         $tempPassword = generateTemporaryPassword();
 
-        $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?')
+        $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 1, is_active = 1, failed_attempts = 0, locked_at = NULL WHERE id = ?')
             ->execute([password_hash($tempPassword, PASSWORD_DEFAULT), $id]);
 
         // Récupérer l'email pour envoi
@@ -189,7 +237,12 @@ if ($route === 'users') {
         }
 
         $newState = $current ? 0 : 1;
-        $pdo->prepare('UPDATE users SET is_active = ? WHERE id = ?')->execute([$newState, $id]);
+        if ($newState === 1) {
+            // Réactivation : remettre le compteur de tentatives à zéro
+            $pdo->prepare('UPDATE users SET is_active = 1, failed_attempts = 0, locked_at = NULL WHERE id = ?')->execute([$id]);
+        } else {
+            $pdo->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$id]);
+        }
         echo json_encode(['ok' => true, 'is_active' => $newState]);
         exit;
     }
@@ -325,9 +378,8 @@ if ($route==='registrations'){
     /* GET : tous rôles */
     if($_SERVER['REQUEST_METHOD']==='GET'){
         requireRole(['admin','user','viewer','saisie']);
-        echo json_encode(
-          $pdo->query('SELECT * FROM registrations ORDER BY inscription_no DESC')->fetchAll()
-        ); exit;
+        $rows = $pdo->query('SELECT * FROM registrations ORDER BY inscription_no DESC')->fetchAll();
+        echo json_encode(decryptRows($rows)); exit;
     }
 
     /* POST : public OU user/admin */
@@ -353,11 +405,11 @@ if ($route==='registrations'){
            ville,entreprise,origine,paiement_mode,created_by)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $st->execute([
-          $no,$d['nom'],$d['prenom'],$d['tel'],$d['email'],
-          $d['naissance'] ?: null,
+          $no, encrypt($d['nom']), encrypt($d['prenom']), encrypt($d['tel']), encrypt($d['email']),
+          encrypt($d['naissance'] ?: null),
           $d['sexe'] ?? 'H',
           $d['tshirt_size'] ?? '',
-          $d['ville'],$d['entreprise'],
+          encrypt($d['ville']), encrypt($d['entreprise']),
           $origine,
           $d['paiement_mode'],
           currentUserId()
@@ -406,6 +458,9 @@ if ($route==='registrations'){
         if (isset($params['naissance']) && $params['naissance'] === '') {
             $params['naissance'] = null;
         }
+
+        /* Chiffrer les champs sensibles avant mise à jour */
+        encryptFields($params);
 
         /* SET : uniquement pour les clés présentes */
         $setParts = [];
@@ -546,9 +601,9 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $stmt->execute([
-                $values['inscription_no'], $values['nom'], $values['prenom'],
-                $values['tel'], $values['email'], $values['naissance'], $values['sexe'],
-                '-', $values['ville'], $values['entreprise'], 'AssoConnect',
+                $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
+                encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
+                '-', encrypt($values['ville']), encrypt($values['entreprise']), 'AssoConnect',
                 'en ligne (CB)', $values['created_at'], currentUserId()
             ]);
 
@@ -635,14 +690,16 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 'Paiement', 'Créé le', 'Par'];
     $sheet->fromArray($headers, null, 'A1');
 
-    /* 2. Données */
+    /* 2. Données (déchiffrer les PII) */
     $rows = $pdo->query(
         'SELECT inscription_no, nom, prenom, tel, email, naissance,
                 sexe, tshirt_size, ville, entreprise, origine,
                 paiement_mode, created_at, created_by
          FROM registrations
          ORDER BY inscription_no'
-    )->fetchAll(PDO::FETCH_NUM);
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $rows = decryptRows($rows);
+    $rows = array_map('array_values', $rows); // Convertir en tableau numérique pour fromArray
 
     $sheet->fromArray($rows, null, 'A2');
 
@@ -679,7 +736,7 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->beginTransaction();
     $pdo->exec("INSERT INTO `$tableArchive` SELECT * FROM registrations");
 
-    /* 3) Statistiques de base */
+    /* 3) Statistiques de base (tshirt non chiffré = OK en SQL, le reste en PHP) */
     $s = $pdo->query("
         SELECT COUNT(*)                           AS total,
                SUM(tshirt_size='XS')              AS xs,
@@ -687,56 +744,66 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                SUM(tshirt_size='M')               AS m,
                SUM(tshirt_size='L')               AS l,
                SUM(tshirt_size='XL')              AS xl,
-               SUM(tshirt_size='XXL')             AS xxl,
-               AVG(YEAR(NOW()) - naissance)       AS age_moyen
+               SUM(tshirt_size='XXL')             AS xxl
         FROM `$tableArchive`
     ")->fetch(PDO::FETCH_ASSOC);
 
     foreach (['xs','s','m','l','xl','xxl'] as $k) $s[$k] = (int)($s[$k] ?? 0);
 
+    /* Charger toutes les lignes et déchiffrer pour les stats PII */
+    $allRows = $pdo->query("SELECT nom, prenom, naissance, sexe, ville, entreprise FROM `$tableArchive`")->fetchAll(PDO::FETCH_ASSOC);
+    $allRows = decryptRows($allRows);
+
+    /* Age moyen */
+    $ages = [];
+    foreach ($allRows as $r) {
+        $n = $r['naissance'];
+        if ($n && is_numeric($n)) $ages[] = (int)date('Y') - (int)$n;
+        elseif ($n && preg_match('/^\d{4}-\d{2}-\d{2}$/', $n)) $ages[] = (int)date('Y') - (int)substr($n, 0, 4);
+    }
+    $s['age_moyen'] = count($ages) ? round(array_sum($ages) / count($ages), 1) : null;
+
     /* 4) Ville la plus représentée */
-    $villeTop = $pdo->query("
-        SELECT ville, COUNT(*) as nb 
-        FROM `$tableArchive` 
-        WHERE ville IS NOT NULL AND ville != '' 
-        GROUP BY ville 
-        ORDER BY nb DESC 
-        LIMIT 1
-    ")->fetch(PDO::FETCH_ASSOC);
-    $ville_top = $villeTop ? $villeTop['ville'] : null;
+    $villeCounts = [];
+    foreach ($allRows as $r) {
+        $v = trim($r['ville'] ?? '');
+        if ($v !== '') $villeCounts[$v] = ($villeCounts[$v] ?? 0) + 1;
+    }
+    arsort($villeCounts);
+    $ville_top = $villeCounts ? array_key_first($villeCounts) : null;
 
     /* 5) Entreprise la plus représentée */
-    $entrepriseTop = $pdo->query("
-        SELECT entreprise, COUNT(*) as nb 
-        FROM `$tableArchive` 
-        WHERE entreprise IS NOT NULL AND entreprise != '' 
-        GROUP BY entreprise 
-        ORDER BY nb DESC 
-        LIMIT 1
-    ")->fetch(PDO::FETCH_ASSOC);
-    $entreprise_top = $entrepriseTop ? $entrepriseTop['entreprise'] : null;
+    $entrCounts = [];
+    foreach ($allRows as $r) {
+        $e = trim($r['entreprise'] ?? '');
+        if ($e !== '') $entrCounts[$e] = ($entrCounts[$e] ?? 0) + 1;
+    }
+    arsort($entrCounts);
+    $entreprise_top = $entrCounts ? array_key_first($entrCounts) : null;
 
     /* 6) Plus vieille personne masculine */
-    $plusVieuxH = $pdo->query("
-        SELECT CONCAT(prenom, ' ', nom) as nom_complet, 
-               (YEAR(NOW()) - naissance) as age
-        FROM `$tableArchive` 
-        WHERE sexe = 'H' AND naissance IS NOT NULL 
-        ORDER BY naissance ASC 
-        LIMIT 1
-    ")->fetch(PDO::FETCH_ASSOC);
-    $plus_vieux_h = $plusVieuxH ? $plusVieuxH['nom_complet'] : null;
+    $plus_vieux_h = null;
+    $oldestH = null;
+    foreach ($allRows as $r) {
+        if ($r['sexe'] !== 'H' || !$r['naissance']) continue;
+        $n = is_numeric($r['naissance']) ? (int)$r['naissance'] : (int)substr($r['naissance'], 0, 4);
+        if ($oldestH === null || $n < $oldestH) {
+            $oldestH = $n;
+            $plus_vieux_h = trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''));
+        }
+    }
 
     /* 7) Plus vieille personne féminine */
-    $plusVieilleF = $pdo->query("
-        SELECT CONCAT(prenom, ' ', nom) as nom_complet, 
-               (YEAR(NOW()) - naissance) as age
-        FROM `$tableArchive` 
-        WHERE sexe = 'F' AND naissance IS NOT NULL 
-        ORDER BY naissance ASC 
-        LIMIT 1
-    ")->fetch(PDO::FETCH_ASSOC);
-    $plus_vieille_f = $plusVieilleF ? $plusVieilleF['nom_complet'] : null;
+    $plus_vieille_f = null;
+    $oldestF = null;
+    foreach ($allRows as $r) {
+        if ($r['sexe'] !== 'F' || !$r['naissance']) continue;
+        $n = is_numeric($r['naissance']) ? (int)$r['naissance'] : (int)substr($r['naissance'], 0, 4);
+        if ($oldestF === null || $n < $oldestF) {
+            $oldestF = $n;
+            $plus_vieille_f = trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''));
+        }
+    }
 
     /* 8) Insérer/Mettre à jour les statistiques */
     $pdo->prepare("
@@ -781,32 +848,28 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Dans votre api.php, section registrations-archive
 if ($route === 'registrations-archive') {
     requireRole(['admin', 'viewer']);
-    
+
     $year = (int) ($_GET['year'] ?? date('Y'));
-    $tableName = $_GET['table_name'] ?? '';
-    
-    // Utilise table_name si disponible, sinon fallback sur le format standard
-    if (!empty($tableName)) {
-        $tableArchive = $tableName;
-    } else {
-        $tableArchive = "registrations_$year";
-    }
-    
+    // Sécurité : on construit le nom de table uniquement à partir de l'année (entier)
+    // pour empêcher toute injection SQL via le paramètre table_name
+    $tableArchive = "registrations_$year";
+
     try {
-        // Vérifie si la table existe
-        $checkTable = $pdo->query("SHOW TABLES LIKE '$tableArchive'")->rowCount();
-        if (!$checkTable) {
+        // Vérifie si la table existe (requête préparée)
+        $checkStmt = $pdo->prepare("SHOW TABLES LIKE ?");
+        $checkStmt->execute([$tableArchive]);
+        if (!$checkStmt->rowCount()) {
             echo json_encode([]);
             exit;
         }
-        
+
         $registrations = $pdo->query(
-            "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size 
-             FROM `$tableArchive` 
+            "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size
+             FROM `$tableArchive`
              ORDER BY inscription_no DESC"
         )->fetchAll(PDO::FETCH_ASSOC);
-        
-        echo json_encode($registrations);
+
+        echo json_encode(decryptRows($registrations));
     } catch (Exception $e) {
         echo json_encode([]);
     }
