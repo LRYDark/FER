@@ -1,6 +1,7 @@
 # Fichiers sensibles
 config/.env
 config/.env.test
+token.json
 *.log
 debug_import.log
 import_errors.log

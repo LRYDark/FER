@@ -1,7 +1,12 @@
 # Bloquer l'accès aux fichiers sensibles
-<FilesMatch "\.(env|log|bak|sql|old|json)$">
+<FilesMatch "\.(env|log|bak|sql|old)$">
     Require all denied
 </FilesMatch>
+
+# Bloquer token.json (OAuth Gmail)
+<Files "token.json">
+    Require all denied
+</Files>
 
 # Bloquer les fichiers cachés
 <FilesMatch "^\.">
