@@ -58,10 +58,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>Contact - Forbach en Rose</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      margin: 0;
+    }
     .contact-section {
       max-width: 720px;
       margin: 120px auto 60px;
       padding: 0 20px;
+      flex: 1;
     }
     .contact-section h1 {
       font-size: 2rem;

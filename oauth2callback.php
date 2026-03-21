@@ -44,8 +44,9 @@ try {
     $token = $client->fetchAccessTokenWithAuthCode($_GET['code']);
 
     if (isset($token['error'])) {
-        writeLog('Erreur OAuth : ' . $token['error_description']);
-        die('Erreur OAuth : ' . $token['error_description']);
+        $errMsg = ($token['error_description'] ?? $token['error']) . ' | Details: ' . json_encode($token);
+        writeLog('Erreur OAuth : ' . $errMsg);
+        die('Erreur OAuth : ' . htmlspecialchars($errMsg));
     }
 
     // Sauvegarder le token dans token.json à la racine
