@@ -81,7 +81,7 @@ function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
     $client = new Google_Client();
     $client->setClientId($clientID);
     $client->setClientSecret($clientSecret);
-    $client->setRedirectUri('https://jr.zerobug-57.fr/FER/oauth2callback.php');
+    $client->setRedirectUri(oauth2_callback_url());
     $client->addScope(Google_Service_Gmail::GMAIL_SEND);
     $client->setAccessType('offline');
     $client->setPrompt('consent');
@@ -98,7 +98,7 @@ function getAccessToken(bool $autoRedirect = true) {
     $client = new Google_Client();
     $client->setClientId($clientID);
     $client->setClientSecret($clientSecret);
-    $client->setRedirectUri('https://jr.zerobug-57.fr/FER/oauth2callback.php');
+    $client->setRedirectUri(oauth2_callback_url());
     $client->addScope(Google_Service_Gmail::GMAIL_SEND);
     $client->setAccessType('offline');
     $client->setPrompt('consent');
