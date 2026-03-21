@@ -15,9 +15,6 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 $footer= $data['footer'] ?? '';
 
-// Auto-migration : ajout colonnes partners_desc et partners_img si absentes
-try { $pdo->exec("ALTER TABLE setting ADD COLUMN partners_desc TEXT NULL"); } catch (PDOException $e) {}
-try { $pdo->exec("ALTER TABLE setting ADD COLUMN partners_img VARCHAR(255) NULL"); } catch (PDOException $e) {}
 $partners_desc = $data['partners_desc'] ?? '';
 $partners_img = $data['partners_img'] ?? '';
 

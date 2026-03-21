@@ -4,34 +4,6 @@ requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
 
-// ─── Auto-migration : create timeline tables if absent ───
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS `timeline_items` (
-        `id` int(11) NOT NULL AUTO_INCREMENT,
-        `title` varchar(255) NOT NULL,
-        `content` varchar(255) NOT NULL,
-        `image` varchar(255) DEFAULT NULL,
-        `sort_order` int(11) NOT NULL DEFAULT 0,
-        `created_at` timestamp NULL DEFAULT current_timestamp(),
-        PRIMARY KEY (`id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-} catch (PDOException $e) {}
-
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS `timeline_elements` (
-        `id` int(11) NOT NULL AUTO_INCREMENT,
-        `item_id` int(11) NOT NULL,
-        `label` varchar(255) NOT NULL,
-        `sort_order` int(11) NOT NULL DEFAULT 0,
-        PRIMARY KEY (`id`),
-        KEY `item_id` (`item_id`),
-        CONSTRAINT `timeline_elements_ibfk_1` FOREIGN KEY (`item_id`) REFERENCES `timeline_items` (`id`) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-} catch (PDOException $e) {}
-
-// Auto-migration: add image_position column if missing
-try { $pdo->exec("ALTER TABLE timeline_items ADD COLUMN image_position VARCHAR(50) DEFAULT '50% 50% 1'"); } catch (PDOException $e) {}
-
 // ─── Ensure _TimeLine directory exists ───
 $timelineDir = '../files/_TimeLine/';
 if (file_exists($timelineDir) && !is_dir($timelineDir)) {

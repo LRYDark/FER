@@ -232,6 +232,8 @@ function getCreateTableStatements(): array
           `social_networks` int(11) NOT NULL DEFAULT 0,
           `link_cancer` varchar(255) DEFAULT NULL,
           `debogage` int(2) NOT NULL DEFAULT 0,
+          `client_id` TEXT DEFAULT NULL,
+          `client_secret` TEXT DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
