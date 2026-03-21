@@ -5,6 +5,7 @@ token.json
 *.log
 debug_import.log
 import_errors.log
+config/logs_google_mails.txt
 
 # Fichiers de migration (one-shot)
 migrate_*.php
