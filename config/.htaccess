@@ -4,6 +4,6 @@
 </FilesMatch>
 
 # Bloquer aussi les fichiers sensibles par extension
-<FilesMatch "\.(env|log|bak|sql|old)$">
+<FilesMatch "\.(env|log|bak|sql|old|txt)$">
     Require all denied
 </FilesMatch>

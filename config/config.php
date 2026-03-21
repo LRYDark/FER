@@ -137,28 +137,20 @@ function getAssoConnectCodes(int $id = 1): array
 }
 
 /**
- * Renvoie l’URL absolue vers oauth2callback.php,
+ * Renvoie l'URL absolue vers oauth2callback.php,
  * quel que soit le dossier racine du site.
  */
 function oauth2_callback_url(): string
 {
-    // 1) Schéma : http ou https ?
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-
-    // 2) Domaine + éventuel port
-    $host = $_SERVER['HTTP_HOST'];          // ex. jr.zerobug-57.fr ou jr.zerobug-57.fr:8443
-
-    // 3) Dossier qui contient le script courant
-    //    SCRIPT_NAME  = /FER/inc/setting.php   (si site dans /FER)
-    //    SCRIPT_NAME  = /inc/setting.php       (si /FER devient DocumentRoot)
-    $baseDir = dirname(dirname($_SERVER['SCRIPT_NAME']));  // remonte de 2 niveaux
-
-    // 4) Normalisation : si on est déjà à la racine, $baseDir vaudra '/'
-    if ($baseDir === DIRECTORY_SEPARATOR) {
+    $host = $_SERVER['HTTP_HOST'];
+    $projectRoot = realpath(__DIR__ . '/..');
+    $docRoot = realpath($_SERVER['DOCUMENT_ROOT']);
+    if ($projectRoot === $docRoot || $projectRoot === false || $docRoot === false) {
         $baseDir = '';
+    } else {
+        $baseDir = str_replace('\\', '/', substr($projectRoot, strlen($docRoot)));
     }
-
-    // 5) Construction de l’URL cible
     return $scheme . '://' . $host . $baseDir . '/oauth2callback.php';
 }
 
