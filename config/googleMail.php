@@ -228,7 +228,8 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     }
 
     /* ---------- Construction du message ---------- */
-    $from = 'reinert.joris@gmail.com';
+    $profile = $service->users->getProfile('me');
+    $from = $profile->getEmailAddress();
 
     $raw  = "From: $from\r\n";
     $raw .= "To: $toHeader\r\n";
