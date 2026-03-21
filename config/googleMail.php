@@ -13,9 +13,7 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $clientID = decrypt($data['client_id'] ?? null);
 $clientSecret = decrypt($data['client_secret'] ?? null);
 
-if (!$clientID || !$clientSecret) {
-    die("Clé OAuth manquante. (googleMail.php)");
-}
+$googleMailReady = ($clientID && $clientSecret);
 
 // Fonction pour enregistrer des logs dans un fichier texte
 function writeLog($message) {
@@ -26,10 +24,11 @@ function writeLog($message) {
 
 // Fonction pour vérifier si la connexion Google est OK
 function isGoogleConnectionValid() {
-    global $clientID, $clientSecret;
-    
+    global $clientID, $clientSecret, $googleMailReady;
+    if (!$googleMailReady) return false;
+
     $tokenFile = __DIR__ .'/../token.json';
-    
+
     if (!file_exists($tokenFile)) {
         writeLog('Fichier token.json non trouvé.');
         return false;
@@ -76,7 +75,8 @@ function isGoogleConnectionValid() {
 
 // Fonction pour générer l'URL d'autorisation Google
 function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
-    global $clientID, $clientSecret;
+    global $clientID, $clientSecret, $googleMailReady;
+    if (!$googleMailReady) return null;
     
     $client = new Google_Client();
     $client->setClientId($clientID);
@@ -92,7 +92,8 @@ function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
 
 // Fonction pour obtenir le jeton d'accès OAuth2
 function getAccessToken(bool $autoRedirect = true) {
-    global $clientID, $clientSecret;
+    global $clientID, $clientSecret, $googleMailReady;
+    if (!$googleMailReady) return false;
     
     $tokenFile = __DIR__ .'/../token.json';
     $client = new Google_Client();
