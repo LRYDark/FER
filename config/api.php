@@ -1,14 +1,19 @@
 <?php
 require 'config.php';
+ob_start();
+@require_once __DIR__ . '/googleMail.php';
+ob_end_clean();
 header('Content-Type: application/json; charset=utf-8');
 
 $route = $_GET['route'] ?? '';
 
 /* ───── Helper: log login attempt ───────────── */
-function logLoginAttempt($pdo, $userId, $email, $success) {
+function logLoginAttempt($pdo, $userId, $email, $success, $reason = null) {
     try {
-        $pdo->prepare('INSERT INTO login_logs (user_id, email, ip_address, user_agent, success) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$userId, $email, $_SERVER['REMOTE_ADDR'] ?? '', mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500), $success ? 1 : 0]);
+        $pdo->prepare('INSERT INTO login_logs (user_id, email, ip_address, user_agent, success, reason) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$userId, $email, $_SERVER['REMOTE_ADDR'] ?? '', mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500), $success ? 1 : 0, $reason]);
+        // Keep only last 500 entries
+        $pdo->exec('DELETE FROM login_logs WHERE id NOT IN (SELECT id FROM (SELECT id FROM login_logs ORDER BY created_at DESC LIMIT 500) AS t)');
     } catch (\Throwable $e) {} // Table may not exist yet
 }
 
@@ -42,8 +47,9 @@ function createTrustedDevice($pdo, $userId, $ip) {
 
 function isMailConfigured() {
     try {
-        require_once __DIR__ . '/googleMail.php';
-        return isGoogleConnectionValid();
+        global $googleMailReady;
+        if (!$googleMailReady) return false;
+        return file_exists(__DIR__ . '/../token.json');
     } catch (\Throwable $e) { return false; }
 }
 
@@ -52,7 +58,6 @@ function send2faCode($pdo, $user) {
     $pdo->prepare('UPDATE users SET twofa_code = ?, twofa_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?')
         ->execute([$code, $user['id']]);
     try {
-        require_once __DIR__ . '/googleMail.php';
         sendMail(
             $user['email'],
             'Code de verification – Forbach en Rose',
@@ -83,7 +88,8 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     if($u && password_verify($d['password'] ?? '',$u['password_hash'])){
         if(!$u['is_active']){
-            logLoginAttempt($pdo, $u['id'], $u['email'], false);
+            $reason = $u['locked_at'] ? 'Compte verrouille (3 echecs)' : 'Compte desactive';
+            logLoginAttempt($pdo, $u['id'], $u['email'], false, $reason);
             http_response_code(403);
             $msg = $u['locked_at']
                 ? 'Compte verrouille suite a 3 tentatives echouees. Utilisez "Mot de passe oublie" ou contactez un administrateur.'
@@ -98,7 +104,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
         // Must change password — no 2FA needed
         if($u['must_change_password']){
             $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
-            logLoginAttempt($pdo, $u['id'], $u['email'], true);
+            logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Changement MDP requis');
             echo json_encode(['ok'=>true, 'role'=>$u['role'], 'must_change_password'=>true]); exit;
         }
 
@@ -113,7 +119,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             if (checkTrustedDevice($pdo, $u['id'], $ip)) {
                 // Trusted → login direct
                 $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
-                logLoginAttempt($pdo, $u['id'], $u['email'], true);
+                logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Appareil de confiance');
                 echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
             }
 
@@ -130,12 +136,12 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
 
         // No 2FA needed or mail not configured → login direct
         $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
-        logLoginAttempt($pdo, $u['id'], $u['email'], true);
+        logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Connexion directe');
         echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
     }
 
     // Failed login
-    logLoginAttempt($pdo, $u['id'] ?? null, $d['email'] ?? '', false);
+    logLoginAttempt($pdo, $u['id'] ?? null, $d['email'] ?? '', false, $u ? 'Mot de passe incorrect' : 'Email inconnu');
 
     if ($u) {
         $attempts = $u['failed_attempts'] + 1;
@@ -196,7 +202,7 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
     $pdo->prepare('UPDATE users SET twofa_code = NULL, twofa_expires = NULL WHERE id = ?')->execute([$uid]);
 
     // Log success
-    logLoginAttempt($pdo, $uid, $_SESSION['email'], true);
+    logLoginAttempt($pdo, $uid, $_SESSION['email'], true, 'Code 2FA valide');
 
     // Trust device if requested
     if ($trustDevice) {

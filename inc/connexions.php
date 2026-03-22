@@ -161,6 +161,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
             <th>IP</th>
             <th>User Agent</th>
             <th>Statut</th>
+            <th>Raison</th>
           </tr>
         </thead>
         <tbody>
@@ -168,17 +169,18 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
           <tr>
             <td><?= htmlspecialchars($log['created_at'] ?? '') ?></td>
             <td><?= htmlspecialchars($log['email'] ?? '') ?></td>
-            <td><?= htmlspecialchars($log['ip'] ?? '') ?></td>
+            <td><?= htmlspecialchars($log['ip_address'] ?? $log['ip'] ?? '') ?></td>
             <td class="ua-cell" title="<?= htmlspecialchars($log['user_agent'] ?? '') ?>">
               <?= htmlspecialchars(mb_strimwidth($log['user_agent'] ?? '', 0, 60, '...')) ?>
             </td>
             <td>
-              <?php if (($log['status'] ?? '') === 'success'): ?>
-                <span class="badge bg-success">Succès</span>
+              <?php if (($log['success'] ?? 0) == 1): ?>
+                <span class="badge bg-success">Succes</span>
               <?php else: ?>
-                <span class="badge bg-danger">Échec</span>
+                <span class="badge bg-danger">Echec</span>
               <?php endif; ?>
             </td>
+            <td><?= htmlspecialchars($log['reason'] ?? '') ?></td>
           </tr>
           <?php endforeach; ?>
         </tbody>

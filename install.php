@@ -466,6 +466,7 @@ function getCreateTableStatements(): array
           `ip_address` VARCHAR(45) NOT NULL,
           `user_agent` VARCHAR(500) DEFAULT NULL,
           `success` TINYINT(1) NOT NULL DEFAULT 0,
+          `reason` VARCHAR(255) DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_ip` (`ip_address`),
           INDEX `idx_user` (`user_id`),
