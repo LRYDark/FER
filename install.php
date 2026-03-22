@@ -229,7 +229,6 @@ function getCreateTableStatements(): array
           `parcoursDesc` text DEFAULT NULL,
           `picture_parcours` varchar(255) DEFAULT NULL,
           `div_reglementation` mediumtext DEFAULT NULL,
-          `social_networks` int(11) NOT NULL DEFAULT 0,
           `link_cancer` varchar(255) DEFAULT NULL,
           `debogage` int(2) NOT NULL DEFAULT 0,
           `client_id` TEXT DEFAULT NULL,
@@ -511,8 +510,8 @@ function getCreateTableStatements(): array
 function getDefaultInserts(): array
 {
     return [
-        "INSERT IGNORE INTO `setting` (`id`, `title`, `title_color`, `footer`, `registration_fee`, `accueil_active`, `debogage`, `social_networks`)
-         VALUES (1, 'Forbach en Rose', '#ffffff', '© Forbach en Rose', 12, 0, 0, 0)",
+        "INSERT IGNORE INTO `setting` (`id`, `title`, `title_color`, `footer`, `registration_fee`, `accueil_active`, `debogage`)
+         VALUES (1, 'Forbach en Rose', '#ffffff', '© Forbach en Rose', 12, 0, 0)",
 
         "INSERT IGNORE INTO `customize` (`id`, `assoconnect_js`, `assoconnect_iframe`)
          VALUES (1, NULL, NULL)",

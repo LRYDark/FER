@@ -34,7 +34,6 @@ $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
 $picture_partner= $data['picture_partner'] ?? ''; 
 $picture_accueil= $data['picture_accueil'] ?? '';
-$social_networks = $data['social_networks'] ?? 0;
 $link_cancer = $data['link_cancer'] ?? null;
 $debogage = $data['debogage'] ? 1 : 0;
 
@@ -283,10 +282,8 @@ if (isset($_POST['accueil'])) {
 $edition = $_POST['edition'] ?? '';  
 $link_instagram  = $_POST['link_instagram']   ?? '';
 $link_facebook = $_POST['link_facebook'] ?? ''; 
-$accueil_active = $_POST['accueil_active'] ? 1 : 0;
+$accueil_active = !empty($_POST['accueil_active']) ? 1 : 0;
 $date_course = $_POST['date_course'] ?? null;
-$date_course = $_POST['date_course'] ?? null;
-$social_networks = $_POST['social_networks'] ?? 0;
 $link_cancer = $_POST['link_cancer'] ?? null;
 
 if ($date_course) {
@@ -354,7 +351,6 @@ if ($date_course) {
                         link_facebook              = :link_facebook,
                         accueil_active              = :accueil_active,
                         date_course              = :date_course,
-                        social_networks              = :social_networks,
                         link_cancer              = :link_cancer
                 WHERE id = :id'
             );
@@ -367,7 +363,6 @@ if ($date_course) {
                 'link_facebook'    => $link_facebook,
                 'accueil_active'    => $accueil_active,
                 'date_course'    => $date_course,
-                'social_networks'    => $social_networks,
                 'link_cancer'    => $link_cancer,
                 'id'        => 1
             ]);
@@ -1029,15 +1024,6 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                             Supprimer l'image
                         </button>
                     <?php endif; ?>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="social_networks" class="form-label">Position - Reseaux sociaux</label>
-                        <select name="social_networks" id="social_networks" class="form-select">
-                            <option value="0" <?= $social_networks == 0 ? 'selected' : '' ?>>Desactive</option>
-                            <option value="1" <?= $social_networks == 1 ? 'selected' : '' ?>>Gauche</option>
-                            <option value="2" <?= $social_networks == 2 ? 'selected' : '' ?>>Droite</option>
-                            <option value="3" <?= $social_networks == 3 ? 'selected' : '' ?>>Centre</option>
-                        </select>
                     </div>
                     <div class="col-md-6"><label class="form-label">Lien de la ligne contre le cancer</label>
                         <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la ligne contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
