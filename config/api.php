@@ -4,73 +4,209 @@ header('Content-Type: application/json; charset=utf-8');
 
 $route = $_GET['route'] ?? '';
 
+/* ───── Helper: log login attempt ───────────── */
+function logLoginAttempt($pdo, $userId, $email, $success) {
+    try {
+        $pdo->prepare('INSERT INTO login_logs (user_id, email, ip_address, user_agent, success) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$userId, $email, $_SERVER['REMOTE_ADDR'] ?? '', mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500), $success ? 1 : 0]);
+    } catch (\Throwable $e) {} // Table may not exist yet
+}
+
+function isIpBanned($pdo, $ip) {
+    try {
+        $st = $pdo->prepare('SELECT 1 FROM login_banned_ips WHERE ip_address = ? LIMIT 1');
+        $st->execute([$ip]);
+        return (bool) $st->fetch();
+    } catch (\Throwable $e) { return false; }
+}
+
+function checkTrustedDevice($pdo, $userId, $ip) {
+    try {
+        $token = $_COOKIE['fer_trust'] ?? '';
+        if (!$token) return false;
+        $st = $pdo->prepare('SELECT 1 FROM trusted_devices WHERE user_id = ? AND token = ? AND ip_address = ? AND expires_at > NOW() LIMIT 1');
+        $st->execute([$userId, $token, $ip]);
+        return (bool) $st->fetch();
+    } catch (\Throwable $e) { return false; }
+}
+
+function createTrustedDevice($pdo, $userId, $ip) {
+    try {
+        $token = bin2hex(random_bytes(32));
+        $ua = mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500);
+        $pdo->prepare('INSERT INTO trusted_devices (user_id, token, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))')
+            ->execute([$userId, $token, $ip, $ua]);
+        setcookie('fer_trust', $token, time() + 86400 * 30, '/', '', true, true);
+    } catch (\Throwable $e) {}
+}
+
+function isMailConfigured() {
+    try {
+        require_once __DIR__ . '/googleMail.php';
+        return isGoogleConnectionValid();
+    } catch (\Throwable $e) { return false; }
+}
+
+function send2faCode($pdo, $user) {
+    $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $pdo->prepare('UPDATE users SET twofa_code = ?, twofa_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?')
+        ->execute([$code, $user['id']]);
+    try {
+        require_once __DIR__ . '/googleMail.php';
+        sendMail(
+            $user['email'],
+            'Code de verification – Forbach en Rose',
+            'Code de verification',
+            '<p>Votre code de verification est :</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;color:#c4577a;margin:20px 0">' . $code . '</p><p>Ce code est valable 15 minutes.</p><p>Si vous n\'avez pas demande cette connexion, ignorez ce message.</p>',
+            null, null, 'info'
+        );
+        return true;
+    } catch (\Throwable $e) {
+        error_log('2FA mail error: ' . $e->getMessage());
+        return false;
+    }
+}
+
 /* ───── LOGIN / LOGOUT ───────────────────────── */
 if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $d = json_decode(file_get_contents('php://input'), true);
-    $st=$pdo->prepare('SELECT id,email,password_hash,role,must_change_password,is_active,failed_attempts,locked_at FROM users WHERE email=?');
-    $st->execute([$d['email']]); $u=$st->fetch();
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
-    if($u && password_verify($d['password'],$u['password_hash'])){
+    // Check IP ban
+    if (isIpBanned($pdo, $ip)) {
+        http_response_code(403);
+        echo json_encode(['ok'=>false, 'err'=>'Votre adresse IP a ete bannie. Contactez un administrateur.']); exit;
+    }
+
+    $st=$pdo->prepare('SELECT id,email,password_hash,role,must_change_password,is_active,failed_attempts,locked_at FROM users WHERE email=?');
+    $st->execute([$d['email'] ?? '']); $u=$st->fetch();
+
+    if($u && password_verify($d['password'] ?? '',$u['password_hash'])){
         if(!$u['is_active']){
+            logLoginAttempt($pdo, $u['id'], $u['email'], false);
             http_response_code(403);
             $msg = $u['locked_at']
-                ? 'Compte verrouillé suite à 3 tentatives échouées. Utilisez "Mot de passe oublié" ou contactez un administrateur.'
-                : 'Compte désactivé. Contactez un administrateur.';
+                ? 'Compte verrouille suite a 3 tentatives echouees. Utilisez "Mot de passe oublie" ou contactez un administrateur.'
+                : 'Compte desactive. Contactez un administrateur.';
             echo json_encode(['ok'=>false, 'err'=>$msg]); exit;
         }
-        // Connexion réussie : remettre le compteur à 0
+        // Reset failed attempts
         if ($u['failed_attempts'] > 0) {
             $pdo->prepare('UPDATE users SET failed_attempts = 0 WHERE id = ?')->execute([$u['id']]);
         }
-        $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$d['email'];
+
+        // Must change password — no 2FA needed
         if($u['must_change_password']){
+            $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+            logLoginAttempt($pdo, $u['id'], $u['email'], true);
             echo json_encode(['ok'=>true, 'role'=>$u['role'], 'must_change_password'=>true]); exit;
         }
+
+        // Check if 2FA is needed (only if user email is a valid email)
+        $mailOk = isMailConfigured();
+        $has2faCols = true;
+        try { $pdo->query('SELECT twofa_code FROM users LIMIT 0'); } catch (\Throwable $e) { $has2faCols = false; }
+        $userHasEmail = filter_var($u['email'], FILTER_VALIDATE_EMAIL);
+
+        if ($mailOk && $has2faCols && $userHasEmail) {
+            // Check trusted device
+            if (checkTrustedDevice($pdo, $u['id'], $ip)) {
+                // Trusted → login direct
+                $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+                logLoginAttempt($pdo, $u['id'], $u['email'], true);
+                echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
+            }
+
+            // Send 2FA code
+            $sent = send2faCode($pdo, $u);
+            if ($sent) {
+                $_SESSION['pending_2fa_uid'] = $u['id'];
+                $_SESSION['pending_2fa_role'] = $u['role'];
+                $_SESSION['pending_2fa_email'] = $u['email'];
+                echo json_encode(['ok'=>true, 'requires_2fa'=>true]); exit;
+            }
+            // Mail send failed → login direct (failsafe)
+        }
+
+        // No 2FA needed or mail not configured → login direct
+        $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+        logLoginAttempt($pdo, $u['id'], $u['email'], true);
         echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
     }
 
-    // Échec de connexion : incrémenter le compteur
+    // Failed login
+    logLoginAttempt($pdo, $u['id'] ?? null, $d['email'] ?? '', false);
+
     if ($u) {
         $attempts = $u['failed_attempts'] + 1;
         if ($attempts >= 3) {
-            // Verrouiller le compte
             $pdo->prepare('UPDATE users SET failed_attempts = ?, is_active = 0, locked_at = NOW() WHERE id = ?')
                 ->execute([$attempts, $u['id']]);
-
-            // Envoyer un mail aux administrateurs
             try {
                 require_once __DIR__ . '/googleMail.php';
                 if (isGoogleConnectionValid()) {
                     $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
                     foreach ($admins as $adminEmail) {
-                        sendMail(
-                            $adminEmail,
-                            'Compte verrouillé – Forbach en Rose',
-                            'Compte verrouillé après 3 tentatives',
-                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> a été verrouillé automatiquement après 3 tentatives de connexion échouées.</p>'
-                              . '<p>Si cette action est légitime, l\'utilisateur peut utiliser la fonction "Mot de passe oublié".</p>'
-                              . '<p>Vous pouvez également réactiver le compte depuis le panneau d\'administration.</p>',
-                            null, null, 'warning'
-                        );
+                        sendMail($adminEmail, 'Compte verrouille – Forbach en Rose', 'Compte verrouille apres 3 tentatives',
+                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> a ete verrouille automatiquement apres 3 tentatives de connexion echouees.</p>'
+                            . '<p>IP : ' . htmlspecialchars($ip) . '</p>', null, null, 'warning');
                     }
                 }
-            } catch (Exception $e) {
-                error_log('Lock notification mail error: ' . $e->getMessage());
-            }
-
+            } catch (\Throwable $e) { error_log('Lock notification mail error: ' . $e->getMessage()); }
             http_response_code(403);
-            echo json_encode(['ok'=>false, 'err'=>'Compte verrouillé après 3 tentatives échouées. Utilisez "Mot de passe oublié" ou contactez un administrateur.']); exit;
+            echo json_encode(['ok'=>false, 'err'=>'Compte verrouille apres 3 tentatives echouees.']); exit;
         } else {
-            $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')
-                ->execute([$attempts, $u['id']]);
+            $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]);
             $remaining = 3 - $attempts;
             http_response_code(401);
-            echo json_encode(['ok'=>false, 'err'=>"Identifiants incorrects. Il vous reste $remaining tentative(s) avant le verrouillage du compte."]); exit;
+            echo json_encode(['ok'=>false, 'err'=>"Identifiants incorrects. $remaining tentative(s) restante(s)."]); exit;
         }
     }
 
     http_response_code(401); echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects.']); exit;
 }
+
+/* ───── VALIDATE 2FA ─────────────────────────── */
+if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $code = trim($d['code'] ?? '');
+    $trustDevice = !empty($d['trust_device']);
+
+    if (!isset($_SESSION['pending_2fa_uid'])) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Session 2FA expiree. Reconnectez-vous.']); exit;
+    }
+
+    $uid = $_SESSION['pending_2fa_uid'];
+    $st = $pdo->prepare('SELECT twofa_code, twofa_expires FROM users WHERE id = ?');
+    $st->execute([$uid]); $u2 = $st->fetch();
+
+    if (!$u2 || $u2['twofa_code'] !== $code || strtotime($u2['twofa_expires']) < time()) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Code invalide ou expire.']); exit;
+    }
+
+    // 2FA OK — create real session
+    $_SESSION['uid'] = $uid;
+    $_SESSION['role'] = $_SESSION['pending_2fa_role'];
+    $_SESSION['email'] = $_SESSION['pending_2fa_email'];
+    unset($_SESSION['pending_2fa_uid'], $_SESSION['pending_2fa_role'], $_SESSION['pending_2fa_email']);
+
+    // Clear 2FA code
+    $pdo->prepare('UPDATE users SET twofa_code = NULL, twofa_expires = NULL WHERE id = ?')->execute([$uid]);
+
+    // Log success
+    logLoginAttempt($pdo, $uid, $_SESSION['email'], true);
+
+    // Trust device if requested
+    if ($trustDevice) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        createTrustedDevice($pdo, $uid, $ip);
+    }
+
+    echo json_encode(['ok'=>true, 'role'=>$_SESSION['role']]); exit;
+}
+
 if ($route==='logout'){ session_destroy(); echo json_encode(['ok'=>true]); exit; }
 
 /* ───── FORGOT PASSWORD (public) ────────────── */

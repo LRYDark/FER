@@ -38,17 +38,9 @@ if (isset($_SESSION['flash_message'])) {
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<!-- TinyMCE pour l'éditeur de texte enrichi -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-<script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <style>
-  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
-  .hero h1{margin:0;font-size:2.2rem}
-  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
-  @media (max-width:991.98px){.top-actions{display:none}}
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
   tr.filters th[class*="sorting"]::before,
@@ -77,15 +69,14 @@ if (isset($_SESSION['flash_message'])) {
     border-color:#16a34a!important;
   }
   .dashboard-actions .btn-secondary{
-    background:#2e2f3a!important;
-    color:#e2e4ed!important;
-    border-color:#383942!important;
+    background:#64748b!important;
+    color:#fff!important;
+    border-color:#64748b!important;
   }
   .dashboard-actions .btn-secondary:hover,
   .dashboard-actions .btn-secondary:focus{
-    background:#383942!important;
+    background:#475569!important;
     color:#fff!important;
-    border-color:#383942!important;
   }
   .dashboard-actions .btn-info{
     background:#0ea5e9!important;
@@ -96,7 +87,6 @@ if (isset($_SESSION['flash_message'])) {
   .dashboard-actions .btn-info:focus{
     background:#0284c7!important;
     color:#fff!important;
-    border-color:#0284c7!important;
   }
   .dashboard-actions .btn-danger{
     background:#ef4444!important;
@@ -107,7 +97,6 @@ if (isset($_SESSION['flash_message'])) {
   .dashboard-actions .btn-danger:focus{
     background:#dc2626!important;
     color:#fff!important;
-    border-color:#dc2626!important;
   }
   .dashboard-actions .btn-warning{
     background:#f59e0b!important;
@@ -121,51 +110,77 @@ if (isset($_SESSION['flash_message'])) {
     border-color:#d97706!important;
   }
   
-/* Styles pour l'en-tête moderne */
-/* ═══ En-tête ============================================================== */
-#tbl thead tr:first-child th{
-  background:#fafafa;                /* fond clair uniforme        */
-  color:#4a4a4a;                     /* texte gris foncé           */
-  font-weight:600;
-  font-size:.78rem;
-  letter-spacing:.4px;
-  border-top:2px solid var(--rose-500);
-  border-bottom:2px solid #e0e0e0;   /* petite ligne de séparation */
-  padding:.9rem .65rem;
-}
-#tbl thead tr:first-child th:first-child { border-radius:8px 0 0 0; }
-#tbl thead tr:first-child th:last-child  { border-radius:0 8px 0 0; }
+/* ═══ Tableau dashboard — style OpenCloud Rose ═══ */
+#tbl { border-collapse: separate; border-spacing: 0; }
 
-/* sur-vol des lignes plus subtil */
-#tbl tbody tr:hover{background:#fffdfd;transform:none;}
-
-/* ═══ Lignes =============================================================== */
-/* 1. taille & espacement */
-#tbl tbody td{
-  padding:.65rem .8rem;
-  vertical-align:middle;
-  font-size:.86rem;
-  border-left:2px solid var(--rose-500)!important;
+#tbl thead tr:first-child th {
+  background: #faf7f8;
+  color: #5f4b52;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid #f0e8eb;
+  border-top: none;
+  padding: 10px 12px;
 }
 
-/* 2. zébrage léger */
-#tbl tbody tr:nth-child(even){background:#faf8fd}
-
-#tbl tbody tr:hover{
-  background:#fffdfd;
-  box-shadow:0 2px 6px rgba(0,0,0,.04);
+#tbl tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  font-size: 13px;
+  color: #1e293b;
+  border-bottom: 1px solid #f0e8eb;
+  border-left: none !important;
 }
 
-/* 4. coins arrondis en bas quand la pagination montre peu de lignes */
-#tbl tbody tr:last-child td:first-child {border-radius:0 0 0 8px}
-#tbl tbody tr:last-child td:last-child  {border-radius:0 0 8px 0}
+#tbl tbody tr:hover td { background: #fdf8f9; }
 
-/* 5. garde ta règle "first-750" mais on la rend plus douce */
-.first-750 td{
-  background:linear-gradient(90deg,#fff2f8 0%,#fcecff 100%)!important; /* couleur finale */
-  font-weight:600;                      /* conservé si tu le souhaites */
-  
+/* 750 premières lignes — fond rose pâle */
+.first-750 td {
+  background: #fdf2f6 !important;
+  font-weight: 600;
 }
+.first-750:hover td {
+  background: #fce4ec !important;
+}
+
+/* Filtres ligne */
+tr.filters th { background: #fff !important; padding: 6px 8px !important; }
+tr.filters select, tr.filters input {
+  font-size: 12px; border: 1px solid #d4c4cb; border-radius: 4px; padding: 4px 6px;
+}
+
+/* Colonnes redimensionnables */
+#tbl thead th { position: relative; }
+#tbl thead th .col-resize {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
+  cursor: col-resize; user-select: none; z-index: 1;
+}
+#tbl thead th .col-resize:hover,
+#tbl thead th .col-resize.active { background: #c4577a; }
+
+/* Bouton colonnes */
+.col-toggle-wrap { position: relative; display: inline-block; }
+.col-toggle-btn {
+  font-size: 13px; font-weight: 500; padding: 5px 12px;
+  border: 1px solid #d4c4cb; border-radius: 6px; background: #fff;
+  color: #1e293b; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.col-toggle-btn:hover { background: #fdf8f9; }
+.col-toggle-dropdown {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
+  background: #fff; border: 1px solid #f0e8eb; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100;
+  padding: 8px 0; min-width: 200px; max-height: 350px; overflow-y: auto;
+}
+.col-toggle-dropdown.show { display: block; }
+.col-toggle-dropdown label {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+  font-size: 13px; color: #1e293b; cursor: pointer; font-weight: 400;
+  text-transform: none; letter-spacing: 0; margin: 0;
+}
+.col-toggle-dropdown label:hover { background: #fdf8f9; }
 
 /* ═══ Petite retouche des filtres sous l'en-tête =========================== */
 tr.filters th{
@@ -193,186 +208,18 @@ tr.filters select{
   box-shadow:0 3px 6px rgba(230,57,70,.35);
 }
 
-/* Styles pour le modal d'envoi de mail */
 .xl-modal .modal-dialog {
   max-width: 1300px;
-}
-
-.recipients-counter {
-  font-size: 0.875rem;
-  color: #6c757d;
-  margin-top: 0.25rem;
-}
-
-.select-all-btn {
-  font-size: 0.8rem;
-  padding: 0.2rem 0.5rem;
-}
-
-#mailDescription {
-  min-height: 300px;
-}
-
-#selectedRecipients .badge {
-  font-size: 0.8rem !important;
-}
-
-#selectedRecipients .btn-close {
-  padding: 0.2rem;
-  font-size: 0.6rem;
-}
-
-#selectedRecipients:empty::after {
-  content: "Aucun destinataire sélectionné";
-  color: #6c757d;
-  font-size: 0.875rem;
-  font-style: italic;
-}
-
-/* ═══ Dark theme pour #tblUsers ═══ */
-html.adm-dark #usersModal #tblUsers {
-  --bs-table-bg: transparent;
-  --bs-table-color: var(--adm-text);
-  --bs-table-border-color: var(--adm-border);
-}
-html.adm-dark #usersModal #tblUsers.table > :not(caption) > * > * {
-  background-color: transparent !important;
-  color: var(--adm-text) !important;
-  border-color: var(--adm-border) !important;
-}
-html.adm-dark #usersModal #tblUsers thead th {
-  background: var(--adm-elevated) !important;
-  color: var(--adm-accent) !important;
-  border-color: var(--adm-accent) !important;
-}
-html.adm-dark #usersModal #tblUsers tbody tr:nth-child(even) > * {
-  background: rgba(255,255,255,.02) !important;
-}
-html.adm-dark #usersModal #tblUsers tbody tr:hover > * {
-  background: var(--adm-hover) !important;
-}
-html.adm-dark #usersModal hr {
-  border-color: var(--adm-border);
-}
-html.adm-dark #usersModal h6 {
-  color: var(--adm-text);
-}
-html.adm-dark #usersModal .dataTables_wrapper .dataTables_info,
-html.adm-dark #usersModal .dataTables_wrapper .dataTables_length label,
-html.adm-dark #usersModal .dataTables_wrapper .dataTables_filter label {
-  color: var(--adm-text-dim) !important;
-}
-html.adm-dark #usersModal .dataTables_wrapper .page-link {
-  background: var(--adm-elevated) !important;
-  border-color: var(--adm-border) !important;
-  color: var(--adm-text-dim) !important;
-}
-html.adm-dark #usersModal .dataTables_wrapper .page-item.active .page-link {
-  background: var(--adm-accent) !important;
-  border-color: var(--adm-accent) !important;
-  color: #fff !important;
-}
-html.adm-dark #usersModal .dataTables_wrapper .page-item.disabled .page-link {
-  background: var(--adm-surface) !important;
-  border-color: var(--adm-border) !important;
-  color: var(--adm-text-muted) !important;
-}
-
-/* ═══ Inactive user rows ═══ */
-#tblUsers tbody tr.user-inactive td {
-  opacity: 0.5;
-  text-decoration: line-through;
-}
-#tblUsers tbody tr.user-inactive td:last-child {
-  opacity: 1;
-  text-decoration: none;
-}
-
-/* ═══ Responsive #usersModal ═══ */
-@media (max-width: 767.98px) {
-  #usersModal .modal-dialog {
-    margin: 0;
-    max-width: 100%;
-    min-height: 100dvh;
-  }
-  #usersModal .modal-content {
-    border-radius: 0;
-    min-height: 100dvh;
-  }
-  #usersModal #tblUsers {
-    font-size: .78rem;
-  }
-  #usersModal #tblUsers th,
-  #usersModal #tblUsers td {
-    padding: .35rem .25rem;
-    white-space: nowrap;
-  }
-  #usersModal #fUser .col-md-4,
-  #usersModal #fUser .col-md-3,
-  #usersModal #fUser .col-md-2 {
-    flex: 0 0 100%;
-    max-width: 100%;
-  }
-}
-@media (max-width: 575.98px) {
-  #tblUsers td:nth-child(5),
-  #tblUsers th:nth-child(5),
-  #tblUsers td:nth-child(6),
-  #tblUsers th:nth-child(6) {
-    display: none;
-  }
-}
-
-/* ═══ Temp password modal ═══ */
-html.adm-dark #tempPasswordModal .font-monospace {
-  background: var(--adm-elevated) !important;
-  color: var(--adm-accent) !important;
-  border-color: var(--adm-border) !important;
-}
-
-/* Styles pour la zone de recherche */
-.email-search-container {
-  position: relative;
-}
-
-.email-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-top: none;
-  border-radius: 0 0 0.375rem 0.375rem;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 1050;
-  display: none;
-}
-
-.suggestion-item {
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  border-bottom: 1px solid #eee;
-}
-
-.suggestion-item:hover {
-  background-color: #f8f9fa;
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
 }
 
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 
 <?php include 'navbar-admin.php'; ?>
 
 <!-- ═════════ MAIN ═════════ -->
-<main class="container-fluid flex-grow-1">
   <div class="bg-white p-4 card-dashboard">
     <!-- Message flash de confirmation -->
     <?php if ($flashMessage): ?>
@@ -403,9 +250,6 @@ html.adm-dark #tempPasswordModal .font-monospace {
       <div class="dashboard-actions d-none d-lg-flex flex-wrap gap-2">
         <?php if($role!=='viewer'): ?>
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
-        <?php endif; ?>
-        <?php if($role==='admin' || $role==='user'): ?>
-          <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#mailModal">Envoyer Mail</button>
         <?php endif; ?>
         <?php if($role==='admin'): ?>
           <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel</button>
@@ -439,7 +283,6 @@ html.adm-dark #tempPasswordModal .font-monospace {
               }
             });
             </script>
-          <button class="btn btn-warning"   data-bs-toggle="modal" data-bs-target="#usersModal">Utilisateurs</button>
         <?php endif; ?>
       </div>
     </div>
@@ -452,103 +295,10 @@ html.adm-dark #tempPasswordModal .font-monospace {
       <table id="tbl" class="table table-striped table-sm w-100"></table>
     </div>
   </div>
-</main>
 
-<?php include 'footer-modern.php'; ?>
+<?php include 'admin-footer.php'; ?>
 
 <!-- ═════════ MODALES ═════════ -->
-<!-- Modal d'envoi de mail -->
-<div class="modal fade xl-modal" id="mailModal" tabindex="-1" aria-labelledby="mailModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="mailModalLabel">Envoi de mail</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-      </div>
-      <form id="fMail">
-        <div class="modal-body">
-          <div class="row g-3">
-            <!-- Destinataires -->
-            <div class="col-12">
-              <label for="mailRecipients" class="form-label">
-                <i class="bi bi-people"></i> Destinataires
-              </label>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <div>
-                  <button type="button" class="btn btn-outline-primary select-all-btn" id="selectAllBtn">
-                    Tout sélectionner
-                  </button>
-                  <button type="button" class="btn btn-outline-secondary select-all-btn" id="clearAllBtn">
-                    Tout désélectionner
-                  </button>
-                </div>
-              </div>
-              
-              <!-- Zone de recherche unique -->
-              <div class="email-search-container">
-                  <input type="text" id="emailSearchInput" class="form-control" placeholder="Tapez un nom, prénom ou email (ou plusieurs emails séparés par des virgules) puis appuyez sur Entrée">
-                <div id="emailSuggestions" class="email-suggestions"></div>
-              </div>
-              
-              <!-- Zone d'affichage des destinataires sélectionnés -->
-              <div id="selectedRecipients" class="border rounded p-2 bg-light mt-3" style="min-height: 120px; max-height: 200px; overflow-y: auto;">
-                <small class="text-muted">Aucun destinataire sélectionné</small>
-              </div>
-              
-              <div class="recipients-counter mt-2" id="recipientsCounter">
-                0 destinataire(s) sélectionné(s)
-              </div>
-              
-              <!-- Input caché pour stocker les emails sélectionnés -->
-              <input type="hidden" name="recipients" id="hiddenRecipients">
-            </div>
-
-            <!-- Objet du mail -->
-            <div class="col-12">
-              <label for="mailSubject" class="form-label">
-                <i class="bi bi-tag"></i> Objet du mail
-              </label>
-              <input type="text" name="subject" id="mailSubject" class="form-control" 
-                     placeholder="Objet de votre mail" required maxlength="255">
-            </div>
-
-            <!-- Titre du contenu -->
-            <div class="col-12">
-              <label for="mailTitle" class="form-label">
-                <i class="bi bi-type-h1"></i> Titre du contenu
-              </label>
-              <input type="text" name="mail_title" id="mailTitle" class="form-control" 
-                     placeholder="Titre qui apparaîtra dans le mail" maxlength="255">
-              <small class="form-text text-muted">
-                Ce titre sera affiché en tant que titre principal dans le contenu du mail
-              </small>
-            </div>
-
-            <!-- Description avec éditeur de texte enrichi -->
-            <div class="col-12">
-              <label for="mailDescription" class="form-label">
-                <i class="bi bi-file-text"></i> Contenu du mail
-              </label>
-              
-              <textarea name="description" id="mailDescription" class="form-control">
-                <!-- Le contenu sera géré par TinyMCE -->
-              </textarea>
-              <small class="form-text text-muted">
-                Utilisez l'éditeur pour formater votre message avec du texte en gras, des couleurs, des listes, etc.
-              </small>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button type="submit" class="btn btn-success">
-            <i class="bi bi-send"></i> Envoyer le mail
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 
 <!-- Autres modales existantes... -->
 <div class="modal fade xl-modal" id="addModal" tabindex="-1"><div class="modal-dialog">
@@ -605,51 +355,7 @@ html.adm-dark #tempPasswordModal .font-monospace {
     <button type="submit" class="btn btn-rose">Importer</button>
   </div></form></div></div></div>
 
-<?php if($role==='admin'): ?>
-<div class="modal fade xl-modal" id="usersModal" tabindex="-1"><div class="modal-dialog modal-lg">
- <div class="modal-content"><div class="modal-header">
-   <h5 class="modal-title">Comptes utilisateurs</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body">
-    <div class="table-responsive">
-      <table id="tblUsers" class="table table-sm w-100"></table>
-    </div>
-    <hr><h6>Nouveau compte</h6>
-    <form id="fUser" class="row g-2">
-      <input type="hidden" name="id">
-      <div class="col-md-4"><input name="email" type="email" placeholder="adresse email" class="form-control" required></div>
-      <div class="col-md-3"><select name="role" class="form-select"><option>viewer</option><option>user</option><option>saisie</option><option>admin</option></select></div>
-      <div class="col-md-3"><input name="organisation" placeholder="organisation" class="form-control"></div>
-      <div class="col-md-2 d-grid"><button class="btn btn-rose">OK</button></div>
-    </form>
-  </div></div></div></div>
-<?php endif; ?>
 
-<!-- Modal mot de passe temporaire -->
-<div class="modal fade" id="tempPasswordModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Mot de passe temporaire</h5>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body text-center">
-        <p id="tempPwdEmailStatus" class="mb-3"></p>
-        <p class="text-muted mb-2">Mot de passe temporaire :</p>
-        <div class="input-group mb-3">
-          <input type="text" id="tempPwdValue" class="form-control text-center font-monospace fs-5" readonly>
-          <button class="btn btn-outline-secondary" type="button" id="copyTempPwd" title="Copier">
-            <i class="bi bi-clipboard"></i>
-          </button>
-        </div>
-        <div id="copyConfirm" class="text-success d-none">Copie !</div>
-        <p class="text-muted small">L'utilisateur devra changer ce mot de passe a sa prochaine connexion.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -659,7 +365,6 @@ html.adm-dark #tempPasswordModal .font-monospace {
 <script>
 const userRole = '<?= $role ?>';
 let tableData = []; // Pour stocker les données triées par date
-let availableEmails = []; // Pour stocker tous les emails disponibles
 
 /* ══ Outils ════ */
 function normalizeBirth(fd){
@@ -686,12 +391,6 @@ function ageFromBirth(b){
   return a;
 }
 
-// Fonction pour valider une adresse email
-function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
 /* ══ DataTable ════ */
 let tshirtMode=false;
 function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Remise T-shirts':'Mode standard'); }
@@ -703,8 +402,6 @@ const tbl=$('#tbl').DataTable({
     dataSrc: function(json) {
       // Trier les données par date d'ajout (du plus ancien au plus récent)
       tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      // Mettre à jour la liste des destinataires du modal
-      updateAvailableEmails(tableData);
       return tableData;
     }
   },
@@ -763,8 +460,8 @@ const tbl=$('#tbl').DataTable({
       render: function(data, type, row) {
         let buttons = '';
         <?php if($role==='admin'): ?>
-        buttons += '<button class="btn btn-sm btn-outline-primary edit me-1" title="Modifier">✏️</button>';
-        buttons += '<button class="btn btn-sm btn-delete delete-row" title="Supprimer">🗑️</button>';
+        buttons += '<button class="btn btn-sm btn-outline-primary edit me-1" title="Modifier"><i class="bi bi-pencil"></i></button>';
+        buttons += '<button class="btn btn-sm btn-outline-danger delete-row" title="Supprimer"><i class="bi bi-trash3"></i></button>';
         <?php endif; ?>
         return `<div class="action-buttons">${buttons}</div>`;
       }
@@ -791,347 +488,9 @@ tbl.on('xhr.dt',(e,s,json)=>{
   if(json) {
     tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     updateStats(tableData);
-    updateAvailableEmails(tableData);
   }
 });
 
-/* ══ Gestion du modal de mail ════ */
-// Initialisation de TinyMCE pour l'éditeur de texte enrichi
-let tinymceInitialized = false;
-let selectedRecipients = []; // Array pour stocker les destinataires sélectionnés
-
-function initTinyMCE() {
-  if (tinymceInitialized) return;
-  
-  tinymce.init({
-    selector: '#mailDescription',
-    height: 400,
-    menubar: false,
-    plugins: [
-      'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
-      'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-      'insertdatetime', 'media', 'table', 'preview', 'help', 'wordcount'
-    ],
-    toolbar: 'undo redo | formatselect | ' +
-      'bold italic forecolor backcolor | alignleft aligncenter ' +
-      'alignright alignjustify | bullist numlist outdent indent | ' +
-      'removeformat | help',
-    content_style: 'body { font-family:Arial,sans-serif; font-size:14px }',
-    language: 'fr_FR'
-  });
-  
-  tinymceInitialized = true;
-}
-
-// Mettre à jour la liste des emails disponibles
-function updateAvailableEmails(data) {
-  availableEmails = [];
-  
-  data.forEach(person => {
-    if (person.email && person.email.trim() !== '') {
-      availableEmails.push({
-        email: person.email,
-        name: `${person.prenom || ''} ${person.nom || ''}`.trim(),
-        id: person.id
-      });
-    }
-  });
-}
-
-// Fonction de recherche dans les emails disponibles
-function searchEmails(query) {
-  if (!query || query.length < 1) return [];
-  
-  query = query.toLowerCase();
-  
-  return availableEmails.filter(person => {
-    return person.name.toLowerCase().includes(query) || 
-           person.email.toLowerCase().includes(query);
-  });
-}
-
-// Afficher les suggestions de recherche
-function showEmailSuggestions(suggestions) {
-  const suggestionsDiv = document.getElementById('emailSuggestions');
-  
-  if (suggestions.length === 0) {
-    suggestionsDiv.style.display = 'none';
-    return;
-  }
-  
-  let html = '';
-  suggestions.forEach(person => {
-    html += `
-      <div class="suggestion-item" 
-           data-email="${person.email}" 
-           data-name="${person.name}" 
-           data-id="${person.id}">
-        <strong>${person.name}</strong><br>
-        <small class="text-muted">${person.email}</small>
-      </div>
-    `;
-  });
-  
-  suggestionsDiv.innerHTML = html;
-  suggestionsDiv.style.display = 'block';
-}
-
-// Cacher les suggestions
-function hideEmailSuggestions() {
-  setTimeout(() => {
-    document.getElementById('emailSuggestions').style.display = 'none';
-  }, 200);
-}
-
-// Ajouter un destinataire à la liste
-function addRecipient(email, name, id) {
-  // Vérifier si déjà sélectionné
-  if (selectedRecipients.find(r => r.email === email)) {
-    return;
-  }
-  
-  const recipient = { email, name: name || 'Email externe', id: id || null };
-  selectedRecipients.push(recipient);
-  
-  updateSelectedRecipientsDisplay();
-  updateRecipientsCounter();
-  updateHiddenInput();
-}
-
-// Supprimer un destinataire de la liste
-function removeRecipient(email) {
-  selectedRecipients = selectedRecipients.filter(r => r.email !== email);
-  
-  updateSelectedRecipientsDisplay();
-  updateRecipientsCounter();
-  updateHiddenInput();
-}
-
-// Mettre à jour l'affichage des destinataires sélectionnés
-function updateSelectedRecipientsDisplay() {
-  const container = document.getElementById('selectedRecipients');
-  if (!container) return;
-  
-  if (selectedRecipients.length === 0) {
-    container.innerHTML = '<small class="text-muted">Aucun destinataire sélectionné</small>';
-    return;
-  }
-  
-  let html = '';
-  selectedRecipients.forEach(recipient => {
-    html += `
-      <span class="badge bg-primary me-2 mb-2 d-inline-flex align-items-center" style="font-size: 0.8rem;">
-        <span class="me-2">${recipient.name} (${recipient.email})</span>
-        <button type="button" class="btn-close btn-close-white" 
-                onclick="removeRecipient('${recipient.email}')" 
-                style="font-size: 0.6rem;" 
-                title="Supprimer"></button>
-      </span>
-    `;
-  });
-  
-  container.innerHTML = html;
-}
-
-// Mettre à jour le compteur de destinataires
-function updateRecipientsCounter() {
-  const counter = document.getElementById('recipientsCounter');
-  if (!counter) return;
-  
-  counter.textContent = `${selectedRecipients.length} destinataire(s) sélectionné(s)`;
-}
-
-// Mettre à jour l'input caché avec les emails sélectionnés
-function updateHiddenInput() {
-  const hiddenInput = document.getElementById('hiddenRecipients');
-  if (!hiddenInput) return;
-  
-  hiddenInput.value = JSON.stringify(selectedRecipients);
-}
-
-// Gestionnaires d'événements pour le modal de mail
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialiser TinyMCE quand le modal s'ouvre
-  const mailModal = document.getElementById('mailModal');
-  if (mailModal) {
-    mailModal.addEventListener('shown.bs.modal', function() {
-      initTinyMCE();
-    });
-  }
-  
-  // Gestion de la recherche d'emails
-  const emailSearchInput = document.getElementById('emailSearchInput');
-  if (emailSearchInput) {
-    emailSearchInput.addEventListener('input', function() {
-      const query = this.value.trim();
-      
-      if (query.length === 0) {
-        hideEmailSuggestions();
-        return;
-      }
-      
-      const suggestions = searchEmails(query);
-      showEmailSuggestions(suggestions);
-    });
-    
-    emailSearchInput.addEventListener('blur', hideEmailSuggestions);
-    
-    // Gestion de la sélection par clavier
-    emailSearchInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const query = this.value.trim();
-        
-        if (!query) return;
-        
-        // Vérifier s'il y a plusieurs emails séparés par des virgules
-        if (query.includes(',')) {
-          // Traitement de plusieurs emails
-          const emails = query.split(',');
-          let addedCount = 0;
-          let invalidEmails = [];
-          let duplicateEmails = [];
-          
-          emails.forEach(email => {
-            const cleanEmail = email.trim();
-            if (!cleanEmail) return; // Ignorer les éléments vides
-            
-            if (isValidEmail(cleanEmail)) {
-              // Vérifier si l'email n'est pas déjà sélectionné
-              if (selectedRecipients.find(r => r.email === cleanEmail)) {
-                duplicateEmails.push(cleanEmail);
-              } else {
-                addRecipient(cleanEmail, 'Email externe', null);
-                addedCount++;
-              }
-            } else {
-              invalidEmails.push(cleanEmail);
-            }
-          });
-          
-          // Feedback à l'utilisateur
-          let message = '';
-          if (invalidEmails.length > 0) {
-            message += `\n❌ ${invalidEmails.length} email(s) invalide(s): ${invalidEmails.join(', ')}`;
-          }
-          if (duplicateEmails.length > 0) {
-            message += `\n⚠️ ${duplicateEmails.length} email(s) déjà sélectionné(s): ${duplicateEmails.join(', ')}`;
-          }
-          
-          if (message) {
-            alert(message);
-          }
-          
-          this.value = '';
-          hideEmailSuggestions();
-          
-        } else {
-          // Traitement d'un seul email (code existant)
-          if (isValidEmail(query)) {
-            // Vérifier si l'email n'est pas déjà sélectionné
-            if (selectedRecipients.find(r => r.email === query)) {
-              alert('Cet email est déjà sélectionné.');
-            } else {
-              addRecipient(query, 'Email externe', null);
-              this.value = '';
-              hideEmailSuggestions();
-            }
-          } else {
-            // Sinon, sélectionner la première suggestion si elle existe
-            const firstSuggestion = document.querySelector('.suggestion-item');
-            if (firstSuggestion) {
-              firstSuggestion.click();
-            } else {
-              alert('Email invalide et aucune suggestion trouvée.');
-            }
-          }
-        }
-      }
-    });
-  }
-  
-  // Gestion des clics sur les suggestions
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('.suggestion-item')) {
-      const suggestionItem = e.target.closest('.suggestion-item');
-      const email = suggestionItem.dataset.email;
-      const name = suggestionItem.dataset.name;
-      const id = suggestionItem.dataset.id;
-      
-      addRecipient(email, name, id);
-      
-      // Vider le champ de recherche et cacher les suggestions
-      document.getElementById('emailSearchInput').value = '';
-      hideEmailSuggestions();
-    }
-  });
-  
-  // Sélectionner/désélectionner tous les destinataires
-  const selectAllBtn = document.getElementById('selectAllBtn');
-  const clearAllBtn = document.getElementById('clearAllBtn');
-  
-  if (selectAllBtn) {
-    selectAllBtn.addEventListener('click', function() {
-      // Ajouter tous les destinataires disponibles
-      availableEmails.forEach(person => {
-        addRecipient(person.email, person.name, person.id);
-      });
-    });
-  }
-  
-  if (clearAllBtn) {
-    clearAllBtn.addEventListener('click', function() {
-      selectedRecipients = [];
-      updateSelectedRecipientsDisplay();
-      updateRecipientsCounter();
-      updateHiddenInput();
-    });
-  }
-  
-  // Gestion de la soumission du formulaire de mail
-  const mailForm = document.getElementById('fMail');
-  if (mailForm) {
-    mailForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      // Vérifier qu'il y a des destinataires sélectionnés
-      if (selectedRecipients.length === 0) {
-        alert('Veuillez sélectionner au moins un destinataire.');
-        return;
-      }
-      
-      // Récupérer le contenu de TinyMCE
-      const description = tinymce.get('mailDescription') ? tinymce.get('mailDescription').getContent() : '';
-      
-      // Préparer les données à envoyer
-      const mailData = {
-        recipients: selectedRecipients,
-        subject: document.getElementById('mailSubject').value,
-        mail_title: document.getElementById('mailTitle').value,
-        description: description
-      };
-      
-      // Créer un formulaire caché pour transmettre les données
-      const hiddenForm = document.createElement('form');
-      hiddenForm.method = 'POST';
-      hiddenForm.action = 'send-mail.php'; // À créer
-      hiddenForm.style.display = 'none';
-      
-      // Ajouter les données au formulaire
-      const dataInput = document.createElement('input');
-      dataInput.type = 'hidden';
-      dataInput.name = 'mail_data';
-      dataInput.value = JSON.stringify(mailData);
-      hiddenForm.appendChild(dataInput);
-      
-      document.body.appendChild(hiddenForm);
-      hiddenForm.submit();
-      
-      // Fermer le modal
-      bootstrap.Modal.getInstance(mailModal).hide();
-    });
-  }
-});
 
 // Événements pour détecter l'ouverture/fermeture des menus t-shirt
 $('#tbl').on('mousedown', '.tshirt-dd', function(e) {
@@ -1350,199 +709,181 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   }
 });
 
-/* ══ COMPTES UTILISATEURS (ADMIN) ════ */
-<?php if($role==='admin'): ?>
-let usrTbl;
 
-// Fonction pour afficher le modal de mot de passe temporaire
-function showTempPasswordModal(password, email, emailSent) {
-  document.getElementById('tempPwdValue').value = password;
-  const statusEl = document.getElementById('tempPwdEmailStatus');
-  if (emailSent) {
-    statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Email envoy\u00e9 \u00e0 ' + email + '</span>';
-  } else {
-    statusEl.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Email non envoy\u00e9 (Gmail non configur\u00e9). Communiquez le mot de passe manuellement.</span>';
+/* ══ Colonnes redimensionnables + toggle visibilité ════ */
+(function() {
+  var table = document.getElementById('tbl');
+  if (!table) return;
+  var uid = <?= json_encode($_SESSION['uid'] ?? 0) ?>;
+  var storageKeyVis = 'fer_col_vis_' + uid;
+  var storageKeyW = 'fer_col_w_' + uid;
+
+  // Column names for toggle (match DataTable columns order, skip hidden id col 0)
+  var colNames = ['ID', 'N°', 'Nom', 'Prénom', 'T-shirt', 'Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine'<?php if($role !== 'viewer'): ?>, 'Actions'<?php endif; ?>];
+
+  // ── Restore column visibility ──
+  function restoreVisibility() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(storageKeyVis));
+      if (saved && typeof tbl !== 'undefined') {
+        for (var i in saved) {
+          var colIdx = parseInt(i) + 1;
+          tbl.column(colIdx).visible(saved[i]);
+        }
+        // Sync filter row
+        setTimeout(function() {
+          var filterCells = table.querySelectorAll('thead tr.filters th');
+          if (filterCells.length) {
+            filterCells.forEach(function(cell, idx) {
+              cell.style.display = tbl.column(idx).visible() ? '' : 'none';
+            });
+          }
+        }, 100);
+      }
+    } catch(e) {}
   }
-  document.getElementById('copyConfirm').classList.add('d-none');
-  new bootstrap.Modal('#tempPasswordModal').show();
-}
 
-// Bouton copier
-document.getElementById('copyTempPwd').addEventListener('click', function() {
-  const val = document.getElementById('tempPwdValue').value;
-  navigator.clipboard.writeText(val).then(() => {
-    const el = document.getElementById('copyConfirm');
-    el.classList.remove('d-none');
-    setTimeout(() => el.classList.add('d-none'), 2000);
-  });
-});
-
-$('#usersModal').on('shown.bs.modal',()=>{
-  if(usrTbl) return;
-  usrTbl=$('#tblUsers').DataTable({
-    ajax:{url:'../config/api.php?route=users',dataSrc:''},
-    columns: [
-      { data: 'id', title: '#' },
-      { data: 'email', title: 'Email' },
-      { data: 'role', title: 'R\u00f4le' },
-      {
-        data: 'is_active',
-        title: 'Statut',
-        className: 'text-center',
-        render: function (val) {
-          return val == 1
-            ? '<span class="badge bg-success">Actif</span>'
-            : '<span class="badge bg-secondary">Inactif</span>';
-        }
-      },
-      { data: 'organisation', title: 'Organisation' },
-      { data: 'created_at', title: 'Cr\u00e9\u00e9 le' },
-      {
-        data: null,
-        title: 'Actions',
-        orderable: false,
-        className: 'text-nowrap',
-        render: function (data) {
-          const toggleIcon = data.is_active == 1 ? '\u23f8\ufe0f' : '\u25b6\ufe0f';
-          const toggleTitle = data.is_active == 1 ? 'D\u00e9sactiver' : 'Activer';
-          const toggleClass = data.is_active == 1 ? 'btn-outline-secondary' : 'btn-outline-success';
-          return `
-            <button class="btn btn-sm btn-outline-primary edit-user me-1" title="Modifier">\u270f\ufe0f</button>
-            <button class="btn btn-sm btn-outline-warning reset-pwd me-1" title="Reset MDP">\ud83d\udd11</button>
-            <button class="btn btn-sm ${toggleClass} toggle-active me-1" title="${toggleTitle}">${toggleIcon}</button>
-            <button class="btn btn-sm btn-outline-danger delete-user" title="Supprimer">\ud83d\uddd1\ufe0f</button>
-          `;
-        }
+  function saveVisibility() {
+    try {
+      var vis = {};
+      for (var i = 0; i < colNames.length; i++) {
+        vis[i] = tbl.column(i + 1).visible();
       }
-    ],
-    createdRow: function (row, data) {
-      if (data.is_active != 1) {
-        $(row).addClass('user-inactive');
-      }
-    }
-  });
-});
+      localStorage.setItem(storageKeyVis, JSON.stringify(vis));
+    } catch(e) {}
+  }
 
-// Modifier un utilisateur
-$('#tblUsers').on('click', '.edit-user', function () {
-  const data = usrTbl.row($(this).closest('tr')).data();
-  $('#fUser [name="id"]').val(data.id);
-  $('#fUser [name="email"]').val(data.email);
-  $('#fUser [name="role"]').val(data.role);
-  $('#fUser [name="organisation"]').val(data.organisation);
-});
+  // ── Restore column widths ──
+  function restoreWidths() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(storageKeyW));
+      if (!saved) return;
+      var ths = table.querySelectorAll('thead tr:first-child th');
+      ths.forEach(function(th, i) {
+        if (saved[i]) { th.style.width = saved[i]; th.style.minWidth = saved[i]; }
+      });
+    } catch(e) {}
+  }
 
-// Reset mot de passe
-$('#tblUsers').on('click', '.reset-pwd', function () {
-  const data = usrTbl.row($(this).closest('tr')).data();
-  if (!confirm(`R\u00e9initialiser le mot de passe de "${data.email}" ?`)) return;
+  function saveWidths() {
+    try {
+      var widths = {};
+      var ths = table.querySelectorAll('thead tr:first-child th');
+      ths.forEach(function(th, i) {
+        if (th.style.width) widths[i] = th.style.width;
+      });
+      localStorage.setItem(storageKeyW, JSON.stringify(widths));
+    } catch(e) {}
+  }
 
-  fetch('../config/api.php?route=users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ action: 'reset-password', id: data.id })
-  })
-  .then(r => r.json())
-  .then(j => {
-    if (j.ok) {
-      showTempPasswordModal(j.temp_password, data.email, j.email_sent);
-      usrTbl.ajax.reload();
-    } else {
-      alert('Erreur : ' + (j.err || 'inconnue'));
-    }
-  });
-});
+  // ── Column resize handles ──
+  function initResize() {
+    var ths = table.querySelectorAll('thead tr:first-child th');
+    ths.forEach(function(th) {
+      if (th.querySelector('.col-resize')) return;
+      var handle = document.createElement('div');
+      handle.className = 'col-resize';
+      th.appendChild(handle);
 
-// Activer/Désactiver un utilisateur
-$('#tblUsers').on('click', '.toggle-active', function () {
-  const data = usrTbl.row($(this).closest('tr')).data();
-  const action = data.is_active == 1 ? 'D\u00e9sactiver' : 'Activer';
-  if (!confirm(`${action} le compte "${data.email}" ?`)) return;
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var startX = e.pageX, startW = th.offsetWidth;
+        handle.classList.add('active');
 
-  fetch('../config/api.php?route=users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ action: 'toggle-active', id: data.id })
-  })
-  .then(r => r.json())
-  .then(j => {
-    if (j.ok) {
-      usrTbl.ajax.reload();
-    } else {
-      alert('Erreur : ' + (j.err || 'inconnue'));
-    }
-  });
-});
-
-// Supprimer un utilisateur
-$('#tblUsers').on('click', '.delete-user', function () {
-  const data = usrTbl.row($(this).closest('tr')).data();
-  if (!confirm(`Supprimer le compte "${data.email}" ?`)) return;
-
-  const deleteUser = (force = false) => {
-    const params = new URLSearchParams({ action: 'delete', id: data.id });
-    if (force) params.append('force', '1');
-
-    fetch('../config/api.php?route=users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params
-    })
-    .then(r => r.json())
-    .then(j => {
-      if (j.ok) {
-        usrTbl.ajax.reload();
-      } else if (j.requiresForce) {
-        if (confirm(j.warning + "\n\nVoulez-vous continuer et tout supprimer ?")) {
-          deleteUser(true);
+        function onMove(e2) {
+          th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px';
+          th.style.minWidth = th.style.width;
         }
-      } else {
-        alert("Erreur : " + (j.err || "inconnue"));
-      }
+        function onUp() {
+          handle.classList.remove('active');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          saveWidths();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
     });
-  };
+    restoreWidths();
+  }
 
-  deleteUser();
-});
+  // ── Column toggle button ──
+  function buildColToggle() {
+    var lengthEl = document.querySelector('#tbl_length');
+    if (!lengthEl || document.getElementById('colToggleWrap')) return;
 
-// Creer / Modifier un utilisateur
-$('#fUser').on('submit', e => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const id = fd.get('id');
-  const method = id ? 'PUT' : 'POST';
-  const body = id ? new URLSearchParams(fd) : JSON.stringify(Object.fromEntries(fd));
+    // Create a bar above the table: Show X entries (left) ... Colonnes (right)
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
 
-  fetch('../config/api.php?route=users', {
-    method,
-    headers: {
-      'Content-Type': id ? 'application/x-www-form-urlencoded' : 'application/json'
-    },
-    body
-  })
-  .then(r => r.json())
-  .then(j => {
-    if (j.ok) {
-      usrTbl.ajax.reload();
-      // Si creation, afficher le mot de passe temporaire
-      if (!id && j.temp_password) {
-        showTempPasswordModal(j.temp_password, fd.get('email'), j.email_sent);
-      }
-      e.target.reset();
-      $('#fUser [name="id"]').val('');
-    } else {
-      alert('Erreur : ' + (j.err || 'inconnue'));
-    }
-  });
-});
-<?php endif; ?>
+    // Move lengthEl into the bar
+    var lengthParent = lengthEl.parentElement;
+    bar.appendChild(lengthEl);
 
-/* ══ LOGOUT ════ */
-$('#logout, #logout_m').on('click',e=>{
-  e.preventDefault();
-  fetch('../config/api.php?route=logout').then(()=>location='../login.php');
-});
+    var wrap = document.createElement('div');
+    wrap.className = 'col-toggle-wrap';
+    wrap.id = 'colToggleWrap';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'col-toggle-btn';
+    btn.innerHTML = '<i class="bi bi-layout-three-columns"></i> Colonnes';
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'col-toggle-dropdown';
+
+    colNames.forEach(function(name, i) {
+      var colIdx = i + 1;
+      var label = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = tbl.column(colIdx).visible();
+      cb.style.accentColor = '#c4577a';
+      cb.addEventListener('change', function() {
+        tbl.column(colIdx).visible(this.checked);
+        saveVisibility();
+        // Sync filter row visibility
+        var filterCells = table.querySelectorAll('thead tr.filters th');
+        if (filterCells.length) {
+          filterCells.forEach(function(cell, idx) {
+            cell.style.display = tbl.column(idx).visible() ? '' : 'none';
+          });
+        }
+      });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(' ' + name));
+      dropdown.appendChild(label);
+    });
+
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      dropdown.classList.toggle('show');
+    });
+    document.addEventListener('click', function(e) {
+      if (!wrap.contains(e.target)) dropdown.classList.remove('show');
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(dropdown);
+    bar.appendChild(wrap);
+
+    // Insert bar before the table
+    var tableEl = document.getElementById('tbl');
+    var dtScroll = tableEl.closest('.dataTables_scrollBody') || tableEl.closest('.dataTables_wrapper table') || tableEl;
+    dtScroll.parentElement.insertBefore(bar, dtScroll);
+  }
+
+  // ── Init ──
+  if (typeof $ !== 'undefined' && $.fn.dataTable) {
+    $('#tbl').on('init.dt', function() {
+      restoreVisibility();
+      buildColToggle();
+      initResize();
+    });
+    $('#tbl').on('draw.dt', initResize);
+  }
+})();
 </script>
-<script src="../js/fer-modern.js"></script>
 </body>
 </html>

@@ -45,23 +45,12 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  .first-750 td{background:#ffe5ff!important;font-weight:600}
-  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
-  .hero h1{margin:0;font-size:2.2rem}
-  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
-  @media (max-width:991.98px){.top-actions{display:none}}
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
-  tr.filters th[class*="sorting"]::before,
-  tr.filters th[class*="sorting"]::after{display:none!important}
-  .statCard{min-width:180px}
-  .hide-stats #stats {display: none !important;}
   .stat-card{border-radius:1.25rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
   .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
   /* ─── Harmonisation DataTable (stats.php) ───────────────────────── */
@@ -121,7 +110,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 
 <?php include '../inc/navbar-admin.php'; ?>
 
@@ -195,7 +184,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
     </thead>
   </table>
 </div>
-<?php include '../inc/footer-modern.php'; ?>
+<?php include '../inc/admin-footer.php'; ?>
 
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
 <script>
@@ -325,6 +314,5 @@ document.getElementById('searchInput').addEventListener('input',e=>{
   tbl.search(e.target.value).draw();
 });
 </script>
-<script src="../js/fer-modern.js"></script>
 </body>
 </html>

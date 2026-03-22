@@ -42,7 +42,6 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Logs – Forbach en Rose</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
 .log-card {
@@ -183,10 +182,8 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 <?php include 'navbar-admin.php'; ?>
-
-<main class="container-fluid flex-grow-1 p-4">
 
   <?php if ($flash): ?>
     <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show" role="alert">
@@ -269,11 +266,8 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
     </div>
   <?php endforeach; ?>
 
-</main>
-
-<?php include 'footer-modern.php'; ?>
+<?php include 'admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../js/fer-modern.js"></script>
 </body>
 </html>

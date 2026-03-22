@@ -9,21 +9,17 @@ requireRole(['admin','user']);
     $mailTitle = $mailData['mail_title'] ?? '';
     $description = $mailData['description'] ?? '';
 
-        // 0) $recipients provient de ta sélection (JSON du formulaire, requête SQL…)
+        // Collect unique emails (BCC mode — recipients won't see each other)
         $adresses = [];
         foreach ($recipients as $r) {
             $mail = strtolower(trim($r['email']));
             if ($mail === '') continue;
-            $adresses[$mail] = $r['email'] ?: $mail;   // supprime les doublons
+            $adresses[$mail] = true;
         }
+        $emailList = array_keys($adresses);
 
-        // 2) Envoi
-        $toHeader = implode(', ', array_map(
-                    fn ($m,$n) => sprintf('"%s" <%s>', addslashes($n), $m),
-                    array_keys($adresses), $adresses));
-
-    // Appel de la fonction sendMail et gestion du retour
-    $mailSent = sendMail($toHeader, $subject, $mailTitle, $description, null, null, 'info');
+    // Send as array → sendMail uses BCC automatically
+    $mailSent = sendMail($emailList, $subject, $mailTitle, $description, null, null, 'info');
 
     // Définir le message flash selon le résultat
     if ($mailSent) {

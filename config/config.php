@@ -143,9 +143,9 @@ function getAssoConnectCodes(int $id = 1): array
 function oauth2_callback_url(): string
 {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $projectRoot = realpath(__DIR__ . '/..');
-    $docRoot = realpath($_SERVER['DOCUMENT_ROOT']);
+    $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
     if ($projectRoot === $docRoot || $projectRoot === false || $docRoot === false) {
         $baseDir = '';
     } else {

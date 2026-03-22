@@ -89,8 +89,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Vérifier l'état actuel de la connexion
-$isConnected = isGoogleConnectionValid();
-$authUrl = getGoogleAuthUrl('setting.php');
+$isConnected = false;
+$authUrl = '#';
+try {
+    $isConnected = isGoogleConnectionValid();
+    $authUrl = getGoogleAuthUrl('setting.php');
+} catch (\Throwable $e) {
+    // Google OAuth not configured or error - ignore
+}
 
 // Formulaire ---------------------------------------------------------------------------------
 $stmt = $pdo->prepare('SELECT * FROM forms');
@@ -124,8 +130,8 @@ foreach ($fields as $field) {
 /******************************************************************
  * Génère une alerte Bootstrap fermable + auto-dismiss
  *  $type    : success | danger | warning | info …
- *  $message : contenu HTML de l’alerte
- *  $delay   : délai ms avant fermeture auto (0 = pas d’auto-close)
+ *  $message : contenu HTML de l'alerte
+ *  $delay   : délai ms avant fermeture auto (0 = pas d'auto-close)
  *****************************************************************/
 function makeAlert(string $type, string $message, int $delay = 3000): string
 {
@@ -164,8 +170,8 @@ if (isset($_POST['config'])) {
          $alert = makeAlert('danger', 'Le titre ne peut pas être vide.');
     } else {
 
-        /* 2) Gérer l’upload d’image (optionnel) */
-        $newPicture = $picture;            // par défaut on garde l’ancienne
+        /* 2) Gérer l'upload d'image (optionnel) */
+        $newPicture = $picture;            // par défaut on garde l'ancienne
 
         if (!empty($_FILES['picture']['name'])) {
 
@@ -188,7 +194,7 @@ if (isset($_POST['config'])) {
             }
         }
 
-        /* 3) Si pas d’erreur, mise à jour BD */
+        /* 3) Si pas d'erreur, mise à jour BD */
         if ($alert === '') {
             $upd = $pdo->prepare(
                 'UPDATE setting
@@ -213,7 +219,7 @@ if (isset($_POST['config'])) {
             $alert = makeAlert('success', 'Configuration enregistrée !');
 
             /* 4) Mettre à jour les variables locales
-                  (sinon le formulaire afficherait l’ancien titre) */
+                  (sinon le formulaire afficherait l'ancien titre) */
             $title   = $newTitle;
             $picture = $newPicture;
             $titleColor = $newColor;
@@ -254,7 +260,7 @@ if (isset($_POST['LinkAssoConnect'])) {
             if ($upd->rowCount() > 0) {
                 $alertAsso = makeAlert('success', 'Liaison AssoConnect enregistrée !');
             } else {
-                 $alertAsso = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d’auto-close
+                 $alertAsso = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d'auto-close
             }
 
             /* Mettre à jour les variables pour le pré-remplissage */
@@ -263,7 +269,7 @@ if (isset($_POST['LinkAssoConnect'])) {
         } else {
             /* $execute a échoué : on affiche le message renvoyé par PDO */
             $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-            $alertAsso = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
+            $alertAsso = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d'auto-close
         }
     }
 }
@@ -336,7 +342,7 @@ if ($date_course) {
             }
         }
 
-        /* 3) Si pas d’erreur, mise à jour BD */
+        /* 3) Si pas d'erreur, mise à jour BD */
         if ($alertAccueil === '') {
             $upd = $pdo->prepare(
                 'UPDATE setting
@@ -369,7 +375,7 @@ if ($date_course) {
             $alertAccueil = makeAlert('success', 'Configuration enregistrée !');
 
             /* 4) Mettre à jour les variables locales
-                  (sinon le formulaire afficherait l’ancien titre) */
+                  (sinon le formulaire afficherait l'ancien titre) */
             $titleAccueil  = $newTitleAccueil;
             $picture_partner= $newPicturePartner; 
             $picture_accueil= $newPictureAccueil; 
@@ -433,7 +439,7 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
             }
         }
 
-        /* 3) Si pas d’erreur, mise à jour BD */
+        /* 3) Si pas d'erreur, mise à jour BD */
         if ($alertParcours === '') {
             $upd = $pdo->prepare(
                 'UPDATE setting
@@ -454,12 +460,27 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
             $alertParcours = makeAlert('success', 'Configuration enregistrée !');
 
             /* 4) Mettre à jour les variables locales
-                  (sinon le formulaire afficherait l’ancien titre) */
+                  (sinon le formulaire afficherait l'ancien titre) */
             $titleParcours  = $newTitleParcours;
             $picture_gradient = $newPictureGradient; 
             $picture_parcours = $newPictureParcours; 
         }
     }
+}
+
+// Reorder gallery (AJAX)
+if (isset($_POST['reorder_gallery'])) {
+    $filenames = json_decode($_POST['filenames'], true);
+    if (is_array($filenames)) {
+        try {
+            $stmt = $pdo->prepare("UPDATE parcours_images SET sort_order = ? WHERE filename = ?");
+            foreach ($filenames as $i => $fn) {
+                $stmt->execute([$i + 1, $fn]);
+            }
+        } catch (PDOException $e) {} // Table may not exist yet
+    }
+    echo 'OK';
+    exit;
 }
 
 // Upload images
@@ -477,7 +498,14 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
             $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
             if (in_array($ext, $allowed)) {
                 $safeName = uniqid('img_', true) . '.' . $ext;
-                move_uploaded_file($files['tmp_name'][$i], $uploadDir . $safeName);
+                if (move_uploaded_file($files['tmp_name'][$i], $uploadDir . $safeName)) {
+                    try {
+                        $maxStmt = $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM parcours_images");
+                        $nextOrder = $maxStmt->fetch(PDO::FETCH_ASSOC)['next_order'];
+                        $insStmt = $pdo->prepare("INSERT INTO parcours_images (filename, sort_order) VALUES (?, ?)");
+                        $insStmt->execute([$safeName, $nextOrder]);
+                    } catch (PDOException $e) {} // Table may not exist yet
+                }
             }
         }
         header("Refresh:0"); // recharge la page pour voir les nouvelles images
@@ -510,12 +538,12 @@ if (isset($_POST['reglementation'])) {
         if ($upd->rowCount() > 0) {
             $alertReglementation = makeAlert('success', 'Réglementation enregistrée !');
         } else {
-                $alertReglementation = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d’auto-close
+                $alertReglementation = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d'auto-close
         }
     } else {
         /* $execute a échoué : on affiche le message renvoyé par PDO */
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-        $alertReglementation = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
+        $alertReglementation = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d'auto-close
     }
 }
 
@@ -626,12 +654,12 @@ if (isset($_POST['google'])) {
         if ($upd->rowCount() > 0) {
             $alertGoogle = makeAlert('success', 'Clés google enregistrées !');
         } else {
-                $alertGoogle = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d’auto-close
+                $alertGoogle = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d'auto-close
         }
     } else {
         /* $execute a échoué : on affiche le message renvoyé par PDO */
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-        $alertGoogle = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d’auto-close
+        $alertGoogle = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d'auto-close
     }
 
     $client_id = decrypt($client_id);
@@ -713,14 +741,23 @@ if (isset($_POST['deleteImage'])) {
     $path = '../files/_parcours/' . $fileToDelete;
     if (file_exists($path)) {
         if (unlink($path)) {
+            try {
+                $delStmt = $pdo->prepare("DELETE FROM parcours_images WHERE filename = ?");
+                $delStmt->execute([$fileToDelete]);
+            } catch (PDOException $e) {}
             echo 'OK';
-            exit; // ✅ Ajoute ceci pour empêcher le reste du HTML d’être renvoyé
+            exit;
         } else {
             http_response_code(500);
             echo 'Erreur lors de la suppression du fichier.';
             exit;
         }
     } else {
+        // File gone from disk, clean DB too
+        try {
+            $delStmt = $pdo->prepare("DELETE FROM parcours_images WHERE filename = ?");
+            $delStmt->execute([$fileToDelete]);
+        } catch (PDOException $e) {}
         http_response_code(404);
         echo 'Fichier introuvable.';
         exit;
@@ -737,10 +774,9 @@ if (isset($_POST['deleteImage'])) {
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
-<link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.alert').forEach(alertEl => {
@@ -753,81 +789,81 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <style>
-  .first-750 td{background:#ffe5ff!important;font-weight:600}
-  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
-  .hero h1{margin:0;font-size:2.2rem}
-  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
-  @media (max-width:991.98px){.top-actions{display:none}}
+  .sortable-ghost{opacity:.4;background:#ffe5ff;border-radius:8px}
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
-  tr.filters th[class*="sorting"]::before,
-  tr.filters th[class*="sorting"]::after{display:none!important}
-  .statCard{min-width:180px}
-  .hide-stats #stats {display: none !important;}
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 
 <?php include '../inc/navbar-admin.php'; ?>
 
-<!-- ═════════ MAIN ═════════ -->
-<main class="container-fluid flex-grow-1">
+<style>
+  .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+  .settings-tabs .nav-link {
+    color: #1e293b; font-weight: 500; font-size: 14px;
+    padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; border-radius: 0; background: transparent;
+  }
+  .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+  .settings-tabs .nav-link.active {
+    color: #1e293b; font-weight: 600;
+    border-bottom-color: #c4577a; background: transparent;
+  }
+  .settings-section { display: none; }
+  .settings-section.active { display: block; }
+  .setting-card {
+    background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  .setting-card h2 {
+    font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;
+    padding-bottom: 12px; border-bottom: 1px solid #f0e8eb;
+  }
+</style>
 
-    <!-- Une seule .row -->
-    <div class="row g-4 align-items-stretch"><!-- align-items-stretch => les cartes prennent la même hauteur -->
-        <!-- Colonne GAUCHE : 2 petites cartes empilées -->
-        <div class="col-12 col-lg-4 d-flex flex-column gap-4">
-            <!-- Carte 1  -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <!-- …contenu Liaison AssoConnect (carte 1)… -->
-                <h2 class="mb-4">Liaison AssoConnect</h2>
-                    <?php if ($alertAsso) echo $alertAsso; ?>
-                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                        <div class="form-group mb-3">
-                            <label for="divCode">Code DIV Assoconnect</label>
-                            <input type="text"
-                                class="form-control"
-                                id="divCode"
-                                name="assoconnect_iframe"
-                                placeholder="&lt;div class=…&gt;"
-                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
-                        </div>
+<?php
+// Determine active tab based on which form was submitted
+$activeTab = 'general';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['accueil'])) $activeTab = 'accueil';
+    elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie'])) $activeTab = 'parcours';
+    elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
+    elseif (isset($_POST['required']) || isset($_POST['importExcel'])) $activeTab = 'formulaire';
+    elseif (isset($_POST['google']) || isset($_POST['action'])) $activeTab = 'google';
+}
+// Also check URL hash
+if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours','reglementation','formulaire','google'])) {
+    $activeTab = $_GET['tab'];
+}
+?>
 
-                        <div class="form-group mb-3">
-                            <label for="scriptCode">Code Script Assoconnect</label>
-                            <input type="text"
-                                class="form-control"
-                                id="scriptCode"
-                                name="assoconnect_js"
-                                placeholder="&lt;script src=…&gt;"
-                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
-                        </div>
-                        <div class="col-12 text-end">
-                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
-                        </div>
-                    </form>
-            </div>
+<!-- Settings Navigation Tabs -->
+<ul class="nav settings-tabs" id="settingsTabs">
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'general' ? 'active' : '' ?>" href="#" data-tab="general">General</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'accueil' ? 'active' : '' ?>" href="#" data-tab="accueil">Accueil</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'google' ? 'active' : '' ?>" href="#" data-tab="google">Google / Email</a></li>
+</ul>
 
-            <!-- Carte 2 -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <!-- …contenu Configuration générale (carte 2)… -->
-                <h2 class="mb-4">Configuration générale</h2>
-                    <!-- Message de succès / erreur -->
-                    <?php if ($alert) echo $alert; ?>
+<!-- ═══ TAB: General ═══ -->
+<div class="settings-section <?= $activeTab === 'general' ? 'active' : '' ?>" id="tab-general">
+  <div class="row g-4">
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Configuration generale</h2>
+        <?php if ($alert) echo $alert; ?>
                     <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                         <div class="col-md-6"><label class="form-label">Titre</label>
                             <input type="text"
                                 class="form-control"
-                                id="divCode"
                                 name="title"
                                 placeholder="Titre"
                                 value="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
                                 required>
                         </div>
-                        <!-- COULEUR DU TITRE (nouveau) -->
                         <div class="col-md-3"><label class="form-label">Couleur du titre</label>
                             <input type="color"
                                 class="form-control form-control-color"
@@ -844,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label for="picture" class="form-label">Image d'entête</label>
+                            <label for="picture" class="form-label">Image d'entete</label>
                             <input type="file"
                                 class="form-control"
                                 id="picture"
@@ -871,8 +907,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 placeholder="Bas de page"
                                 value="<?= htmlspecialchars($footer, ENT_QUOTES, 'UTF-8'); ?>">
                         </div>
-                        <div class="col-md-6"><label class="form-label">Montant de l’inscription</label>
-                            <select id="registration_fee" name="registration_fee"class="form-select">
+                        <div class="col-md-6"><label class="form-label">Montant de l'inscription</label>
+                            <select id="registration_fee" name="registration_fee" class="form-select">
                                 <?php for ($i = 0; $i <= 100; $i++): ?>
                                 <option value="<?= $i ?>"
                                         <?= ($i == (int)$registration_fee ? 'selected' : '') ?>>
@@ -885,15 +921,50 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="submit" name="config" class="btn btn-primary w-auto">Sauvegarder</button>
                         </div>
                     </form>
-            </div>
+      </div><!-- /setting-card config -->
+    </div><!-- /col-lg-6 -->
 
-        </div><!-- /col gauche -->
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Liaison AssoConnect</h2>
+        <?php if ($alertAsso) echo $alertAsso; ?>
+                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                        <div class="form-group mb-3">
+                            <label for="divCode">Code DIV Assoconnect</label>
+                            <input type="text"
+                                class="form-control"
+                                id="divCode"
+                                name="assoconnect_iframe"
+                                placeholder="&lt;div class=…&gt;"
+                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
 
-        <!-- Colonne DROITE : 1 grande carte -->
-        <div class="col-12 col-lg-8">
-        <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white h-100">
-            <!-- …contenu Grandes infos (carte 3)… -->
-            <h2 class="mb-4">Réglage page accueil</h2>
+                        <div class="form-group mb-3">
+                            <label for="scriptCode">Code Script Assoconnect</label>
+                            <input type="text"
+                                class="form-control"
+                                id="scriptCode"
+                                name="assoconnect_js"
+                                placeholder="&lt;script src=…&gt;"
+                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
+                        <div class="col-12 text-end">
+                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
+                        </div>
+                    </form>
+      </div><!-- /setting-card asso -->
+    </div><!-- /col-lg-6 -->
+  </div><!-- /row -->
+</div><!-- /tab-general -->
+
+<!-- ═══ TAB: Accueil ═══ -->
+<div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Reglage page accueil</h2>
                 <?php if ($alertAccueil) echo $alertAccueil; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
 
@@ -960,12 +1031,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <?php endif; ?>
                     </div>
                     <div class="col-md-6">
-                        <label for="social_networks" class="form-label">Position - Réseaux sociaux</label>
+                        <label for="social_networks" class="form-label">Position - Reseaux sociaux</label>
                         <select name="social_networks" id="social_networks" class="form-select">
-                            <option value="0" <?= $social_networks == 0 ? 'selected' : '' ?>>Désactivé</option>
+                            <option value="0" <?= $social_networks == 0 ? 'selected' : '' ?>>Desactive</option>
                             <option value="1" <?= $social_networks == 1 ? 'selected' : '' ?>>Gauche</option>
                             <option value="2" <?= $social_networks == 2 ? 'selected' : '' ?>>Droite</option>
-                            <option value="3" <?= $social_networks == 3 ? 'selected' : '' ?>>Centré</option>
+                            <option value="3" <?= $social_networks == 3 ? 'selected' : '' ?>>Centre</option>
                         </select>
                     </div>
                     <div class="col-md-6"><label class="form-label">Lien de la ligne contre le cancer</label>
@@ -975,14 +1046,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="submit" name="accueil" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
                 </form>
-        </div>
-        </div><!-- /col droite -->
+      </div><!-- /setting-card accueil -->
+    </div><!-- /col-12 -->
+  </div><!-- /row -->
+</div><!-- /tab-accueil -->
 
-        <!-- Colonne DROITE : 1 grande carte -->
-        <div class="col-12 col-lg-6">
-        <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white h-100">
-            <!-- …contenu Grandes infos (carte 3)… -->
-            <h2 class="mb-4">Parcours</h2>
+<!-- ═══ TAB: Parcours ═══ -->
+<div class="settings-section <?= $activeTab === 'parcours' ? 'active' : '' ?>" id="tab-parcours">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Parcours</h2>
                 <?php if ($alertParcours) echo $alertParcours; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <div class="col-md-6"><label class="form-label">Titre de l'image principale</label>
@@ -1012,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                     <?php endif; ?>
                     </div>
-                    <div class="col-md-6"><label class="form-label">Image du dénivelé</label>
+                    <div class="col-md-6"><label class="form-label">Image du denivele</label>
                         <input type="file"
                             class="form-control"
                             id="picture_gradient"
@@ -1033,81 +1107,120 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="col-12">
                         <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#modalGalerie">
-                            Gérer la galerie d'images
+                            Gerer la galerie d'images
                         </button>
                     </div>
                     <div class="col-12 text-end">
                         <button type="submit" name="parcours" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
                 </form>
-        </div>
-        </div><!-- /col droite -->
+      </div><!-- /setting-card parcours -->
+    </div><!-- /col-12 -->
+  </div><!-- /row -->
 
-        <?php
-            $galerieDir = '../files/_parcours/';
-            $images = is_dir($galerieDir) ? array_diff(scandir($galerieDir), ['.', '..']) : [];
-            $maxImages = 30;
-            $remaining = $maxImages - count($images);
-        ?>
-        <div class="modal fade" id="modalGalerie" tabindex="-1" aria-labelledby="modalGalerieLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Galerie d'images du parcours</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Formulaire d'import -->
-                <form id="uploadForm" action="" method="post" enctype="multipart/form-data" class="mb-4">
-                    <label for="galerieImages" class="form-label">
-                    Importer jusqu'à <span id="remainingCount"><?= $remaining ?></span> image(s) :
-                    </label>
-                    <input type="file" name="galerieImages[]" id="galerieImages" class="form-control" accept="image/*" multiple <?= $remaining <= 0 ? 'disabled' : '' ?>>
-                <button type="submit" name="uploadGalerie" class="btn btn-primary mt-2" <?= $remaining <= 0 ? 'disabled' : '' ?>>Importer</button>
-                <?php if ($remaining <= 0): ?>
-                    <div class="text-danger mt-2">Limite de 30 images atteinte. Supprimez des images pour en ajouter.</div>
-                <?php endif; ?>
+  <!-- Modal Galerie -->
+  <?php
+      $galerieDir = '../files/_parcours/';
+      $diskFiles = is_dir($galerieDir) ? array_diff(scandir($galerieDir), ['.', '..']) : [];
+
+      // Check if parcours_images table exists
+      $tableExists = false;
+      try {
+          $pdo->query("SELECT 1 FROM parcours_images LIMIT 1");
+          $tableExists = true;
+      } catch (PDOException $e) {}
+
+      $images = [];
+      if ($tableExists) {
+          // Sync filesystem with DB
+          $dbFiles = [];
+          $dbStmt = $pdo->query("SELECT filename FROM parcours_images");
+          while ($r = $dbStmt->fetch(PDO::FETCH_ASSOC)) {
+              $dbFiles[] = $r['filename'];
+          }
+
+          // Add files on disk but not in DB
+          foreach ($diskFiles as $df) {
+              if (!in_array($df, $dbFiles)) {
+                  $maxStmt = $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM parcours_images");
+                  $nextOrder = $maxStmt->fetch(PDO::FETCH_ASSOC)['next_order'];
+                  $insStmt = $pdo->prepare("INSERT INTO parcours_images (filename, sort_order) VALUES (?, ?)");
+                  $insStmt->execute([$df, $nextOrder]);
+              }
+          }
+
+          // Remove DB records whose file no longer exists
+          foreach ($dbFiles as $dbf) {
+              if (!in_array($dbf, $diskFiles)) {
+                  $delStmt = $pdo->prepare("DELETE FROM parcours_images WHERE filename = ?");
+                  $delStmt->execute([$dbf]);
+              }
+          }
+
+          // Load images ordered by sort_order
+          $orderedStmt = $pdo->query("SELECT filename FROM parcours_images ORDER BY sort_order ASC");
+          while ($r = $orderedStmt->fetch(PDO::FETCH_ASSOC)) {
+              $images[] = $r['filename'];
+          }
+      } else {
+          // Fallback: just use filesystem order
+          $images = array_values($diskFiles);
+      }
+
+      $maxImages = 30;
+      $remaining = $maxImages - count($images);
+  ?>
+  <div class="modal fade" id="modalGalerie" tabindex="-1" aria-labelledby="modalGalerieLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Galerie d'images du parcours</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Formulaire d'import -->
+          <form id="uploadForm" action="" method="post" enctype="multipart/form-data" class="mb-4">
+            <label for="galerieImages" class="form-label">
+              Importer jusqu'a <span id="remainingCount"><?= $remaining ?></span> image(s) :
+            </label>
+            <input type="file" name="galerieImages[]" id="galerieImages" class="form-control" accept="image/*" multiple <?= $remaining <= 0 ? 'disabled' : '' ?>>
+            <button type="submit" name="uploadGalerie" class="btn btn-primary mt-2" <?= $remaining <= 0 ? 'disabled' : '' ?>>Importer</button>
+            <?php if ($remaining <= 0): ?>
+              <div class="text-danger mt-2">Limite de 30 images atteinte. Supprimez des images pour en ajouter.</div>
+            <?php endif; ?>
+          </form>
+
+          <!-- Galerie d'images -->
+          <div class="row" id="galerieContainer">
+            <?php foreach ($images as $img): ?>
+              <div class="col-md-3 text-center mb-4 sortable-image-item" data-img="<?= htmlspecialchars($img) ?>" data-filename="<?= htmlspecialchars($img) ?>" style="position:relative;cursor:grab">
+                <img src="<?= $galerieDir . rawurlencode($img) ?>" class="img-thumbnail" style="max-height: 150px;">
+                <form class="deleteForm">
+                  <input type="hidden" name="deleteImage" value="<?= htmlspecialchars($img) ?>">
+                  <button type="button" class="delete-btn" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Supprimer">&times;</button>
                 </form>
-
-                <!-- Galerie d'images -->
-                <div class="row" id="galerieContainer">
-                <?php foreach ($images as $img): ?>
-                    <div class="col-md-3 text-center mb-4" data-img="<?= htmlspecialchars($img) ?>">
-                        <img src="<?= $galerieDir . rawurlencode($img) ?>" class="img-thumbnail" style="max-height: 150px;">
-                        <form class="deleteForm mt-2">
-                            <input type="hidden" name="deleteImage" value="<?= htmlspecialchars($img) ?>">
-                            <button type="button" class="btn btn-sm btn-danger delete-btn">Supprimer</button>
-                        </form>
-                    </div>
-                <?php endforeach; ?>
-                </div>
-            </div>
-            </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
         </div>
-        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-parcours -->
 
-        <!-- ############################ Réglementation course ############################ -->
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            .card-dashboard {
-                background: #f8f9fa;
-                border: 1px solid #dee2e6;
-            }
-            .tox-tinymce {
-                border-radius: 0.375rem !important;
-            }
-        </style>
-
-        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
-            <!-- Carte 1  -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <h2 class="mb-4">Réglement de la course</h2>
+<!-- ═══ TAB: Reglementation ═══ -->
+<div class="settings-section <?= $activeTab === 'reglementation' ? 'active' : '' ?>" id="tab-reglementation">
+  <style>
+    .tox-tinymce { border-radius: 0.375rem !important; }
+  </style>
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Reglement de la course</h2>
                  <?php if ($alertReglementation) echo $alertReglementation; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <div class="form-group mb-3">
-                        <label for="divReglementation" class="form-label">Réglement de la course</label>
-                        
-                        <!-- Textarea avec TinyMCE -->
+                        <label for="divReglementation" class="form-label">Reglement de la course</label>
                         <textarea class="form-control" id="divReglementation" name="div_reglementation" rows="10" required>
                             <?= htmlspecialchars($div_reglementation) ?>
                         </textarea>
@@ -1116,124 +1229,73 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="submit" name="reglementation" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
                 </form>
-            </div>
-        </div>
+      </div><!-- /setting-card reglementation -->
+    </div><!-- /col-12 -->
+  </div><!-- /row -->
 
-        <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-        <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-            <script>
-                tinymce.init({
-                    selector: '#divReglementation',
-                    plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
-                    toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
-                    height: 430,
-                    menubar: false,
-                    branding: false,
-                    content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
-                    
-                    // Configuration des couleurs
-                    color_map: [
-                        "000000", "Noir",
-                        "993300", "Marron foncé",
-                        "333300", "Vert foncé",
-                        "003300", "Vert sombre",
-                        "003366", "Bleu marine",
-                        "000080", "Bleu",
-                        "333399", "Indigo",
-                        "333333", "Gris très foncé",
-                        "800000", "Marron",
-                        "FF6600", "Orange",
-                        "808000", "Olive",
-                        "008000", "Vert",
-                        "008080", "Sarcelle",
-                        "0000FF", "Bleu",
-                        "666699", "Gris bleu",
-                        "808080", "Gris",
-                        "FF0000", "Rouge",
-                        "FF9900", "Ambre",
-                        "99CC00", "Vert jaune",
-                        "339966", "Vert mer",
-                        "33CCCC", "Turquoise",
-                        "3366FF", "Bleu royal",
-                        "800080", "Violet",
-                        "999999", "Gris moyen",
-                        "FF00FF", "Magenta",
-                        "FFCC00", "Or",
-                        "FFFF00", "Jaune",
-                        "00FF00", "Lime",
-                        "00FFFF", "Cyan",
-                        "00CCFF", "Bleu ciel",
-                        "993366", "Rouge brun",
-                        "FFFFFF", "Blanc",
-                        "FF99CC", "Rose",
-                        "FFCC99", "Pêche",
-                        "FFFF99", "Jaune clair",
-                        "CCFFCC", "Vert clair",
-                        "CCFFFF", "Cyan clair",
-                        "99CCFF", "Bleu clair",
-                        "CC99FF", "Prune"
-                    ],
-                    
-                    // Permettre tous les éléments HTML
-                    extended_valid_elements: '*[*]',
-                    
-                    // Configuration du mode code
-                    toolbar_mode: 'sliding'
-                });
-            </script>
-        <!-- ############################ Réglementation course ############################ -->
+  <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+  <script>
+    tinymce.init({
+        selector: '#divReglementation',
+        plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
+        toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+        height: 430,
+        menubar: false,
+        branding: false,
+        content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+        color_map: [
+            "000000", "Noir",
+            "993300", "Marron fonce",
+            "333300", "Vert fonce",
+            "003300", "Vert sombre",
+            "003366", "Bleu marine",
+            "000080", "Bleu",
+            "333399", "Indigo",
+            "333333", "Gris tres fonce",
+            "800000", "Marron",
+            "FF6600", "Orange",
+            "808000", "Olive",
+            "008000", "Vert",
+            "008080", "Sarcelle",
+            "0000FF", "Bleu",
+            "666699", "Gris bleu",
+            "808080", "Gris",
+            "FF0000", "Rouge",
+            "FF9900", "Ambre",
+            "99CC00", "Vert jaune",
+            "339966", "Vert mer",
+            "33CCCC", "Turquoise",
+            "3366FF", "Bleu royal",
+            "800080", "Violet",
+            "999999", "Gris moyen",
+            "FF00FF", "Magenta",
+            "FFCC00", "Or",
+            "FFFF00", "Jaune",
+            "00FF00", "Lime",
+            "00FFFF", "Cyan",
+            "00CCFF", "Bleu ciel",
+            "993366", "Rouge brun",
+            "FFFFFF", "Blanc",
+            "FF99CC", "Rose",
+            "FFCC99", "Peche",
+            "FFFF99", "Jaune clair",
+            "CCFFCC", "Vert clair",
+            "CCFFFF", "Cyan clair",
+            "99CCFF", "Bleu clair",
+            "CC99FF", "Prune"
+        ],
+        extended_valid_elements: '*[*]',
+        toolbar_mode: 'sliding'
+    });
+  </script>
+</div><!-- /tab-reglementation -->
 
-                        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
-            <!-- Carte 7 -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <h2 class="mb-4">Informations d'import excel</h2>
-                 <?php if ($alertImport) echo $alertImport; ?>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <div class="col-md-4"><label class="form-label">N° d'inscription =</label>
-                        <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Nom = </label>
-                        <input type="text" class="form-control" name="nom" value="<?= htmlspecialchars($nom, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Prénom =</label>
-                        <input type="text" class="form-control" name="prenom" value="<?= htmlspecialchars($prenom, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Téléphone =</label>
-                        <input type="text" class="form-control" name="tel" value="<?= htmlspecialchars($tel, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Email =</label>
-                        <input type="text" class="form-control" name="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Date de naissance =</label>
-                        <input type="text" class="form-control" name="naissance" value="<?= htmlspecialchars($naissance, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Sexe =</label>
-                        <input type="text" class="form-control" name="sexe" value="<?= htmlspecialchars($sexe, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Ville =</label>
-                        <input type="text" class="form-control" name="ville" value="<?= htmlspecialchars($ville, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Entreprise =</label>
-                        <input type="text" class="form-control" name="entreprise" value="<?= htmlspecialchars($entreprise, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
-                        <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
-                        <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-12 text-end">
-                        <button type="submit" name="importExcel" class="btn btn-primary w-auto">Sauvegarder</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <link href="../css/gmail-settings.css" rel="stylesheet">
-        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
-            <!-- Carte 6 -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <h2 class="mb-4">Formulaire : Champs requis</h2>
+<!-- ═══ TAB: Formulaire ═══ -->
+<div class="settings-section <?= $activeTab === 'formulaire' ? 'active' : '' ?>" id="tab-formulaire">
+  <div class="row g-4">
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Formulaire : Champs requis</h2>
                  <?php if ($alertRequired) echo $alertRequired; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <div class="col-md-6">
@@ -1244,21 +1306,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Prénom</label>
+                        <label class="form-label">Prenom</label>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="required_firstname" id="required_firstname" <?= isset($required_firstname) && $required_firstname ? 'checked' : '' ?>>
                             <label class="form-check-label" for="required_firstname">Oui / Non</label>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Téléphone</label>
+                        <label class="form-label">Telephone</label>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="required_phone" id="required_phone" <?= isset($required_phone) && $required_phone ? 'checked' : '' ?>>
                             <label class="form-check-label" for="required_phone">Oui / Non</label>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Email </label>
+                        <label class="form-label">Email</label>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="required_email" id="required_email" <?= isset($required_email) && $required_email ? 'checked' : '' ?>>
                             <label class="form-check-label" for="required_email">Oui / Non</label>
@@ -1296,13 +1358,63 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="submit" name="required" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
                 </form>
-            </div>
-        </div>
+      </div><!-- /setting-card required -->
+    </div><!-- /col-lg-6 -->
 
-        <div class="col-12 col-lg-6 d-flex flex-column gap-4">
-            <!-- Carte 6 -->
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
-                <h2 class="mb-4">🔧 Paramètres Gmail</h2>
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Informations d'import excel</h2>
+                 <?php if ($alertImport) echo $alertImport; ?>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <div class="col-md-4"><label class="form-label">N d'inscription =</label>
+                        <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Nom = </label>
+                        <input type="text" class="form-control" name="nom" value="<?= htmlspecialchars($nom, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Prenom =</label>
+                        <input type="text" class="form-control" name="prenom" value="<?= htmlspecialchars($prenom, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Telephone =</label>
+                        <input type="text" class="form-control" name="tel" value="<?= htmlspecialchars($tel, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Email =</label>
+                        <input type="text" class="form-control" name="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Date de naissance =</label>
+                        <input type="text" class="form-control" name="naissance" value="<?= htmlspecialchars($naissance, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Sexe =</label>
+                        <input type="text" class="form-control" name="sexe" value="<?= htmlspecialchars($sexe, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Ville =</label>
+                        <input type="text" class="form-control" name="ville" value="<?= htmlspecialchars($ville, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Entreprise =</label>
+                        <input type="text" class="form-control" name="entreprise" value="<?= htmlspecialchars($entreprise, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
+                        <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
+                        <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="importExcel" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
+                </form>
+      </div><!-- /setting-card import -->
+    </div><!-- /col-lg-6 -->
+  </div><!-- /row -->
+</div><!-- /tab-formulaire -->
+
+<!-- ═══ TAB: Google ═══ -->
+<link href="../css/gmail-settings.css" rel="stylesheet">
+<div class="settings-section <?= $activeTab === 'google' ? 'active' : '' ?>" id="tab-google">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Parametres Gmail</h2>
                 <div class="header">
                     <p>Gestion de la connexion avec l'API Gmail de Google</p>
                 </div>
@@ -1319,50 +1431,48 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
                 </form>
-        
+
                 <?php if (isset($message)): ?>
                     <div class="message <?php echo $messageClass; ?>">
                         <?php echo htmlspecialchars($message); ?>
                     </div>
                 <?php endif; ?>
-                
+
                 <div class="status <?php echo $isConnected ? 'connected' : 'disconnected'; ?>">
                     <div>
                         <strong>Statut de la connexion :</strong>
                         <?php if ($isConnected): ?>
-                            ✅ Connecté à Gmail - Prêt à envoyer des emails
+                            Connecte a Gmail - Pret a envoyer des emails
                         <?php else: ?>
-                            ❌ Non connecté - Configuration requise
+                            Non connecte - Configuration requise
                         <?php endif; ?>
                     </div>
                 </div>
-                
+
                 <div class="actions">
                     <?php if ($isConnected): ?>
-                        <!-- Actions pour utilisateur connecté -->
                         <form method="post" style="display: inline;">
                             <input type="hidden" name="action" value="test_connection">
                             <button type="submit" class="btn btn-success">
-                                🔍 Tester la connexion
+                                Tester la connexion
                             </button>
                         </form>
-                        
-                        <form method="post" style="display: inline;" onsubmit="return confirm('Êtes-vous sûr de vouloir vous déconnecter de Gmail ?');">
+
+                        <form method="post" style="display: inline;" onsubmit="return confirm('Etes-vous sur de vouloir vous deconnecter de Gmail ?');">
                             <input type="hidden" name="action" value="disconnect">
                             <button type="submit" class="btn btn-danger">
-                                🔓 Se déconnecter
+                                Se deconnecter
                             </button>
                         </form>
-                        
+
                     <?php else: ?>
-                        <!-- Actions pour utilisateur non connecté -->
                         <form method="post" style="display: inline;">
                             <input type="hidden" name="action" value="test_connection">
                             <button type="submit" class="btn btn-warning">
-                                🔍 Vérifier la connexion
+                                Verifier la connexion
                             </button>
                         </form>
-                        
+
                         <a href="<?php echo htmlspecialchars($authUrl); ?>" class="btn btn-primary">
                             <svg class="google-icon" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -1374,106 +1484,130 @@ document.addEventListener('DOMContentLoaded', () => {
                         </a>
                     <?php endif; ?>
                 </div>
-                
+
                 <div class="info">
-                    <h3>ℹ️ Informations</h3>
+                    <h3>Informations</h3>
                     <ul>
-                        <li><strong>Fichier token :</strong> <?php echo file_exists(__DIR__ . '/../token.json') ? '✅ Présent' : '❌ Absent'; ?></li>
-                        <li><strong>Dernière vérification :</strong> <?php echo date('d/m/Y H:i:s'); ?></li>
+                        <li><strong>Fichier token :</strong> <?php echo file_exists(__DIR__ . '/../token.json') ? 'Present' : 'Absent'; ?></li>
+                        <li><strong>Derniere verification :</strong> <?php echo date('d/m/Y H:i:s'); ?></li>
                         <li><strong>Scopes requis :</strong> Gmail Send (envoi d'emails)</li>
                     </ul>
-                    
+
                     <?php if (!$isConnected): ?>
                         <hr>
-                        <p><strong>⚠️ Actions requises :</strong></p>
+                        <p><strong>Actions requises :</strong></p>
                         <ol>
-                            <li>API Google : ajouté dans "URI de redirection autorisés" -> <?= oauth2_callback_url() ?></li>
+                            <li>API Google : ajoute dans "URI de redirection autorises" -> <?= oauth2_callback_url() ?></li>
                             <li>Cliquez sur "Se connecter avec Google"</li>
-                            <li>Autorisez l'accès à votre compte Gmail</li>
-                            <li>Vous serez redirigé automatiquement</li>
+                            <li>Autorisez l'acces a votre compte Gmail</li>
+                            <li>Vous serez redirige automatiquement</li>
                         </ol>
                     <?php endif; ?>
                 </div>
-            </div>
-        </div>
-    </div><!-- /row -->
-</main>
+      </div><!-- /setting-card google -->
+    </div><!-- /col-12 -->
+  </div><!-- /row -->
+</div><!-- /tab-google -->
 
-<?php include '../inc/footer-modern.php'; ?>
+<?php include '../inc/admin-footer.php'; ?>
 
-<!-- ═════════ JS ═════════ -->
+<!-- JS -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
 <script>
-/* ══ LOGOUT ════ */
-$('#logout, #logout_m').on('click',e=>{
-  e.preventDefault();
-  fetch('../config/api.php?route=logout').then(()=>location='../login.php');
+// Settings tabs switching
+document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
+  tab.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelectorAll('#settingsTabs .nav-link').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.settings-section').forEach(function(s) { s.classList.remove('active'); });
+    this.classList.add('active');
+    document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+  });
 });
 
-// images parcours
+// Galerie images - validation
 document.getElementById('galerieImages')?.addEventListener('change', function () {
   const max = <?= $remaining ?>;
   if (this.files.length > max) {
-    alert(`Vous ne pouvez sélectionner que ${max} image(s) maximum.`);
+    alert('Vous ne pouvez selectionner que ' + max + ' image(s) maximum.');
     this.value = '';
   }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-  const maxImages = 30;
-  const input = document.getElementById('galerieImages');
-  const countSpan = document.getElementById('remainingCount');
-  const uploadBtn = document.querySelector('button[name="uploadGalerie"]');
+document.addEventListener('DOMContentLoaded', function() {
+  var maxImages = 30;
+  var input = document.getElementById('galerieImages');
+  var countSpan = document.getElementById('remainingCount');
+  var uploadBtn = document.querySelector('button[name="uploadGalerie"]');
 
-  // Validation dynamique à la sélection
-  input?.addEventListener('change', function () {
-    const remaining = parseInt(countSpan?.textContent || '0');
-    if (this.files.length > remaining) {
-      alert(`Vous ne pouvez sélectionner que ${remaining} image(s) maximum.`);
-      this.value = '';
-    }
-  });
+  // Validation dynamique
+  if (input) {
+    input.addEventListener('change', function () {
+      var remaining = parseInt(countSpan ? countSpan.textContent : '0');
+      if (this.files.length > remaining) {
+        alert('Vous ne pouvez selectionner que ' + remaining + ' image(s) maximum.');
+        this.value = '';
+      }
+    });
+  }
+
+  // Drag & drop reordering
+  var galerieEl = document.getElementById('galerieContainer');
+  if (galerieEl) {
+    Sortable.create(galerieEl, {
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      onEnd: function() {
+        var filenames = [];
+        galerieEl.querySelectorAll('.sortable-image-item').forEach(function(item) {
+          filenames.push(item.dataset.filename);
+        });
+        fetch('', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'reorder_gallery=1&filenames=' + JSON.stringify(filenames)
+        });
+      }
+    });
+  }
 
   // Suppression dynamique
-  document.querySelectorAll('.delete-btn').forEach(btn => {
+  document.querySelectorAll('.delete-btn').forEach(function(btn) {
     btn.addEventListener('click', function () {
-      const form = this.closest('.deleteForm');
-      const imageName = form.querySelector('input[name="deleteImage"]').value;
+      var form = this.closest('.deleteForm');
+      var imageName = form.querySelector('input[name="deleteImage"]').value;
 
       fetch('', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ deleteImage: imageName })
       })
-      .then(response => response.text())
-      .then(result => {
+      .then(function(response) { return response.text(); })
+      .then(function(result) {
         if (result.trim() === 'OK') {
-          const container = form.closest('[data-img]');
+          var container = form.closest('[data-img]');
           container.remove();
 
-          // 🔄 Met à jour le compteur
-          let current = parseInt(countSpan.textContent);
+          // Met a jour le compteur
+          var current = parseInt(countSpan.textContent);
           if (!isNaN(current) && current < maxImages) {
             current += 1;
             countSpan.textContent = current;
           }
 
-          // ✅ Réactive le champ d'import si désactivé
+          // Reactive le champ d'import si desactive
           if (input && input.disabled) input.disabled = false;
           if (uploadBtn && uploadBtn.disabled) uploadBtn.disabled = false;
         } else {
           alert("Erreur lors de la suppression : " + result);
         }
       })
-      .catch(error => {
-        alert("Erreur réseau : " + error);
+      .catch(function(error) {
+        alert("Erreur reseau : " + error);
       });
     });
   });
 });
-
 </script>
 
-<script src="../js/fer-modern.js"></script>

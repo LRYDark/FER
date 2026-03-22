@@ -1,5 +1,7 @@
-<?php 
+<?php
 require '../config/config.php';
+require_once '../config/tracker.php';
+trackPageVisit();
 
 // Récupération du nombre d'inscrits
 $stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');

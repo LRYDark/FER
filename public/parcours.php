@@ -1,5 +1,7 @@
 <?php
 require '../config/config.php';
+require_once '../config/tracker.php';
+trackPageVisit();
 
 // Charger les données de la navbar
 require '../inc/navbar-data.php';
@@ -215,14 +217,31 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       <h2 class="album-title">Galerie Photos</h2>
       <div class="masonry">
         <?php
-          $exts = ['jpg','jpeg','png','webp','gif'];
-          $photos = [];
-          foreach ($exts as $ext) {
-            $photos = array_merge($photos, glob('../files/_parcours/*.' . $ext));
-          }
-          usort($photos, fn($a, $b) => filemtime($b) - filemtime($a));
-          foreach (array_slice($photos, 0, 30) as $file) {
-            echo '<img src="' . htmlspecialchars($file) . '" alt="Photo parcours" class="masonry-img" loading="lazy">';
+          // Load ordered images from DB (fallback to filesystem if table doesn't exist)
+          $orderedPhotos = [];
+          try {
+              $ordStmt = $pdo->query("SELECT filename FROM parcours_images ORDER BY sort_order ASC LIMIT 30");
+              $orderedPhotos = $ordStmt->fetchAll(PDO::FETCH_COLUMN);
+          } catch (PDOException $e) {}
+
+          // Fallback: if DB is empty or table missing, scan directory
+          if (empty($orderedPhotos)) {
+              $exts = ['jpg','jpeg','png','webp','gif'];
+              $photos = [];
+              foreach ($exts as $ext) {
+                  $photos = array_merge($photos, glob('../files/_parcours/*.' . $ext));
+              }
+              usort($photos, fn($a, $b) => filemtime($b) - filemtime($a));
+              foreach (array_slice($photos, 0, 30) as $file) {
+                  echo '<img src="' . htmlspecialchars($file) . '" alt="Photo parcours" class="masonry-img" loading="lazy">';
+              }
+          } else {
+              foreach ($orderedPhotos as $filename) {
+                  $filePath = '../files/_parcours/' . $filename;
+                  if (file_exists($filePath)) {
+                      echo '<img src="../files/_parcours/' . htmlspecialchars(rawurlencode($filename)) . '" alt="Photo parcours" class="masonry-img" loading="lazy">';
+                  }
+              }
           }
         ?>
       </div>

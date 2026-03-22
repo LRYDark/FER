@@ -46,7 +46,6 @@ $required_company = $required_fields['required_company'] ?? 0;
   <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Charte Forbach en Rose -->
-  <link href="../css/fer-modern.css" rel="stylesheet"> <!-- ajuste le chemin si besoin -->
   <!-- Google Fonts (déjà référencée dans le CSS) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,7 +91,6 @@ $required_company = $required_fields['required_company'] ?? 0;
 </header>
 
   <!-- Bloc formulaire -->
-  <main class="container flex-grow-1 d-flex justify-content-center">
     <div class="card card-form p-4 bg-white">
       <h2 class="text-center mb-4">Ajouter une inscription</h2>
       <div id="msg" class="alert alert-info d-none"></div>
@@ -161,9 +159,8 @@ $required_company = $required_fields['required_company'] ?? 0;
         </div>
       </form>
     </div>
-  </main>
 
-  <?php require 'footer-modern.php'; ?>
+  <?php require 'admin-footer.php'; ?>
 
   <!-- JS -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -193,6 +190,5 @@ $required_company = $required_fields['required_company'] ?? 0;
         .then(() => location = '../login.php');
     });
   </script>
-  <script src="../js/fer-modern.js"></script>
 </body>
 </html>
