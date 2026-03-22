@@ -182,9 +182,9 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     /* ---------- Destinataires ---------- */
     // $to  peut être tableau ou chaîne déjà formatée
     if (is_array($to)) {
-        // Tableau → on place tout en Bcc:
-        $bccHeader = implode(', ', $to);           // mail1, mail2, ...
-        $toHeader  = 'undisclosed-recipients:;';   // champ To “public” vide
+        // Tableau → on place tout en Bcc, To = expéditeur (soi-même)
+        $bccHeader = implode(', ', $to);
+        $toHeader  = '';  // sera rempli avec $from après getProfile
     } else {
         // Chaîne (déjà "Nom <mail>, Nom2 <mail2>")
         $toHeader  = $to;
@@ -232,6 +232,7 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     $profile = $service->users->getProfile('me');
     $from = $profile->getEmailAddress();
 
+    if ($toHeader === '') $toHeader = $from; // BCC mode: send to self
     $raw  = "From: $from\r\n";
     $raw .= "To: $toHeader\r\n";
     if ($bccHeader) $raw .= "Bcc: $bccHeader\r\n";

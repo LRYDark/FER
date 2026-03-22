@@ -256,6 +256,8 @@ function getCreateTableStatements(): array
           `is_active` TINYINT(1) NOT NULL DEFAULT 1,
           `failed_attempts` TINYINT NOT NULL DEFAULT 0,
           `locked_at` DATETIME DEFAULT NULL,
+          `twofa_code` VARCHAR(6) DEFAULT NULL,
+          `twofa_expires` DATETIME DEFAULT NULL,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`),
           UNIQUE KEY `email` (`email`)
@@ -284,6 +286,8 @@ function getCreateTableStatements(): array
           `date_publication` timestamp NULL DEFAULT NULL,
           `like` int(11) DEFAULT 0,
           `dislike` int(11) DEFAULT 0,
+          `status` enum('published','draft') NOT NULL DEFAULT 'published',
+          `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -336,6 +340,7 @@ function getCreateTableStatements(): array
           `title` varchar(255) NOT NULL,
           `img` varchar(255) DEFAULT NULL,
           `desc` mediumtext DEFAULT NULL,
+          `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -345,6 +350,7 @@ function getCreateTableStatements(): array
           `album_title` varchar(255) NOT NULL,
           `album_img` varchar(255) DEFAULT NULL,
           `album_desc` text DEFAULT NULL,
+          `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`),
           KEY `year_id` (`year_id`),
           CONSTRAINT `partners_albums_ibfk_1` FOREIGN KEY (`year_id`) REFERENCES `partners_years` (`id`) ON DELETE CASCADE
@@ -354,6 +360,7 @@ function getCreateTableStatements(): array
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `year` int(11) NOT NULL,
           `title` varchar(255) NOT NULL,
+          `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -364,6 +371,7 @@ function getCreateTableStatements(): array
           `album_link` text NOT NULL,
           `album_img` varchar(255) DEFAULT NULL,
           `album_desc` text DEFAULT NULL,
+          `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`),
           KEY `year_id` (`year_id`),
           CONSTRAINT `photo_albums_ibfk_1` FOREIGN KEY (`year_id`) REFERENCES `photo_years` (`id`) ON DELETE CASCADE
@@ -407,6 +415,12 @@ function getCreateTableStatements(): array
           CONSTRAINT `timeline_elements_ibfk_1` FOREIGN KEY (`item_id`) REFERENCES `timeline_items` (`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
+        "CREATE TABLE IF NOT EXISTS `parcours_images` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `filename` VARCHAR(255) NOT NULL,
+          `sort_order` INT NOT NULL DEFAULT 0
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
         // --- Tables commentaires ---
 
         "CREATE TABLE IF NOT EXISTS `news_comments` (
@@ -443,6 +457,52 @@ function getCreateTableStatements(): array
           `banned_by` VARCHAR(100) DEFAULT NULL,
           PRIMARY KEY (`id`),
           UNIQUE INDEX `idx_ip` (`ip_address`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `login_logs` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `user_id` INT DEFAULT NULL,
+          `email` VARCHAR(255) NOT NULL,
+          `ip_address` VARCHAR(45) NOT NULL,
+          `user_agent` VARCHAR(500) DEFAULT NULL,
+          `success` TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_ip` (`ip_address`),
+          INDEX `idx_user` (`user_id`),
+          INDEX `idx_created` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `login_banned_ips` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `ip_address` VARCHAR(45) NOT NULL,
+          `reason` VARCHAR(255) DEFAULT NULL,
+          `banned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `banned_by` INT DEFAULT NULL,
+          UNIQUE KEY `idx_ip` (`ip_address`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `trusted_devices` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `user_id` INT NOT NULL,
+          `token` VARCHAR(64) NOT NULL,
+          `ip_address` VARCHAR(45) NOT NULL,
+          `user_agent` VARCHAR(500) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `expires_at` TIMESTAMP NOT NULL,
+          UNIQUE KEY `idx_token` (`token`),
+          INDEX `idx_user` (`user_id`),
+          INDEX `idx_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `page_visits` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `page_url` VARCHAR(500) NOT NULL,
+          `visitor_ip` VARCHAR(45) NOT NULL,
+          `user_agent` VARCHAR(500) DEFAULT NULL,
+          `referer` VARCHAR(500) DEFAULT NULL,
+          `visited_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_visited_at` (`visited_at`),
+          INDEX `idx_page_url` (`page_url`(191))
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
     ];
 }
@@ -495,560 +555,654 @@ $stepLabels = [
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Installation – Forbach en Rose</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      min-height: 100vh;
-      background: linear-gradient(135deg, #fdf4f8 0%, #ffffff 100%);
-    }
-
-    .install-container {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1rem;
-    }
-
-    .install-card {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(236, 72, 153, 0.15);
-      max-width: 540px;
-      width: 100%;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #4a2038;
       overflow: hidden;
+      height: 100vh;
     }
 
-    .install-header {
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-      padding: 2.5rem 2rem 1.5rem;
-      text-align: center;
-      color: white;
+    /* ── Topbar ── */
+    .oc-topbar {
+      height: 52px;
+      background: #4a2038;
+      margin: 6px 0;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
     }
 
-    .install-header h1 {
-      font-size: 1.75rem;
+    .oc-topbar-title {
+      color: #fff;
+      font-size: 15px;
       font-weight: 700;
-      margin: 0 0 0.25rem;
+      letter-spacing: 0.3px;
     }
 
-    .install-header p {
-      margin: 0;
-      opacity: 0.95;
-      font-size: 0.95rem;
+    /* ── Main area ── */
+    .oc-main {
+      background: #fff;
+      border-radius: 12px;
+      margin: 0 6px 6px 6px;
+      height: calc(100vh - 70px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      overflow-y: auto;
     }
 
-    /* ── Indicateur d'étapes ── */
-    .wizard-steps {
+    /* ── Install wrapper ── */
+    .oc-install-wrapper {
+      width: 100%;
+      max-width: 480px;
+      padding: 32px 24px;
+    }
+
+    /* ── Icon area ── */
+    .oc-icon-area {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .oc-icon-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #fdf2f8;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .oc-icon-circle svg {
+      width: 28px;
+      height: 28px;
+      color: #c4577a;
+    }
+
+    .oc-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+
+    .oc-subtitle {
+      font-size: 13px;
+      color: #71717a;
+    }
+
+    /* ── Card ── */
+    .oc-card {
+      background: #fff;
+      border: 1px solid #f0e8eb;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      padding: 32px;
+    }
+
+    /* ── Step indicator ── */
+    .oc-steps {
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 1.5rem 2rem 0.5rem;
+      margin-bottom: 8px;
       gap: 0;
     }
 
-    .wizard-step {
-      width: 36px;
-      height: 36px;
+    .oc-step-dot {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      font-size: 0.85rem;
-      background: #e2e8f0;
-      color: #94a3b8;
+      font-size: 13px;
+      background: #f0e8eb;
+      color: #a1a1aa;
       flex-shrink: 0;
-      transition: all 0.3s;
+      transition: all 0.2s;
     }
 
-    .wizard-step.active {
-      background: linear-gradient(135deg, #ec4899, #db2777);
-      color: white;
-      box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
-      transform: scale(1.1);
+    .oc-step-dot.active {
+      background: #c4577a;
+      color: #fff;
     }
 
-    .wizard-step.done {
-      background: #ec4899;
-      color: white;
+    .oc-step-dot.done {
+      background: #c4577a;
+      color: #fff;
     }
 
-    .wizard-line {
+    .oc-step-line {
       flex: 1;
-      height: 3px;
-      background: #e2e8f0;
-      max-width: 80px;
+      height: 2px;
+      background: #f0e8eb;
+      max-width: 60px;
     }
 
-    .wizard-line.done {
-      background: #ec4899;
+    .oc-step-line.done {
+      background: #c4577a;
     }
 
-    .step-labels {
+    .oc-step-labels {
       display: flex;
       justify-content: center;
-      gap: 40px;
-      padding: 0.5rem 2rem 0;
-      margin-bottom: 0;
+      gap: 32px;
+      margin-bottom: 20px;
     }
 
-    .step-label {
-      font-size: 0.75rem;
-      color: #94a3b8;
+    .oc-step-label {
+      font-size: 11px;
+      color: #a1a1aa;
       text-align: center;
-      min-width: 80px;
+      min-width: 70px;
     }
 
-    .step-label.active {
-      color: #ec4899;
+    .oc-step-label.active {
+      color: #c4577a;
       font-weight: 600;
     }
 
-    /* ── Formulaire ── */
-    .install-body {
-      padding: 2rem;
+    /* ── Form elements ── */
+    .oc-form-group {
+      margin-bottom: 16px;
     }
 
-    .form-label {
+    .oc-label {
+      display: block;
+      font-size: 13px;
       font-weight: 600;
-      color: #334155;
-      font-size: 0.9rem;
-      margin-bottom: 0.5rem;
+      color: #374151;
+      margin-bottom: 6px;
     }
 
-    .form-control {
-      border: 2px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 0.75rem 1rem;
-      font-size: 0.95rem;
-      transition: all 0.2s;
+    .oc-input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid #d4c4cb;
+      border-radius: 4px;
+      padding: 0 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #1a1a2e;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
     }
 
-    .form-control:focus {
-      border-color: #ec4899;
-      box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.1);
+    .oc-input::placeholder {
+      color: #a1a1aa;
     }
 
-    .btn-install {
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-      border: none;
-      border-radius: 12px;
-      padding: 0.875rem 1.5rem;
-      font-weight: 600;
-      font-size: 1rem;
-      color: white;
-      transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+    .oc-input:focus {
+      border-color: #c4577a;
+      box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
-    .btn-install:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
-      background: linear-gradient(135deg, #db2777 0%, #be185d 100%);
-      color: white;
+    .oc-form-hint {
+      font-size: 11px;
+      color: #a1a1aa;
+      margin-top: 4px;
     }
 
-    .btn-install:active {
-      transform: translateY(0);
-    }
-
-    .alert {
-      border-radius: 12px;
-      border: none;
-      padding: 0.875rem 1rem;
-    }
-
-    .install-footer {
-      text-align: center;
-      padding: 1.25rem;
-      color: #64748b;
-      font-size: 0.85rem;
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
-    }
-
-    .install-footer::after {
-      content: "";
-      position: absolute;
-      right: 12px;
-      bottom: 8px;
-      width: clamp(110px, 16vw, 150px);
-      aspect-ratio: 7680 / 3561;
-      background: url('files/_logos/logo_fer_noir2.png') no-repeat center / contain;
-      opacity: 0.12;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .install-footer .footer-copy {
-      position: relative;
-      z-index: 1;
-    }
-
-    .icon-db {
-      width: 60px;
-      height: 60px;
-      margin: 0 auto 1rem;
-      background: white;
-      border-radius: 50%;
-      display: flex;
+    /* ── Button ── */
+    .oc-btn {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      height: 36px;
+      background: #c4577a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      text-decoration: none;
     }
 
-    .icon-db svg {
-      width: 32px;
-      height: 32px;
-      color: #ec4899;
+    .oc-btn:hover {
+      background: #a8476a;
+      color: #fff;
     }
 
-    .success-icon {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 1.5rem;
-      background: linear-gradient(135deg, #10b981, #059669);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+    .oc-btn:active {
+      background: #933d5c;
     }
 
-    .success-icon svg {
-      width: 40px;
-      height: 40px;
-      color: white;
+    .oc-btn:disabled {
+      background: #d4c4cb;
+      cursor: not-allowed;
     }
 
-    .summary-list {
-      list-style: none;
-      padding: 0;
+    /* ── Error messages ── */
+    .oc-error-list {
+      border: 1px solid #BA1A1A;
+      background: transparent;
+      border-radius: 4px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+
+    .oc-error-list ul {
       margin: 0;
+      padding: 0 0 0 18px;
+      font-size: 13px;
+      color: #BA1A1A;
     }
 
-    .summary-list li {
-      padding: 0.625rem 0;
-      border-bottom: 1px solid #f1f5f9;
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.9rem;
+    .oc-error-list li {
+      margin-bottom: 2px;
     }
 
-    .summary-list li:last-child {
-      border-bottom: none;
+    /* ── Alert boxes ── */
+    .oc-alert {
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
     }
 
-    .summary-list .label {
-      color: #64748b;
-      font-weight: 500;
+    .oc-alert-success {
+      border: 1px solid #16a34a;
+      color: #16a34a;
+      background: #f0fdf4;
     }
 
-    .summary-list .value {
-      color: #1e293b;
-      font-weight: 600;
+    .oc-alert-warning {
+      border: 1px solid #d97706;
+      color: #92400e;
+      background: #fffbeb;
     }
 
-    /* ── Checks mot de passe ── */
-    .pw-checks {
+    .oc-alert-info {
+      color: #71717a;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Password checks ── */
+    .oc-pw-checks {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
+      margin-top: 6px;
     }
 
-    .pw-check {
-      font-size: 0.8rem;
-      color: #94a3b8;
+    .oc-pw-check {
+      font-size: 12px;
+      color: #a1a1aa;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: color 0.2s;
+      transition: color 0.15s;
     }
 
-    .pw-check .pw-icon {
-      font-size: 0.9rem;
+    .oc-pw-icon {
+      font-size: 13px;
       width: 16px;
       text-align: center;
     }
 
-    .pw-check.pw-ok {
-      color: #10b981;
+    .oc-pw-check.pw-ok {
+      color: #16a34a;
       font-weight: 600;
     }
 
-    .pw-check.pw-fail {
-      color: #94a3b8;
+    .oc-pw-check.pw-fail {
+      color: #a1a1aa;
     }
 
-    .env-manual {
-      background: #1e293b;
+    /* ── Success icon ── */
+    .oc-success-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      background: #16a34a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .oc-success-icon svg {
+      width: 32px;
+      height: 32px;
+      color: #fff;
+    }
+
+    .oc-success-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #16a34a;
+      margin-bottom: 4px;
+    }
+
+    .oc-success-subtitle {
+      font-size: 13px;
+      color: #71717a;
+    }
+
+    /* ── Summary list ── */
+    .oc-summary {
+      list-style: none;
+      padding: 0;
+      margin: 20px 0;
+    }
+
+    .oc-summary li {
+      padding: 8px 0;
+      border-bottom: 1px solid #f0e8eb;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .oc-summary li:last-child {
+      border-bottom: none;
+    }
+
+    .oc-summary .oc-sum-label {
+      color: #71717a;
+      font-weight: 500;
+    }
+
+    .oc-summary .oc-sum-value {
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    .oc-sum-value.oc-text-success {
+      color: #16a34a;
+    }
+
+    /* ── Env manual ── */
+    .oc-env-manual {
+      background: #1a1a2e;
       color: #e2e8f0;
-      border-radius: 12px;
-      padding: 1rem;
+      border-radius: 6px;
+      padding: 14px;
       font-family: 'Courier New', monospace;
-      font-size: 0.85rem;
+      font-size: 12px;
       white-space: pre-wrap;
       word-break: break-all;
     }
 
-    @media (max-width: 575.98px) {
-      .install-card {
-        border-radius: 0;
-        box-shadow: none;
-        min-height: 100vh;
-      }
+    /* ── Footer ── */
+    .oc-footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 12px;
+      color: #a1a1aa;
+    }
 
-      .install-header {
-        padding: 3rem 1.5rem 1.5rem;
-      }
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .oc-topbar { padding: 0 12px; }
+      .oc-main { margin: 0 4px 4px 4px; border-radius: 10px; height: calc(100vh - 66px); }
+      .oc-install-wrapper { padding: 24px 16px; }
+      .oc-card { padding: 24px 20px; }
     }
   </style>
 </head>
 <body>
 
-<div class="install-container">
-  <div class="install-card">
-
-    <!-- En-tête -->
-    <div class="install-header">
-      <div class="icon-db">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
-        </svg>
-      </div>
-      <h1>Installation</h1>
-      <p>Configuration de Forbach en Rose</p>
-    </div>
-
-    <!-- Indicateur d'étapes -->
-    <div class="wizard-steps">
-      <?php foreach ([1, 2, 3] as $i): ?>
-        <?php if ($i > 1): ?>
-          <div class="wizard-line <?= $displayStep > $i - 1 ? 'done' : '' ?>"></div>
-        <?php endif; ?>
-        <div class="wizard-step <?= $displayStep === $i ? 'active' : ($displayStep > $i ? 'done' : '') ?>">
-          <?php if ($displayStep > $i): ?>
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-            </svg>
-          <?php else: ?>
-            <?= $i ?>
-          <?php endif; ?>
-        </div>
-      <?php endforeach; ?>
-    </div>
-    <div class="step-labels">
-      <?php foreach ($stepLabels as $i => $label): ?>
-        <span class="step-label <?= $displayStep === $i ? 'active' : '' ?>"><?= $label ?></span>
-      <?php endforeach; ?>
-    </div>
-
-    <!-- Contenu -->
-    <div class="install-body">
-
-      <?php if (!empty($errors)): ?>
-        <div class="alert alert-danger mb-3">
-          <ul class="mb-0 ps-3">
-            <?php foreach ($errors as $e): ?>
-              <li><?= $e ?></li>
-            <?php endforeach; ?>
-          </ul>
-        </div>
-      <?php endif; ?>
-
-      <?php // ─── ÉTAPE 1 : Base de données ───────────────── ?>
-      <?php if ($displayStep === 1): ?>
-
-        <form method="post" novalidate>
-          <input type="hidden" name="step" value="2">
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-
-          <div class="mb-3">
-            <label class="form-label">Hôte MySQL</label>
-            <input name="db_host" class="form-control"
-                   value="<?= htmlspecialchars($_POST['db_host'] ?? $existing['DB_HOST'] ?? 'localhost') ?>"
-                   placeholder="localhost" required>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Nom de la base de données</label>
-            <input name="db_name" class="form-control"
-                   value="<?= htmlspecialchars($_POST['db_name'] ?? $existing['DB_NAME'] ?? 'ForbachEnRose') ?>"
-                   placeholder="ForbachEnRose" required>
-            <div class="form-text">La base sera créée si elle n'existe pas.</div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Utilisateur MySQL</label>
-            <input name="db_user" class="form-control"
-                   value="<?= htmlspecialchars($_POST['db_user'] ?? $existing['DB_USER'] ?? 'root') ?>"
-                   placeholder="root" required>
-          </div>
-
-          <div class="mb-4">
-            <label class="form-label">Mot de passe MySQL</label>
-            <input type="password" name="db_pass" class="form-control"
-                   value="<?= htmlspecialchars($_POST['db_pass'] ?? '') ?>"
-                   placeholder="Mot de passe">
-          </div>
-
-          <button type="submit" class="btn btn-install w-100">
-            Tester la connexion et installer
-          </button>
-        </form>
-
-      <?php // ─── ÉTAPE 2 : Compte administrateur ─────────── ?>
-      <?php elseif ($displayStep === 2): ?>
-
-        <?php if ($dbSuccess): ?>
-          <?php if (!empty($_SESSION['install']['db_existed'])): ?>
-            <div class="alert alert-warning mb-3">
-              La base de données <strong><?= htmlspecialchars($_SESSION['install']['db_name'] ?? '') ?></strong> existait déjà avec <?= (int)($_SESSION['install']['db_existing_tables'] ?? 0) ?> table(s). Les tables manquantes ont été ajoutées.
-            </div>
-          <?php else: ?>
-            <div class="alert alert-success mb-3">
-              Base de données configurée avec succès ! Toutes les tables ont été créées.
-            </div>
-          <?php endif; ?>
-        <?php endif; ?>
-
-        <p class="text-muted mb-3">Créez le compte administrateur principal.</p>
-
-        <form method="post" novalidate id="adminForm">
-          <input type="hidden" name="step" value="3">
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-
-          <div class="mb-3">
-            <label class="form-label">Adresse email</label>
-            <input name="admin_email" type="email" class="form-control"
-                   value="<?= htmlspecialchars($_POST['admin_email'] ?? '') ?>"
-                   placeholder="admin@example.com" required autofocus>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Mot de passe</label>
-            <input type="password" name="admin_password" id="adminPass" class="form-control"
-                   placeholder="Min. 14 car., majuscule, chiffre, spécial" required>
-            <div class="pw-checks mt-2">
-              <div class="pw-check" id="ck-length"><span class="pw-icon">&#9675;</span> 14 caractères minimum</div>
-              <div class="pw-check" id="ck-upper"><span class="pw-icon">&#9675;</span> Une majuscule</div>
-              <div class="pw-check" id="ck-digit"><span class="pw-icon">&#9675;</span> Un chiffre</div>
-              <div class="pw-check" id="ck-special"><span class="pw-icon">&#9675;</span> Un caractère spécial</div>
-            </div>
-          </div>
-
-          <div class="mb-4">
-            <label class="form-label">Confirmer le mot de passe</label>
-            <input type="password" name="admin_password_confirm" id="adminPassConfirm" class="form-control"
-                   placeholder="Retapez le mot de passe" required>
-            <div class="pw-checks mt-2">
-              <div class="pw-check" id="ck-match"><span class="pw-icon">&#9675;</span> Les mots de passe correspondent</div>
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-install w-100" id="btnSubmitAdmin" disabled>
-            Créer le compte et terminer
-          </button>
-        </form>
-
-        <script>
-        (function() {
-          var pass  = document.getElementById('adminPass');
-          var conf  = document.getElementById('adminPassConfirm');
-          var btn   = document.getElementById('btnSubmitAdmin');
-          var checks = {
-            length:  document.getElementById('ck-length'),
-            upper:   document.getElementById('ck-upper'),
-            digit:   document.getElementById('ck-digit'),
-            special: document.getElementById('ck-special'),
-            match:   document.getElementById('ck-match')
-          };
-
-          function setCheck(el, ok) {
-            el.classList.toggle('pw-ok', ok);
-            el.classList.toggle('pw-fail', !ok);
-            el.querySelector('.pw-icon').innerHTML = ok ? '&#10003;' : '&#9675;';
-          }
-
-          function validate() {
-            var v = pass.value;
-            var c = conf.value;
-            var ok = {
-              length:  v.length >= 14,
-              upper:   /[A-Z]/.test(v),
-              digit:   /[0-9]/.test(v),
-              special: /[^a-zA-Z0-9]/.test(v),
-              match:   v.length > 0 && v === c
-            };
-            for (var k in ok) setCheck(checks[k], ok[k]);
-            btn.disabled = !(ok.length && ok.upper && ok.digit && ok.special && ok.match);
-          }
-
-          pass.addEventListener('input', validate);
-          conf.addEventListener('input', validate);
-        })();
-        </script>
-
-      <?php // ─── ÉTAPE 3 : Terminé ───────────────────────── ?>
-      <?php elseif ($displayStep === 3): ?>
-
-        <?php if (isset($_SESSION['env_manual'])): ?>
-          <div class="alert alert-warning mb-3">
-            Le dossier <code>config/</code> n'est pas accessible en écriture.
-            Créez manuellement le fichier <code>config/.env</code> avec le contenu suivant :
-          </div>
-          <div class="env-manual"><?= htmlspecialchars($_SESSION['env_manual']) ?></div>
-          <?php unset($_SESSION['env_manual']); ?>
-        <?php else: ?>
-          <div class="text-center mb-4">
-            <div class="success-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <h4 class="fw-bold text-success mb-1">Installation terminée !</h4>
-            <p class="text-muted">Votre site est prêt à être utilisé.</p>
-          </div>
-
-          <ul class="summary-list mb-4">
-            <li>
-              <span class="label">Administrateur</span>
-              <span class="value"><?= htmlspecialchars($_SESSION['install_admin'] ?? 'admin') ?></span>
-            </li>
-            <li>
-              <span class="label">Fichier .env</span>
-              <span class="value text-success">Généré</span>
-            </li>
-            <li>
-              <span class="label">Tables</span>
-              <span class="value text-success">Créées</span>
-            </li>
-          </ul>
-
-          <a href="login.php" class="btn btn-install w-100 text-center text-decoration-none">
-            Accéder au site
-          </a>
-        <?php endif; ?>
-
-        <?php
-          // Nettoyage session
-          unset($_SESSION['install_done'], $_SESSION['install_admin'], $_SESSION['csrf_install']);
-        ?>
-
-      <?php endif; ?>
-
-    </div>
-
-    <!-- Footer -->
-    <div class="install-footer">
-      <span class="footer-copy">Forbach en Rose &mdash; Assistant d'installation</span>
-    </div>
-
+  <!-- Topbar -->
+  <div class="oc-topbar">
+    <span class="oc-topbar-title">Forbach en Rose</span>
   </div>
-</div>
+
+  <!-- Main area -->
+  <div class="oc-main">
+    <div class="oc-install-wrapper">
+
+      <!-- Icon area -->
+      <div class="oc-icon-area">
+        <div class="oc-icon-circle">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+          </svg>
+        </div>
+        <h1 class="oc-title">Installation</h1>
+        <p class="oc-subtitle">Configuration de Forbach en Rose</p>
+      </div>
+
+      <!-- Step indicator -->
+      <div class="oc-steps">
+        <?php foreach ([1, 2, 3] as $i): ?>
+          <?php if ($i > 1): ?>
+            <div class="oc-step-line <?= $displayStep > $i - 1 ? 'done' : '' ?>"></div>
+          <?php endif; ?>
+          <div class="oc-step-dot <?= $displayStep === $i ? 'active' : ($displayStep > $i ? 'done' : '') ?>">
+            <?php if ($displayStep > $i): ?>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            <?php else: ?>
+              <?= $i ?>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+      </div>
+      <div class="oc-step-labels">
+        <?php foreach ($stepLabels as $i => $label): ?>
+          <span class="oc-step-label <?= $displayStep === $i ? 'active' : '' ?>"><?= $label ?></span>
+        <?php endforeach; ?>
+      </div>
+
+      <!-- Card -->
+      <div class="oc-card">
+
+        <?php if (!empty($errors)): ?>
+          <div class="oc-error-list">
+            <ul>
+              <?php foreach ($errors as $e): ?>
+                <li><?= $e ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        <?php endif; ?>
+
+        <?php // ─── ETAPE 1 : Base de donnees ───────────────── ?>
+        <?php if ($displayStep === 1): ?>
+
+          <form method="post" novalidate>
+            <input type="hidden" name="step" value="2">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+
+            <div class="oc-form-group">
+              <label class="oc-label">H&ocirc;te MySQL</label>
+              <input name="db_host" class="oc-input"
+                     value="<?= htmlspecialchars($_POST['db_host'] ?? $existing['DB_HOST'] ?? 'localhost') ?>"
+                     placeholder="localhost" required>
+            </div>
+
+            <div class="oc-form-group">
+              <label class="oc-label">Nom de la base de donn&eacute;es</label>
+              <input name="db_name" class="oc-input"
+                     value="<?= htmlspecialchars($_POST['db_name'] ?? $existing['DB_NAME'] ?? 'ForbachEnRose') ?>"
+                     placeholder="ForbachEnRose" required>
+              <div class="oc-form-hint">La base sera cr&eacute;&eacute;e si elle n'existe pas.</div>
+            </div>
+
+            <div class="oc-form-group">
+              <label class="oc-label">Utilisateur MySQL</label>
+              <input name="db_user" class="oc-input"
+                     value="<?= htmlspecialchars($_POST['db_user'] ?? $existing['DB_USER'] ?? 'root') ?>"
+                     placeholder="root" required>
+            </div>
+
+            <div class="oc-form-group" style="margin-bottom:20px">
+              <label class="oc-label">Mot de passe MySQL</label>
+              <input type="password" name="db_pass" class="oc-input"
+                     value="<?= htmlspecialchars($_POST['db_pass'] ?? '') ?>"
+                     placeholder="Mot de passe">
+            </div>
+
+            <button type="submit" class="oc-btn">
+              Tester la connexion et installer
+            </button>
+          </form>
+
+        <?php // ─── ETAPE 2 : Compte administrateur ─────────── ?>
+        <?php elseif ($displayStep === 2): ?>
+
+          <?php if ($dbSuccess): ?>
+            <?php if (!empty($_SESSION['install']['db_existed'])): ?>
+              <div class="oc-alert oc-alert-warning">
+                La base de donn&eacute;es <strong><?= htmlspecialchars($_SESSION['install']['db_name'] ?? '') ?></strong> existait d&eacute;j&agrave; avec <?= (int)($_SESSION['install']['db_existing_tables'] ?? 0) ?> table(s). Les tables manquantes ont &eacute;t&eacute; ajout&eacute;es.
+              </div>
+            <?php else: ?>
+              <div class="oc-alert oc-alert-success">
+                Base de donn&eacute;es configur&eacute;e avec succ&egrave;s ! Toutes les tables ont &eacute;t&eacute; cr&eacute;&eacute;es.
+              </div>
+            <?php endif; ?>
+          <?php endif; ?>
+
+          <p class="oc-alert-info">Cr&eacute;ez le compte administrateur principal.</p>
+
+          <form method="post" novalidate id="adminForm">
+            <input type="hidden" name="step" value="3">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+
+            <div class="oc-form-group">
+              <label class="oc-label">Adresse email</label>
+              <input name="admin_email" type="email" class="oc-input"
+                     value="<?= htmlspecialchars($_POST['admin_email'] ?? '') ?>"
+                     placeholder="admin@example.com" required autofocus>
+            </div>
+
+            <div class="oc-form-group">
+              <label class="oc-label">Mot de passe</label>
+              <input type="password" name="admin_password" id="adminPass" class="oc-input"
+                     placeholder="Min. 14 car., majuscule, chiffre, sp&eacute;cial" required>
+              <div class="oc-pw-checks">
+                <div class="oc-pw-check" id="ck-length"><span class="oc-pw-icon">&#9675;</span> 14 caract&egrave;res minimum</div>
+                <div class="oc-pw-check" id="ck-upper"><span class="oc-pw-icon">&#9675;</span> Une majuscule</div>
+                <div class="oc-pw-check" id="ck-digit"><span class="oc-pw-icon">&#9675;</span> Un chiffre</div>
+                <div class="oc-pw-check" id="ck-special"><span class="oc-pw-icon">&#9675;</span> Un caract&egrave;re sp&eacute;cial</div>
+              </div>
+            </div>
+
+            <div class="oc-form-group" style="margin-bottom:20px">
+              <label class="oc-label">Confirmer le mot de passe</label>
+              <input type="password" name="admin_password_confirm" id="adminPassConfirm" class="oc-input"
+                     placeholder="Retapez le mot de passe" required>
+              <div class="oc-pw-checks">
+                <div class="oc-pw-check" id="ck-match"><span class="oc-pw-icon">&#9675;</span> Les mots de passe correspondent</div>
+              </div>
+            </div>
+
+            <button type="submit" class="oc-btn" id="btnSubmitAdmin" disabled>
+              Cr&eacute;er le compte et terminer
+            </button>
+          </form>
+
+          <script>
+          (function() {
+            var pass  = document.getElementById('adminPass');
+            var conf  = document.getElementById('adminPassConfirm');
+            var btn   = document.getElementById('btnSubmitAdmin');
+            var checks = {
+              length:  document.getElementById('ck-length'),
+              upper:   document.getElementById('ck-upper'),
+              digit:   document.getElementById('ck-digit'),
+              special: document.getElementById('ck-special'),
+              match:   document.getElementById('ck-match')
+            };
+
+            function setCheck(el, ok) {
+              el.classList.toggle('pw-ok', ok);
+              el.classList.toggle('pw-fail', !ok);
+              el.querySelector('.oc-pw-icon').innerHTML = ok ? '&#10003;' : '&#9675;';
+            }
+
+            function validate() {
+              var v = pass.value;
+              var c = conf.value;
+              var ok = {
+                length:  v.length >= 14,
+                upper:   /[A-Z]/.test(v),
+                digit:   /[0-9]/.test(v),
+                special: /[^a-zA-Z0-9]/.test(v),
+                match:   v.length > 0 && v === c
+              };
+              for (var k in ok) setCheck(checks[k], ok[k]);
+              btn.disabled = !(ok.length && ok.upper && ok.digit && ok.special && ok.match);
+            }
+
+            pass.addEventListener('input', validate);
+            conf.addEventListener('input', validate);
+          })();
+          </script>
+
+        <?php // ─── ETAPE 3 : Termine ───────────────────────── ?>
+        <?php elseif ($displayStep === 3): ?>
+
+          <?php if (isset($_SESSION['env_manual'])): ?>
+            <div class="oc-alert oc-alert-warning">
+              Le dossier <code>config/</code> n'est pas accessible en &eacute;criture.
+              Cr&eacute;ez manuellement le fichier <code>config/.env</code> avec le contenu suivant :
+            </div>
+            <div class="oc-env-manual"><?= htmlspecialchars($_SESSION['env_manual']) ?></div>
+            <?php unset($_SESSION['env_manual']); ?>
+          <?php else: ?>
+            <div style="text-align:center;margin-bottom:20px">
+              <div class="oc-success-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+              <h4 class="oc-success-title">Installation termin&eacute;e !</h4>
+              <p class="oc-success-subtitle">Votre site est pr&ecirc;t &agrave; &ecirc;tre utilis&eacute;.</p>
+            </div>
+
+            <ul class="oc-summary">
+              <li>
+                <span class="oc-sum-label">Administrateur</span>
+                <span class="oc-sum-value"><?= htmlspecialchars($_SESSION['install_admin'] ?? 'admin') ?></span>
+              </li>
+              <li>
+                <span class="oc-sum-label">Fichier .env</span>
+                <span class="oc-sum-value oc-text-success">G&eacute;n&eacute;r&eacute;</span>
+              </li>
+              <li>
+                <span class="oc-sum-label">Tables</span>
+                <span class="oc-sum-value oc-text-success">Cr&eacute;&eacute;es</span>
+              </li>
+            </ul>
+
+            <a href="login.php" class="oc-btn">
+              Acc&eacute;der au site
+            </a>
+          <?php endif; ?>
+
+          <?php
+            // Nettoyage session
+            unset($_SESSION['install_done'], $_SESSION['install_admin'], $_SESSION['csrf_install']);
+          ?>
+
+        <?php endif; ?>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="oc-footer">
+        Forbach en Rose &mdash; Assistant d'installation
+      </div>
+
+    </div>
+  </div>
 
 </body>
 </html>

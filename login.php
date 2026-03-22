@@ -1,4 +1,4 @@
-<?php require 'config/config.php'; 
+<?php require 'config/config.php';
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -12,10 +12,10 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$picture= $data['picture'] ?? '';  
-$footer= $data['footer'] ?? '';  
+$picture= $data['picture'] ?? '';
+$footer= $data['footer'] ?? '';
 $titleColor = $data['title_color'] ?? '#ffffff';
-$picture= $data['picture'] ?? '';  
+$picture= $data['picture'] ?? '';
 ?>
 <!doctype html>
 <html lang="fr">
@@ -24,222 +24,434 @@ $picture= $data['picture'] ?? '';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Forbach en Rose – Connexion</title>
 
-  <!-- Bootstrap + thème principal -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="css/fer-modern.css" rel="stylesheet">
-
-  <!-- Ajustements spécifiques à la page de connexion -->
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      min-height: 100vh;
-      background: linear-gradient(135deg, #fdf4f8 0%, #ffffff 100%);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #4a2038;
+      overflow: hidden;
+      height: 100vh;
     }
 
-    .login-container {
-      min-height: 100vh;
+    /* ── Topbar ── */
+    .oc-topbar {
+      height: 52px;
+      background: #4a2038;
+      margin: 6px 0;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+    }
+
+    .oc-topbar-title {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Main area ── */
+    .oc-main {
+      background: #fff;
+      border-radius: 12px;
+      margin: 0 6px 6px 6px;
+      height: calc(100vh - 70px);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 2rem 1rem;
+      overflow-y: auto;
     }
 
-    .login-card {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(236, 72, 153, 0.15);
-      max-width: 440px;
+    /* ── Login wrapper ── */
+    .oc-login-wrapper {
       width: 100%;
-      overflow: hidden;
+      max-width: 400px;
+      padding: 32px 24px;
     }
 
-    .login-header {
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-      padding: 2.5rem 2rem;
+    /* ── Icon area ── */
+    .oc-icon-area {
       text-align: center;
-      color: white;
-      position: relative;
+      margin-bottom: 24px;
     }
 
-    .login-header h1 {
-      font-size: 1.75rem;
+    .oc-icon-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #fdf2f8;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .oc-icon-circle svg {
+      width: 28px;
+      height: 28px;
+      color: #c4577a;
+    }
+
+    .oc-title {
+      font-size: 20px;
       font-weight: 700;
-      margin: 0 0 0.5rem;
+      color: #1a1a2e;
+      margin-bottom: 4px;
     }
 
-    .login-header p {
-      margin: 0;
-      opacity: 0.95;
-      font-size: 0.95rem;
+    .oc-subtitle {
+      font-size: 13px;
+      color: #71717a;
     }
 
-    .login-body {
-      padding: 2.5rem 2rem;
-    }
-
-    .form-label {
-      font-weight: 600;
-      color: #334155;
-      font-size: 0.9rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .form-control {
-      border: 2px solid #e2e8f0;
+    /* ── Login card ── */
+    .oc-card {
+      background: #fff;
+      border: 1px solid #f0e8eb;
       border-radius: 12px;
-      padding: 0.75rem 1rem;
-      font-size: 0.95rem;
-      transition: all 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      padding: 32px;
     }
 
-    .form-control:focus {
-      border-color: #ec4899;
-      box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.1);
+    /* ── Form elements ── */
+    .oc-form-group {
+      margin-bottom: 16px;
     }
 
-    .btn-login {
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+    .oc-form-group:last-of-type {
+      margin-bottom: 20px;
+    }
+
+    .oc-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .oc-input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid #d4c4cb;
+      border-radius: 4px;
+      padding: 0 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #1a1a2e;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+
+    .oc-input::placeholder {
+      color: #a1a1aa;
+    }
+
+    .oc-input:focus {
+      border-color: #c4577a;
+      box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
+    }
+
+    /* ── Button ── */
+    .oc-btn {
+      width: 100%;
+      height: 36px;
+      background: #c4577a;
+      color: #fff;
       border: none;
-      border-radius: 12px;
-      padding: 0.875rem 1.5rem;
-      font-weight: 600;
-      font-size: 1rem;
-      color: white;
-      transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
     }
 
-    .btn-login:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
-      background: linear-gradient(135deg, #db2777 0%, #be185d 100%);
+    .oc-btn:hover {
+      background: #a8476a;
     }
 
-    .btn-login:active {
-      transform: translateY(0);
+    .oc-btn:active {
+      background: #933d5c;
     }
 
-    .back-link {
-      position: absolute;
-      top: 1.5rem;
-      left: 1.5rem;
-      color: white;
+    /* ── Error message ── */
+    .oc-error {
+      border: 1px solid #BA1A1A;
+      background: transparent;
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      display: none;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      color: #BA1A1A;
+    }
+
+    .oc-error.visible {
+      display: flex;
+    }
+
+    .oc-error-icon {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #BA1A1A;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    /* ── Forgot password link ── */
+    .oc-forgot-link {
+      display: block;
+      text-align: center;
+      margin-top: 16px;
+      color: #c4577a;
+      font-size: 13px;
       text-decoration: none;
+      cursor: pointer;
+    }
+
+    .oc-forgot-link:hover {
+      text-decoration: underline;
+    }
+
+    /* ── Forgot form ── */
+    .oc-forgot-form {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #f0e8eb;
+    }
+
+    .oc-forgot-form.visible {
+      display: block;
+    }
+
+    .oc-forgot-hint {
+      font-size: 12px;
+      color: #71717a;
+      margin-bottom: 10px;
+    }
+
+    .oc-forgot-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .oc-forgot-row .oc-input {
+      flex: 1;
+    }
+
+    .oc-forgot-row .oc-btn {
+      width: auto;
+      padding: 0 16px;
+      white-space: nowrap;
+    }
+
+    .oc-forgot-msg {
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .oc-forgot-msg .text-success { color: #16a34a; }
+    .oc-forgot-msg .text-danger { color: #BA1A1A; }
+
+    /* ── 2FA checkbox ── */
+    .oc-checkbox-group {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 0.9rem;
-      opacity: 0.9;
-      transition: opacity 0.2s;
-      z-index: 10;
+      gap: 8px;
+      margin-bottom: 20px;
     }
 
-    .back-link:hover {
-      opacity: 1;
-      color: white;
+    .oc-checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #c4577a;
+      cursor: pointer;
     }
 
-    .back-link svg {
-      width: 20px;
-      height: 20px;
+    .oc-checkbox-group label {
+      font-size: 13px;
+      color: #374151;
+      cursor: pointer;
     }
 
-    .alert {
-      border-radius: 12px;
-      border: none;
-      padding: 0.875rem 1rem;
-    }
-
-    .login-footer {
+    /* ── 2FA resend link ── */
+    .oc-resend-link {
+      display: block;
       text-align: center;
-      padding: 1.5rem;
-      color: #64748b;
-      font-size: 0.85rem;
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
+      margin-top: 12px;
+      color: #c4577a;
+      font-size: 13px;
+      text-decoration: none;
+      cursor: pointer;
     }
 
-    .login-footer .footer-copy {
-      position: relative;
-      z-index: 1;
+    .oc-resend-link:hover {
+      text-decoration: underline;
     }
 
-    @media (max-width: 575.98px) {
-      .login-card {
-        border-radius: 0;
-        box-shadow: none;
-        min-height: 100vh;
-      }
+    /* ── Footer ── */
+    .oc-footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 12px;
+      color: #a1a1aa;
+    }
 
-      .login-header {
-        padding: 3rem 1.5rem 2rem;
-      }
+    /* ── Back link ── */
+    .oc-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #c4577a;
+      text-decoration: none;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
 
-      .back-link {
-        top: 1rem;
-        left: 1rem;
-      }
+    .oc-back:hover {
+      text-decoration: underline;
+    }
+
+    .oc-back svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .oc-topbar { padding: 0 12px; }
+      .oc-main { margin: 0 4px 4px 4px; border-radius: 10px; height: calc(100vh - 66px); }
+      .oc-login-wrapper { padding: 24px 16px; }
+      .oc-card { padding: 24px 20px; }
     }
   </style>
 </head>
 <body>
 
-  <div class="login-container">
-    <div class="login-card">
+  <!-- Topbar -->
+  <div class="oc-topbar">
+    <span class="oc-topbar-title">Forbach en Rose</span>
+  </div>
 
-      <!-- En-tête de connexion -->
-      <div class="login-header">
-        <a href="public/accueil.php" class="back-link">
+  <!-- Main area -->
+  <div class="oc-main">
+    <div class="oc-login-wrapper">
+
+      <!-- Back link -->
+      <a href="public/accueil.php" class="oc-back">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        Retour
+      </a>
+
+      <!-- Icon area -->
+      <div class="oc-icon-area">
+        <div class="oc-icon-circle">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
           </svg>
-          Retour
-        </a>
-
-        <h1>Connexion</h1>
-        <p>Accédez à votre espace d'administration</p>
+        </div>
+        <h1 class="oc-title">Connexion</h1>
+        <p class="oc-subtitle">Acc&eacute;dez &agrave; votre espace d'administration</p>
       </div>
 
-      <!-- Formulaire de connexion -->
-      <div class="login-body">
-        <div id="err" class="alert alert-danger d-none"></div>
+      <!-- Login card -->
+      <div class="oc-card">
+        <!-- Error message -->
+        <div id="err" class="oc-error">
+          <span class="oc-error-icon">!</span>
+          <span id="errText"></span>
+        </div>
 
         <form id="fLogin" novalidate>
-          <div class="mb-3">
-            <label class="form-label">Adresse email</label>
-            <input name="email" type="email" class="form-control" placeholder="Entrez votre adresse email" required autofocus>
+          <div class="oc-form-group">
+            <label class="oc-label">Adresse email</label>
+            <input name="email" type="email" class="oc-input" placeholder="Entrez votre adresse email" required autofocus>
           </div>
 
-          <div class="mb-4">
-            <label class="form-label">Mot de passe</label>
-            <input type="password" name="password" class="form-control" placeholder="Entrez votre mot de passe" required>
+          <div class="oc-form-group">
+            <label class="oc-label">Mot de passe</label>
+            <input type="password" name="password" class="oc-input" placeholder="Entrez votre mot de passe" required>
           </div>
 
-          <button type="submit" class="btn btn-login w-100">
-            Se connecter
-          </button>
+          <button type="submit" class="oc-btn">Se connecter</button>
         </form>
 
-        <!-- Mot de passe oublie -->
-        <div class="text-center mt-3">
-          <a href="#" id="forgotLink" style="color:#ec4899;font-size:0.9rem;text-decoration:none;">Mot de passe oubli&eacute; ?</a>
+        <!-- Forgot password link -->
+        <a id="forgotLink" class="oc-forgot-link">Mot de passe oubli&eacute; ?</a>
+
+        <!-- Forgot password form -->
+        <div id="forgotForm" class="oc-forgot-form">
+          <p class="oc-forgot-hint">Entrez votre adresse email pour recevoir un lien de r&eacute;initialisation (valable 10 minutes).</p>
+          <div class="oc-forgot-row">
+            <input type="email" id="forgotEmail" class="oc-input" placeholder="Votre adresse email">
+            <button id="forgotBtn" class="oc-btn">Envoyer</button>
+          </div>
+          <div id="forgotMsg" class="oc-forgot-msg"></div>
+        </div>
+      </div>
+
+      <!-- 2FA verification section (hidden by default) -->
+      <div id="twofa-section" style="display:none;">
+
+        <!-- Icon area -->
+        <div class="oc-icon-area">
+          <div class="oc-icon-circle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <h1 class="oc-title">V&eacute;rification en deux &eacute;tapes</h1>
+          <p class="oc-subtitle">Un code &agrave; 6 chiffres a &eacute;t&eacute; envoy&eacute; &agrave; votre adresse email</p>
         </div>
 
-        <!-- Formulaire mot de passe oublie (cache par defaut) -->
-        <div id="forgotForm" class="mt-3" style="display:none;">
-          <hr>
-          <p class="text-muted mb-2" style="font-size:0.85rem;">Entrez votre adresse email pour recevoir un lien de r&eacute;initialisation (valable 10 minutes).</p>
-          <div class="input-group">
-            <input type="email" id="forgotEmail" class="form-control" placeholder="Votre adresse email">
-            <button id="forgotBtn" class="btn btn-login">Envoyer</button>
+        <!-- 2FA card -->
+        <div class="oc-card">
+          <!-- Error message -->
+          <div id="twofaErr" class="oc-error">
+            <span class="oc-error-icon">!</span>
+            <span id="twofaErrText"></span>
           </div>
-          <div id="forgotMsg" class="mt-2" style="font-size:0.85rem;"></div>
+
+          <form id="fTwofa" novalidate>
+            <div class="oc-form-group">
+              <label class="oc-label">Code de v&eacute;rification</label>
+              <input name="code" type="text" class="oc-input" placeholder="Entrez le code &agrave; 6 chiffres"
+                     maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" inputmode="numeric" required autofocus>
+            </div>
+
+            <div class="oc-checkbox-group">
+              <input type="checkbox" id="trustDevice" name="trust_device">
+              <label for="trustDevice">Se souvenir de cet appareil pendant 30 jours</label>
+            </div>
+
+            <button type="submit" class="oc-btn">V&eacute;rifier le code</button>
+          </form>
+
+          <a id="resendCode" class="oc-resend-link">Renvoyer le code</a>
         </div>
+
       </div>
 
       <!-- Footer -->
-      <div class="login-footer">
-        <span class="footer-copy"><?= htmlspecialchars($footer) ?></span>
+      <div class="oc-footer">
+        <?= htmlspecialchars($footer) ?>
       </div>
 
     </div>
@@ -248,52 +460,172 @@ $picture= $data['picture'] ?? '';
   <!-- Scripts -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script>
+    // Store login credentials for potential 2FA resend
+    var _loginEmail = '';
+    var _loginPassword = '';
+
+    function redirectAfterLogin(j) {
+      if (j.must_change_password) {
+        location = 'change-password.php';
+        return;
+      }
+      switch (j.role) {
+        case 'admin':
+        case 'user':
+        case 'viewer':
+          location = 'inc/dashboard.php';
+          break;
+        case 'saisie':
+          location = 'inc/saisie.php';
+          break;
+        default:
+          location = 'inc/dashboard.php';
+      }
+    }
+
+    function showLoginSection() {
+      document.getElementById('twofa-section').style.display = 'none';
+      // Show login icon area, card, forgot link
+      document.querySelector('.oc-icon-area').style.display = '';
+      document.querySelector('.oc-card').style.display = '';
+      document.querySelector('.oc-back').style.display = '';
+    }
+
+    function showTwofaSection() {
+      // Hide login icon area, login card, and back link
+      document.querySelector('.oc-icon-area').style.display = 'none';
+      document.querySelector('.oc-card').style.display = 'none';
+      document.querySelector('.oc-back').style.display = 'none';
+      // Show 2FA section
+      document.getElementById('twofa-section').style.display = '';
+      // Focus the code input
+      var codeInput = document.querySelector('#fTwofa input[name="code"]');
+      if (codeInput) codeInput.focus();
+    }
+
     $('#fLogin').on('submit', e => {
       e.preventDefault();
+      document.getElementById('err').classList.remove('visible');
+
+      var formData = Object.fromEntries(new FormData(e.target));
+      _loginEmail = formData.email || '';
+      _loginPassword = formData.password || '';
 
       fetch('config/api.php?route=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+        body: JSON.stringify(formData)
       })
       .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })))
       .then(({ ok, status, json: j }) => {
           if (!ok || !j.ok) {
-            if (j.err) {
-              $('#err').text(j.err).removeClass('d-none');
-            } else {
-              $('#err').text('Identifiants incorrects').removeClass('d-none');
+            // Check if 2FA is required
+            if (j.requires_2fa === true) {
+              showTwofaSection();
+              return;
             }
+            var msg = j.err || 'Identifiants incorrects';
+            document.getElementById('errText').textContent = msg;
+            document.getElementById('err').classList.add('visible');
             return;
           }
-          // Changement de mot de passe obligatoire
-          if (j.must_change_password) {
-            location = 'change-password.php';
+          // Check if 2FA is required (some APIs return ok:true with requires_2fa)
+          if (j.requires_2fa === true) {
+            showTwofaSection();
             return;
           }
-          switch (j.role) {
-            case 'admin':
-            case 'user':
-            case 'viewer':
-              location = 'inc/dashboard.php';
-              break;
-            case 'saisie':
-              location = 'inc/saisie.php';
-              break;
-            default:
-              location = 'inc/dashboard.php';
-          }
+          redirectAfterLogin(j);
       })
-      .catch(() => $('#err')
-              .text('Identifiants incorrects')
-              .removeClass('d-none'));
+      .catch(() => {
+        document.getElementById('errText').textContent = 'Identifiants incorrects';
+        document.getElementById('err').classList.add('visible');
+      });
+    });
+
+    // 2FA form submission
+    document.getElementById('fTwofa').addEventListener('submit', function(e) {
+      e.preventDefault();
+      document.getElementById('twofaErr').classList.remove('visible');
+
+      var code = this.querySelector('input[name="code"]').value.trim();
+      var trustDevice = document.getElementById('trustDevice').checked;
+
+      if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
+        document.getElementById('twofaErrText').textContent = 'Veuillez entrer un code valide \u00e0 6 chiffres.';
+        document.getElementById('twofaErr').classList.add('visible');
+        return;
+      }
+
+      var btn = this.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'V\u00e9rification...';
+
+      fetch('config/api.php?route=validate-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code, trust_device: trustDevice })
+      })
+      .then(r => r.json().then(j => ({ ok: r.ok, json: j })))
+      .then(({ ok, json: j }) => {
+        if (!ok || !j.ok) {
+          var msg = j.err || 'Code invalide ou expir\u00e9.';
+          document.getElementById('twofaErrText').textContent = msg;
+          document.getElementById('twofaErr').classList.add('visible');
+          btn.disabled = false;
+          btn.textContent = 'V\u00e9rifier le code';
+          return;
+        }
+        redirectAfterLogin(j);
+      })
+      .catch(function() {
+        document.getElementById('twofaErrText').textContent = 'Erreur de communication avec le serveur.';
+        document.getElementById('twofaErr').classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'V\u00e9rifier le code';
+      });
+    });
+
+    // Resend 2FA code (re-submits login)
+    document.getElementById('resendCode').addEventListener('click', function(e) {
+      e.preventDefault();
+      document.getElementById('twofaErr').classList.remove('visible');
+
+      if (!_loginEmail || !_loginPassword) {
+        showLoginSection();
+        return;
+      }
+
+      this.style.pointerEvents = 'none';
+      this.textContent = 'Envoi en cours...';
+      var self = this;
+
+      fetch('config/api.php?route=login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: _loginEmail, password: _loginPassword })
+      })
+      .then(r => r.json())
+      .then(function(j) {
+        self.style.pointerEvents = '';
+        self.textContent = 'Renvoyer le code';
+        if (j.requires_2fa === true) {
+          // Clear previous code input
+          document.querySelector('#fTwofa input[name="code"]').value = '';
+          document.querySelector('#fTwofa input[name="code"]').focus();
+        }
+      })
+      .catch(function() {
+        self.style.pointerEvents = '';
+        self.textContent = 'Renvoyer le code';
+        document.getElementById('twofaErrText').textContent = 'Erreur lors du renvoi du code.';
+        document.getElementById('twofaErr').classList.add('visible');
+      });
     });
 
     // Mot de passe oublie
     document.getElementById('forgotLink').addEventListener('click', function(e) {
       e.preventDefault();
-      const form = document.getElementById('forgotForm');
-      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      document.getElementById('forgotForm').classList.toggle('visible');
     });
 
     document.getElementById('forgotBtn').addEventListener('click', async function() {

@@ -15,8 +15,16 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $footer= $data['footer'] ?? '';
 
 // Charger les données pour la navbar
-require 'navbar-data.php'; 
+require 'navbar-data.php';
 
+// Check if migration has been applied (status & deleted_at columns)
+$migrationDone = false;
+try {
+    $pdo->query("SELECT deleted_at, status FROM news LIMIT 0");
+    $migrationDone = true;
+} catch (PDOException $e) {}
+
+// ─── Add news ───
 if (isset($_POST['add_news'])) {
     $title = $_POST['title_article'];
     $desc = $_POST['desc_article'];
@@ -27,49 +35,136 @@ if (isset($_POST['add_news'])) {
         move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
     }
 
-    $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
-    $stmt->execute([$imgName, $title, $desc]);
+    if ($migrationDone) {
+        $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+        $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`, status) VALUES (?, ?, ?, NOW(), 0, 0, ?)");
+        $stmt->execute([$imgName, $title, $desc, $status]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
+        $stmt->execute([$imgName, $title, $desc]);
+    }
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
 
+// ─── Update news ───
 if (isset($_POST['update_news'])) {
     $id = $_POST['news_id'];
     $title = $_POST['title_article'];
     $desc = $_POST['desc_article'];
 
-    if (!empty($_FILES['img_article']['name'])) {
-        $imgName = basename($_FILES['img_article']['name']);
-        move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
-        $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
-        $stmt->execute([$imgName, $title, $desc, $id]);
+    if ($migrationDone) {
+        $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+        if (!empty($_FILES['img_article']['name'])) {
+            $imgName = basename($_FILES['img_article']['name']);
+            move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
+            $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+            $stmt->execute([$imgName, $title, $desc, $status, $id]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+            $stmt->execute([$title, $desc, $status, $id]);
+        }
     } else {
-        $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
-        $stmt->execute([$title, $desc, $id]);
+        if (!empty($_FILES['img_article']['name'])) {
+            $imgName = basename($_FILES['img_article']['name']);
+            move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
+            $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
+            $stmt->execute([$imgName, $title, $desc, $id]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
+            $stmt->execute([$title, $desc, $id]);
+        }
     }
 
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
 
+// ─── Delete news ───
 if (isset($_POST['delete_news'])) {
     $id = $_POST['news_id'];
-    $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
-    $stmt->execute([$id]);
-    $img = $stmt->fetchColumn();
-
-    if ($img && file_exists("../files/_news/" . $img)) {
-        unlink("../files/_news/" . $img);
+    if ($migrationDone) {
+        // Soft delete (move to trash)
+        $stmt = $pdo->prepare("UPDATE news SET deleted_at = NOW() WHERE id = ?");
+        $stmt->execute([$id]);
+        header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+    } else {
+        // Hard delete (old behavior)
+        $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+        $stmt->execute([$id]);
+        $img = $stmt->fetchColumn();
+        if ($img && file_exists("../files/_news/" . $img)) {
+            unlink("../files/_news/" . $img);
+        }
+        $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
+        $stmt->execute([$id]);
+        header("Location: " . $_SERVER['PHP_SELF']);
     }
-
-    $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
-    $stmt->execute([$id]);
-
-    header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
 
-$articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+if ($migrationDone) {
+    // ─── Restore from trash ───
+    if (isset($_POST['restore_news'])) {
+        $id = $_POST['news_id'];
+        $stmt = $pdo->prepare("UPDATE news SET deleted_at = NULL WHERE id = ?");
+        $stmt->execute([$id]);
+
+        header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+        exit;
+    }
+
+    // ─── Permanent delete ───
+    if (isset($_POST['permanent_delete_news'])) {
+        $id = $_POST['news_id'];
+        $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+        $stmt->execute([$id]);
+        $img = $stmt->fetchColumn();
+
+        if ($img && file_exists("../files/_news/" . $img)) {
+            unlink("../files/_news/" . $img);
+        }
+
+        $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
+        $stmt->execute([$id]);
+
+        header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+        exit;
+    }
+}
+
+// ─── Filter logic ───
+$filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+$isTrashed = false;
+
+if ($migrationDone) {
+    switch ($filter) {
+        case 'published':
+            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NULL AND status = 'published' ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+            break;
+        case 'draft':
+            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NULL AND status = 'draft' ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+            break;
+        case 'trashed':
+            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+            break;
+        default:
+            $filter = '';
+            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NULL ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+            break;
+    }
+
+    // Counts for tab badges
+    $countAll      = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NULL")->fetchColumn();
+    $countPublished = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NULL AND status = 'published'")->fetchColumn();
+    $countDraft    = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NULL AND status = 'draft'")->fetchColumn();
+    $countTrashed  = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NOT NULL")->fetchColumn();
+
+    $isTrashed = ($filter === 'trashed');
+} else {
+    $filter = '';
+    $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 
 <!doctype html>
@@ -81,70 +176,225 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
-<link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
 <style>
-  .first-750 td{background:#ffe5ff!important;font-weight:600}
-  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
-  .hero h1{margin:0;font-size:2.2rem}
-  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
-  @media (max-width:991.98px){.top-actions{display:none}}
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
-  tr.filters th[class*="sorting"]::before,
-  tr.filters th[class*="sorting"]::after{display:none!important}
-  .statCard{min-width:180px}
-  .hide-stats #stats {display: none !important;}
 .card {
   border-radius: 12px;
+  position: relative;
 }
 .card-img-top {
   border-top-left-radius: 12px;
   border-top-right-radius: 12px;
 }
 
+/* Status badge */
+.badge-status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.badge-published {
+  background-color: #198754;
+  color: #fff;
+}
+.badge-draft {
+  background-color: #fd7e14;
+  color: #fff;
+}
 
+/* Filter tabs */
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 2px solid #f0e8eb;
+  margin-bottom: 1rem;
+}
+.filter-tabs a {
+  padding: 0.5rem 1.25rem;
+  text-decoration: none;
+  color: #1e293b;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.filter-tabs a:hover {
+  color: #1e293b;
+  border-bottom-color: #d4c4cb;
+}
+.filter-tabs a.active {
+  color: #1e293b;
+  border-bottom-color: #c4577a;
+  font-weight: 600;
+}
+.filter-tabs .badge {
+  font-size: 0.7rem;
+  vertical-align: middle;
+  margin-left: 4px;
+}
 
+/* Search bar */
+.news-search-bar {
+  max-width: 350px;
+  width: 100%;
+}
+.news-search-bar .input-group {
+  border: 1px solid #d4c4cb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.news-search-bar .input-group:focus-within {
+  border-color: #c4577a;
+  box-shadow: 0 0 0 3px rgba(196,87,122,.1);
+}
+.news-search-bar .input-group-text {
+  border: none !important;
+  background: transparent !important;
+  color: #9e8a92;
+  padding: 8px 10px 8px 14px;
+}
+.news-search-bar .form-control {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 8px 14px 8px 4px;
+  font-size: 13px;
+  color: #1e293b;
+}
+.news-search-bar .form-control::placeholder { color: #9e8a92; }
+.news-search-bar .form-control:focus { box-shadow: none !important; }
 
+/* Trashed card style */
+.card-trashed {
+  opacity: 0.7;
+  border: 1px dashed #dc3545 !important;
+}
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 
 <?php include 'navbar-admin.php'; ?>
 
 <div class="container py-4">
   <h1 class="mb-3 fw-bold">Actualités</h1>
-  <div class="text-end mb-3">
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddNews">Ajouter un article</button>
+
+  <?php if (!$migrationDone): ?>
+  <div class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle"></i> Veuillez executer la mise a jour BDD pour activer toutes les fonctionnalites (statut, corbeille, filtres).
+  </div>
+  <?php endif; ?>
+
+  <?php if ($migrationDone): ?>
+  <!-- Filter tabs -->
+  <div class="filter-tabs">
+    <a href="?filter=" class="<?= $filter === '' ? 'active' : '' ?>">
+      Tous <span class="badge bg-secondary"><?= $countAll ?></span>
+    </a>
+    <a href="?filter=published" class="<?= $filter === 'published' ? 'active' : '' ?>">
+      Publiés <span class="badge bg-success"><?= $countPublished ?></span>
+    </a>
+    <a href="?filter=draft" class="<?= $filter === 'draft' ? 'active' : '' ?>">
+      Brouillons <span class="badge bg-warning text-dark"><?= $countDraft ?></span>
+    </a>
+    <a href="?filter=trashed" class="<?= $filter === 'trashed' ? 'active' : '' ?>">
+      <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
+    </a>
+  </div>
+  <?php endif; ?>
+
+  <!-- Search bar + Add button row -->
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="news-search-bar">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" id="newsSearchInput" class="form-control" placeholder="Rechercher un article par titre...">
+      </div>
+    </div>
+    <?php if (!$isTrashed): ?>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddNews">
+      <i class="bi bi-plus-lg"></i> Ajouter un article
+    </button>
+    <?php endif; ?>
   </div>
 
-  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+  <?php if (empty($articles)): ?>
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-newspaper" style="font-size:3rem;"></i>
+      <p class="mt-2"><?= $isTrashed ? 'La corbeille est vide.' : 'Aucun article trouvé.' ?></p>
+    </div>
+  <?php else: ?>
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="newsCardContainer">
     <?php foreach ($articles as $n): ?>
-      <div class="col">
-        <div class="card h-100 shadow-sm border-0">
+      <div class="col news-card-col" data-title="<?= htmlspecialchars(strtolower($n['title_article'])) ?>">
+        <div class="card h-100 shadow-sm border-0 <?= $isTrashed ? 'card-trashed' : '' ?>">
+          <?php if ($migrationDone && !$isTrashed): ?>
+            <span class="badge-status <?= $n['status'] === 'published' ? 'badge-published' : 'badge-draft' ?>">
+              <?= $n['status'] === 'published' ? 'Publié' : 'Brouillon' ?>
+            </span>
+          <?php endif; ?>
           <?php if (!empty($n['img_article'])): ?>
             <img src="../files/_news/<?= htmlspecialchars($n['img_article']) ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
           <?php endif; ?>
           <div class="card-body d-flex flex-column">
-            <p class="card-text"><?= substr(strip_tags($n['desc_article']), 0, 120) ?>...</p>
-            <p class="text-muted small">Publié le <?= date('d/m/Y H:i', strtotime($n['date_publication'])) ?></p>
-            <div class="mt-auto d-flex gap-2">
-              <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditNews<?= $n['id'] ?>">Modifier</button>
-              <form method="post" onsubmit="return confirm('Supprimer cet article ?');">
-                <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
-                <button type="submit" name="delete_news" class="btn btn-sm btn-danger">Supprimer</button>
-              </form>
+            <h6 class="card-title fw-bold"><?= htmlspecialchars($n['title_article']) ?></h6>
+            <p class="card-text small"><?= substr(strip_tags($n['desc_article']), 0, 120) ?>...</p>
+            <p class="text-muted small mb-2">
+              <?php if ($migrationDone && $isTrashed): ?>
+                Supprimé le <?= date('d/m/Y H:i', strtotime($n['deleted_at'])) ?>
+              <?php else: ?>
+                Publié le <?= date('d/m/Y H:i', strtotime($n['date_publication'])) ?>
+              <?php endif; ?>
+            </p>
+            <div class="mt-auto d-flex gap-2 flex-wrap">
+              <?php if ($migrationDone && $isTrashed): ?>
+                <!-- Trash view buttons -->
+                <form method="post">
+                  <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
+                  <button type="submit" name="restore_news" class="btn btn-sm btn-success">
+                    <i class="bi bi-arrow-counterclockwise"></i> Restaurer
+                  </button>
+                </form>
+                <form method="post" onsubmit="return confirm('Supprimer DÉFINITIVEMENT cet article ? Cette action est irréversible.');">
+                  <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
+                  <button type="submit" name="permanent_delete_news" class="btn btn-sm btn-danger">
+                    <i class="bi bi-x-circle"></i> Supprimer définitivement
+                  </button>
+                </form>
+              <?php else: ?>
+                <!-- Normal view buttons -->
+                <a href="../public/news.php?preview=<?= $n['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu">
+                  <i class="bi bi-eye"></i> Aperçu
+                </a>
+                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditNews<?= $n['id'] ?>">
+                  <i class="bi bi-pencil"></i> Modifier
+                </button>
+                <form method="post" onsubmit="return confirm('<?= $migrationDone ? 'Mettre cet article en corbeille ?' : 'Supprimer definitivement cet article ?' ?>');">
+                  <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
+                  <button type="submit" name="delete_news" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>
+                  </button>
+                </form>
+              <?php endif; ?>
             </div>
           </div>
         </div>
       </div>
 
+      <?php if (!$isTrashed): ?>
       <!-- Modal Modifier -->
       <div class="modal fade" id="modalEditNews<?= $n['id'] ?>" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
           <div class="modal-content p-4">
             <div class="modal-header">
               <h5 class="modal-title">Modifier l'article</h5>
@@ -161,14 +411,23 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
                   <form method="post" enctype="multipart/form-data">
                     <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                     <div class="row g-3">
-                      <div class="col-md-6">
+                      <div class="<?= $migrationDone ? 'col-md-6' : 'col-md-6' ?>">
                         <label>Titre</label>
                         <input type="text" name="title_article" class="form-control" value="<?= htmlspecialchars($n['title_article']) ?>" required>
                       </div>
-                      <div class="col-md-6">
+                      <div class="<?= $migrationDone ? 'col-md-3' : 'col-md-6' ?>">
                         <label>Image (laisser vide pour conserver)</label>
                         <input type="file" name="img_article" class="form-control">
                       </div>
+                      <?php if ($migrationDone): ?>
+                      <div class="col-md-3">
+                        <label>Statut</label>
+                        <select name="status" class="form-select">
+                          <option value="draft" <?= $n['status'] === 'draft' ? 'selected' : '' ?>>Brouillon</option>
+                          <option value="published" <?= $n['status'] === 'published' ? 'selected' : '' ?>>Publié</option>
+                        </select>
+                      </div>
+                      <?php endif; ?>
                       <div class="col-md-12">
                         <label>Description</label>
                         <textarea class="form-control tinymce-editor" name="desc_article" rows="6"><?= htmlspecialchars($n['desc_article']) ?></textarea>
@@ -181,6 +440,7 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
                 </div>
                 <!-- Onglet Commentaires -->
                 <div class="tab-pane fade" id="tabComments<?= $n['id'] ?>">
+                  <input type="text" class="form-control form-control-sm mb-3 comment-search" data-news-id="<?= $n['id'] ?>" placeholder="Rechercher un commentaire...">
                   <div id="adminCommentsList<?= $n['id'] ?>" class="admin-comments-list">
                     <p class="text-muted text-center py-4">Cliquez sur l'onglet pour charger les commentaires...</p>
                   </div>
@@ -190,12 +450,14 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
           </div>
         </div>
       </div>
+      <?php endif; ?>
     <?php endforeach; ?>
   </div>
+  <?php endif; ?>
 
   <!-- Modal Ajouter -->
   <div class="modal fade" id="modalAddNews" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
       <div class="modal-content p-4">
         <form method="post" enctype="multipart/form-data">
           <div class="modal-header">
@@ -203,14 +465,23 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body row g-3">
-            <div class="col-md-6">
+            <div class="<?= $migrationDone ? 'col-md-5' : 'col-md-6' ?>">
               <label>Titre</label>
               <input type="text" name="title_article" class="form-control" required>
             </div>
-            <div class="col-md-6">
+            <div class="<?= $migrationDone ? 'col-md-4' : 'col-md-6' ?>">
               <label>Image</label>
               <input type="file" name="img_article" class="form-control">
             </div>
+            <?php if ($migrationDone): ?>
+            <div class="col-md-3">
+              <label>Statut</label>
+              <select name="status" class="form-select">
+                <option value="draft" selected>Brouillon</option>
+                <option value="published">Publié</option>
+              </select>
+            </div>
+            <?php endif; ?>
             <div class="col-md-12">
                 <label>Description</label>
                 <textarea class="form-control tinymce-editor" name="desc_article" rows="6"></textarea>
@@ -273,7 +544,6 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
             text-align: center; padding: 24px 0; color: #adb5bd;
         }
     </style>
-    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
         tinymce.init({
@@ -284,7 +554,7 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
             menubar: false,
             branding: false,
             content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
-            
+
             // Configuration des couleurs
             color_map: [
                 "000000", "Noir",
@@ -327,22 +597,36 @@ $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fe
                 "99CCFF", "Bleu clair",
                 "CC99FF", "Prune"
             ],
-            
+
             // Permettre tous les éléments HTML
             extended_valid_elements: '*[*]',
-            
+
             // Configuration du mode code
             toolbar_mode: 'sliding'
         });
     </script>
 <!-- ############################ Description ############################ -->
 
-<?php include 'footer-modern.php'; ?>
+<?php include 'admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../js/fer-modern.js"></script>
 <script>
+// ─── Client-side search filter ───
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('newsSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            var query = this.value.toLowerCase().trim();
+            var cards = document.querySelectorAll('.news-card-col');
+            cards.forEach(function(col) {
+                var title = col.getAttribute('data-title') || '';
+                col.style.display = title.indexOf(query) !== -1 ? '' : 'none';
+            });
+        });
+    }
+});
+
 // ─── Admin Comments Management ───
 function loadAdminComments(newsId) {
     var container = document.getElementById('adminCommentsList' + newsId);
@@ -458,6 +742,18 @@ function escHtml(str) {
     div.appendChild(document.createTextNode(str || ''));
     return div.innerHTML;
 }
+
+// Comment search filter
+document.addEventListener('input', function(e) {
+    if (!e.target.classList.contains('comment-search')) return;
+    var newsId = e.target.dataset.newsId;
+    var query = e.target.value.toLowerCase();
+    var comments = document.querySelectorAll('#adminCommentsList' + newsId + ' .admin-comment');
+    comments.forEach(function(c) {
+        var text = c.textContent.toLowerCase();
+        c.style.display = text.indexOf(query) !== -1 ? '' : 'none';
+    });
+});
 </script>
 </body>
 </html>

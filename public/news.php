@@ -1,5 +1,7 @@
 <?php
 require '../config/config.php';
+require_once '../config/tracker.php';
+trackPageVisit();
 require '../inc/navbar-data.php';
 
 // Récupération des paramètres du site

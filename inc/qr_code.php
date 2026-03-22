@@ -36,7 +36,6 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 
 <!-- CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 
@@ -45,25 +44,17 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 .qr-preview{max-width:200px;max-height:200px;border:2px solid #dee2e6;border-radius:6px;padding:10px;margin:10px 0}
 .qr-actions .btn{margin:2px}
 .token-display{font-family:monospace;font-size:0.85rem;background:#f8f9fa;padding:5px 10px;border-radius:4px;word-break:break-all}
-  .first-750 td{background:#ffe5ff!important;font-weight:600}
-  .hero{display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--rose-500);color:#fff;position:relative}
-  .hero h1{margin:0;font-size:2.2rem}
-  .top-actions{position:absolute;top:1rem;right:1rem;display:flex;gap:.5rem}
-  @media (max-width:991.98px){.top-actions{display:none}}
-  .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
-  tr.filters th[class*="sorting"]::before,
-  tr.filters th[class*="sorting"]::after{display:none!important}
-  .statCard{min-width:180px}
-  .hide-stats #stats {display: none !important;}
+#qrTable { width: 100% !important; }
+#qrTable td, #qrTable th { white-space: nowrap; }
+#qrTable td:nth-child(4) { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+#qrTable td:nth-child(5) { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.qr-actions { display: flex; gap: 2px; flex-wrap: nowrap; }
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 
 <?php include 'navbar-admin.php'; ?>
-
-<main class="container-fluid flex-grow-1">
   <div class="bg-white p-4 card-dashboard">
     
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
@@ -75,8 +66,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
       </div>
     </div>
 
-    <div class="table-responsive">
-      <table id="qrTable" class="table table-striped">
+      <table id="qrTable" class="table table-striped" style="width:100%">
         <thead>
           <tr>
             <th>ID</th>
@@ -85,17 +75,13 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
             <th>URL</th>
             <th>Description</th>
             <th>Statut</th>
-            <th>Créé le</th>
+            <th>Cree le</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
-    </div>
   </div>
-</main>
-
-<?php require 'footer-modern.php'; ?>
 
 <!-- Modal Création QR Code -->
 <div class="modal fade" id="createQrModal" tabindex="-1">
@@ -174,6 +160,8 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
   </div>
 </div>
 
+<?php require 'admin-footer.php'; ?>
+
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -196,7 +184,7 @@ $(document).ready(function() {
             }
         },
         columns: [
-            { data: 'id', width: '60px' },
+            { data: 'id' },
             { data: 'organisation' },
             { 
                 data: 'token',
@@ -411,6 +399,5 @@ function generateToken() {
 }
 </script>
 
-<script src="../js/fer-modern.js"></script>
 </body>
 </html>

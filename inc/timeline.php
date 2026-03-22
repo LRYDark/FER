@@ -13,6 +13,19 @@ if (!is_dir($timelineDir)) {
     @mkdir($timelineDir, 0755, true);
 }
 
+// ─── Reorder via AJAX ───
+if (isset($_POST['reorder_items'])) {
+    $ids = json_decode($_POST['ids'], true);
+    if (is_array($ids)) {
+        $stmt = $pdo->prepare("UPDATE timeline_items SET sort_order = ? WHERE id = ?");
+        foreach ($ids as $i => $id) {
+            $stmt->execute([$i + 1, (int)$id]);
+        }
+    }
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
+
 // ─── CRUD Handlers ───
 
 // Add item
@@ -153,9 +166,9 @@ foreach ($items as $item) {
 <title>Timeline – Forbach en Rose</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="../css/fer-modern.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .tl-thumb{width:100%;height:160px;object-fit:cover;border-radius:.75rem .75rem 0 0}
@@ -165,8 +178,8 @@ foreach ($items as $item) {
   .tl-order{font-size:12px;color:#94a3b8;font-weight:600}
   .tl-card{border:1px solid rgba(0,0,0,.06);border-radius:.75rem;overflow:hidden;transition:box-shadow .2s}
   .tl-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
-  .move-btn{border:none;background:none;color:#94a3b8;padding:2px 6px;cursor:pointer;font-size:18px;line-height:1}
-  .move-btn:hover{color:#ec4899}
+  .sortable-ghost { opacity: 0.4; }
+  .drag-handle:hover { color: #c4577a; }
 
   /* Image position dragger — same ratio as card (480×180) */
   .img-positioner{position:relative;width:100%;max-width:480px;aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed #e2e8f0;cursor:grab;background:#f1f5f9;user-select:none}
@@ -179,11 +192,9 @@ foreach ($items as $item) {
 </style>
 </head>
 
-<body class="d-flex flex-column">
+<body>
 
 <?php include '../inc/navbar-admin.php'; ?>
-
-<main class="container-fluid flex-grow-1">
   <div class="row g-4">
     <div class="col-12">
       <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white">
@@ -210,13 +221,13 @@ foreach ($items as $item) {
         <?php if (empty($items)): ?>
           <p class="text-muted">Aucun item dans la timeline.</p>
         <?php else: ?>
-          <div class="row g-3">
+          <div class="row g-3" id="sortableTimeline">
             <?php foreach ($items as $idx => $item):
                 $elLabels = array_map(function($e){ return $e['label']; }, $elementsByItem[$item['id']] ?? []);
                 $elString = implode(', ', $elLabels);
                 $side = ($idx % 2 === 0) ? 'Gauche' : 'Droite';
             ?>
-            <div class="col-md-6 col-lg-4 col-xl-3">
+            <div class="col-md-6 col-lg-4 col-xl-3 sortable-item" data-id="<?= $item['id'] ?>">
               <div class="tl-card bg-white">
                 <?php if (!empty($item['image'])):
                     $pr = preg_split('/\s+/', trim($item['image_position'] ?? '50% 50% 1'));
@@ -234,21 +245,12 @@ foreach ($items as $item) {
                 <div class="p-3">
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <span class="tl-kicker"><?= htmlspecialchars($item['title']) ?></span>
-                    <div class="d-flex flex-column align-items-center">
-                      <form method="post" class="d-inline">
-                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                        <input type="hidden" name="direction" value="up">
-                        <button type="submit" name="move_item" class="move-btn" title="Monter"<?= $idx === 0 ? ' disabled' : '' ?>>
-                          <i class="bi bi-chevron-up"></i>
-                        </button>
-                      </form>
-                      <form method="post" class="d-inline">
-                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                        <input type="hidden" name="direction" value="down">
-                        <button type="submit" name="move_item" class="move-btn" title="Descendre"<?= $idx === count($items) - 1 ? ' disabled' : '' ?>>
-                          <i class="bi bi-chevron-down"></i>
-                        </button>
-                      </form>
+                    <div class="drag-handle" style="cursor:grab;color:#94a3b8;padding:4px 8px">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <circle cx="5" cy="3" r="1.5"/><circle cx="11" cy="3" r="1.5"/>
+                        <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
+                        <circle cx="5" cy="13" r="1.5"/><circle cx="11" cy="13" r="1.5"/>
+                      </svg>
                     </div>
                   </div>
 
@@ -336,7 +338,6 @@ foreach ($items as $item) {
       </div>
     </div>
   </div>
-</main>
 
 <!-- Add Modal -->
 <div class="modal fade" id="modalAddItem" tabindex="-1">
@@ -387,8 +388,7 @@ foreach ($items as $item) {
   </div>
 </div>
 
-<?php include 'footer-modern.php'; ?>
-<script src="../js/fer-modern.js"></script>
+<?php include '../inc/admin-footer.php'; ?>
 <script>
 // ===== Image Position Dragger (X+Y + Zoom) =====
 (function(){
@@ -602,6 +602,29 @@ foreach ($items as $item) {
   });
 
 })();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var el = document.getElementById('sortableTimeline');
+  if (el) {
+    Sortable.create(el, {
+      handle: '.drag-handle',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      onEnd: function() {
+        var ids = [];
+        el.querySelectorAll('.sortable-item').forEach(function(item) {
+          ids.push(parseInt(item.dataset.id));
+        });
+        fetch(window.location.pathname, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'reorder_items=1&ids=' + JSON.stringify(ids)
+        });
+      }
+    });
+  }
+});
 </script>
 </body>
 </html>

@@ -21,155 +21,100 @@ $footer  = $data['footer']  ?? '';
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reinitialiser le mot de passe – Forbach en Rose</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="css/fer-modern.css" rel="stylesheet">
-
   <style>
-    body {
-      min-height: 100vh;
-      background: linear-gradient(135deg, #fdf4f8 0%, #ffffff 100%);
-    }
-    .login-container {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem 1rem;
-    }
-    .login-card {
-      background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(236, 72, 153, 0.15);
-      max-width: 480px;
-      width: 100%;
-      overflow: hidden;
-    }
-    .login-header {
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-      padding: 2.5rem 2rem;
-      text-align: center;
-      color: white;
-    }
-    .login-header h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; }
-    .login-header p { margin: 0; opacity: 0.95; font-size: 0.9rem; }
-    .login-body { padding: 2rem; }
-    .form-label { font-weight: 600; color: #334155; font-size: 0.9rem; }
-    .form-control {
-      border: 2px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 0.75rem 1rem;
-      font-size: 0.95rem;
-    }
-    .form-control:focus {
-      border-color: #ec4899;
-      box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.1);
-    }
-    .btn-login {
-      background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
-      border: none; border-radius: 12px; padding: 0.875rem 1.5rem;
-      font-weight: 600; font-size: 1rem; color: white;
-      box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
-    }
-    .btn-login:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
-      background: linear-gradient(135deg, #db2777 0%, #be185d 100%);
-    }
-    .btn-login:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
-    .pw-checks { font-size: 0.85rem; }
-    .pw-check { padding: 2px 0; color: #94a3b8; transition: color 0.2s; }
-    .pw-check.valid { color: #22c55e; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100vh; overflow: hidden; background: #4a2038; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; color: #191C1D; }
+    .oc-topbar { height: 52px; margin: 6px 0; padding: 0 16px; display: flex; align-items: center; background: #4a2038; }
+    .oc-topbar h1 { color: #fff; font-size: 16px; font-weight: 700; }
+    .oc-body { background: #fff; border-radius: 12px; margin: 0 6px 6px 6px; height: calc(100vh - 70px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; overflow: auto; }
+    .oc-logo { text-align: center; margin-bottom: 24px; }
+    .oc-logo .logo-icon { width: 56px; height: 56px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: #c4577a; font-size: 24px; }
+    .oc-logo h2 { font-size: 22px; font-weight: 700; color: #191C1D; }
+    .oc-logo p { color: #5f4b52; font-size: 14px; margin-top: 4px; }
+    .oc-card { background: #fff; border: 1px solid #f0e8eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(74,32,56,.08); padding: 32px; width: 100%; max-width: 440px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #5f4b52; margin-bottom: 4px; }
+    .form-group input { width: 100%; height: 40px; padding: 8px 12px; border: 1px solid #d4c4cb; border-radius: 6px; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; color: #191C1D; background: #fff; outline: none; }
+    .form-group input:focus { border-color: #c4577a; box-shadow: 0 0 0 3px rgba(196,87,122,.12); }
+    .oc-btn { width: 100%; padding: 10px; background: #c4577a; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.15s; text-decoration: none; display: block; text-align: center; }
+    .oc-btn:hover { background: #a84565; color: #fff; }
+    .oc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pw-checks { margin-top: 8px; }
+    .pw-check { padding: 2px 0; color: #9e8a92; font-size: 13px; transition: color 0.2s; }
+    .pw-check.valid { color: #059669; }
     .pw-check .pw-icon { margin-right: 6px; }
-    .alert { border-radius: 12px; border: none; }
-    .login-footer {
-      text-align: center;
-      padding: 1.5rem;
-      color: #64748b;
-      font-size: 0.85rem;
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
-    }
-    .login-footer .footer-copy {
-      position: relative;
-      z-index: 1;
-    }
-    @media (max-width: 575.98px) {
-      .login-card { border-radius: 0; box-shadow: none; min-height: 100vh; }
-    }
+    .oc-alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; margin-bottom: 14px; display: none; }
+    .oc-alert-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .oc-alert-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .oc-alert.show { display: block; }
+    .oc-footer { text-align: center; margin-top: 16px; font-size: 12px; color: #9e8a92; }
   </style>
 </head>
 <body>
-  <div class="login-container">
-    <div class="login-card">
-
-      <div class="login-header">
-        <h1>Reinitialiser le mot de passe</h1>
-        <p>Definissez votre nouveau mot de passe</p>
-      </div>
-
-      <div class="login-body">
-        <?php if (!$tokenValid): ?>
-          <div class="alert alert-danger">
-            Ce lien de reinitialisation est invalide ou a expire (10 minutes).
-          </div>
-          <a href="login.php" class="btn btn-login w-100 mt-3 text-center text-white text-decoration-none">Retour a la connexion</a>
-        <?php else: ?>
-          <div id="err" class="alert alert-danger d-none"></div>
-          <div id="ok" class="alert alert-success d-none"></div>
-
-          <form id="fReset" novalidate>
-            <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
-
-            <div class="mb-3">
-              <label class="form-label">Nouveau mot de passe</label>
-              <input type="password" name="password" id="newPass" class="form-control" placeholder="Min. 14 car., majuscule, chiffre, special" required>
-              <div class="pw-checks mt-2">
-                <div class="pw-check" id="ck-length"><span class="pw-icon">&#9675;</span> 14 caracteres minimum</div>
-                <div class="pw-check" id="ck-upper"><span class="pw-icon">&#9675;</span> Une majuscule</div>
-                <div class="pw-check" id="ck-digit"><span class="pw-icon">&#9675;</span> Un chiffre</div>
-                <div class="pw-check" id="ck-special"><span class="pw-icon">&#9675;</span> Un caractere special</div>
-              </div>
-            </div>
-
-            <div class="mb-4">
-              <label class="form-label">Confirmer le mot de passe</label>
-              <input type="password" name="password_confirm" id="confirmPass" class="form-control" placeholder="Confirmez votre mot de passe" required>
-              <div class="pw-checks mt-2">
-                <div class="pw-check" id="ck-match"><span class="pw-icon">&#9675;</span> Les mots de passe correspondent</div>
-              </div>
-            </div>
-
-            <button type="submit" id="btnSubmit" class="btn btn-login w-100" disabled>
-              Reinitialiser le mot de passe
-            </button>
-          </form>
-        <?php endif; ?>
-      </div>
-
-      <div class="login-footer">
-        <span class="footer-copy"><?= htmlspecialchars($footer) ?></span>
-      </div>
+  <header class="oc-topbar"><h1>Forbach en Rose</h1></header>
+  <main class="oc-body">
+    <div class="oc-logo">
+      <div class="logo-icon">&#128274;</div>
+      <h2>Reinitialiser le mot de passe</h2>
+      <p>Definissez votre nouveau mot de passe</p>
     </div>
-  </div>
+    <div class="oc-card">
+      <?php if (!$tokenValid): ?>
+        <div class="oc-alert oc-alert-danger show">
+          Ce lien de reinitialisation est invalide ou a expire (10 minutes).
+        </div>
+        <a href="login.php" class="oc-btn">Retour a la connexion</a>
+      <?php else: ?>
+        <div id="err" class="oc-alert oc-alert-danger"></div>
+        <div id="ok" class="oc-alert oc-alert-success"></div>
+
+        <form id="fReset" novalidate>
+          <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
+
+          <div class="form-group">
+            <label>Nouveau mot de passe</label>
+            <input type="password" name="password" id="newPass" placeholder="Min. 14 car., majuscule, chiffre, special" required>
+            <div class="pw-checks">
+              <div class="pw-check" id="ck-length"><span class="pw-icon">&#9675;</span> 14 caracteres minimum</div>
+              <div class="pw-check" id="ck-upper"><span class="pw-icon">&#9675;</span> Une majuscule</div>
+              <div class="pw-check" id="ck-digit"><span class="pw-icon">&#9675;</span> Un chiffre</div>
+              <div class="pw-check" id="ck-special"><span class="pw-icon">&#9675;</span> Un caractere special</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Confirmer le mot de passe</label>
+            <input type="password" name="password_confirm" id="confirmPass" placeholder="Confirmez votre mot de passe" required>
+            <div class="pw-checks">
+              <div class="pw-check" id="ck-match"><span class="pw-icon">&#9675;</span> Les mots de passe correspondent</div>
+            </div>
+          </div>
+
+          <button type="submit" id="btnSubmit" class="oc-btn" disabled>
+            Reinitialiser le mot de passe
+          </button>
+        </form>
+      <?php endif; ?>
+    </div>
+    <div class="oc-footer"><?= htmlspecialchars($footer) ?></div>
+  </main>
 
   <?php if ($tokenValid): ?>
   <script>
-    const pass  = document.getElementById('newPass');
-    const conf  = document.getElementById('confirmPass');
-    const btn   = document.getElementById('btnSubmit');
+    var pass = document.getElementById('newPass');
+    var conf = document.getElementById('confirmPass');
+    var btn  = document.getElementById('btnSubmit');
 
     function check(id, ok) {
-      const el = document.getElementById(id);
+      var el = document.getElementById(id);
       el.classList.toggle('valid', ok);
       el.querySelector('.pw-icon').innerHTML = ok ? '&#10003;' : '&#9675;';
     }
 
     function validate() {
-      const v = pass.value;
-      const c = conf.value;
-      const ok = {
+      var v = pass.value;
+      var c = conf.value;
+      var ok = {
         length:  v.length >= 14,
         upper:   /[A-Z]/.test(v),
         digit:   /[0-9]/.test(v),
@@ -187,36 +132,36 @@ $footer  = $data['footer']  ?? '';
     pass.addEventListener('input', validate);
     conf.addEventListener('input', validate);
 
-    document.getElementById('fReset').addEventListener('submit', async (e) => {
+    document.getElementById('fReset').addEventListener('submit', function(e) {
       e.preventDefault();
-      const errEl = document.getElementById('err');
-      const okEl  = document.getElementById('ok');
-      errEl.classList.add('d-none');
-      okEl.classList.add('d-none');
+      var errEl = document.getElementById('err');
+      var okEl  = document.getElementById('ok');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
 
-      const token = document.querySelector('[name="token"]').value;
+      var token = document.querySelector('[name="token"]').value;
 
-      try {
-        const res = await fetch('config/api.php?route=reset-password-confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, password: pass.value })
-        });
-        const j = await res.json();
-
+      fetch('config/api.php?route=reset-password-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token, password: pass.value })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(j) {
         if (j.ok) {
           okEl.textContent = 'Mot de passe modifie avec succes ! Redirection...';
-          okEl.classList.remove('d-none');
+          okEl.classList.add('show');
           document.getElementById('fReset').style.display = 'none';
-          setTimeout(() => { location = 'login.php'; }, 2000);
+          setTimeout(function() { location = 'login.php'; }, 2000);
         } else {
           errEl.textContent = j.err || (j.errors || []).join(' ') || 'Erreur lors de la reinitialisation.';
-          errEl.classList.remove('d-none');
+          errEl.classList.add('show');
         }
-      } catch {
+      })
+      .catch(function() {
         errEl.textContent = 'Erreur de communication avec le serveur.';
-        errEl.classList.remove('d-none');
-      }
+        errEl.classList.add('show');
+      });
     });
   </script>
   <?php endif; ?>
