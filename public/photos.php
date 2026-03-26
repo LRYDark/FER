@@ -175,70 +175,49 @@ function resolveAlbumDateLabel(array $album): string
 
     .photos-hero {
       width: 100%;
-      margin: 174px auto 36px;
-      display: flex;
-      justify-content: flex-start;
-    }
-
-    .album-reg-bar {
-      width: min(100%, 530px);
-    }
-
-    .album-reg-card {
-      height: 56px;
-      min-height: 56px;
-      border-radius: 12px;
-      overflow: hidden;
-      background: rgba(15,23,42,.04);
+      max-width: 1200px;
+      margin: 174px auto 0;
+      padding: 0 24px;
       display: flex;
       align-items: center;
+      gap: 16px;
     }
 
-    .album-reg-bevel {
-      align-self: stretch;
-      flex: 0 0 148px;
-      background: var(--page-text);
-      clip-path: polygon(0 0, 100% 0, 78% 100%, 0 100%);
-      margin-right: -6px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      padding-left: 12px;
-    }
-
-    .album-reg-bevel .back-btn {
-      color: #ffffff;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      line-height: 1;
-      transition: opacity .2s ease;
-    }
-
-    .album-reg-bevel .back-btn:hover {
-      opacity: 0.7;
-    }
-
-    .album-reg-title {
+    .photos-hero-title {
       margin: 0;
       color: var(--page-text);
-      font-size: clamp(18px, 3.2vw, 20px);
-      font-weight: 900;
+      font-size: clamp(24px, 3.5vw, 32px);
+      font-weight: 800;
       letter-spacing: -0.03em;
-      line-height: 1.1;
-      flex: 1 1 auto;
-      text-align: right;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding: 0 22px 0 20px;
+      line-height: 1.2;
+    }
+
+
+    .photos-hero .back-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #fff;
+      text-decoration: none;
+      transition: all .25s ease;
+      flex-shrink: 0;
+    }
+
+    .photos-hero .back-btn:hover {
+      background: var(--pink);
     }
 
     .albums-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 18px;
-      margin: 40px auto;
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 24px;
     }
 
     .album-card {
@@ -347,26 +326,6 @@ function resolveAlbumDateLabel(array $album): string
         margin-top: 16px;
       }
 
-      .album-reg-bar {
-        width: min(100%, 300px);
-      }
-
-      .album-reg-card {
-        height: 56px;
-        min-height: 56px;
-      }
-
-      .album-reg-bevel {
-        flex-basis: 106px;
-        margin-right: -5px;
-      }
-
-      .album-reg-title {
-        font-size: clamp(16px, 4.6vw, 19px);
-        text-align: right;
-        padding: 0 16px 0 14px;
-      }
-
       .albums-grid {
         grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
         gap: 16px;
@@ -398,46 +357,131 @@ function resolveAlbumDateLabel(array $album): string
 
     }
 
-    /* Year buttons */
+    /* Year cards */
     .years-grid {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-start;
-      gap: 16px;
-      margin: 40px 0 0 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 30px auto 0;
+      padding: 0 24px;
     }
 
     .year-card {
+      position: relative;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 24px;
-      background: transparent;
-      border: 1px solid rgba(15,23,42,0.12);
-      border-radius: 99px;
-      color: var(--page-text);
-      font-size: 15px;
-      font-weight: 500;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 28px 24px;
+      min-height: 160px;
+      background: #0f172a;
+      border: none;
+      border-radius: 16px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
       text-decoration: none;
-      transition: all .25s ease;
-      min-width: 0;
+      transition: all .35s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(15,23,42,0.12);
+    }
+
+    .year-card::before {
+      content: attr(data-year);
+      position: absolute;
+      top: -10px;
+      right: -8px;
+      font-size: 120px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.12);
+      line-height: 1;
+      pointer-events: none;
+      letter-spacing: -6px;
+      z-index: 2;
+    }
+
+    .year-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      opacity: 0;
+      transition: opacity .35s ease;
+      border-radius: 16px;
     }
 
     .year-card:hover {
-      background: rgba(15,23,42,0.06);
-      border-color: rgba(15,23,42,0.3);
-      transform: translateY(-2px);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(15,23,42,0.2);
+    }
+
+    .year-card:hover::after {
+      opacity: 1;
+    }
+
+    .year-card-year {
+      position: relative;
+      z-index: 1;
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 6px;
+    }
+
+    .year-card-title {
+      position: relative;
+      z-index: 1;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .year-card-arrow {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .35s ease;
+    }
+
+    .year-card:hover .year-card-arrow {
+      background: rgba(255,255,255,0.25);
+      transform: translateX(3px);
+    }
+
+    .year-card-arrow svg {
+      width: 16px;
+      height: 16px;
+      fill: #fff;
     }
 
     @media (max-width: 980px) {
       .years-grid {
-        gap: 12px;
-        margin-top: 30px;
+        grid-template-columns: 1fr;
+        gap: 14px;
       }
       .year-card {
-        padding: 14px 24px;
-        font-size: 18px;
-        min-width: 100px;
+        min-height: 130px;
+        padding: 22px 20px;
+      }
+      .year-card::before {
+        font-size: 90px;
+        top: -6px;
+        right: -4px;
       }
     }
   </style>
@@ -447,12 +491,12 @@ function resolveAlbumDateLabel(array $album): string
 
   <main>
     <section class="photos-hero" aria-label="Titre de la page">
-      <div class="album-reg-bar">
-        <div class="album-reg-card">
-          <div class="album-reg-bevel" aria-hidden="<?= $selectedYear ? 'false' : 'true' ?>"><?php if ($selectedYear): ?><a href="photos.php" title="Retour" class="back-btn"><svg viewBox="0 0 24 24" width="22" height="22" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg></a><?php endif; ?></div>
-          <h1 class="album-reg-title"><?= $selectedYear ? htmlspecialchars($selectedYear['title']) : 'Éditions :' ?></h1>
-        </div>
-      </div>
+      <?php if ($selectedYear): ?>
+        <a href="photos.php" title="Retour" class="back-btn">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+        </a>
+      <?php endif; ?>
+      <h1 class="photos-hero-title"><?= $selectedYear ? htmlspecialchars($selectedYear['title']) : 'Nos éditions' ?></h1>
     </section>
 
     <?php if ($isPreview): ?>
@@ -500,8 +544,9 @@ function resolveAlbumDateLabel(array $album): string
       <?php if (!empty($years)): ?>
         <div class="years-grid">
           <?php foreach ($years as $year): ?>
-            <a href="?year_id=<?= $year['id'] ?>" class="year-card">
-              <?= htmlspecialchars($year['title']) ?>
+            <a href="?year_id=<?= $year['id'] ?>" class="year-card" data-year="<?= htmlspecialchars($year['year']) ?>">
+              <span class="year-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="year-card-title"><?= htmlspecialchars($year['title']) ?></span>
             </a>
           <?php endforeach; ?>
         </div>
