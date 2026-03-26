@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', function() {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: '#4a2038',
+                    backgroundColor: '#0f172a',
                     titleFont: { size: 13 },
                     bodyFont: { size: 13 },
                     padding: 10,

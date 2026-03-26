@@ -50,6 +50,10 @@ $div_reglementation = $data['div_reglementation'] ?? '';
 // google
 $client_id = decrypt($data['client_id'] ?? '');
 $client_secret = decrypt($data['client_secret'] ?? '');
+$hasMailFields = false;
+try { $pdo->query("SELECT mail_email FROM setting LIMIT 0"); $hasMailFields = true; } catch (PDOException $e) {}
+$mail_email = $data['mail_email'] ?? '';
+$mail_phone = $data['mail_phone'] ?? '';
 
 // Traitement des messages de retour OAuth
 if (isset($_GET['auth'])) {
@@ -81,6 +85,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messageClass = $connectionStatus ? 'success' : 'error';
                 break;
                 
+            case 'send_test_mail':
+                $adminEmail = $_SESSION['email'] ?? '';
+                if ($adminEmail && isGoogleConnectionValid()) {
+                    $result = sendMail(
+                        $adminEmail,
+                        'Mail de test - Forbach en Rose',
+                        'Test réussi !',
+                        'Ce mail de test confirme que la configuration email fonctionne correctement. Vous pouvez envoyer des emails depuis votre application Forbach en Rose.',
+                        null,
+                        null,
+                        'info'
+                    );
+                    if ($result) {
+                        $message = "✅ Mail de test envoyé avec succès à " . htmlspecialchars($adminEmail);
+                        $messageClass = 'success';
+                    } else {
+                        $message = "❌ Échec de l'envoi du mail de test";
+                        $messageClass = 'error';
+                    }
+                } else {
+                    $message = "❌ Connexion Google non valide ou email admin introuvable";
+                    $messageClass = 'error';
+                }
+                break;
+
             case 'disconnect':
                 if (revokeGoogleConnection()) {
                     $message = "✅ Déconnexion Google effectuée";
@@ -637,19 +666,40 @@ if (isset($_POST['google'])) {
     $client_id = encrypt($_POST['client_id'] ?? '');
     $client_secret = encrypt($_POST['client_secret'] ?? '');
 
-    /* b) Requête préparée */
-    $upd = $pdo->prepare(
-        'UPDATE setting
-            SET client_id = :client_id,
-                client_secret = :client_secret
-            WHERE id = :id'
-    );
-
-    $ok = $upd->execute([
-        'client_id' => $client_id,
-        'client_secret' => $client_secret,
-        'id'     => 1
-    ]);
+    /* b) Sauvegarder mail_email et mail_phone si colonnes existent */
+    $newMailEmail = trim($_POST['mail_email'] ?? '');
+    $newMailPhone = trim($_POST['mail_phone'] ?? '');
+    if ($hasMailFields) {
+        $upd = $pdo->prepare(
+            'UPDATE setting
+                SET client_id = :client_id,
+                    client_secret = :client_secret,
+                    mail_email = :mail_email,
+                    mail_phone = :mail_phone
+                WHERE id = :id'
+        );
+        $ok = $upd->execute([
+            'client_id' => $client_id,
+            'client_secret' => $client_secret,
+            'mail_email' => $newMailEmail ?: null,
+            'mail_phone' => $newMailPhone ?: null,
+            'id' => 1
+        ]);
+        $mail_email = $newMailEmail;
+        $mail_phone = $newMailPhone;
+    } else {
+        $upd = $pdo->prepare(
+            'UPDATE setting
+                SET client_id = :client_id,
+                    client_secret = :client_secret
+                WHERE id = :id'
+        );
+        $ok = $upd->execute([
+            'client_id' => $client_id,
+            'client_secret' => $client_secret,
+            'id' => 1
+        ]);
+    }
 
     /* c) Gestion du résultat */
     if ($ok) {
@@ -810,7 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #c4577a; background: transparent;
+    border-bottom-color: #ec4899; background: transparent;
   }
   .settings-section { display: none; }
   .settings-section.active { display: block; }
@@ -1430,6 +1480,18 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                     <div class="col-md-6"><label class="form-label">Client secret</label>
                         <input type="text" class="form-control" name="client_secret" value="<?= htmlspecialchars($client_secret, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
+                    <?php if ($hasMailFields): ?>
+                    <div class="col-12" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--oc-border,#e2e8f0)">
+                        <h3 style="margin-bottom:12px">Contact dans les emails</h3>
+                        <p style="font-size:13px;color:#64748b;margin-bottom:12px">Ces informations apparaissent dans le pied de page des emails envoyés. Laissez vide pour ne pas les afficher.</p>
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Email de contact</label>
+                        <input type="email" class="form-control" name="mail_email" value="<?= htmlspecialchars($mail_email) ?>" placeholder="contact@forbachenrose.fr">
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Téléphone</label>
+                        <input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>" placeholder="03 XX XX XX XX">
+                    </div>
+                    <?php endif; ?>
                     <div class="col-12 text-end">
                         <button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
@@ -1459,6 +1521,15 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                             <input type="hidden" name="action" value="test_connection">
                             <button type="submit" class="btn btn-success">
                                 Tester la connexion
+                            </button>
+                        </form>
+
+                        <form method="post" style="display: inline;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="send_test_mail">
+                            <button type="submit" class="btn btn-primary">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                Envoyer un mail test
                             </button>
                         </form>
 

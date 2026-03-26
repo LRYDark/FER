@@ -234,6 +234,8 @@ function getCreateTableStatements(): array
           `debogage` int(2) NOT NULL DEFAULT 0,
           `client_id` TEXT DEFAULT NULL,
           `client_secret` TEXT DEFAULT NULL,
+          `mail_email` VARCHAR(255) DEFAULT NULL,
+          `mail_phone` VARCHAR(50) DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -564,7 +566,7 @@ $stepLabels = [
 
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: #4a2038;
+      background: #0f172a;
       overflow: hidden;
       height: 100vh;
     }
@@ -572,7 +574,7 @@ $stepLabels = [
     /* ── Topbar ── */
     .oc-topbar {
       height: 52px;
-      background: #4a2038;
+      background: #0f172a;
       margin: 6px 0;
       display: flex;
       align-items: center;
@@ -625,7 +627,7 @@ $stepLabels = [
     .oc-icon-circle svg {
       width: 28px;
       height: 28px;
-      color: #c4577a;
+      color: #ec4899;
     }
 
     .oc-title {
@@ -674,12 +676,12 @@ $stepLabels = [
     }
 
     .oc-step-dot.active {
-      background: #c4577a;
+      background: #ec4899;
       color: #fff;
     }
 
     .oc-step-dot.done {
-      background: #c4577a;
+      background: #ec4899;
       color: #fff;
     }
 
@@ -691,7 +693,7 @@ $stepLabels = [
     }
 
     .oc-step-line.done {
-      background: #c4577a;
+      background: #ec4899;
     }
 
     .oc-step-labels {
@@ -709,7 +711,7 @@ $stepLabels = [
     }
 
     .oc-step-label.active {
-      color: #c4577a;
+      color: #ec4899;
       font-weight: 600;
     }
 
@@ -745,7 +747,7 @@ $stepLabels = [
     }
 
     .oc-input:focus {
-      border-color: #c4577a;
+      border-color: #ec4899;
       box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
@@ -762,7 +764,7 @@ $stepLabels = [
       justify-content: center;
       width: 100%;
       height: 36px;
-      background: #c4577a;
+      background: #ec4899;
       color: #fff;
       border: none;
       border-radius: 4px;

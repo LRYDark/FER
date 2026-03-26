@@ -25,21 +25,21 @@ $footer  = $data['footer']  ?? '';
   <title>Réinitialiser le mot de passe</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100vh; overflow: hidden; background: #4a2038; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; color: #191C1D; }
-    .oc-topbar { height: 52px; margin: 6px 0; padding: 0 16px; display: flex; align-items: center; background: #4a2038; }
+    html, body { height: 100vh; overflow: hidden; background: #0f172a; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; color: #191C1D; }
+    .oc-topbar { height: 52px; margin: 6px 0; padding: 0 16px; display: flex; align-items: center; background: #0f172a; }
     .oc-topbar h1 { color: #fff; font-size: 16px; font-weight: 700; }
     .oc-body { background: #fff; border-radius: 12px; margin: 0 6px 6px 6px; height: calc(100vh - 70px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; overflow: auto; }
     .oc-logo { text-align: center; margin-bottom: 24px; }
-    .oc-logo .logo-icon { width: 56px; height: 56px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: #c4577a; font-size: 24px; }
+    .oc-logo .logo-icon { width: 56px; height: 56px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: #ec4899; font-size: 24px; }
     .oc-logo h2 { font-size: 22px; font-weight: 700; color: #191C1D; }
     .oc-logo p { color: #5f4b52; font-size: 14px; margin-top: 4px; }
     .oc-card { background: #fff; border: 1px solid #f0e8eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(74,32,56,.08); padding: 32px; width: 100%; max-width: 440px; }
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; color: #5f4b52; margin-bottom: 4px; }
     .form-group input { width: 100%; height: 40px; padding: 8px 12px; border: 1px solid #d4c4cb; border-radius: 6px; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; color: #191C1D; background: #fff; outline: none; }
-    .form-group input:focus { border-color: #c4577a; box-shadow: 0 0 0 3px rgba(196,87,122,.12); }
-    .oc-btn { width: 100%; padding: 10px; background: #c4577a; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.15s; text-decoration: none; display: block; text-align: center; }
-    .oc-btn:hover { background: #a84565; color: #fff; }
+    .form-group input:focus { border-color: #ec4899; box-shadow: 0 0 0 3px rgba(236,72,153,.12); }
+    .oc-btn { width: 100%; padding: 10px; background: #ec4899; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.15s; text-decoration: none; display: block; text-align: center; }
+    .oc-btn:hover { background: #db2777; color: #fff; }
     .oc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .pw-checks { margin-top: 8px; }
     .pw-check { padding: 2px 0; color: #9e8a92; font-size: 13px; transition: color 0.2s; }

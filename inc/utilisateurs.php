@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
@@ -10,6 +11,7 @@ require 'navbar-data.php';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Utilisateurs</title>
+<meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
@@ -27,7 +29,7 @@ require 'navbar-data.php';
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #c4577a; background: transparent;
+    border-bottom-color: #ec4899; background: transparent;
   }
   .tab-section { display: none; }
   .tab-section.active { display: block; }
@@ -364,6 +366,7 @@ require 'navbar-data.php';
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
 
 <script>
+const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 const userRole = '<?= $role ?>';
 let availableEmails = [];
 let selectedRecipients = [];
@@ -468,7 +471,7 @@ $('#fEditUser').on('submit', function (e) {
 
   fetch('../config/api.php?route=users', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams(fd)
   })
   .then(r => r.json())
@@ -489,7 +492,7 @@ document.getElementById('btnResetPwd').addEventListener('click', function () {
 
   fetch('../config/api.php?route=users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams({ action: 'reset-password', id: currentEditUser.id })
   })
   .then(r => r.json())
@@ -512,7 +515,7 @@ document.getElementById('btnToggleActive').addEventListener('click', function ()
 
   fetch('../config/api.php?route=users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams({ action: 'toggle-active', id: currentEditUser.id })
   })
   .then(r => r.json())
@@ -537,7 +540,7 @@ document.getElementById('btnDeleteUser').addEventListener('click', function () {
 
     fetch('../config/api.php?route=users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
       body: params
     })
     .then(r => r.json())
@@ -565,7 +568,7 @@ $('#fCreateUser').on('submit', function (e) {
 
   fetch('../config/api.php?route=users', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
     body: JSON.stringify(Object.fromEntries(fd))
   })
   .then(r => r.json())

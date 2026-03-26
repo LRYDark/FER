@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 require 'navbar-data.php';
 requireRole(['saisie']);           // seul ce rôle a accès
 $stmt = $pdo->prepare(
@@ -50,6 +51,7 @@ $required_company = $required_fields['required_company'] ?? 0;
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 </head>
 
 <body>
@@ -165,12 +167,14 @@ $required_company = $required_fields['required_company'] ?? 0;
   <!-- JS -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script>
+    var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
     /* Envoi du formulaire */
     $('#fAdd').on('submit', e => {
       e.preventDefault();
       fetch('../config/api.php?route=registrations', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': _csrfToken},
         body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
       })
       .then(r => r.json())

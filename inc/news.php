@@ -258,7 +258,7 @@ if ($migrationDone) {
 }
 .filter-tabs a.active {
   color: #1e293b;
-  border-bottom-color: #c4577a;
+  border-bottom-color: #ec4899;
   font-weight: 600;
 }
 .filter-tabs .badge {
@@ -280,8 +280,8 @@ if ($migrationDone) {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .news-search-bar .input-group:focus-within {
-  border-color: #c4577a;
-  box-shadow: 0 0 0 3px rgba(196,87,122,.1);
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236,72,153,.1);
 }
 .news-search-bar .input-group-text {
   border: none !important;

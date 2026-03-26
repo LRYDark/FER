@@ -50,28 +50,28 @@ if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
 <!-- ═══════ ADMIN LAYOUT CSS ═══════ -->
 <style>
 /* ══════════════════════════════════════════════════════════════
-   ROSE OPENCLOUD THEME – Light only
+   BLUE OPENCLOUD THEME – Light only
    ══════════════════════════════════════════════════════════════ */
 :root {
-  --rose-500: #ec4899;
-  --oc-frame:        #4a2038;
+  --rose-500: #3b82f6;
+  --oc-frame:        #0f172a;
   --oc-frame-text:   #ffffff;
   --oc-topbar-h:     52px;
   --oc-sidebar-w:    230px;
-  --oc-sidebar-bg:   #faf7f8;
-  --oc-sidebar-active-bg:  #fce4ec;
-  --oc-sidebar-active-text:#880e4f;
-  --oc-sidebar-hover-bg:   #f3eaed;
-  --oc-sidebar-text:       #5f4b52;
-  --oc-sidebar-text-dim:   #9e8a92;
-  --oc-sidebar-icon:       #9e8a92;
+  --oc-sidebar-bg:   #f8fafc;
+  --oc-sidebar-active-bg:  #fce7f3;
+  --oc-sidebar-active-text:#9d174d;
+  --oc-sidebar-hover-bg:   #eef2f7;
+  --oc-sidebar-text:       #475569;
+  --oc-sidebar-text-dim:   #94a3b8;
+  --oc-sidebar-icon:       #94a3b8;
   --oc-surface:      #ffffff;
   --oc-on-surface:   #191C1D;
-  --oc-on-surface-variant: #5f5360;
-  --oc-border:       #f0e8eb;
-  --oc-outline:      #8e7e85;
-  --oc-accent:       #c4577a;
-  --oc-accent-soft:  rgba(196,87,122,.08);
+  --oc-on-surface-variant: #475569;
+  --oc-border:       #e2e8f0;
+  --oc-outline:      #64748b;
+  --oc-accent:       #ec4899;
+  --oc-accent-soft:  rgba(236,72,153,.08);
   --oc-error:        #BA1A1A;
   --oc-error-container: #FFDAD6;
   --oc-radius:       12px;
@@ -134,18 +134,18 @@ html, body {
 .oc-user-wrapper { position: relative; }
 .oc-avatar-btn {
   width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3);
-  background: linear-gradient(135deg, #c4577a, #a0405f); color: #fff;
+  background: linear-gradient(135deg, #ec4899, #db2777); color: #fff;
   font-size: 14px; font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .oc-avatar-btn:hover {
   border-color: rgba(255,255,255,.6);
-  box-shadow: 0 0 0 3px rgba(196,87,122,.3);
+  box-shadow: 0 0 0 3px rgba(236,72,153,.3);
 }
 .oc-avatar-lg {
   width: 40px; height: 40px; border-radius: 50%;
-  background: linear-gradient(135deg, #c4577a, #a0405f); color: #fff;
+  background: linear-gradient(135deg, #ec4899, #db2777); color: #fff;
   font-size: 16px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -311,15 +311,15 @@ html, body {
   box-shadow: none; transition: all 0.15s;
   text-decoration: none; line-height: 1.4;
 }
-#oc-content .btn:focus { box-shadow: 0 0 0 3px rgba(196,87,122,.2); }
+#oc-content .btn:focus { box-shadow: 0 0 0 3px rgba(236,72,153,.2); }
 
-/* Primary = rose filled */
+/* Primary = blue filled */
 #oc-content .btn-primary,
 #oc-content .btn-rose {
-  background: #c4577a; color: #fff; border: none;
+  background: #ec4899; color: #fff; border: none;
 }
 #oc-content .btn-primary:hover,
-#oc-content .btn-rose:hover { background: #a84565; color: #fff; }
+#oc-content .btn-rose:hover { background: #db2777; color: #fff; }
 
 /* Success = soft green */
 #oc-content .btn-success {
@@ -347,20 +347,20 @@ html, body {
 
 /* Secondary = neutral outline */
 #oc-content .btn-secondary {
-  background: transparent; color: #5f4b52; border: 1px solid #d4c4cb;
+  background: transparent; color: #475569; border: 1px solid #cbd5e1;
 }
-#oc-content .btn-secondary:hover { background: #faf7f8; color: #4a2038; }
+#oc-content .btn-secondary:hover { background: #f8fafc; color: #0f172a; }
 
 /* Outline variants */
 #oc-content .btn-outline-primary {
-  background: transparent; color: #c4577a; border: 1px solid #c4577a;
+  background: transparent; color: #ec4899; border: 1px solid #ec4899;
 }
-#oc-content .btn-outline-primary:hover { background: rgba(196,87,122,.08); }
+#oc-content .btn-outline-primary:hover { background: rgba(236,72,153,.08); }
 
 #oc-content .btn-outline-secondary {
-  background: transparent; color: #5f4b52; border: 1px solid #d4c4cb;
+  background: transparent; color: #475569; border: 1px solid #cbd5e1;
 }
-#oc-content .btn-outline-secondary:hover { background: #faf7f8; }
+#oc-content .btn-outline-secondary:hover { background: #f8fafc; }
 
 #oc-content .btn-outline-danger {
   background: transparent; color: #991b1b; border: 1px solid #fecaca;
@@ -387,9 +387,9 @@ html, body {
 
 /* Light button */
 #oc-content .btn-light {
-  background: #faf7f8; color: #5f4b52; border: 1px solid #f0e8eb;
+  background: #f8fafc; color: #475569; border: 1px solid #e2e8f0;
 }
-#oc-content .btn-light:hover { background: #f3eaed; }
+#oc-content .btn-light:hover { background: #eef2f7; }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Alerts
@@ -419,12 +419,12 @@ html, body {
    ══════════════════════════════════════════════════════════════ */
 #oc-content .card,
 #oc-content .card-dashboard {
-  background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
   box-shadow: none; overflow: hidden;
 }
 #oc-content .card-header {
-  background: #faf7f8; border-bottom: 1px solid #f0e8eb;
-  font-weight: 600; color: #4a2038; padding: 12px 16px;
+  background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+  font-weight: 600; color: #0f172a; padding: 12px 16px;
 }
 #oc-content .card-body { padding: 20px; }
 
@@ -433,50 +433,50 @@ html, body {
    ══════════════════════════════════════════════════════════════ */
 #oc-content .form-control:not([type="color"]),
 #oc-content .form-select {
-  border: 1px solid #d4c4cb; border-radius: 6px;
+  border: 1px solid #cbd5e1; border-radius: 6px;
   font-size: 14px; font-family: var(--font-main);
   color: #1e293b; padding: 7px 12px; height: auto;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 #oc-content input[type="color"] {
-  width: 50px; height: 36px; padding: 2px; border: 1px solid #d4c4cb;
+  width: 50px; height: 36px; padding: 2px; border: 1px solid #cbd5e1;
   border-radius: 6px; cursor: pointer;
 }
 #oc-content .form-control:focus,
 #oc-content .form-select:focus {
-  border-color: #c4577a;
-  box-shadow: 0 0 0 3px rgba(196,87,122,.12);
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236,72,153,.12);
 }
 #oc-content .form-label {
-  font-size: 13px; font-weight: 600; color: #5f4b52;
+  font-size: 13px; font-weight: 600; color: #475569;
   margin-bottom: 4px;
 }
 #oc-content .form-check-input:checked {
-  background-color: #c4577a; border-color: #c4577a;
+  background-color: #ec4899; border-color: #ec4899;
 }
 #oc-content .form-check-input:focus {
-  box-shadow: 0 0 0 3px rgba(196,87,122,.15);
-  border-color: #c4577a;
+  box-shadow: 0 0 0 3px rgba(236,72,153,.15);
+  border-color: #ec4899;
 }
 
 /* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Modals
+   OPENCLOUD BLUE – Modals
    ══════════════════════════════════════════════════════════════ */
 #oc-content .modal-content,
 .modal-content {
-  border-radius: 12px; border: 1px solid #f0e8eb;
-  box-shadow: 0 20px 60px rgba(74,32,56,.15);
+  border-radius: 12px; border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 60px rgba(15,23,42,.15);
 }
 @media (min-width: 1200px) {
   .modal-dialog.modal-xl { max-width: 70vw; }
 }
 .modal-header {
-  background: #faf7f8; border-bottom: 1px solid #f0e8eb;
+  background: #f8fafc; border-bottom: 1px solid #e2e8f0;
   padding: 14px 20px;
 }
-.modal-header .modal-title { font-size: 16px; font-weight: 700; color: #4a2038; }
+.modal-header .modal-title { font-size: 16px; font-weight: 700; color: #0f172a; }
 .modal-body { padding: 20px; }
-.modal-footer { background: #faf7f8; border-top: 1px solid #f0e8eb; padding: 12px 20px; }
+.modal-footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 20px; }
 
 /* Buttons inside modals (modals are outside #oc-content in the DOM) */
 .modal .btn {
@@ -484,20 +484,20 @@ html, body {
   border-radius: 6px; padding: 7px 14px;
   display: inline-flex; align-items: center; gap: 6px;
 }
-.modal .btn-primary, .modal .btn-rose { background: #c4577a; color: #fff; border: none; }
-.modal .btn-primary:hover, .modal .btn-rose:hover { background: #a84565; color: #fff; }
+.modal .btn-primary, .modal .btn-rose { background: #ec4899; color: #fff; border: none; }
+.modal .btn-primary:hover, .modal .btn-rose:hover { background: #db2777; color: #fff; }
 .modal .btn-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .modal .btn-success:hover { background: #d1fae5; }
 .modal .btn-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .modal .btn-danger:hover { background: #fee2e2; }
-.modal .btn-secondary { background: transparent; color: #5f4b52; border: 1px solid #d4c4cb; }
-.modal .btn-secondary:hover { background: #faf7f8; }
+.modal .btn-secondary { background: transparent; color: #475569; border: 1px solid #cbd5e1; }
+.modal .btn-secondary:hover { background: #f8fafc; }
 .modal .btn-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 .modal .btn-info:hover { background: #dbeafe; }
 .modal .btn-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
 .modal .btn-warning:hover { background: #fef3c7; }
-.modal .btn-outline-primary { background: transparent; color: #c4577a; border: 1px solid #c4577a; }
-.modal .btn-outline-primary:hover { background: rgba(196,87,122,.08); }
+.modal .btn-outline-primary { background: transparent; color: #ec4899; border: 1px solid #ec4899; }
+.modal .btn-outline-primary:hover { background: rgba(236,72,153,.08); }
 .modal .btn-outline-secondary { background: transparent; color: #64748b; border: 1px solid #94a3b8; }
 .modal .btn-outline-secondary:hover { background: #e2e8f0; color: #475569; }
 .modal .btn-outline-danger { background: transparent; color: #991b1b; border: 1px solid #fecaca; }
@@ -512,28 +512,28 @@ html, body {
 
 /* Form controls inside modals */
 .modal .form-control, .modal .form-select {
-  border: 1px solid #d4c4cb; border-radius: 6px; font-size: 14px; color: #1e293b;
+  border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #1e293b;
 }
 .modal .form-control:focus, .modal .form-select:focus {
-  border-color: #c4577a; box-shadow: 0 0 0 3px rgba(196,87,122,.12);
+  border-color: #ec4899; box-shadow: 0 0 0 3px rgba(236,72,153,.12);
 }
-.modal .form-label { font-size: 13px; font-weight: 600; color: #5f4b52; }
-.modal .form-check-input:checked { background-color: #c4577a; border-color: #c4577a; }
+.modal .form-label { font-size: 13px; font-weight: 600; color: #475569; }
+.modal .form-check-input:checked { background-color: #ec4899; border-color: #ec4899; }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Tables
    ══════════════════════════════════════════════════════════════ */
 #oc-content .table { font-size: 14px; }
 #oc-content .table > thead > tr > th {
-  background: #faf7f8; color: #5f4b52; font-weight: 600;
+  background: #f8fafc; color: #475569; font-weight: 600;
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
-  border-bottom: 2px solid #f0e8eb; padding: 10px 12px;
+  border-bottom: 2px solid #e2e8f0; padding: 10px 12px;
 }
 #oc-content .table > tbody > tr > td {
-  padding: 10px 12px; border-bottom: 1px solid #f0e8eb; color: #1e293b;
+  padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #1e293b;
   vertical-align: middle;
 }
-#oc-content .table > tbody > tr:hover > td { background: #fdf8f9; }
+#oc-content .table > tbody > tr:hover > td { background: #f8fafc; }
 
 /* Table responsive — no horizontal scrollbar unless truly needed */
 #oc-content .table-responsive { overflow-x: auto; }
@@ -545,9 +545,9 @@ html, body {
 /* Select "Afficher X entrées" */
 #oc-content .dataTables_wrapper .dataTables_length select,
 #oc-content .dataTables_wrapper select {
-  border: 1px solid #d4c4cb; border-radius: 6px;
+  border: 1px solid #cbd5e1; border-radius: 6px;
   padding: 4px 28px 4px 8px; font-size: 13px; color: #1e293b;
-  background: #fff url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%235f4b52' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") no-repeat right 8px center/12px;
+  background: #fff url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") no-repeat right 8px center/12px;
   -webkit-appearance: none; -moz-appearance: none; appearance: none;
   cursor: pointer;
 }
@@ -561,11 +561,11 @@ html, body {
 }
 /* Search input */
 #oc-content .dataTables_wrapper .dataTables_filter input {
-  border: 1px solid #d4c4cb; border-radius: 6px;
+  border: 1px solid #cbd5e1; border-radius: 6px;
   padding: 5px 10px; font-size: 13px; color: #1e293b;
 }
 #oc-content .dataTables_wrapper .dataTables_filter input:focus {
-  border-color: #c4577a; box-shadow: 0 0 0 3px rgba(196,87,122,.12); outline: none;
+  border-color: #ec4899; box-shadow: 0 0 0 3px rgba(236,72,153,.12); outline: none;
 }
 /* Pagination — Bootstrap style, rose instead of blue */
 #oc-content .dataTables_wrapper .dataTables_paginate .paginate_button,
@@ -586,8 +586,8 @@ html, body {
 .modal .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
 #oc-content .page-item.active .page-link,
 .modal .page-item.active .page-link {
-  background-color: #c4577a !important; color: #fff !important;
-  border-color: #c4577a !important;
+  background-color: #ec4899 !important; color: #fff !important;
+  border-color: #ec4899 !important;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -597,7 +597,7 @@ html, body {
   font-size: 11px; font-weight: 600; padding: 3px 8px;
   border-radius: 4px; letter-spacing: 0.02em;
 }
-#oc-content .badge.bg-primary { background: #fce4ec !important; color: #880e4f !important; }
+#oc-content .badge.bg-primary { background: #fce7f3 !important; color: #9d174d !important; }
 #oc-content .badge.bg-success { background: #ecfdf5 !important; color: #065f46 !important; }
 #oc-content .badge.bg-danger { background: #fef2f2 !important; color: #991b1b !important; }
 #oc-content .badge.bg-warning { background: #fffbeb !important; color: #92400e !important; }
@@ -608,7 +608,7 @@ html, body {
    OPENCLOUD ROSE – Nav tabs
    ══════════════════════════════════════════════════════════════ */
 #oc-content .nav-tabs {
-  border-bottom: 2px solid #f0e8eb;
+  border-bottom: 2px solid #e2e8f0;
 }
 #oc-content .nav-tabs .nav-link,
 #oc-content .nav .nav-link,
@@ -626,7 +626,7 @@ html, body {
 #oc-content .settings-tabs .nav-link:hover,
 #oc-content .settings-tabs a:hover,
 #oc-content .filter-tabs .nav-link:hover,
-#oc-content .filter-tabs a:hover { color: #1e293b !important; border-bottom-color: #d4c4cb; }
+#oc-content .filter-tabs a:hover { color: #1e293b !important; border-bottom-color: #cbd5e1; }
 #oc-content .nav-tabs .nav-link.active,
 #oc-content .nav .nav-link.active,
 #oc-content .settings-tabs .nav-link.active,
@@ -634,34 +634,34 @@ html, body {
 #oc-content .filter-tabs .nav-link.active,
 #oc-content .filter-tabs a.active {
   color: #1e293b !important; font-weight: 600;
-  border-bottom-color: #c4577a; background: transparent;
+  border-bottom-color: #ec4899; background: transparent;
 }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – List groups
    ══════════════════════════════════════════════════════════════ */
 #oc-content .list-group-item {
-  border-color: #f0e8eb; font-size: 14px; padding: 12px 16px;
+  border-color: #e2e8f0; font-size: 14px; padding: 12px 16px;
 }
-#oc-content .list-group-item:hover { background: #fdf8f9; }
+#oc-content .list-group-item:hover { background: #f8fafc; }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Headings inside content
    ══════════════════════════════════════════════════════════════ */
 #oc-content h1 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 20px; }
 #oc-content h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
-#oc-content h3 { font-size: 16px; font-weight: 700; color: #4a2038; }
-#oc-content h5 { font-size: 15px; font-weight: 700; color: #4a2038; }
-#oc-content a { color: #c4577a; }
-#oc-content a:hover { color: #a84565; }
+#oc-content h3 { font-size: 16px; font-weight: 700; color: #0f172a; }
+#oc-content h5 { font-size: 15px; font-weight: 700; color: #0f172a; }
+#oc-content a { color: #ec4899; }
+#oc-content a:hover { color: #db2777; }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Scrollbar (content area)
    ══════════════════════════════════════════════════════════════ */
 #oc-content::-webkit-scrollbar { width: 8px; }
 #oc-content::-webkit-scrollbar-track { background: transparent; }
-#oc-content::-webkit-scrollbar-thumb { background: #d4c4cb; border-radius: 4px; }
-#oc-content::-webkit-scrollbar-thumb:hover { background: #9e8a92; }
+#oc-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+#oc-content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>
 
 <!-- ═══════ TOPBAR ═══════ -->
@@ -671,7 +671,7 @@ html, body {
       <span></span><span></span><span></span>
     </button>
     <a href="dashboard.php" style="display:flex;align-items:center">
-      <img src="../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
+      <img src="../files/_logos/logo_blanc.png" alt="Forbach en Rose">
     </a>
     <a href="dashboard.php" id="oc-topbar-appname">Administration</a>
   </div>

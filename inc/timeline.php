@@ -210,7 +210,7 @@ foreach ($items as $item) {
   .tl-card{border:1px solid rgba(0,0,0,.06);border-radius:.75rem;overflow:hidden;transition:box-shadow .2s}
   .tl-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
   .sortable-ghost { opacity: 0.4; }
-  .drag-handle:hover { color: #c4577a; }
+  .drag-handle:hover { color: #ec4899; }
 
   /* Image position dragger — same ratio as card (480×180) */
   .img-positioner{position:relative;width:100%;max-width:480px;aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed #e2e8f0;cursor:grab;background:#f1f5f9;user-select:none}

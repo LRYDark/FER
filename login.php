@@ -31,7 +31,7 @@ $picture= $data['picture'] ?? '';
 
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: #4a2038;
+      background: #0f172a;
       overflow: hidden;
       height: 100vh;
     }
@@ -39,7 +39,7 @@ $picture= $data['picture'] ?? '';
     /* ── Topbar ── */
     .oc-topbar {
       height: 52px;
-      background: #4a2038;
+      background: #0f172a;
       margin: 6px 0;
       display: flex;
       align-items: center;
@@ -92,7 +92,7 @@ $picture= $data['picture'] ?? '';
     .oc-icon-circle svg {
       width: 28px;
       height: 28px;
-      color: #c4577a;
+      color: #ec4899;
     }
 
     .oc-title {
@@ -152,7 +152,7 @@ $picture= $data['picture'] ?? '';
     }
 
     .oc-input:focus {
-      border-color: #c4577a;
+      border-color: #ec4899;
       box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
@@ -160,7 +160,7 @@ $picture= $data['picture'] ?? '';
     .oc-btn {
       width: 100%;
       height: 36px;
-      background: #c4577a;
+      background: #ec4899;
       color: #fff;
       border: none;
       border-radius: 4px;
@@ -217,7 +217,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 16px;
-      color: #c4577a;
+      color: #ec4899;
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -279,7 +279,7 @@ $picture= $data['picture'] ?? '';
     .oc-checkbox-group input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #c4577a;
+      accent-color: #ec4899;
       cursor: pointer;
     }
 
@@ -294,7 +294,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 12px;
-      color: #c4577a;
+      color: #ec4899;
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -317,7 +317,7 @@ $picture= $data['picture'] ?? '';
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      color: #c4577a;
+      color: #ec4899;
       text-decoration: none;
       font-size: 13px;
       margin-bottom: 20px;
