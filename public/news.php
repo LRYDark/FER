@@ -203,39 +203,35 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       .news-hero { margin-top: 16px; }
     }
 
-    .news-reg-bar { width: min(100%, 530px); flex-shrink: 0; }
-    .news-reg-card {
-      height: 56px; min-height: 56px;
-      border-radius: 12px; overflow: hidden;
-      background: rgba(15,23,42,.04);
-      display: flex; align-items: center;
+    .news-title-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
     }
-    .news-reg-bevel {
-      align-self: stretch; flex: 0 0 148px;
-      background: var(--page-text);
-      clip-path: polygon(0 0,100% 0,78% 100%,0 100%);
-      margin-right: -6px;
-      display: flex; align-items: center; justify-content: flex-start;
-      padding-left: 12px;
+    .news-title-bar .back-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #fff;
+      text-decoration: none;
+      transition: all .25s ease;
+      flex-shrink: 0;
     }
-    .news-reg-bevel .back-btn {
-      color: #fff; text-decoration: none;
-      display: flex; align-items: center; line-height: 1;
-      transition: opacity .2s ease;
+    .news-title-bar .back-btn:hover {
+      background: var(--pink);
     }
-    .news-reg-bevel .back-btn:hover { opacity: .7; }
-    .news-reg-title {
-      margin: 0; color: var(--page-text);
-      font-size: clamp(18px,3.2vw,20px); font-weight: 900;
-      letter-spacing: -.03em; line-height: 1.1;
-      flex: 1 1 auto; text-align: right; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis;
-      padding: 0 22px 0 20px;
-    }
-    @media (max-width: 980px) {
-      .news-reg-bar { width: min(100%, 300px); }
-      .news-reg-bevel { flex-basis: 106px; margin-right: -5px; }
-      .news-reg-title { font-size: clamp(16px,4.6vw,19px); padding: 0 16px 0 14px; }
+    .news-title-bar-title {
+      margin: 0;
+      color: var(--page-text);
+      font-size: clamp(24px, 3.5vw, 32px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
     }
 
     /* ─── Search bar (aligned right on listing) ─── */
@@ -752,15 +748,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
   <!-- ─── Article: top bar ─── -->
   <section class="news-hero">
-    <div class="news-reg-bar">
-      <div class="news-reg-card">
-        <div class="news-reg-bevel">
-          <a href="news.php" title="Retour" class="back-btn">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
-          </a>
-        </div>
-        <h1 class="news-reg-title">Actualités</h1>
-      </div>
+    <div class="news-title-bar">
+      <a href="news.php" title="Retour" class="back-btn">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+      </a>
+      <h1 class="news-title-bar-title">Actualités</h1>
     </div>
 
     <div class="news-hero-votes">
@@ -850,11 +842,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
   <!-- ─── Listing: top bar with search ─── -->
   <section class="news-hero">
-    <div class="news-reg-bar">
-      <div class="news-reg-card">
-        <div class="news-reg-bevel"></div>
-        <h1 class="news-reg-title">Actualités</h1>
-      </div>
+    <div class="news-title-bar">
+      <h1 class="news-title-bar-title">Actualités</h1>
     </div>
 
     <div class="news-search-bar">

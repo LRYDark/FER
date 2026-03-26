@@ -86,444 +86,212 @@ if ($selectedYearId) {
   <title>Partenaires - Forbach en Rose</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
-    /* ===== Page partenaires : dark par défaut, light quand dark-theme actif ===== */
-
-    /* --- Dark mode (par défaut, quand le thème global est clair) --- */
-    body:not(.dark-theme) {
-      background: #16171d;
-      color: #ffffff;
+    .floating-nav {
+      border-bottom: 1px solid rgba(0,0,0,0.06);
     }
 
-    /* Navbar */
-    body:not(.dark-theme) .floating-nav {
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      background: #1e1f28;
-    }
-    body:not(.dark-theme) .floating-nav .nav-pill {
-      background: transparent !important;
-      border: none !important;
-    }
-    body:not(.dark-theme).nav-scrolled .floating-nav {
-      background: transparent !important;
-    }
-    body:not(.dark-theme).nav-scrolled .floating-nav .nav-pill {
-      background: #1e1f28 !important;
-      border: 1px solid rgba(255,255,255,0.08) !important;
-    }
-    body:not(.dark-theme) .floating-nav .nav-card {
-      background: rgba(255,255,255,0.05) !important;
-      border: 1px solid rgba(255,255,255,0.1) !important;
-    }
-    body:not(.dark-theme).nav-scrolled .floating-nav .nav-card {
-      background: transparent !important;
-      border: none !important;
-    }
-    body:not(.dark-theme) .floating-nav .brand-logo {
-      filter: brightness(0) invert(1);
-    }
-    body:not(.dark-theme) .floating-nav .link,
-    body:not(.dark-theme) .floating-nav .nav-icon,
-    body:not(.dark-theme) .floating-nav .item,
-    body:not(.dark-theme) .floating-nav .trigger,
-    body:not(.dark-theme) .floating-nav .menu .link {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .floating-nav .link:hover,
-    body:not(.dark-theme) .floating-nav .trigger:hover {
-      color: rgba(255,255,255,0.7) !important;
-    }
-    body:not(.dark-theme) .floating-nav .chev path {
-      stroke: rgba(255,255,255,0.85) !important;
-    }
-    body:not(.dark-theme) .floating-nav .burger-icon {
-      background: rgba(255,255,255,0.85) !important;
-    }
-    body:not(.dark-theme) .floating-nav .burger-icon::before,
-    body:not(.dark-theme) .floating-nav .burger-icon::after {
-      background: rgba(255,255,255,0.85) !important;
-    }
-    body:not(.dark-theme) .floating-nav .btn-inscription {
-      background: #19a1be !important;
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .floating-nav .btn-inscription:hover {
-      background: #1589a3 !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega {
-      background: #1e1f28 !important;
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-title {
-      color: rgba(255,255,255,0.5) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-link,
-    body:not(.dark-theme) .floating-nav .mega .link {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-link:hover,
-    body:not(.dark-theme) .floating-nav .mega .link:hover {
-      color: rgba(255,255,255,0.7) !important;
-      background: rgba(255,255,255,0.05) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mtitle {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mdesc {
-      color: rgba(255,255,255,0.6) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .micon {
-      color: rgba(255,255,255,0.7) !important;
-      background: rgba(255,255,255,0.08) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-link:hover .micon {
-      background: rgba(255,255,255,0.14) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega a,
-    body:not(.dark-theme) .floating-nav .mega span,
-    body:not(.dark-theme) .floating-nav .mega li,
-    body:not(.dark-theme) .floating-nav .mega p,
-    body:not(.dark-theme) .floating-nav .mega div {
-      color: #ffffff !important;
-    }
-    /* Mega-featured: toujours en style clair/rose */
-    body:not(.dark-theme) .floating-nav .mega .mega-featured {
-      background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-featured a,
-    body:not(.dark-theme) .floating-nav .mega .mega-featured span,
-    body:not(.dark-theme) .floating-nav .mega .mega-featured p,
-    body:not(.dark-theme) .floating-nav .mega .mega-featured div {
-      color: #0f172a !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-title {
-      color: #831843 !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-desc {
-      color: rgba(15,23,42,.7) !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-link {
-      color: #e91e63 !important;
-    }
-    body:not(.dark-theme) .floating-nav .mega .mega-featured .mega-featured-link:hover {
-      color: #c2185b !important;
-    }
-    body:not(.dark-theme) #megaOverlay {
-      background: rgba(22,23,29,0.75) !important;
-    }
-
-    /* Mobile dark */
-    body:not(.dark-theme) .mobile-header {
-      background: rgba(22,23,29,0.92) !important;
-    }
-    body:not(.dark-theme) .mobile-header .brand-logo {
-      filter: brightness(0) invert(1);
-    }
-    body:not(.dark-theme) .mobile-bottom-unified {
-      background: #1e1f28 !important;
-      box-shadow: 0 8px 18px rgba(0,0,0,.4) !important;
-    }
-    body:not(.dark-theme) .mobile-bottom-btn {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) #mobileMenuBtn {
-      background: rgba(255,255,255,.08) !important;
-    }
-    body:not(.dark-theme) .mobile-bottom-cta-inner {
-      color: #ffffff !important;
-      border-left-color: rgba(255,255,255,.1) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-title {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .mobile-menu-back {
-      background: rgba(255,255,255,.08) !important;
-      color: rgba(255,255,255,.6) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-close {
-      background: rgba(255,255,255,.08) !important;
-      color: rgba(255,255,255,.55) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-trigger {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .mobile-menu-trigger svg {
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .mobile-menu-icon {
-      color: #ffffff !important;
-      background: rgba(236,72,153,.15) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-sublink {
-      color: rgba(255,255,255,.7) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-see-all {
-      background: rgba(255,255,255,.06) !important;
-      color: #ffffff !important;
-    }
-    body:not(.dark-theme) .mobile-menu-footer {
-      border-top-color: rgba(255,255,255,.08) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-footer-btn {
-      background: rgba(255,255,255,.06) !important;
-      color: rgba(255,255,255,.55) !important;
-    }
-    body:not(.dark-theme) .mobile-menu-backdrop.open {
-      background: rgba(0,0,0,.5) !important;
-    }
-    body:not(.dark-theme) .site-footer {
-      background: #16171d !important;
-    }
-
-    /* --- Light mode (quand le thème global est sombre = inversé) --- */
-    body.dark-theme {
-      background: #ffffff !important;
-      color: #0f172a !important;
-    }
-    body.dark-theme .floating-nav {
-      background: #ffffff !important;
-      border-bottom: none !important;
-    }
-    body.dark-theme .floating-nav .nav-pill {
-      background: #ffffff !important;
-    }
-    body.dark-theme .floating-nav .brand-logo {
-      filter: none !important;
-    }
-    body.dark-theme .floating-nav .link,
-    body.dark-theme .floating-nav .nav-icon,
-    body.dark-theme .floating-nav .item,
-    body.dark-theme .floating-nav .trigger,
-    body.dark-theme .floating-nav .menu .link {
-      color: #0f172a !important;
-    }
-    body.dark-theme .floating-nav .link:hover,
-    body.dark-theme .floating-nav .trigger:hover {
-      color: rgba(15,23,42,0.7) !important;
-    }
-    body.dark-theme .floating-nav .chev path {
-      stroke: rgba(15,23,42,0.65) !important;
-    }
-    body.dark-theme .floating-nav .nav-card {
-      background: rgba(15,23,42,0.04) !important;
-      border: none !important;
-    }
-    body.dark-theme .floating-nav .mega {
-      background: #ffffff !important;
-      border: 1px solid rgba(15,23,42,0.1) !important;
-    }
-    body.dark-theme .floating-nav .mega .mega-title {
-      color: rgba(15,23,42,0.5) !important;
-    }
-    body.dark-theme .floating-nav .mega .mega-link,
-    body.dark-theme .floating-nav .mega .link {
-      color: #0f172a !important;
-    }
-    body.dark-theme .floating-nav .mega .mtitle {
-      color: #0f172a !important;
-    }
-    body.dark-theme .floating-nav .mega .mdesc {
-      color: rgba(15,23,42,0.55) !important;
-    }
-    body.dark-theme .floating-nav .mega .micon {
-      color: #0f172a !important;
-      background: rgba(236,72,153,0.08) !important;
-    }
-    body.dark-theme .floating-nav .mega a,
-    body.dark-theme .floating-nav .mega span,
-    body.dark-theme .floating-nav .mega li,
-    body.dark-theme .floating-nav .mega p,
-    body.dark-theme .floating-nav .mega div {
-      color: #0f172a !important;
-    }
-    body.dark-theme #megaOverlay {
-      background: rgba(255,255,255,0.4) !important;
-    }
-    body.dark-theme .mobile-header {
-      background: rgba(255,255,255,0.82) !important;
-    }
-    body.dark-theme .mobile-header .brand-logo {
-      filter: none !important;
-    }
-    body.dark-theme .mobile-bottom-unified {
-      background: #ffffff !important;
-      box-shadow: 0 8px 18px rgba(0,0,0,.18) !important;
-    }
-    body.dark-theme .mobile-bottom-btn {
-      color: #0f172a !important;
-    }
-    body.dark-theme #mobileMenuBtn {
-      background: rgba(15,23,42,.06) !important;
-    }
-    body.dark-theme .mobile-bottom-cta-inner {
-      color: #0f172a !important;
-      border-left-color: rgba(15,23,42,.08) !important;
-    }
-    body.dark-theme .mobile-menu-title {
-      color: #0f172a !important;
-    }
-    body.dark-theme .mobile-menu-trigger {
-      color: #0f172a !important;
-    }
-    body.dark-theme .mobile-menu-trigger svg {
-      color: #0f172a !important;
-    }
-    body.dark-theme .mobile-menu-icon {
-      color: #0f172a !important;
-      background: rgba(236,72,153,.08) !important;
-    }
-    body.dark-theme .mobile-menu-sublink {
-      color: rgba(15,23,42,.7) !important;
-    }
-    body.dark-theme .mobile-menu-see-all {
-      background: rgba(15,23,42,.04) !important;
-      color: #0f172a !important;
-    }
-    body.dark-theme .mobile-menu-footer-btn {
-      background: rgba(15,23,42,.04) !important;
-      color: rgba(15,23,42,.55) !important;
-    }
-
-    /* Footer toggle: always light-on-dark since footer is always #0f172a */
-    body.dark-theme .site-footer .theme-toggle {
-      border-color: rgba(255,255,255,.15);
-      background: rgba(255,255,255,.08);
-      color: #ffffff;
-    }
-    body.dark-theme .site-footer .theme-toggle:hover {
-      background: rgba(255,255,255,.18);
-      border-color: rgba(255,255,255,.3);
-    }
-
-    /* Hero section */
-    .partners-hero {
-      width: 100%;
-      max-width: 85%;
-      margin: 100px auto 60px;
-      padding: 0;
-    }
-
-    .partners-hero-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 60px;
-      align-items: center;
-      text-align: left;
-    }
-
-    .partners-hero-title {
-      margin: 0 0 24px;
-      font-size: clamp(28px, 3.6vw, 44px);
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-    }
-
-    .partners-hero-text {
+    /* Info card (partenaires presentation) */
+    .info-card {
+      position: relative;
       display: flex;
       flex-direction: column;
+      justify-content: flex-end;
+      padding: 28px 24px;
+      min-height: 160px;
+      background: linear-gradient(135deg, var(--pink) 0%, #f472b6 100%);
+      border: none;
+      border-radius: 16px;
+      color: #fff;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all .35s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(236,72,153,0.2);
     }
 
-    .partners-hero-img {
+    .info-card::before {
+      content: attr(data-label);
+      position: absolute;
+      top: -10px;
+      right: -8px;
+      font-size: 120px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.15);
+      line-height: 1;
+      pointer-events: none;
+      letter-spacing: -6px;
+      z-index: 2;
+    }
+
+    .info-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(236,72,153,0.3);
+    }
+
+    .info-card-title {
+      position: relative;
+      z-index: 1;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .info-card-arrow {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .35s ease;
+    }
+
+    .info-card:hover .info-card-arrow {
+      background: rgba(255,255,255,0.35);
+      transform: translateX(3px);
+    }
+
+    .info-card-arrow svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+    }
+
+    /* Info modal */
+    .info-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 99998;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .info-modal-overlay.active {
+      display: flex;
+    }
+
+    .info-modal {
+      background: #fff;
+      border-radius: 16px;
+      max-width: 1100px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      padding: 48px;
+      position: relative;
+    }
+
+    .info-modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(15,23,42,0.06);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #0f172a;
+      transition: background .2s;
+    }
+
+    .info-modal-close:hover {
+      background: rgba(15,23,42,0.12);
+    }
+
+    .info-modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .info-modal-img {
       width: 100%;
       height: auto;
-      border-radius: 16px;
-      object-fit: cover;
-      box-shadow: 0 20px 60px rgba(2,6,23,.12);
-    }
-
-    .partners-hero-desc {
-      font-size: 18px;
-      line-height: 1.6;
-      color: rgba(255,255,255,0.7);
-      flex: 1;
-      padding-right: 16px;
-    }
-
-    @media (max-width: 980px) {
-      .partners-hero {
-        max-width: 94%;
-      }
-      .partners-hero-row {
-        grid-template-columns: 1fr;
-        gap: 32px;
-      }
-      .partners-hero-img {
-        width: 90%;
-        margin: 0 auto;
-      }
-      .partners-hero-title {
-        text-align: center;
-      }
-    }
-
-    /* Reg bar */
-    .partners-reg-bar {
-      width: min(100%, 530px);
-      margin: 50px 0 0 16px;
-    }
-
-    .partners-reg-card {
-      height: 56px;
-      min-height: 56px;
       border-radius: 12px;
-      overflow: hidden;
-      background: #292d3f;
-      display: flex;
-      align-items: center;
+      object-fit: cover;
     }
 
-    .partners-reg-bevel {
-      align-self: stretch;
-      flex: 0 0 148px;
-      background: #0f172a;
-      clip-path: polygon(0 0, 100% 0, 78% 100%, 0 100%);
-      margin-right: -6px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      padding-left: 12px;
-    }
-
-    .partners-reg-bevel .back-btn {
-      color: #ffffff;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      line-height: 1;
-      transition: opacity .2s ease;
-    }
-
-    .partners-reg-bevel .back-btn:hover {
-      opacity: 0.7;
-    }
-
-    .partners-reg-title,
-    .partners-hero .partners-reg-title {
-      margin: 0;
-      color: #ffffff;
-      font-size: clamp(18px, 3.2vw, 20px) !important;
+    .info-modal-title {
+      margin: 0 0 20px;
+      font-size: clamp(24px, 3vw, 36px);
       font-weight: 900;
-      letter-spacing: -0.03em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding: 0 20px;
-      flex: 1;
-      text-align: right;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+
+    .info-modal-desc {
+      font-size: 17px;
+      line-height: 1.7;
+      color: rgba(15,23,42,0.65);
     }
 
     @media (max-width: 768px) {
-      .partners-reg-bar {
-        width: min(100%, 300px);
+      .info-modal {
+        padding: 28px 20px;
       }
-      .partners-reg-bevel {
-        flex-basis: 106px;
-        margin-right: -5px;
+      .info-modal-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
       }
-      .partners-reg-title {
-        font-size: clamp(16px, 4.6vw, 19px);
-        padding: 0 16px 0 14px;
+    }
+
+    /* Hero title bar */
+    .partners-title-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      max-width: 1200px;
+      margin: 170px auto 0;
+      padding: 0 24px;
+    }
+    @media (max-width: 980px) {
+      .partners-title-bar {
+        margin-top: 16px;
       }
+    }
+
+    .partners-title-bar .back-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #fff;
+      text-decoration: none;
+      transition: all .25s ease;
+      flex-shrink: 0;
+    }
+
+    .partners-title-bar .back-btn:hover {
+      background: var(--pink);
+    }
+
+    .partners-title-bar-title {
+      margin: 0;
+      color: var(--page-text);
+      font-size: clamp(24px, 3.5vw, 32px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
     }
 
     /* Grid des partenaires */
@@ -538,10 +306,12 @@ if ($selectedYearId) {
 
     /* Carte partenaire */
     .partner-card {
-      background: #1e1f28;
+      background: #ffffff;
+      border: 1px solid rgba(15,23,42,0.08);
+      box-shadow: 0 4px 16px rgba(0,0,0,.06);
       border-radius: 12px;
       overflow: hidden;
-      transition: transform .3s ease;
+      transition: transform .3s ease, box-shadow .3s ease;
       cursor: pointer;
       display: flex;
       flex-direction: column;
@@ -550,6 +320,7 @@ if ($selectedYearId) {
 
     .partner-card:hover {
       transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(0,0,0,.12);
     }
 
     .partner-card-image-wrapper {
@@ -584,60 +355,137 @@ if ($selectedYearId) {
       margin: 0 0 16px;
       font-size: 24px;
       font-weight: 600;
-      color: #ffffff;
+      color: #0f172a;
       line-height: 1.3;
     }
 
     .partner-card-desc {
       margin: 0;
       font-size: 16px;
-      color: rgba(255,255,255,0.65);
+      color: rgba(15,23,42,0.65);
       line-height: 1.6;
     }
 
-    /* Year cards grid */
+    /* Year cards */
     .years-grid {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-start;
-      gap: 16px;
-      max-width: 800px;
-      margin: 40px 0 0 16px;
-      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      margin: 30px 0 0 0;
     }
 
     .year-card {
+      position: relative;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 24px;
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 99px;
-      color: #ffffff;
-      font-size: 15px;
-      font-weight: 500;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 28px 24px;
+      min-height: 160px;
+      background: #0f172a;
+      border: none;
+      border-radius: 16px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
       text-decoration: none;
-      transition: all .25s ease;
-      min-width: 0;
+      transition: all .35s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+    }
+
+    .year-card::before {
+      content: attr(data-year);
+      position: absolute;
+      top: -10px;
+      right: -8px;
+      font-size: 120px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.12);
+      line-height: 1;
+      pointer-events: none;
+      letter-spacing: -6px;
+      z-index: 2;
+    }
+
+    .year-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      opacity: 0;
+      transition: opacity .35s ease;
+      border-radius: 16px;
     }
 
     .year-card:hover {
-      background: rgba(255,255,255,0.08);
-      border-color: rgba(255,255,255,0.3);
-      transform: translateY(-2px);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(15,23,42,0.2);
+    }
+
+    .year-card:hover::after {
+      opacity: 1;
+    }
+
+    .year-card-title {
+      position: relative;
+      z-index: 1;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    .year-card-arrow {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .35s ease;
+    }
+
+    .year-card:hover .year-card-arrow {
+      background: rgba(255,255,255,0.25);
+      transform: translateX(3px);
+    }
+
+    .year-card-arrow svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
     }
 
     @media (max-width: 980px) {
       .years-grid {
-        gap: 12px;
-        margin-top: 30px;
+        grid-template-columns: 1fr;
+        gap: 14px;
       }
-
       .year-card {
-        padding: 14px 24px;
-        font-size: 18px;
-        min-width: 100px;
+        min-height: 130px;
+        padding: 22px 20px;
+      }
+      .year-card::before {
+        font-size: 90px;
+        top: -6px;
+        right: -4px;
+      }
+      .info-card {
+        min-height: 130px;
+        padding: 22px 20px;
+      }
+      .info-card::before {
+        font-size: 90px;
+        top: -6px;
+        right: -4px;
       }
     }
 
@@ -645,7 +493,7 @@ if ($selectedYearId) {
     .empty-state {
       text-align: center;
       padding: 100px 24px;
-      color: rgba(255,255,255,0.5);
+      color: var(--page-muted);
     }
 
     .empty-state p {
@@ -691,14 +539,6 @@ if ($selectedYearId) {
     }
 
     @media (max-width: 980px) {
-      .partners-hero {
-        margin: 16px auto 60px;
-      }
-
-      .partners-hero-title {
-        font-size: clamp(32px, 4vw, 48px);
-      }
-
       .partners-grid {
         grid-template-columns: 1fr;
         gap: 24px;
@@ -726,63 +566,6 @@ if ($selectedYearId) {
 
     }
 
-    /* --- Partenaires content : light overrides when dark-theme active --- */
-    body.dark-theme .partners-hero-title {
-      color: #0f172a;
-    }
-
-    body.dark-theme .partners-hero-desc {
-      color: rgba(15,23,42,0.65);
-    }
-
-    body.dark-theme .partners-reg-card {
-      background: rgba(15,23,42,0.06);
-    }
-
-    body.dark-theme .partners-reg-bevel {
-      background: #0f172a;
-    }
-
-    body.dark-theme .partners-reg-title {
-      color: #0f172a !important;
-    }
-
-    body.dark-theme .partner-card {
-      background: #ffffff;
-      border: 1px solid rgba(15,23,42,0.08);
-      box-shadow: 0 4px 16px rgba(0,0,0,.06);
-    }
-
-    body.dark-theme .partner-card:hover {
-      box-shadow: 0 12px 40px rgba(0,0,0,.12);
-    }
-
-    body.dark-theme .partner-card-title {
-      color: #0f172a;
-    }
-
-    body.dark-theme .partner-card-desc {
-      color: rgba(15,23,42,0.65);
-    }
-
-    body.dark-theme .year-card {
-      border-color: rgba(15,23,42,0.15);
-      color: #0f172a;
-    }
-
-    body.dark-theme .year-card:hover {
-      background: rgba(15,23,42,0.06);
-      border-color: rgba(15,23,42,0.3);
-    }
-
-    body.dark-theme .empty-state {
-      color: rgba(15,23,42,0.5);
-    }
-
-    /* Footer on light partenaires */
-    body.dark-theme .site-footer {
-      background: #0f172a;
-    }
   </style>
 </head>
 <body>
@@ -790,17 +573,13 @@ if ($selectedYearId) {
 
   <main>
     <?php if ($selectedYearId && $selectedYear): ?>
-      <!-- Hero section -->
-      <section class="partners-hero" style="text-align:left">
-        <div class="partners-reg-bar">
-          <div class="partners-reg-card">
-            <div class="partners-reg-bevel" aria-hidden="false">
-              <a href="partenaires.php" title="Retour" class="back-btn"><svg viewBox="0 0 24 24" width="22" height="22" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg></a>
-            </div>
-            <h1 class="partners-reg-title"><?= htmlspecialchars($selectedYear['title']) ?></h1>
-          </div>
-        </div>
-      </section>
+      <!-- Titre -->
+      <div class="partners-title-bar" style="margin-bottom: 30px;">
+        <a href="partenaires.php" title="Retour" class="back-btn">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+        </a>
+        <h1 class="partners-title-bar-title"><?= htmlspecialchars($selectedYear['title']) ?></h1>
+      </div>
 
       <?php if ($isPreview): ?>
         <div style="background:#fd7e14;color:#fff;text-align:center;padding:10px;font-weight:600;font-size:14px;margin:12px auto;border-radius:8px;max-width:1200px;">
@@ -837,42 +616,56 @@ if ($selectedYearId) {
         </div>
       <?php endif; ?>
     <?php else: ?>
-      <section class="partners-hero">
-        <?php if (!empty($partners_img) || !empty($partners_desc) || !empty($partners_title)): ?>
-          <div class="partners-hero-row">
-            <?php if (!empty($partners_img)): ?>
-              <img src="../files/_partners/<?= htmlspecialchars($partners_img) ?>" class="partners-hero-img" alt="Partenaires">
-            <?php endif; ?>
-            <div class="partners-hero-text">
-              <?php if (!empty($partners_title)): ?>
-                <h1 class="partners-hero-title"><?= htmlspecialchars($partners_title) ?></h1>
-              <?php endif; ?>
-              <?php if (!empty($partners_desc)): ?>
-                <div class="partners-hero-desc"><?= $partners_desc ?></div>
-              <?php endif; ?>
-            </div>
+      <?php $hasInfo = !empty($partners_img) || !empty($partners_desc) || !empty($partners_title); ?>
+
+      <div class="partners-title-bar">
+        <h2 class="partners-title-bar-title">Nos éditions</h2>
+      </div>
+
+      <div class="years-grid" style="max-width: 1200px; margin: 30px auto 0; padding: 0 24px;">
+        <?php if ($hasInfo): ?>
+          <div class="info-card" data-label="Info" onclick="document.getElementById('infoModal').classList.add('active')">
+            <span class="info-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="info-card-title"><?= htmlspecialchars($partners_title ?: 'Nos partenaires') ?></span>
           </div>
         <?php endif; ?>
-        <!-- Reg bar -->
-        <div class="partners-reg-bar">
-          <div class="partners-reg-card">
-            <div class="partners-reg-bevel" aria-hidden="true"></div>
-            <h2 class="partners-reg-title">Éditions :</h2>
-          </div>
-        </div>
 
         <?php if (!empty($years)): ?>
-          <div class="years-grid">
-            <?php foreach ($years as $year): ?>
-              <a href="?year_id=<?= $year['id'] ?>" class="year-card">
-                <?= htmlspecialchars($year['title']) ?>
-              </a>
-            <?php endforeach; ?>
-          </div>
-        <?php else: ?>
-          <p class="partners-hero-desc">Aucune année disponible pour le moment.</p>
+          <?php foreach ($years as $year): ?>
+            <a href="?year_id=<?= $year['id'] ?>" class="year-card" data-year="<?= htmlspecialchars($year['year']) ?>">
+              <span class="year-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="year-card-title"><?= htmlspecialchars($year['title']) ?></span>
+            </a>
+          <?php endforeach; ?>
         <?php endif; ?>
-      </section>
+
+        <?php if (!$hasInfo && empty($years)): ?>
+          <div class="empty-state">
+            <p>Aucune année disponible pour le moment.</p>
+          </div>
+        <?php endif; ?>
+      </div>
+
+      <?php if ($hasInfo): ?>
+        <div id="infoModal" class="info-modal-overlay" onclick="if(event.target===this)this.classList.remove('active')">
+          <div class="info-modal">
+            <button class="info-modal-close" onclick="document.getElementById('infoModal').classList.remove('active')">&times;</button>
+            <div class="info-modal-grid">
+              <?php if (!empty($partners_img)): ?>
+                <img src="../files/_partners/<?= htmlspecialchars($partners_img) ?>" class="info-modal-img" alt="Partenaires">
+              <?php endif; ?>
+              <div>
+                <?php if (!empty($partners_title)): ?>
+                  <h2 class="info-modal-title"><?= htmlspecialchars($partners_title) ?></h2>
+                <?php endif; ?>
+                <?php if (!empty($partners_desc)): ?>
+                  <div class="info-modal-desc"><?= $partners_desc ?></div>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
   </main>
 
