@@ -16,25 +16,32 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $footer= $data['footer'] ?? '';
 
 $partners_desc = $data['partners_desc'] ?? '';
+$partners_title = $data['partners_title'] ?? '';
 $partners_img = $data['partners_img'] ?? '';
 
 // Check if migration has been applied (deleted_at column on partners_years)
 $migrationDone = false;
+$hasStatusCol = false;
 try {
     $pdo->query("SELECT deleted_at FROM partners_years LIMIT 0");
     $migrationDone = true;
 } catch (PDOException $e) {}
+try {
+    $pdo->query("SELECT status FROM partners_years LIMIT 0");
+    $hasStatusCol = true;
+} catch (PDOException $e) {}
 
 // Sauvegarde description et image générique partenaires
 if (isset($_POST['update_partners_desc'])) {
+    $partnersTitle = $_POST['partners_title'] ?? '';
     if (!empty($_FILES['partners_img']['name'])) {
         $imgName = $_FILES['partners_img']['name'];
         move_uploaded_file($_FILES['partners_img']['tmp_name'], "../files/_partners/" . $imgName);
-        $stmt = $pdo->prepare("UPDATE setting SET partners_desc = ?, partners_img = ? WHERE id = 1");
-        $stmt->execute([$_POST['partners_desc'], $imgName]);
+        $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ?, partners_img = ? WHERE id = 1");
+        $stmt->execute([$partnersTitle, $_POST['partners_desc'], $imgName]);
     } else {
-        $stmt = $pdo->prepare("UPDATE setting SET partners_desc = ? WHERE id = 1");
-        $stmt->execute([$_POST['partners_desc']]);
+        $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
+        $stmt->execute([$partnersTitle, $_POST['partners_desc']]);
     }
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
@@ -45,8 +52,14 @@ if (isset($_POST['update_year'])) {
   $year = $_POST['year'];
   $title = $_POST['title'];
 
-  $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
-  $stmt->execute([$year, $title, $yearId]);
+  if ($hasStatusCol) {
+    $status = $_POST['status'] ?? 'draft';
+    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, status = ? WHERE id = ?");
+    $stmt->execute([$year, $title, $status, $yearId]);
+  } else {
+    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
+    $stmt->execute([$year, $title, $yearId]);
+  }
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
@@ -115,8 +128,14 @@ if (isset($_POST['delete_album'])) {
 }
 
 if (isset($_POST['add_year'])) {
-  $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
-  $stmt->execute([$_POST['year'], $_POST['title']]);
+  if ($hasStatusCol) {
+    $status = $_POST['status'] ?? 'draft';
+    $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, status) VALUES (?, ?, ?)");
+    $stmt->execute([$_POST['year'], $_POST['title'], $status]);
+  } else {
+    $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
+    $stmt->execute([$_POST['year'], $_POST['title']]);
+  }
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
@@ -245,6 +264,10 @@ if ($migrationDone) {
 
   if ($isTrashed) {
     $years = $pdo->query("SELECT * FROM partners_years WHERE deleted_at IS NOT NULL ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+  } elseif ($filter === 'published' && $hasStatusCol) {
+    $years = $pdo->query("SELECT * FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+  } elseif ($filter === 'draft' && $hasStatusCol) {
+    $years = $pdo->query("SELECT * FROM partners_years WHERE deleted_at IS NULL AND status = 'draft' ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
   } else {
     $years = $pdo->query("SELECT * FROM partners_years WHERE deleted_at IS NULL ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
   }
@@ -261,8 +284,15 @@ if ($migrationDone) {
   }
 
   // Counts for tab badges
-  $countActive  = $pdo->query("SELECT COUNT(*) FROM partners_years WHERE deleted_at IS NULL")->fetchColumn();
+  $countAll     = $pdo->query("SELECT COUNT(*) FROM partners_years WHERE deleted_at IS NULL")->fetchColumn();
   $countTrashed = $pdo->query("SELECT COUNT(*) FROM partners_years WHERE deleted_at IS NOT NULL")->fetchColumn();
+  if ($hasStatusCol) {
+    $countPublished = $pdo->query("SELECT COUNT(*) FROM partners_years WHERE deleted_at IS NULL AND status = 'published'")->fetchColumn();
+    $countDraft     = $pdo->query("SELECT COUNT(*) FROM partners_years WHERE deleted_at IS NULL AND status = 'draft'")->fetchColumn();
+  } else {
+    $countPublished = 0;
+    $countDraft = 0;
+  }
 } else {
   $filter = '';
   $years = $pdo->query("SELECT * FROM partners_years ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
@@ -408,6 +438,8 @@ if ($migrationDone) {
                       <?php endif; ?>
                     </div>
                     <div class="col-md-8">
+                      <label class="form-label">Titre</label>
+                      <input type="text" name="partners_title" class="form-control mb-3" value="<?= htmlspecialchars($partners_title) ?>" placeholder="Titre de la page partenaires">
                       <label class="form-label">Description</label>
                       <textarea class="form-control" id="partners_desc_editor" name="partners_desc" rows="10"><?= htmlspecialchars($partners_desc) ?></textarea>
                     </div>
@@ -420,11 +452,18 @@ if ($migrationDone) {
             </div>
 
             <?php if ($migrationDone): ?>
-            <!-- Filter tabs -->
             <div class="filter-tabs">
               <a href="?filter=" class="<?= $filter === '' ? 'active' : '' ?>">
-                Actifs <span class="badge bg-secondary"><?= $countActive ?></span>
+                Tous <span class="badge bg-secondary"><?= $countAll ?></span>
               </a>
+              <?php if ($hasStatusCol): ?>
+              <a href="?filter=published" class="<?= $filter === 'published' ? 'active' : '' ?>">
+                Publiés <span class="badge bg-success"><?= $countPublished ?></span>
+              </a>
+              <a href="?filter=draft" class="<?= $filter === 'draft' ? 'active' : '' ?>">
+                Brouillons <span class="badge bg-warning text-dark"><?= $countDraft ?></span>
+              </a>
+              <?php endif; ?>
               <a href="?filter=trashed" class="<?= $filter === 'trashed' ? 'active' : '' ?>">
                 <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
               </a>
@@ -477,10 +516,20 @@ if ($migrationDone) {
                 <div class="year-info">
                   <span class="year-name"><?= htmlspecialchars($year['year']) ?> - <?= htmlspecialchars($year['title']) ?></span>
                   <span class="badge album-count-badge bg-primary"><?= $albumCount ?> album<?= $albumCount > 1 ? 's' : '' ?></span>
+                  <?php if ($hasStatusCol): ?>
+                  <span class="badge <?= ($year['status'] ?? 'draft') === 'published' ? 'bg-success' : 'bg-warning text-dark' ?>" style="font-size:0.75rem;padding:3px 10px;border-radius:20px;">
+                    <?= ($year['status'] ?? 'draft') === 'published' ? 'Publié' : 'Brouillon' ?>
+                  </span>
+                  <?php endif; ?>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">
-                  <i class="bi bi-pencil"></i> Modifier
-                </button>
+                <div class="d-flex gap-2">
+                  <a href="../public/partenaires.php?preview_year=<?= $year['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu">
+                    <i class="bi bi-eye"></i> Aperçu
+                  </a>
+                  <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">
+                    <i class="bi bi-pencil"></i> Modifier
+                  </button>
+                </div>
               </div>
 
               <!-- Modal de modification année -->
@@ -495,14 +544,23 @@ if ($migrationDone) {
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
-                          <div class="col-md-6">
+                          <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                               <label class="form-label">Année</label>
                               <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
                           </div>
-                          <div class="col-md-6">
+                          <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                               <label class="form-label">Titre</label>
                               <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
                           </div>
+                          <?php if ($hasStatusCol): ?>
+                          <div class="col-md-4">
+                            <label class="form-label">Statut</label>
+                            <select name="status" class="form-select">
+                              <option value="draft" <?= ($year['status'] ?? 'draft') === 'draft' ? 'selected' : '' ?>>Brouillon</option>
+                              <option value="published" <?= ($year['status'] ?? 'draft') === 'published' ? 'selected' : '' ?>>Publié</option>
+                            </select>
+                          </div>
+                          <?php endif; ?>
                         </div>
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
                     </form>
@@ -585,14 +643,23 @@ if ($migrationDone) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="post" class="modal-body row g-3">
-                    <div class="col-md-6">
+                    <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>
                     </div>
-                    <div class="col-md-6">
+                    <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                     <label class="form-label">Titre</label>
                     <input type="text" name="title" class="form-control" required>
                     </div>
+                    <?php if ($hasStatusCol): ?>
+                    <div class="col-md-4">
+                      <label class="form-label">Statut</label>
+                      <select name="status" class="form-select">
+                        <option value="draft" selected>Brouillon</option>
+                        <option value="published">Publié</option>
+                      </select>
+                    </div>
+                    <?php endif; ?>
                     <div class="col-12">
                     <button type="submit" name="add_year" class="btn btn-success">Ajouter</button>
                     </div>

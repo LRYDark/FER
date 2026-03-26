@@ -2,25 +2,63 @@
 require '../config/config.php';
 require '../inc/navbar-data.php';
 
+// Check if status column exists
+$hasStatusCol = false;
+try { $pdo->query("SELECT status FROM partners_years LIMIT 0"); $hasStatusCol = true; } catch (PDOException $e) {}
+
+// Check preview mode
+$isPreview = false;
+$previewYearId = isset($_GET['preview_year']) ? (int)$_GET['preview_year'] : 0;
+if ($previewYearId > 0) {
+    if (session_status() === PHP_SESSION_NONE) { session_start(); }
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+        header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
+    }
+    $isPreview = true;
+}
+
 // Récupération des années disponibles pour les partenaires
-$stmtYears = $pdo->prepare('SELECT * FROM partners_years ORDER BY year DESC');
-$stmtYears->execute();
+if ($isPreview) {
+    // Preview: show published + draft, but NOT trashed
+    $stmtYears = $pdo->prepare('SELECT * FROM partners_years WHERE deleted_at IS NULL ORDER BY year DESC');
+    $stmtYears->execute();
+} else {
+    // Public: only published, non-deleted
+    if ($hasStatusCol) {
+        $stmtYears = $pdo->prepare("SELECT * FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC");
+    } else {
+        $stmtYears = $pdo->prepare('SELECT * FROM partners_years ORDER BY year DESC');
+    }
+    $stmtYears->execute();
+}
 $years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
 
 // Si une année est sélectionnée, récupérer les partenaires associés
-$selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : null;
+$selectedYearId = $previewYearId ?: (isset($_GET['year_id']) ? (int)$_GET['year_id'] : null);
 $partners = [];
 $selectedYear = null;
 
 // Récupération de la description générique des partenaires
-$stmtSetting = $pdo->prepare('SELECT partners_desc, partners_img FROM setting WHERE id = 1 LIMIT 1');
+$hasPartnersTitle = false;
+try { $pdo->query("SELECT partners_title FROM setting LIMIT 0"); $hasPartnersTitle = true; } catch (PDOException $e) {}
+
+if ($hasPartnersTitle) {
+    $stmtSetting = $pdo->prepare('SELECT partners_title, partners_desc, partners_img FROM setting WHERE id = 1 LIMIT 1');
+} else {
+    $stmtSetting = $pdo->prepare('SELECT partners_desc, partners_img FROM setting WHERE id = 1 LIMIT 1');
+}
 $stmtSetting->execute();
 $settingData = $stmtSetting->fetch(PDO::FETCH_ASSOC);
+$partners_title = $settingData['partners_title'] ?? '';
 $partners_desc = $settingData['partners_desc'] ?? '';
 $partners_img = $settingData['partners_img'] ?? '';
 
 if ($selectedYearId) {
-    $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id');
+    if ($isPreview) {
+        $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+    } else {
+        $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+    }
     $stmtAlbums->execute(['year_id' => $selectedYearId]);
     $partners = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
 
@@ -348,54 +386,62 @@ if ($selectedYearId) {
     /* Hero section */
     .partners-hero {
       width: 100%;
-      margin: 140px auto 80px;
-      text-align: center;
+      max-width: 85%;
+      margin: 100px auto 60px;
       padding: 0;
     }
 
-    .partners-hero h1 {
-      margin: 0 0 20px;
-      font-size: clamp(40px, 5vw, 64px);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      color: #ffffff;
+    .partners-hero-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+      text-align: left;
     }
 
-    .partners-hero-row {
+    .partners-hero-title {
+      margin: 0 0 24px;
+      font-size: clamp(28px, 3.6vw, 44px);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+
+    .partners-hero-text {
       display: flex;
-      align-items: center;
-      gap: 30px;
-      margin: 30px auto 0;
-      width: 100%;
-      text-align: left;
-      padding: 0 16px;
+      flex-direction: column;
     }
 
     .partners-hero-img {
-      width: 55%;
-      max-height: 500px;
+      width: 100%;
+      height: auto;
       border-radius: 16px;
       object-fit: cover;
-      flex-shrink: 0;
+      box-shadow: 0 20px 60px rgba(2,6,23,.12);
     }
 
     .partners-hero-desc {
-      font-size: clamp(16px, 1.8vw, 20px);
+      font-size: 18px;
       line-height: 1.6;
       color: rgba(255,255,255,0.7);
       flex: 1;
       padding-right: 16px;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 980px) {
+      .partners-hero {
+        max-width: 94%;
+      }
       .partners-hero-row {
-        flex-direction: column;
-        gap: 24px;
+        grid-template-columns: 1fr;
+        gap: 32px;
       }
       .partners-hero-img {
-        max-width: 100%;
-        width: 100%;
+        width: 90%;
+        margin: 0 auto;
+      }
+      .partners-hero-title {
+        text-align: center;
       }
     }
 
@@ -638,8 +684,8 @@ if ($selectedYearId) {
         margin: 16px auto 60px;
       }
 
-      .partners-hero h1 {
-        font-size: clamp(32px, 8vw, 48px);
+      .partners-hero-title {
+        font-size: clamp(32px, 4vw, 48px);
       }
 
       .partners-grid {
@@ -664,10 +710,13 @@ if ($selectedYearId) {
       .partner-card-desc {
         font-size: 15px;
       }
+
+      .partners-hero-desc,
+
     }
 
     /* --- Partenaires content : light overrides when dark-theme active --- */
-    body.dark-theme .partners-hero h1 {
+    body.dark-theme .partners-hero-title {
       color: #0f172a;
     }
 
@@ -742,6 +791,12 @@ if ($selectedYearId) {
         </div>
       </section>
 
+      <?php if ($isPreview): ?>
+        <div style="background:#fd7e14;color:#fff;text-align:center;padding:10px;font-weight:600;font-size:14px;margin:12px auto;border-radius:8px;max-width:1200px;">
+          Aperçu – Cette page n'est pas encore publiée
+        </div>
+      <?php endif; ?>
+
       <!-- Grid des partenaires -->
       <?php if (!empty($partners)): ?>
         <div class="partners-grid">
@@ -772,14 +827,19 @@ if ($selectedYearId) {
       <?php endif; ?>
     <?php else: ?>
       <section class="partners-hero">
-        <?php if (!empty($partners_img) || !empty($partners_desc)): ?>
+        <?php if (!empty($partners_img) || !empty($partners_desc) || !empty($partners_title)): ?>
           <div class="partners-hero-row">
             <?php if (!empty($partners_img)): ?>
               <img src="../files/_partners/<?= htmlspecialchars($partners_img) ?>" class="partners-hero-img" alt="Partenaires">
             <?php endif; ?>
-            <?php if (!empty($partners_desc)): ?>
-              <div class="partners-hero-desc"><?= $partners_desc ?></div>
-            <?php endif; ?>
+            <div class="partners-hero-text">
+              <?php if (!empty($partners_title)): ?>
+                <h1 class="partners-hero-title"><?= htmlspecialchars($partners_title) ?></h1>
+              <?php endif; ?>
+              <?php if (!empty($partners_desc)): ?>
+                <div class="partners-hero-desc"><?= $partners_desc ?></div>
+              <?php endif; ?>
+            </div>
           </div>
         <?php endif; ?>
         <!-- Reg bar -->

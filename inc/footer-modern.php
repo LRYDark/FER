@@ -14,9 +14,6 @@
     <div class="footer-content">
       <div class="footer-left">
         <div class="footer-brand">
-          <div class="footer-logo">
-            <span class="footer-logo-icon">🏃</span>
-          </div>
           <span class="footer-brand-name">Forbach en Rose</span>
           <button class="theme-toggle" id="themeToggle" aria-label="Changer de thème">
             <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -2,13 +2,38 @@
 require '../config/config.php';
 require '../inc/navbar-data.php';
 
+// Check if status column exists
+$hasStatusCol = false;
+try { $pdo->query("SELECT status FROM photo_years LIMIT 0"); $hasStatusCol = true; } catch (PDOException $e) {}
+
+// Check preview mode
+$isPreview = false;
+$previewYearId = isset($_GET['preview_year']) ? (int)$_GET['preview_year'] : 0;
+if ($previewYearId > 0) {
+    if (session_status() === PHP_SESSION_NONE) { session_start(); }
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+        header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
+    }
+    $isPreview = true;
+}
+
 // Recuperation des annees disponibles
-$stmtYears = $pdo->prepare('SELECT * FROM photo_years ORDER BY year DESC');
-$stmtYears->execute();
+if ($isPreview) {
+    // Preview: show published + draft, but NOT trashed
+    $stmtYears = $pdo->prepare('SELECT * FROM photo_years WHERE deleted_at IS NULL ORDER BY year DESC');
+    $stmtYears->execute();
+} else {
+    if ($hasStatusCol) {
+        $stmtYears = $pdo->prepare("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC");
+    } else {
+        $stmtYears = $pdo->prepare('SELECT * FROM photo_years ORDER BY year DESC');
+    }
+    $stmtYears->execute();
+}
 $years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
 
 // Si une annee est selectionnee, recuperer les albums associes
-$selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : null;
+$selectedYearId = $previewYearId ?: (isset($_GET['year_id']) ? (int)$_GET['year_id'] : null);
 $albums = [];
 $selectedYear = null;
 
@@ -17,7 +42,11 @@ if ($selectedYearId) {
     $stmtYear->execute(['id' => $selectedYearId]);
     $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
 
-    $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id');
+    if ($isPreview) {
+        $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+    } else {
+        $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+    }
     $stmtAlbums->execute(['year_id' => $selectedYearId]);
     $albums = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -203,29 +232,36 @@ function resolveAlbumDateLabel(array $album): string
     }
 
     .album-card {
-      background: #f6f6f7;
+      background: transparent;
       border-radius: 12px;
-      transition: transform .25s ease, box-shadow .25s ease;
+      transition: transform .25s ease;
       text-decoration: none;
       color: var(--page-text);
       display: flex;
       flex-direction: column;
       padding: 0;
       min-height: 100%;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .album-card:hover {
       transform: translateY(-3px);
-      box-shadow: 0 3px 9px rgba(2,6,23,.13);
     }
 
     .album-card-media {
-      border-radius: 0 0 12px 12px;
-      overflow: hidden;
+      position: relative;
+      overflow: visible;
+      border-radius: 16px;
       background: transparent;
-      aspect-ratio: 16 / 9;
+      height: 200px;
       margin: 0;
+    }
+
+    .album-card-media-inner {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 16px;
     }
 
     .album-card-image {
@@ -235,11 +271,34 @@ function resolveAlbumDateLabel(array $album): string
       display: block;
     }
 
+    .album-card-creator {
+      position: absolute;
+      bottom: 0;
+      left: 16px;
+      transform: translateY(50%);
+      z-index: 3;
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 12px;
+      border-radius: 100px;
+      background: #fce7f3;
+      color: var(--pink);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 5px solid #fff;
+      box-shadow: 0 0 0 1px #fff;
+      max-width: none;
+      overflow: visible;
+      text-overflow: unset;
+      line-height: 1.2;
+    }
+
     .album-card-content {
       display: flex;
       flex-direction: column;
       flex: 1;
-      padding: 24px 24px 20px;
+      padding: 18px 8px 12px;
     }
 
     .album-card-title {
@@ -249,7 +308,7 @@ function resolveAlbumDateLabel(array $album): string
       letter-spacing: -0.01em;
       line-height: 1.25;
       color: #0f172a;
-      margin-bottom: 14px;
+      margin-bottom: 8px;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -272,21 +331,6 @@ function resolveAlbumDateLabel(array $album): string
       margin: 0;
     }
 
-    .album-card-creator {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 9px;
-      border-radius: 8px;
-      border: 1px solid rgba(15,23,42,.36);
-      color: #334155;
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1.1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 50%;
-    }
 
     @media (max-width: 980px) {
       .photos-hero {
@@ -323,7 +367,11 @@ function resolveAlbumDateLabel(array $album): string
       }
 
       .album-card-media {
-        border-radius: 0 0 14px 14px;
+        border-radius: 16px;
+      }
+
+      .album-card-media-inner {
+        border-radius: 16px;
       }
 
       .album-card-title {
@@ -338,9 +386,6 @@ function resolveAlbumDateLabel(array $album): string
         gap: 8px;
       }
 
-      .album-card-creator {
-        max-width: 45%;
-      }
     }
 
     /* Year buttons */
@@ -400,6 +445,12 @@ function resolveAlbumDateLabel(array $album): string
       </div>
     </section>
 
+    <?php if ($isPreview): ?>
+    <div style="background:#fd7e14;color:#fff;text-align:center;padding:10px;font-weight:600;font-size:14px;margin:12px auto;border-radius:8px;max-width:1200px;">
+      Aperçu – Cette page n'est pas encore publiée
+    </div>
+    <?php endif; ?>
+
     <?php if ($selectedYearId): ?>
       <?php if (!empty($albums)): ?>
         <div class="albums-grid">
@@ -410,19 +461,21 @@ function resolveAlbumDateLabel(array $album): string
             ?>
             <a href="<?= htmlspecialchars($album['album_link']) ?>" target="_blank" rel="noopener noreferrer" class="album-card">
               <div class="album-card-media">
-                <?php if (!empty($album['album_img'])): ?>
-                  <img src="../files/_albums/<?= htmlspecialchars($album['album_img']) ?>"
-                       class="album-card-image"
-                       alt="<?= htmlspecialchars($album['album_title']) ?>"
-                       loading="lazy">
-                <?php endif; ?>
+                <div class="album-card-media-inner">
+                  <?php if (!empty($album['album_img'])): ?>
+                    <img src="../files/_albums/<?= htmlspecialchars($album['album_img']) ?>"
+                         class="album-card-image"
+                         alt="<?= htmlspecialchars($album['album_title']) ?>"
+                         loading="lazy">
+                  <?php endif; ?>
+                </div>
+                <span class="album-card-creator"><?= htmlspecialchars($creatorName) ?></span>
               </div>
 
               <div class="album-card-content">
                 <h2 class="album-card-title"><?= htmlspecialchars($album['album_title']) ?></h2>
                 <div class="album-card-footer">
                   <p class="album-card-date"><?= htmlspecialchars($dateLabel) ?></p>
-                  <span class="album-card-creator"><?= htmlspecialchars($creatorName) ?></span>
                 </div>
               </div>
             </a>

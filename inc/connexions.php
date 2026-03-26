@@ -295,7 +295,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
             <?php foreach ($devices as $device): ?>
             <tr>
               <td><?= htmlspecialchars($device['email'] ?? 'Inconnu') ?></td>
-              <td><code><?= htmlspecialchars($device['ip'] ?? '') ?></code></td>
+              <td><?= htmlspecialchars($device['ip_address'] ?? '') ?></td>
               <td class="ua-cell" title="<?= htmlspecialchars($device['user_agent'] ?? '') ?>">
                 <?= htmlspecialchars(mb_strimwidth($device['user_agent'] ?? '', 0, 60, '...')) ?>
               </td>
