@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 
@@ -24,6 +25,12 @@ try {
     $migrationDone = true;
 } catch (PDOException $e) {}
 
+// ─── CSRF check for all POST actions ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
+
 // ─── Add news ───
 if (isset($_POST['add_news'])) {
     $title = $_POST['title_article'];
@@ -31,8 +38,12 @@ if (isset($_POST['add_news'])) {
     $imgName = '';
 
     if (!empty($_FILES['img_article']['name'])) {
-        $imgName = basename($_FILES['img_article']['name']);
-        move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
+        $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
+        if (in_array($ext, $allowedExts)) {
+            $imgName = uniqid('news_', true) . '.' . $ext;
+            move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
+        }
     }
 
     if ($migrationDone) {
@@ -53,23 +64,37 @@ if (isset($_POST['update_news'])) {
     $title = $_POST['title_article'];
     $desc = $_POST['desc_article'];
 
+    $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
     if ($migrationDone) {
         $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
         if (!empty($_FILES['img_article']['name'])) {
-            $imgName = basename($_FILES['img_article']['name']);
-            move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
-            $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ?, status = ? WHERE id = ?");
-            $stmt->execute([$imgName, $title, $desc, $status, $id]);
+            $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $allowedExts)) {
+                $safeName = uniqid('news_', true) . '.' . $ext;
+                move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
+                $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+                $stmt->execute([$safeName, $title, $desc, $status, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+                $stmt->execute([$title, $desc, $status, $id]);
+            }
         } else {
             $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
             $stmt->execute([$title, $desc, $status, $id]);
         }
     } else {
         if (!empty($_FILES['img_article']['name'])) {
-            $imgName = basename($_FILES['img_article']['name']);
-            move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
-            $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
-            $stmt->execute([$imgName, $title, $desc, $id]);
+            $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $allowedExts)) {
+                $safeName = uniqid('news_', true) . '.' . $ext;
+                move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
+                $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
+                $stmt->execute([$safeName, $title, $desc, $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
+                $stmt->execute([$title, $desc, $id]);
+            }
         } else {
             $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
             $stmt->execute([$title, $desc, $id]);
@@ -172,7 +197,7 @@ if ($migrationDone) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Actualités – Forbach en Rose</title>
+<title>Actualités</title>
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -360,12 +385,14 @@ if ($migrationDone) {
               <?php if ($migrationDone && $isTrashed): ?>
                 <!-- Trash view buttons -->
                 <form method="post">
+                  <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                   <button type="submit" name="restore_news" class="btn btn-sm btn-success">
                     <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                   </button>
                 </form>
                 <form method="post" onsubmit="return confirm('Supprimer DÉFINITIVEMENT cet article ? Cette action est irréversible.');">
+                  <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                   <button type="submit" name="permanent_delete_news" class="btn btn-sm btn-danger">
                     <i class="bi bi-x-circle"></i> Supprimer définitivement
@@ -380,6 +407,7 @@ if ($migrationDone) {
                   <i class="bi bi-pencil"></i> Modifier
                 </button>
                 <form method="post" onsubmit="return confirm('<?= $migrationDone ? 'Mettre cet article en corbeille ?' : 'Supprimer definitivement cet article ?' ?>');">
+                  <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                   <button type="submit" name="delete_news" class="btn btn-sm btn-outline-danger">
                     <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>
@@ -409,6 +437,7 @@ if ($migrationDone) {
                 <!-- Onglet Contenu -->
                 <div class="tab-pane fade show active" id="tabContent<?= $n['id'] ?>">
                   <form method="post" enctype="multipart/form-data">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                     <div class="row g-3">
                       <div class="<?= $migrationDone ? 'col-md-6' : 'col-md-6' ?>">
@@ -460,6 +489,7 @@ if ($migrationDone) {
     <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
       <div class="modal-content p-4">
         <form method="post" enctype="multipart/form-data">
+          <?= csrf_field() ?>
           <div class="modal-header">
             <h5 class="modal-title">Ajouter un article</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

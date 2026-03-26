@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
 require '../config/googleMail.php';
 
 requireRole(['admin','user','viewer','saisie']);
@@ -60,6 +61,12 @@ if (isset($_GET['auth'])) {
         $message = "❌ Erreur lors de la connexion : " . htmlspecialchars($errorMsg);
         $messageClass = 'error';
     }
+}
+
+// ─── CSRF check for all POST actions ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    http_response_code(403);
+    die('Invalid CSRF token');
 }
 
 // Traitement des actions
@@ -765,7 +772,7 @@ if (isset($_POST['deleteImage'])) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Réglages – Forbach en Rose</title>
+<title>Réglages</title>
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -851,6 +858,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Configuration generale</h2>
         <?php if ($alert) echo $alert; ?>
                     <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                        <?= csrf_field() ?>
                         <div class="col-md-6"><label class="form-label">Titre</label>
                             <input type="text"
                                 class="form-control"
@@ -924,6 +932,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Liaison AssoConnect</h2>
         <?php if ($alertAsso) echo $alertAsso; ?>
                     <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                        <?= csrf_field() ?>
                         <div class="form-group mb-3">
                             <label for="divCode">Code DIV Assoconnect</label>
                             <input type="text"
@@ -962,6 +971,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Reglage page accueil</h2>
                 <?php if ($alertAccueil) echo $alertAccueil; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
 
                     <div class="col-md-6"><label class="form-label">Titre de l'accueil</label>
                         <input type="text" class="form-control" name="titleAccueil" placeholder="Titre de l'accueil" value="<?= htmlspecialchars($titleAccueil, ENT_QUOTES, 'UTF-8'); ?>">
@@ -1045,6 +1055,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Parcours</h2>
                 <?php if ($alertParcours) echo $alertParcours; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
                     <div class="col-md-6"><label class="form-label">Titre de l'image principale</label>
                         <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
@@ -1166,6 +1177,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <div class="modal-body">
           <!-- Formulaire d'import -->
           <form id="uploadForm" action="" method="post" enctype="multipart/form-data" class="mb-4">
+            <?= csrf_field() ?>
             <label for="galerieImages" class="form-label">
               Importer jusqu'a <span id="remainingCount"><?= $remaining ?></span> image(s) :
             </label>
@@ -1182,6 +1194,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
               <div class="col-md-3 text-center mb-4 sortable-image-item" data-img="<?= htmlspecialchars($img) ?>" data-filename="<?= htmlspecialchars($img) ?>" style="position:relative;cursor:grab">
                 <img src="<?= $galerieDir . rawurlencode($img) ?>" class="img-thumbnail" style="max-height: 150px;">
                 <form class="deleteForm">
+                  <?= csrf_field() ?>
                   <input type="hidden" name="deleteImage" value="<?= htmlspecialchars($img) ?>">
                   <button type="button" class="delete-btn" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Supprimer">&times;</button>
                 </form>
@@ -1205,6 +1218,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Reglement de la course</h2>
                  <?php if ($alertReglementation) echo $alertReglementation; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
                     <div class="form-group mb-3">
                         <label for="divReglementation" class="form-label">Reglement de la course</label>
                         <textarea class="form-control" id="divReglementation" name="div_reglementation" rows="10" required>
@@ -1284,6 +1298,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Formulaire : Champs requis</h2>
                  <?php if ($alertRequired) echo $alertRequired; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
                     <div class="col-md-6">
                         <label class="form-label">Nom</label>
                         <div class="form-check form-switch">
@@ -1352,6 +1367,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         <h2>Informations d'import excel</h2>
                  <?php if ($alertImport) echo $alertImport; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
                     <div class="col-md-4"><label class="form-label">N d'inscription =</label>
                         <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
@@ -1407,6 +1423,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 
                 <?php if ($alertGoogle) echo $alertGoogle; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
                     <div class="col-md-6"><label class="form-label">Client ID</label>
                         <input type="text" class="form-control" name="client_id" value="<?= htmlspecialchars($client_id, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
@@ -1438,6 +1455,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                 <div class="actions">
                     <?php if ($isConnected): ?>
                         <form method="post" style="display: inline;">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="test_connection">
                             <button type="submit" class="btn btn-success">
                                 Tester la connexion
@@ -1445,6 +1463,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                         </form>
 
                         <form method="post" style="display: inline;" onsubmit="return confirm('Etes-vous sur de vouloir vous deconnecter de Gmail ?');">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="disconnect">
                             <button type="submit" class="btn btn-danger">
                                 Se deconnecter
@@ -1453,6 +1472,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 
                     <?php else: ?>
                         <form method="post" style="display: inline;">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="test_connection">
                             <button type="submit" class="btn btn-warning">
                                 Verifier la connexion
@@ -1552,7 +1572,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('', {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: 'reorder_gallery=1&filenames=' + JSON.stringify(filenames)
+          body: 'reorder_gallery=1&filenames=' + JSON.stringify(filenames) + '&csrf_token=' + encodeURIComponent(document.querySelector('input[name="csrf_token"]').value)
         });
       }
     });
@@ -1567,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', function() {
       fetch('', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ deleteImage: imageName })
+        body: new URLSearchParams({ deleteImage: imageName, csrf_token: document.querySelector('input[name="csrf_token"]').value })
       })
       .then(function(response) { return response.text(); })
       .then(function(result) {

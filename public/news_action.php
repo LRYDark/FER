@@ -1,6 +1,13 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 header('Content-Type: application/json');
+
+// CSRF verification for all POST requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    echo json_encode(['success' => false, 'error' => 'Session expirée. Veuillez réessayer.']);
+    exit;
+}
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 

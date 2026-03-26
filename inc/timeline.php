@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
@@ -18,6 +19,12 @@ try {
     $pdo->query("SELECT status FROM timeline_items LIMIT 0");
     $hasStatusCol = true;
 } catch (PDOException $e) {}
+
+// ─── CSRF check for all POST actions ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 
 // ─── Reorder via AJAX ───
 if (isset($_POST['reorder_items'])) {
@@ -187,7 +194,7 @@ foreach ($items as $item) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Timeline – Forbach en Rose</title>
+<title>Timeline</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -301,6 +308,7 @@ foreach ($items as $item) {
                         <i class="bi bi-pencil"></i>
                       </button>
                       <form method="post" class="d-inline" onsubmit="return confirm('Supprimer cet item et ses tags ?');">
+                        <?= csrf_field() ?>
                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                         <button type="submit" name="delete_item" class="btn btn-sm btn-outline-danger">
                           <i class="bi bi-trash"></i>
@@ -317,6 +325,7 @@ foreach ($items as $item) {
               <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                   <form method="post" enctype="multipart/form-data">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                     <div class="modal-header">
                       <h5 class="modal-title">Modifier : <?= htmlspecialchars($item['title']) ?></h5>
@@ -385,6 +394,7 @@ foreach ($items as $item) {
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <form method="post" enctype="multipart/form-data">
+        <?= csrf_field() ?>
         <div class="modal-header">
           <h5 class="modal-title">Ajouter un item Timeline</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -669,7 +679,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(window.location.pathname, {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: 'reorder_items=1&ids=' + JSON.stringify(ids)
+          body: 'reorder_items=1&ids=' + JSON.stringify(ids) + '&csrf_token=' + encodeURIComponent(document.querySelector('input[name="csrf_token"]').value)
         });
       }
     });

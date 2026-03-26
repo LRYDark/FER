@@ -1,4 +1,5 @@
 <?php require 'config/config.php';
+require_once 'config/csrf.php';
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -22,7 +23,8 @@ $picture= $data['picture'] ?? '';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Forbach en Rose – Connexion</title>
+  <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
+  <title>Connexion</title>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -460,6 +462,9 @@ $picture= $data['picture'] ?? '';
   <!-- Scripts -->
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script>
+    // CSRF token
+    var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
     // Store login credentials for potential 2FA resend
     var _loginEmail = '';
     var _loginPassword = '';
@@ -513,7 +518,7 @@ $picture= $data['picture'] ?? '';
 
       fetch('config/api.php?route=login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify(formData)
       })
       .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })))
@@ -562,7 +567,7 @@ $picture= $data['picture'] ?? '';
 
       fetch('config/api.php?route=validate-2fa', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ code: code, trust_device: trustDevice })
       })
       .then(r => r.json().then(j => ({ ok: r.ok, json: j })))
@@ -601,7 +606,7 @@ $picture= $data['picture'] ?? '';
 
       fetch('config/api.php?route=login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ email: _loginEmail, password: _loginPassword })
       })
       .then(r => r.json())
@@ -639,7 +644,7 @@ $picture= $data['picture'] ?? '';
       try {
         const res = await fetch('config/api.php?route=forgot-password', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
           body: JSON.stringify({ email })
         });
         const j = await res.json();

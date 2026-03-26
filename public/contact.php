@@ -1,6 +1,7 @@
 <?php
 require '../config/config.php';
 require_once '../config/tracker.php';
+require_once '../config/csrf.php';
 trackPageVisit();
 require '../inc/navbar-data.php';
 
@@ -8,6 +9,9 @@ $success = false;
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!csrf_verify()) {
+        $error = 'Session expirée. Veuillez réessayer.';
+    } else {
     $nom = trim($_POST['nom'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $sujet = trim($_POST['sujet'] ?? '');
@@ -50,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Une erreur est survenue, veuillez réessayer plus tard.";
         }
     }
+  } // end csrf_verify else
 }
 ?>
 <!DOCTYPE html>
@@ -177,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php if (!$success): ?>
     <form class="contact-form" method="post" action="">
+      <?= csrf_field() ?>
       <div>
         <label for="nom">Nom complet</label>
         <input type="text" id="nom" name="nom" value="<?= htmlspecialchars($_POST['nom'] ?? '') ?>" required>
