@@ -26,7 +26,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Parcours - Forbach en Rose</title>
+  <title>Parcours</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
     /* Trait subtil sous la navbar */

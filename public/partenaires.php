@@ -83,7 +83,7 @@ if ($selectedYearId) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Partenaires - Forbach en Rose</title>
+  <title>Partenaires</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
     .floating-nav {
