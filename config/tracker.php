@@ -55,8 +55,10 @@ function trackPageVisit()
 function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month = null): array
 {
     try {
+        $params = [];
         if ($year && $month) {
-            $where = "YEAR(visited_at) = $year AND MONTH(visited_at) = $month";
+            $where = "YEAR(visited_at) = :year AND MONTH(visited_at) = :month";
+            $params = ['year' => $year, 'month' => $month];
         } elseif ($period === 'yesterday') {
             $where = "DATE(visited_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
         } else {
@@ -76,13 +78,19 @@ function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month 
         }
 
         // Totals
-        $row = $pdo->query("SELECT COUNT(*) AS total_visits, COUNT(DISTINCT visitor_ip) AS unique_visitors FROM page_visits WHERE $where")->fetch();
+        $stmt = $pdo->prepare("SELECT COUNT(*) AS total_visits, COUNT(DISTINCT visitor_ip) AS unique_visitors FROM page_visits WHERE $where");
+        $stmt->execute($params);
+        $row = $stmt->fetch();
 
         // Top pages
-        $topPages = $pdo->query("SELECT page_url, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY page_url ORDER BY visits DESC LIMIT 10")->fetchAll();
+        $stmt = $pdo->prepare("SELECT page_url, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY page_url ORDER BY visits DESC LIMIT 10");
+        $stmt->execute($params);
+        $topPages = $stmt->fetchAll();
 
         // Top referers (exclude empty)
-        $topReferers = $pdo->query("SELECT referer, COUNT(*) AS visits FROM page_visits WHERE $where AND referer IS NOT NULL AND referer != '' GROUP BY referer ORDER BY visits DESC LIMIT 5")->fetchAll();
+        $stmt = $pdo->prepare("SELECT referer, COUNT(*) AS visits FROM page_visits WHERE $where AND referer IS NOT NULL AND referer != '' GROUP BY referer ORDER BY visits DESC LIMIT 5");
+        $stmt->execute($params);
+        $topReferers = $stmt->fetchAll();
 
         return [
             'total_visits'    => (int)($row['total_visits'] ?? 0),
@@ -123,8 +131,10 @@ function getAvailableMonths(PDO $pdo): array
 function getDailyVisits(PDO $pdo, string $period, ?int $year = null, ?int $month = null): array
 {
     try {
+        $params = [];
         if ($year && $month) {
-            $where = "YEAR(visited_at) = $year AND MONTH(visited_at) = $month";
+            $where = "YEAR(visited_at) = :year AND MONTH(visited_at) = :month";
+            $params = ['year' => $year, 'month' => $month];
         } elseif ($period === 'yesterday') {
             $where = "DATE(visited_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
         } else {
@@ -143,7 +153,9 @@ function getDailyVisits(PDO $pdo, string $period, ?int $year = null, ?int $month
             }
         }
 
-        $rows = $pdo->query("SELECT DATE(visited_at) AS day, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY DATE(visited_at) ORDER BY day ASC")->fetchAll();
+        $stmt = $pdo->prepare("SELECT DATE(visited_at) AS day, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY DATE(visited_at) ORDER BY day ASC");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
 
         $result = [];
         foreach ($rows as $r) {

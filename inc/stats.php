@@ -41,7 +41,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Statistiques – Forbach en Rose</title>
+<title>Statistiques</title>
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">

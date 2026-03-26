@@ -1,5 +1,6 @@
 <?php
 require 'config/config.php';
+require_once 'config/csrf.php';
 
 // L'utilisateur doit etre connecte
 if (!isset($_SESSION['uid'])) {
@@ -18,7 +19,8 @@ $footer  = $data['footer']  ?? '';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Changer votre mot de passe – Forbach en Rose</title>
+  <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
+  <title>Changer le mot de passe</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100vh; overflow: hidden; background: #4a2038; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; color: #191C1D; }
@@ -133,9 +135,10 @@ $footer  = $data['footer']  ?? '';
       errEl.classList.remove('show');
       okEl.classList.remove('show');
 
+      var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       fetch('config/api.php?route=change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ password: pass.value })
       })
       .then(function(res) { return res.json(); })

@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
@@ -26,6 +27,12 @@ try {
     $pdo->query("SELECT status FROM photo_years LIMIT 0");
     $hasStatusCol = true;
 } catch (PDOException $e) {}
+
+// ─── CSRF check for all POST actions ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 
 if (isset($_POST['update_year'])) {
   $yearId = $_POST['year_id'];
@@ -54,10 +61,17 @@ if (isset($_POST['update_album'])) {
   $yearId = $_POST['year_id'];
 
   if (!empty($_FILES['album_img']['name'])) {
-    $imgName = $_FILES['album_img']['name'];
-    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $imgName);
-    $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = ?, album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_link, $imgName, $album_desc, $albumId]);
+    $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $ext = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+    if (in_array($ext, $allowedExts)) {
+      $safeName = uniqid('album_', true) . '.' . $ext;
+      move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $safeName);
+      $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = ?, album_desc = ? WHERE id = ?");
+      $stmt->execute([$album_title, $album_link, $safeName, $album_desc, $albumId]);
+    } else {
+      $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
+      $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
+    }
   } else {
     $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
     $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
@@ -69,16 +83,20 @@ if (isset($_POST['update_album'])) {
 
 if (isset($_POST['add_album'])) {
   $yearId = $_POST['year_id'];
-  $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
-  $imgName = $_FILES['album_img']['name'];
-  move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $imgName);
-  $stmt->execute([
-    $yearId,
-    $_POST['album_title'],
-    $_POST['album_link'],
-    $imgName,
-    $_POST['album_desc']
-  ]);
+  $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+  $ext = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+  if (in_array($ext, $allowedExts)) {
+    $safeName = uniqid('album_', true) . '.' . $ext;
+    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $safeName);
+    $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
+    $stmt->execute([
+      $yearId,
+      $_POST['album_title'],
+      $_POST['album_link'],
+      $safeName,
+      $_POST['album_desc']
+    ]);
+  }
   $_SESSION['reopen_modal'] = $yearId;
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
@@ -283,7 +301,7 @@ if ($migrationDone) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Albums – Forbach en Rose</title>
+<title>Albums</title>
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -439,12 +457,14 @@ if ($migrationDone) {
                 </div>
                 <div class="d-flex gap-2">
                   <form method="post">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                     <button type="submit" name="restore_year" class="btn btn-sm btn-success">
                       <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                     </button>
                   </form>
                   <form method="post" onsubmit="return confirm('Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.');">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                     <button type="submit" name="permanent_delete_year" class="btn btn-sm btn-danger">
                       <i class="bi bi-x-circle"></i> Supprimer définitivement
@@ -485,6 +505,7 @@ if ($migrationDone) {
                     </div>
                     <div class="modal-body">
                     <form method="post" enctype="multipart/form-data" class="mb-4">
+                        <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
                         <div class="<?= $hasStatusCol ? 'col-md-3' : 'col-md-6' ?>">
@@ -509,6 +530,7 @@ if ($migrationDone) {
                     </form>
 
                     <form method="post" onsubmit="return confirm('<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>');">
+                        <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <button type="submit" name="delete_year" class="btn btn-outline-danger mb-4">
                           <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Mettre en corbeille' : 'Supprimer' ?>
@@ -519,6 +541,7 @@ if ($migrationDone) {
                     <div class="mb-3">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
                         <form method="post" enctype="multipart/form-data" class="p-3 mb-2" style="border:1px solid #f0e8eb;border-radius:8px;background:#fdf8f9">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                             <div class="row g-2 align-items-end">
@@ -551,6 +574,7 @@ if ($migrationDone) {
 
                     <h6>Ajouter un nouvel album</h6>
                     <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff">
+                        <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-2 align-items-end">
                           <div class="col-md-3">
@@ -594,6 +618,7 @@ if ($migrationDone) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="post" enctype="multipart/form-data" class="modal-body row g-3">
+                    <?= csrf_field() ?>
                     <div class="col-md-6">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>

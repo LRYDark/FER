@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
@@ -20,6 +21,13 @@ $logFiles = [
 
 // ── Traitement vidage ───────────────────────────────────────
 $flash = null;
+
+// ─── CSRF check for all POST actions ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_log'])) {
     $key = $_POST['clear_log'];
     foreach ($logFiles as $lf) {
@@ -40,7 +48,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Logs – Forbach en Rose</title>
+<title>Logs</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
@@ -225,6 +233,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
           <span class="badge-lines"><?= $lines ?> ligne<?= $lines > 1 ? 's' : '' ?></span>
           <?php if (!$isEmpty): ?>
             <form method="post" class="d-inline" onsubmit="return confirm('Vider le fichier « <?= htmlspecialchars($lf['name']) ?> » ?');">
+              <?= csrf_field() ?>
               <input type="hidden" name="clear_log" value="<?= htmlspecialchars($lf['key']) ?>">
               <button type="submit" class="btn btn-clear">
                 <i class="bi bi-trash3"></i> Vider

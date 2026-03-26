@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
@@ -14,6 +15,12 @@ try { $pdo->query("SELECT 1 FROM trusted_devices LIMIT 0"); $devicesAvailable = 
 
 // ── Handle POST actions ─────────────────────────────────────
 $flash = null;
+
+// ─── CSRF check for all POST actions ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
+    http_response_code(403);
+    die('Invalid CSRF token');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $bansAvailable) {
     if (isset($_POST['ban_ip'])) {
@@ -81,7 +88,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connexions – Forbach en Rose</title>
+<title>Connexions</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
@@ -202,6 +209,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
       <div class="card-body">
         <h6 class="card-title mb-3"><i class="bi bi-plus-circle me-1"></i>Bannir une adresse IP</h6>
         <form method="post" class="row g-3 align-items-end">
+          <?= csrf_field() ?>
           <div class="col-md-4">
             <label for="banIp" class="form-label">Adresse IP</label>
             <input type="text" class="form-control" id="banIp" name="ip" placeholder="192.168.1.1" required>
@@ -242,6 +250,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
               <td><?= htmlspecialchars($ban['banned_at'] ?? '') ?></td>
               <td>
                 <form method="post" style="display:inline" onsubmit="return confirm('Débannir cette IP ?')">
+                  <?= csrf_field() ?>
                   <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
                   <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-success">
                     <i class="bi bi-unlock me-1"></i>Débannir
@@ -269,6 +278,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
       <h5 class="mb-0">Appareils de confiance</h5>
       <?php if (!empty($devices)): ?>
         <form method="post" onsubmit="return confirm('Révoquer TOUS les appareils de confiance ?')">
+          <?= csrf_field() ?>
           <button type="submit" name="revoke_all_devices" value="1" class="btn btn-sm btn-outline-danger">
             <i class="bi bi-trash me-1"></i>Révoquer tous les appareils
           </button>
@@ -303,6 +313,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
               <td><?= htmlspecialchars($device['expires_at'] ?? '') ?></td>
               <td>
                 <form method="post" style="display:inline" onsubmit="return confirm('Révoquer cet appareil ?')">
+                  <?= csrf_field() ?>
                   <input type="hidden" name="device_id" value="<?= (int)$device['id'] ?>">
                   <button type="submit" name="revoke_device" value="1" class="btn btn-sm btn-outline-danger">
                     <i class="bi bi-x-circle me-1"></i>Révoquer

@@ -57,9 +57,9 @@ try {
 
     // Déterminer où rediriger l'utilisateur
     $redirectUrl = $_GET['redirect'] ?? 'inc/setting.php';
-    
+
     // S'assurer que l'URL de redirection est relative et sécurisée
-    if (strpos($redirectUrl, 'http') === 0 || strpos($redirectUrl, '//') !== false) {
+    if (!preg_match('/^[a-zA-Z0-9\/_\-\.]+(\?[a-zA-Z0-9=&_\-]*)?$/', $redirectUrl)) {
         $redirectUrl = 'inc/setting.php'; // Sécurité : forcer une redirection locale
     }
     
@@ -74,7 +74,7 @@ try {
     
     // Rediriger vers la page de paramètres avec un message d'erreur
     $redirectUrl = $_GET['redirect'] ?? 'inc/setting.php';
-    if (strpos($redirectUrl, 'http') === 0 || strpos($redirectUrl, '//') !== false) {
+    if (!preg_match('/^[a-zA-Z0-9\/_\-\.]+(\?[a-zA-Z0-9=&_\-]*)?$/', $redirectUrl)) {
         $redirectUrl = 'inc/setting.php';
     }
     

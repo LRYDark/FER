@@ -1,11 +1,22 @@
 <?php
 require 'config.php';
+require_once __DIR__ . '/csrf.php';
 ob_start();
 @require_once __DIR__ . '/googleMail.php';
 ob_end_clean();
 header('Content-Type: application/json; charset=utf-8');
 
 $route = $_GET['route'] ?? '';
+
+// ─── CSRF check for state-changing API requests (skip public/pre-auth routes) ───
+$csrfExemptRoutes = ['login', 'validate-2fa', 'forgot-password', 'reset-password-confirm', 'logout'];
+if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE']) && !in_array($route, $csrfExemptRoutes)) {
+    if (!csrf_verify()) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Invalid CSRF token']);
+        exit;
+    }
+}
 
 /* ───── Helper: log login attempt ───────────── */
 function logLoginAttempt($pdo, $userId, $email, $success, $reason = null) {
@@ -26,11 +37,7 @@ function isIpBanned($pdo, $ip) {
 }
 
 function getClientIp() {
-    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'] as $key) {
-        $val = $_SERVER[$key] ?? '';
-        if ($val) { $ip = strtok($val, ','); return trim($ip); }
-    }
-    return '0.0.0.0';
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 }
 
 function checkTrustedDevice($pdo, $userId) {
@@ -112,6 +119,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
 
         // Must change password — no 2FA needed
         if($u['must_change_password']){
+            session_regenerate_id(true);
             $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
             logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Changement MDP requis');
             echo json_encode(['ok'=>true, 'role'=>$u['role'], 'must_change_password'=>true]); exit;
@@ -127,6 +135,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             // Check trusted device
             if (checkTrustedDevice($pdo, $u['id'])) {
                 // Trusted → login direct
+                session_regenerate_id(true);
                 $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
                 logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Appareil de confiance');
                 echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
@@ -144,6 +153,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
         }
 
         // No 2FA needed or mail not configured → login direct
+        session_regenerate_id(true);
         $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
         logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Connexion directe');
         echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
@@ -202,6 +212,7 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
     }
 
     // 2FA OK — create real session
+    session_regenerate_id(true);
     $_SESSION['uid'] = $uid;
     $_SESSION['role'] = $_SESSION['pending_2fa_role'];
     $_SESSION['email'] = $_SESSION['pending_2fa_email'];

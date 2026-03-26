@@ -1,10 +1,7 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require '../config/config.php';
 require '../config/googleMail.php';
+require_once '../config/csrf.php';
 
 // Variables d'état
 $hasGetParams = !empty($_GET);
@@ -40,6 +37,9 @@ if ($hasGetParams && $qrToken) {
 
 // Traitement du formulaire si soumis
 if ($_POST) {
+    if (!csrf_verify()) {
+        $error_message = 'Session expirée. Veuillez réessayer.';
+    } else {
     $submittedToken = $_POST['qr_token'] ?? '';
     $validToken = false;
 
@@ -96,9 +96,11 @@ if ($_POST) {
             $success_message = "👍 Inscription enregistrée avec succès !";
 
         } catch (PDOException $e) {
-            $error_message = "Erreur lors de l'enregistrement : " . $e->getMessage();
+            error_log("Registration error: " . $e->getMessage());
+            $error_message = "Erreur lors de l'enregistrement. Veuillez réessayer.";
         }
     }
+  } // end csrf_verify else
 }
 
 // Récupération des paramètres de configuration
@@ -374,6 +376,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
       <?php endif; ?>
 
       <form id="fPub" class="row g-3 needs-validation" method="POST" action="" novalidate>
+        <?= csrf_field() ?>
         <div class="col-md-6">
           <label class="form-label">Nom <?= $required_fields['required_name'] ? '*' : '' ?></label>
           <input name="nom" class="form-control" <?= $required_fields['required_name'] ? 'required' : '' ?>>

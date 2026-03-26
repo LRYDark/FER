@@ -1,5 +1,6 @@
 <?php
 require 'config/config.php';
+require_once 'config/csrf.php';
 
 $token = $_GET['token'] ?? '';
 $tokenValid = false;
@@ -20,7 +21,8 @@ $footer  = $data['footer']  ?? '';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Reinitialiser le mot de passe – Forbach en Rose</title>
+  <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
+  <title>Réinitialiser le mot de passe</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100vh; overflow: hidden; background: #4a2038; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; color: #191C1D; }
@@ -141,9 +143,10 @@ $footer  = $data['footer']  ?? '';
 
       var token = document.querySelector('[name="token"]').value;
 
+      var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       fetch('config/api.php?route=reset-password-confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ token: token, password: pass.value })
       })
       .then(function(res) { return res.json(); })
