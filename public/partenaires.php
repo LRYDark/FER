@@ -65,7 +65,7 @@ if ($selectedYearId) {
 
     if (!$selectedYear && !$isPreview) {
         // L'année n'existe pas ou est en brouillon → rediriger vers la page partenaires
-        header('Location: partenaires.php');
+        header('Location: partenaires');
         exit;
     }
 
@@ -575,7 +575,7 @@ if ($selectedYearId) {
     <?php if ($selectedYearId && $selectedYear): ?>
       <!-- Titre -->
       <div class="partners-title-bar" style="margin-bottom: 30px;">
-        <a href="partenaires.php" title="Retour" class="back-btn">
+        <a href="partenaires" title="Retour" class="back-btn">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
         </a>
         <h1 class="partners-title-bar-title"><?= htmlspecialchars($selectedYear['title']) ?></h1>
@@ -591,8 +591,12 @@ if ($selectedYearId) {
       <?php if (!empty($partners)): ?>
         <div class="partners-grid">
           <?php foreach ($partners as $partner): ?>
-            <div class="partner-card" onclick="showImageModal('../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>')">
-              <?php if (!empty($partner['album_img'])): ?>
+            <?php
+              if (empty($partner['album_title']) && empty($partner['album_img']) && empty($partner['album_desc'])) continue;
+              $hasPartnerImg = !empty($partner['album_img']) && is_file('../files/_partners/' . $partner['album_img']);
+            ?>
+            <div class="partner-card"<?php if ($hasPartnerImg): ?> onclick="showImageModal('../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>')"<?php endif; ?>>
+              <?php if ($hasPartnerImg): ?>
                 <div class="partner-card-image-wrapper">
                   <img src="../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>"
                        class="partner-card-image"
@@ -632,6 +636,7 @@ if ($selectedYearId) {
 
         <?php if (!empty($years)): ?>
           <?php foreach ($years as $year): ?>
+            <?php if (empty($year['title']) && empty($year['year'])) continue; ?>
             <a href="?year_id=<?= $year['id'] ?>" class="year-card" data-year="<?= htmlspecialchars($year['year']) ?>">
               <span class="year-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="year-card-title"><?= htmlspecialchars($year['title']) ?></span>
@@ -650,8 +655,9 @@ if ($selectedYearId) {
         <div id="infoModal" class="info-modal-overlay" onclick="if(event.target===this)this.classList.remove('active')">
           <div class="info-modal">
             <button class="info-modal-close" onclick="document.getElementById('infoModal').classList.remove('active')">&times;</button>
-            <div class="info-modal-grid">
-              <?php if (!empty($partners_img)): ?>
+            <?php $hasModalImg = !empty($partners_img) && is_file('../files/_partners/' . $partners_img); ?>
+            <div class="info-modal-grid"<?php if (!$hasModalImg): ?> style="grid-template-columns:1fr"<?php endif; ?>>
+              <?php if ($hasModalImg): ?>
                 <img src="../files/_partners/<?= htmlspecialchars($partners_img) ?>" class="info-modal-img" alt="Partenaires">
               <?php endif; ?>
               <div>

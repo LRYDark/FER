@@ -25,7 +25,7 @@
           </button>
         </div>
         <p class="footer-tagline">Courir ensemble pour la lutte contre le cancer</p>
-        <a href="contact.php" class="footer-contact-btn">
+        <a href="contact" class="footer-contact-btn">
           Contactez-nous
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -78,9 +78,9 @@
       <div class="footer-links">
         <a href="../login.php">Administration</a>
         <span class="footer-separator">•</span>
-        <a href="mentions-legales.php">Mentions légales</a>
+        <a href="mentions-legales">Mentions légales</a>
         <span class="footer-separator">•</span>
-        <a href="politique-confidentialite.php">Politique de confidentialité</a>
+        <a href="politique-confidentialite">Politique de confidentialité</a>
       </div>
     </div>
   </div>

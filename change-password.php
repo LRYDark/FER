@@ -3,7 +3,7 @@ require 'config/config.php';
 
 // L'utilisateur doit etre connecte
 if (!isset($_SESSION['uid'])) {
-    header('Location: login.php');
+    header('Location: login');
     exit;
 }
 

@@ -215,23 +215,26 @@ $picture_gradient = $data['picture_gradient'] ?? '';
 
   <main>
     <!-- Hero Section -->
-    <section class="parcours-hero">
+    <?php $hasParcImg = !empty($picture_parcours) && is_file('../files/_pictures/' . $picture_parcours); ?>
+    <section class="parcours-hero"<?php if (!$hasParcImg): ?> style="grid-template-columns:1fr;max-width:800px;text-align:center"<?php endif; ?>>
       <div class="parcours-content">
         <h1><?= htmlspecialchars($titleParcours) ?></h1>
-        <p class="parcours-desc"><?= nl2br(htmlspecialchars($parcoursDesc)) ?></p>
-      </div>
-      <div class="parcours-image">
-        <?php if (!empty($picture_parcours)): ?>
-          <img src="../files/_pictures/<?= htmlspecialchars($picture_parcours) ?>"
-               alt="<?= htmlspecialchars($titleParcours) ?>"
-               class="lightbox-trigger"
-               loading="lazy">
+        <?php if (!empty($parcoursDesc)): ?>
+          <p class="parcours-desc"><?= nl2br(htmlspecialchars($parcoursDesc)) ?></p>
         <?php endif; ?>
       </div>
+      <?php if ($hasParcImg): ?>
+      <div class="parcours-image">
+        <img src="../files/_pictures/<?= htmlspecialchars($picture_parcours) ?>"
+             alt="<?= htmlspecialchars($titleParcours) ?>"
+             class="lightbox-trigger"
+             loading="lazy">
+      </div>
+      <?php endif; ?>
     </section>
 
     <!-- Divider Image -->
-    <?php if (!empty($picture_gradient)): ?>
+    <?php if (!empty($picture_gradient) && is_file('../files/_pictures/' . $picture_gradient)): ?>
       <div class="section-divider">
         <img src="../files/_pictures/<?= htmlspecialchars($picture_gradient) ?>"
              alt="Illustration"
