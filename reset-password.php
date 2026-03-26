@@ -63,7 +63,7 @@ $footer  = $data['footer']  ?? '';
         <div class="oc-alert oc-alert-danger show">
           Ce lien de reinitialisation est invalide ou a expire (10 minutes).
         </div>
-        <a href="login.php" class="oc-btn">Retour a la connexion</a>
+        <a href="login" class="oc-btn">Retour a la connexion</a>
       <?php else: ?>
         <div id="err" class="oc-alert oc-alert-danger"></div>
         <div id="ok" class="oc-alert oc-alert-success"></div>

@@ -2828,7 +2828,7 @@ function generateTimelineSVG(int $count): array {
           <nav id="nav-links" class="links" aria-label="Navigation principale">
             <ul class="menu nav-secondary">
           <li class="item">
-            <a class="link" href="accueil.php">
+            <a class="link" href="accueil">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -2839,7 +2839,7 @@ function generateTimelineSVG(int $count): array {
             </a>
           </li>
           <li class="item">
-            <a class="link" href="parcours.php">
+            <a class="link" href="parcours">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"></circle>
@@ -2877,7 +2877,7 @@ function generateTimelineSVG(int $count): array {
                       <?php if (!empty($actualites)): ?>
                         <?php foreach ($actualites as $actu): ?>
                           <li>
-                            <a class="mega-link" href="news.php?id=<?= $actu['id'] ?>">
+                            <a class="mega-link" href="news?id=<?= $actu['id'] ?>">
                               <span class="micon">📰</span>
                               <div class="mega-link-content">
                                 <div class="mtitle"><?= htmlspecialchars($actu['title']) ?></div>
@@ -2887,7 +2887,7 @@ function generateTimelineSVG(int $count): array {
                         <?php endforeach; ?>
                       <?php else: ?>
                         <li>
-                          <a class="mega-link" href="news.php">
+                          <a class="mega-link" href="news">
                             <span class="micon">📰</span>
                             <div class="mega-link-content">
                               <div class="mtitle">Voir toutes les actualités</div>
@@ -2904,7 +2904,7 @@ function generateTimelineSVG(int $count): array {
                   <div class="mega-featured-img">📰</div>
                   <div class="mega-featured-title">Toutes nos actualités</div>
                   <div class="mega-featured-desc">Restez informés de tous les événements et nouveautés de Forbach en Rose</div>
-                  <a href="news.php" class="mega-featured-link">
+                  <a href="news" class="mega-featured-link">
                     Voir tout
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </a>
@@ -2937,7 +2937,7 @@ function generateTimelineSVG(int $count): array {
                       <?php if (!empty($galeries)): ?>
                         <?php foreach ($galeries as $galerie): ?>
                           <li>
-                            <a class="mega-link" href="photos.php?year_id=<?= $galerie['id'] ?>">
+                            <a class="mega-link" href="photos?year_id=<?= $galerie['id'] ?>">
                               <span class="micon">📸</span>
                               <div class="mega-link-content">
                                 <div class="mtitle"><?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)</div>
@@ -2947,7 +2947,7 @@ function generateTimelineSVG(int $count): array {
                         <?php endforeach; ?>
                       <?php else: ?>
                         <li>
-                          <a class="mega-link" href="photos.php">
+                          <a class="mega-link" href="photos">
                             <span class="micon">📸</span>
                             <div class="mega-link-content">
                               <div class="mtitle">Voir tous les albums</div>
@@ -2963,7 +2963,7 @@ function generateTimelineSVG(int $count): array {
                   <div class="mega-featured-img">📸</div>
                   <div class="mega-featured-title">Nos albums photos</div>
                   <div class="mega-featured-desc">Découvrez tous les moments forts de Forbach en Rose en images</div>
-                  <a href="photos.php" class="mega-featured-link">
+                  <a href="photos" class="mega-featured-link">
                     Voir tout
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </a>
@@ -2998,7 +2998,7 @@ function generateTimelineSVG(int $count): array {
                       <?php if (!empty($partenaires)): ?>
                         <?php foreach ($partenaires as $part): ?>
                           <li>
-                            <a class="mega-link" href="partenaires.php?year_id=<?= $part['id'] ?>">
+                            <a class="mega-link" href="partenaires?year_id=<?= $part['id'] ?>">
                               <span class="micon">🤝</span>
                               <div class="mega-link-content">
                                 <div class="mtitle"><?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)</div>
@@ -3008,7 +3008,7 @@ function generateTimelineSVG(int $count): array {
                         <?php endforeach; ?>
                       <?php else: ?>
                         <li>
-                          <a class="mega-link" href="partenaires.php">
+                          <a class="mega-link" href="partenaires">
                             <span class="micon">🤝</span>
                             <div class="mega-link-content">
                               <div class="mtitle">Voir tous les partenaires</div>
@@ -3024,7 +3024,7 @@ function generateTimelineSVG(int $count): array {
                   <div class="mega-featured-img">🤝</div>
                   <div class="mega-featured-title">Nos partenaires</div>
                   <div class="mega-featured-desc">Merci à tous nos partenaires qui soutiennent Forbach en Rose</div>
-                  <a href="partenaires.php" class="mega-featured-link">
+                  <a href="partenaires" class="mega-featured-link">
                     Voir tout
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </a>
@@ -3036,7 +3036,7 @@ function generateTimelineSVG(int $count): array {
           </nav>
         </div>
         <div class="cta">
-          <a class="btn pink nav-cta" href="register.php">Inscription<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn pink nav-cta" href="register">Inscription<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>
       </div>
     </div>
@@ -3044,7 +3044,7 @@ function generateTimelineSVG(int $count): array {
 
   <!-- ===== MOBILE HEADER (Vimeo style) ===== -->
   <header class="mobile-header" id="mobileHeader">
-    <a class="brand" href="accueil.php">
+    <a class="brand" href="accueil">
       <img class="brand-logo" src="../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
     </a>
   </header>
@@ -3156,14 +3156,14 @@ function generateTimelineSVG(int $count): array {
               <div class="mobile-menu-body">
                 <?php if (!empty($actualites)): ?>
                   <?php foreach ($actualites as $actu): ?>
-                    <a class="mobile-menu-sublink" href="news.php?id=<?= $actu['id'] ?>">
+                    <a class="mobile-menu-sublink" href="news?id=<?= $actu['id'] ?>">
                       <span class="menu-bullet" aria-hidden="true"></span>
                       <?= htmlspecialchars($actu['title']) ?>
                     </a>
                   <?php endforeach; ?>
                 <?php endif; ?>
               </div>
-              <a class="mobile-menu-see-all" href="news.php">
+              <a class="mobile-menu-see-all" href="news">
                 Voir toutes les actualités
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </a>
@@ -3174,14 +3174,14 @@ function generateTimelineSVG(int $count): array {
               <div class="mobile-menu-body">
                 <?php if (!empty($galeries)): ?>
                   <?php foreach ($galeries as $galerie): ?>
-                    <a class="mobile-menu-sublink" href="photos.php?year_id=<?= $galerie['id'] ?>">
+                    <a class="mobile-menu-sublink" href="photos?year_id=<?= $galerie['id'] ?>">
                       <span class="menu-bullet" aria-hidden="true"></span>
                       <?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)
                     </a>
                   <?php endforeach; ?>
                 <?php endif; ?>
               </div>
-              <a class="mobile-menu-see-all" href="photos.php">
+              <a class="mobile-menu-see-all" href="photos">
                 Voir tous les albums
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </a>
@@ -3192,14 +3192,14 @@ function generateTimelineSVG(int $count): array {
               <div class="mobile-menu-body">
                 <?php if (!empty($partenaires)): ?>
                   <?php foreach ($partenaires as $part): ?>
-                    <a class="mobile-menu-sublink" href="partenaires.php?year_id=<?= $part['id'] ?>">
+                    <a class="mobile-menu-sublink" href="partenaires?year_id=<?= $part['id'] ?>">
                       <span class="menu-bullet" aria-hidden="true"></span>
                       <?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)
                     </a>
                   <?php endforeach; ?>
                 <?php endif; ?>
               </div>
-              <a class="mobile-menu-see-all" href="partenaires.php">
+              <a class="mobile-menu-see-all" href="partenaires">
                 Voir tous les partenaires
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </a>
@@ -3221,14 +3221,14 @@ function generateTimelineSVG(int $count): array {
             </svg>
             <span>Menu</span>
           </button>
-          <a class="mobile-bottom-btn" href="accueil.php">
+          <a class="mobile-bottom-btn" href="accueil">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
               <polyline points="9,22 9,12 15,12 15,22"></polyline>
             </svg>
             <span>Accueil</span>
           </a>
-          <a class="mobile-bottom-btn" href="parcours.php">
+          <a class="mobile-bottom-btn" href="parcours">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <polygon points="10,8 16,12 10,16 10,8"></polygon>
@@ -3236,12 +3236,12 @@ function generateTimelineSVG(int $count): array {
             <span>Parcours</span>
           </a>
           <!-- Inner CTA: visible only when menu is open -->
-          <a class="mobile-bottom-cta-inner" href="register.php">Inscription</a>
+          <a class="mobile-bottom-cta-inner" href="register">Inscription</a>
         </div>
       </div>
 
       <!-- Outer CTA: visible only when menu is closed -->
-      <a class="mobile-bottom-cta" href="register.php">Inscription</a>
+      <a class="mobile-bottom-cta" href="register">Inscription</a>
     </div>
   </div>
 
@@ -3287,7 +3287,7 @@ function generateTimelineSVG(int $count): array {
             </div>
 
             <div class="actions">
-              <a class="cta-pink" href="register.php">Je m’inscris →</a>
+              <a class="cta-pink" href="register">Je m’inscris →</a>
             </div>
           </div>
         </div>
@@ -3337,11 +3337,13 @@ function generateTimelineSVG(int $count): array {
 
     <!-- COMMUNITY SECTION (style Vimeo) -->
     <section class="community-section" aria-label="Devenez partenaire">
-      <div class="community-container">
+      <div class="community-container"<?php if (empty($picture_partner) || !is_file('../files/_pictures/' . $picture_partner)): ?> style="grid-template-columns:1fr;text-align:center;max-width:800px"<?php endif; ?>>
+        <?php if (!empty($picture_partner) && is_file('../files/_pictures/' . $picture_partner)): ?>
         <div class="community-image">
           <img src="../files/_pictures/<?= htmlspecialchars($picture_partner) ?>" alt="Nos partenaires - Forbach en Rose">
         </div>
-        
+        <?php endif; ?>
+
         <div class="community-content">
           <h2 class="community-title">Rejoignez le clan de nos partenaires engagés</h2>
           <p class="community-text">
@@ -3383,7 +3385,7 @@ function generateTimelineSVG(int $count): array {
 
         <div class="reg-search">
           <div class="reg-title">Vérifier mon inscription</div>
-          <form class="reg-form" method="get" action="accueil.php#reg-bar">
+          <form class="reg-form" method="get" action="accueil#reg-bar">
             <input type="hidden" name="check_registration" value="1">
             <input class="reg-input" type="email" name="search_email" placeholder="Votre adresse email"
                   value="<?= htmlspecialchars($searchEmail) ?>" autocomplete="email" required>
@@ -3439,6 +3441,7 @@ function generateTimelineSVG(int $count): array {
 
           <div class="timeline-items">
             <?php foreach ($timelineItems as $index => $ti):
+                if (empty($ti['title']) && empty($ti['content']) && empty($ti['image'])) continue;
                 $side = ($index % 2 === 0) ? 'left' : 'right';
                 $elements = $timelineElements[$ti['id']] ?? [];
             ?>
@@ -3447,7 +3450,7 @@ function generateTimelineSVG(int $count): array {
               <article class="t-card">
                 <div class="t-media">
                   <div class="t-media-inner">
-                  <?php if (!empty($ti['image'])):
+                  <?php if (!empty($ti['image']) && is_file('../files/_TimeLine/' . $ti['image'])):
                     $posRaw = $ti['image_position'] ?? '50% 50% 1';
                     $posParts = preg_split('/\s+/', trim($posRaw));
                     $imgXPct = $posParts[0] ?? '50%';
@@ -3488,18 +3491,20 @@ function generateTimelineSVG(int $count): array {
 
   
 
+<?php if (!empty($actualites)): ?>
 <!-- NEWS BAND (latest news) -->
   <section class="news-band" aria-label="Dernières actualités">
     <div class="news-band-container">
       <div class="news-band-head">
         <h3 class="news-band-title">Dernières actualités</h3>
-        <a class="news-band-link" href="news.php">Voir tout</a>
+        <a class="news-band-link" href="news">Voir tout</a>
       </div>
       <div class="news-grid">
         <?php $news_cards = array_slice($actualites, 0, 4); ?>
         <?php if (!empty($news_cards)): ?>
           <?php foreach ($news_cards as $actu): ?>
             <?php
+              if (empty($actu['title'])) continue;
               $dateLabel = '';
               $dateAttr = '';
               if (!empty($actu['date_publication'])) {
@@ -3510,7 +3515,7 @@ function generateTimelineSVG(int $count): array {
                 }
               }
             ?>
-            <a class="news-card" href="news.php?id=<?= $actu['id'] ?>">
+            <a class="news-card" href="news?id=<?= $actu['id'] ?>">
               <div class="news-body">
                 <span class="news-kicker">Actualité</span>
                 <span class="news-title"><?= htmlspecialchars($actu['title']) ?></span>
@@ -3527,6 +3532,7 @@ function generateTimelineSVG(int $count): array {
       </div>
     </div>
   </section>
+<?php endif; ?>
 
 <?php include '../inc/footer-modern.php'; ?>
 

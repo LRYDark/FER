@@ -117,12 +117,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     ob_start();
 
     foreach ($articles as $article):
+        if (empty($article['title_article'])) continue;
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         $nbComments = $commentCounts[$article['id']] ?? 0;
         ?>
-        <a href="news.php?id=<?= $article['id'] ?>" class="ncard">
+        <a href="news?id=<?= $article['id'] ?>" class="ncard">
             <div class="ncard-img">
                 <?php if ($hasImage): ?>
                     <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
@@ -749,7 +750,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
   <!-- ─── Article: top bar ─── -->
   <section class="news-hero">
     <div class="news-title-bar">
-      <a href="news.php" title="Retour" class="back-btn">
+      <a href="news" title="Retour" class="back-btn">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
       </a>
       <h1 class="news-title-bar-title">Actualités</h1>
@@ -857,14 +858,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
   <!-- Cards list -->
   <div class="ncards" id="articlesContainer">
+    <?php if (empty($articles)): ?>
+      <div style="text-align:center;padding:60px 20px;color:var(--page-muted);grid-column:1/-1;">
+        <p>Aucune actualité pour le moment.</p>
+      </div>
+    <?php endif; ?>
     <?php foreach ($articles as $article): ?>
       <?php
+        if (empty($article['title_article'])) continue;
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         $nbComments = $commentCounts[$article['id']] ?? 0;
       ?>
-      <a href="news.php?id=<?= $article['id'] ?>" class="ncard">
+      <a href="news?id=<?= $article['id'] ?>" class="ncard">
         <div class="ncard-img">
           <?php if ($hasImage): ?>
             <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">

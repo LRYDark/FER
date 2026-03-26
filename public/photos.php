@@ -48,7 +48,7 @@ if ($selectedYearId) {
 
     if (!$selectedYear && !$isPreview) {
         // L'année n'existe pas ou est en brouillon → rediriger vers la page photos
-        header('Location: photos.php');
+        header('Location: photos');
         exit;
     }
 
@@ -492,7 +492,7 @@ function resolveAlbumDateLabel(array $album): string
   <main>
     <section class="photos-hero" aria-label="Titre de la page">
       <?php if ($selectedYear): ?>
-        <a href="photos.php" title="Retour" class="back-btn">
+        <a href="photos" title="Retour" class="back-btn">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
         </a>
       <?php endif; ?>
@@ -510,13 +510,14 @@ function resolveAlbumDateLabel(array $album): string
         <div class="albums-grid">
           <?php foreach ($albums as $album): ?>
             <?php
+              if (empty($album['album_title']) && empty($album['album_link'])) continue;
               $creatorName = resolveAlbumCreator($album);
               $dateLabel = resolveAlbumDateLabel($album);
             ?>
             <a href="<?= htmlspecialchars($album['album_link']) ?>" target="_blank" rel="noopener noreferrer" class="album-card">
               <div class="album-card-media">
                 <div class="album-card-media-inner">
-                  <?php if (!empty($album['album_img'])): ?>
+                  <?php if (!empty($album['album_img']) && is_file('../files/_albums/' . $album['album_img'])): ?>
                     <img src="../files/_albums/<?= htmlspecialchars($album['album_img']) ?>"
                          class="album-card-image"
                          alt="<?= htmlspecialchars($album['album_title']) ?>"
@@ -544,6 +545,7 @@ function resolveAlbumDateLabel(array $album): string
       <?php if (!empty($years)): ?>
         <div class="years-grid">
           <?php foreach ($years as $year): ?>
+            <?php if (empty($year['title']) && empty($year['year'])) continue; ?>
             <a href="?year_id=<?= $year['id'] ?>" class="year-card" data-year="<?= htmlspecialchars($year['year']) ?>">
               <span class="year-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="year-card-title"><?= htmlspecialchars($year['title']) ?></span>

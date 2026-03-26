@@ -351,7 +351,7 @@ $picture= $data['picture'] ?? '';
     <div class="oc-login-wrapper">
 
       <!-- Back link -->
-      <a href="public/accueil.php" class="oc-back">
+      <a href="public/accueil" class="oc-back">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>
