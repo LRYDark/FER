@@ -78,7 +78,7 @@ function send2faCode($pdo, $user) {
             $user['email'],
             'Code de verification – Forbach en Rose',
             'Code de verification',
-            '<p>Votre code de verification est :</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;color:#c4577a;margin:20px 0">' . $code . '</p><p>Ce code est valable 15 minutes.</p><p>Si vous n\'avez pas demande cette connexion, ignorez ce message.</p>',
+            '<p>Votre code de verification est :</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;color:#ec4899;margin:20px 0">' . $code . '</p><p>Ce code est valable 15 minutes.</p><p>Si vous n\'avez pas demande cette connexion, ignorez ce message.</p>',
             null, null, 'info'
         );
         return true;
@@ -576,6 +576,26 @@ if ($route==='registrations'){
           currentUserId()
         ]);
         $pdo->commit();
+
+        // Envoyer mail de confirmation si email renseigné
+        $inscEmail = trim($d['email'] ?? '');
+        if ($inscEmail !== '') {
+            try {
+                require_once __DIR__ . '/googleMail.php';
+                if (isGoogleConnectionValid()) {
+                    sendMail(
+                        $inscEmail,
+                        'Inscription enregistrée - Forbach en Rose',
+                        null, null,
+                        $d['nom'] ?? '', $d['prenom'] ?? '',
+                        'inscription'
+                    );
+                }
+            } catch (\Throwable $e) {
+                // Mail failure should not block inscription
+            }
+        }
+
         echo json_encode(['ok'=>true,'inscription_no'=>$no]); exit;
     }
 

@@ -333,7 +333,7 @@ if ($migrationDone) {
   }
   .filter-tabs a.active {
     color: #1e293b;
-    border-bottom-color: #c4577a;
+    border-bottom-color: #ec4899;
     font-weight: 600;
   }
   .filter-tabs .badge {

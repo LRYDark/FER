@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 requireRole(['admin','user','viewer']);
 $role = currentRole();
 
@@ -35,6 +36,7 @@ if (isset($_SESSION['flash_message'])) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tableau de bord</title>
+<meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -158,7 +160,7 @@ tr.filters select, tr.filters input {
   cursor: col-resize; user-select: none; z-index: 1;
 }
 #tbl thead th .col-resize:hover,
-#tbl thead th .col-resize.active { background: #c4577a; }
+#tbl thead th .col-resize.active { background: #ec4899; }
 
 /* Bouton colonnes */
 .col-toggle-wrap { position: relative; display: inline-block; }
@@ -270,9 +272,11 @@ tr.filters select{
             document.getElementById('btnArchiveNow').addEventListener('click', async () => {
               if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
 
+              const _ct = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
               const res  = await fetch('../config/api.php?route=archive-current', {
                 method: 'POST',
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                headers: {'X-CSRF-TOKEN': _ct}
               });
               const json = await res.json();
               if (json.ok) {
@@ -306,10 +310,9 @@ tr.filters select{
     <h5 class="modal-title">Nouvel inscrit</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
     <form id="fAdd">
       <div class="modal-body row g-2">
-        <div id="addMsg" class="alert alert-success d-none" role="alert"></div>
         <input type="hidden" name="origine" value="Admin">
-        <div class="col-md-6"><label class="form-label">Nom</label><input name="nom" class="form-control" required></div>
-        <div class="col-md-6"><label class="form-label">Prénom</label><input name="prenom" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label">Nom <span style="color:#ef4444">*</span></label><input name="nom" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label">Prénom <span style="color:#ef4444">*</span></label><input name="prenom" class="form-control" required></div>
         <div class="col-md-6"><label class="form-label">Téléphone</label><input name="tel" class="form-control"></div>
         <div class="col-md-6"><label class="form-label">Email</label><input name="email" type="email" class="form-control"></div>
         <div class="col-md-6"><label class="form-label">Naissance</label><input name="naissance" type="text" class="form-control" placeholder="2000 ou 09/05/2000"></div>
@@ -317,7 +320,7 @@ tr.filters select{
         <div class="col-md-4"><label class="form-label">T-shirt</label><select name="tshirt_size" class="form-select"><option>-</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
         <div class="col-md-4"><label class="form-label">Ville</label><input name="ville" class="form-control"></div>
         <div class="col-md-4"><label class="form-label">Entreprise</label><input name="entreprise" class="form-control"></div>
-        <div class="col-md-6"><label class="form-label">Paiement</label><select name="paiement_mode" class="form-select" required><option value="" disabled selected hidden>Choisir…</option><option>CB</option><option>espece</option><option>cheque</option></select></div>
+        <div class="col-md-6"><label class="form-label">Paiement <span style="color:#ef4444">*</span></label><select name="paiement_mode" class="form-select" required><option value="" disabled selected hidden>Choisir…</option><option>CB</option><option>espece</option><option>cheque</option></select></div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
     </form>
@@ -330,8 +333,8 @@ tr.filters select{
       <div class="modal-body row g-2">
         <input type="hidden" name="id">
         <input type="hidden" name="origine" value="Admin">
-        <div class="col-md-6"><label class="form-label">Nom</label><input name="nom" class="form-control" required></div>
-        <div class="col-md-6"><label class="form-label">Prénom</label><input name="prenom" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label">Nom <span style="color:#ef4444">*</span></label><input name="nom" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label">Prénom <span style="color:#ef4444">*</span></label><input name="prenom" class="form-control" required></div>
         <div class="col-md-6"><label class="form-label">Téléphone</label><input name="tel" class="form-control"></div>
         <div class="col-md-6"><label class="form-label">Email</label><input name="email" type="email" class="form-control"></div>
         <div class="col-md-6"><label class="form-label">Naissance</label><input name="naissance" type="text" class="form-control" placeholder="2000 ou 09/05/2000"></div>
@@ -363,6 +366,7 @@ tr.filters select{
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
 
 <script>
+const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 const userRole = '<?= $role ?>';
 let tableData = []; // Pour stocker les données triées par date
 
@@ -609,21 +613,21 @@ $('#tbl').on('change','.tshirt-dd',function(){
     alert('Vous n\'avez pas les droits pour modifier les tailles de t-shirts.');
     return;
   }
-  fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id:this.dataset.id,tshirt_size:this.value})});
+  fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},body:new URLSearchParams({id:this.dataset.id,tshirt_size:this.value})});
 });
 
 /* ══ SUPPRESSION ════ */
 $('#tbl').on('click', '.delete-row', function() {
   const row = tbl.row($(this).closest('tr'));
   const data = row.data();
-  
+
   if (!confirm(`Êtes-vous sûr de vouloir supprimer l'inscription de ${data.prenom} ${data.nom} ?`)) {
     return;
   }
-  
+
   fetch('../config/api.php?route=registrations', {
     method: 'DELETE',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    headers: {'Content-Type': 'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},
     body: new URLSearchParams({id: data.id})
   })
   .then(response => response.json())
@@ -648,15 +652,29 @@ $('#tbl').on('click', '.delete-row', function() {
 $('#fAdd').on('submit',e=>{
   e.preventDefault();
   const fd=new FormData(e.target); normalizeBirth(fd);
-  fetch('../config/api.php?route=registrations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(fd))})
+  fetch('../config/api.php?route=registrations',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},body:JSON.stringify(Object.fromEntries(fd))})
   .then(r=>r.json()).then(j=>{
     if(j.inscription_no){
       tbl.ajax.reload(); e.target.reset();
-      $('#addMsg').text('Inscription OK').removeClass('d-none').fadeIn(200).delay(3000).fadeOut(400);
+      showToast('Inscription n°' + j.inscription_no + ' enregistrée !');
       $('#fAdd [name="nom"]').focus();
     }
   });
 });
+
+/* ══ TOAST ════ */
+function showToast(msg) {
+  let t = document.getElementById('ocToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'ocToast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:14px 24px;border-radius:10px;font-size:14px;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .3s;display:flex;align-items:center;gap:10px;';
+    document.body.appendChild(t);
+  }
+  t.innerHTML = '<span style="color:#22c55e;font-size:18px;">&#10003;</span> ' + msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3500);
+}
 
 /* ══ ÉDITION ════ */
 $('#tbl').on('click','button.edit',function(){
@@ -667,7 +685,7 @@ $('#tbl').on('click','button.edit',function(){
 $('#fEdit').on('submit',e=>{
   e.preventDefault();
   const fd=new FormData(e.target); normalizeBirth(fd);
-  fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(fd)})
+  fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},body:new URLSearchParams(fd)})
   .then(()=>{tbl.ajax.reload(null,false); bootstrap.Modal.getInstance('#editModal').hide();});
 });
 
@@ -685,6 +703,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   try {
     const res = await fetch('../config/api.php?route=import-excel', {
       method:      'POST',
+      headers:     {'X-CSRF-TOKEN': _csrfToken},
       body:        data,
       credentials: 'same-origin'   // garde la session PHP
     });
@@ -839,7 +858,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = tbl.column(colIdx).visible();
-      cb.style.accentColor = '#c4577a';
+      cb.style.accentColor = '#ec4899';
       cb.addEventListener('change', function() {
         tbl.column(colIdx).visible(this.checked);
         saveVisibility();

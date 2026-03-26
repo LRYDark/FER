@@ -194,39 +194,29 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     /* ---------- Sujet ---------- */
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
-    /* ---------- Corps ---------- */
-    switch ($type) {
-        case 'info':
-            $body = render('mail_info.php', [
-                'mailTitle'   => $mailTitle,
-                'description' => $description,
-                'instagram'   => $data['link_instagram'] ?? '',
-                'facebook'    => $data['link_facebook'] ?? '',
-            ]);
-            break;
-
-        case 'inscription':
-            $formattedDate = '';
-            if (!empty($data['date_course'])) {
-                $dateCourse = new DateTime($data['date_course']);
-                $formatter = new IntlDateFormatter(
-                    'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
-                    'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
-                );
-                $formattedDate = $formatter->format($dateCourse);
-            }
-            $body = render('mail_inscription.php', [
-                'firstname'   => $firstname,
-                'lastname'    => $lastname,
-                'date'        => $formattedDate,
-                'instagram'   => $data['link_instagram'] ?? '',
-                'facebook'    => $data['link_facebook'] ?? '',
-            ]);
-            break;
-
-        default:
-            throw new InvalidArgumentException('Type de mail inconnu : ' . $type);
+    /* ---------- Corps (template unique) ---------- */
+    $formattedDate = '';
+    if ($type === 'inscription' && !empty($data['date_course'])) {
+        $dateCourse = new DateTime($data['date_course']);
+        $formatter = new IntlDateFormatter(
+            'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
+            'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
+        );
+        $formattedDate = $formatter->format($dateCourse);
     }
+
+    $body = render('mail_template.php', [
+        'type'        => $type,
+        'mailTitle'   => $mailTitle,
+        'description' => $description,
+        'firstname'   => $firstname,
+        'lastname'    => $lastname,
+        'date'        => $formattedDate,
+        'instagram'   => $data['link_instagram'] ?? '',
+        'facebook'    => $data['link_facebook'] ?? '',
+        'mail_email'  => $data['mail_email'] ?? '',
+        'mail_phone'  => $data['mail_phone'] ?? '',
+    ]);
 
     /* ---------- Construction du message ---------- */
     $profile = $service->users->getProfile('me');
