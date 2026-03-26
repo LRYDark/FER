@@ -165,7 +165,7 @@ function resolveAlbumDateLabel(array $album): string
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Photos - Forbach en Rose</title>
+  <title>Photos</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
     /* Trait subtil sous la navbar */

@@ -185,7 +185,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= $singleArticle ? htmlspecialchars($singleArticle['title_article']) . ' - ' : '' ?>Actualités - Forbach en Rose</title>
+  <title><?= $singleArticle ? htmlspecialchars($singleArticle['title_article']) : 'Actualités' ?></title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
     .floating-nav { border-bottom: 1px solid rgba(0,0,0,0.06); }

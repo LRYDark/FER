@@ -165,7 +165,7 @@ function generateTimelineSVG(int $count): array {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Accueil - Forbach en Rose</title>
+  <title>Accueil</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
 
   <style>
