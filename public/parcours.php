@@ -37,6 +37,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
     /* Styles spécifiques à la page parcours */
     .parcours-hero {
       width: 100%;
+      max-width: 85%;
       margin: 100px auto 60px;
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -79,8 +80,8 @@ $picture_gradient = $data['picture_gradient'] ?? '';
     }
 
     .section-divider img {
-      width: 100%;
-      max-width: 100%;
+      width: 72%;
+      max-width: 72%;
       height: auto;
       border-radius: 16px;
       cursor: pointer;
@@ -92,7 +93,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
     }
 
     .album-section {
-      margin: 80px auto 60px;
+      margin: 80px auto 20px;
     }
 
     .album-title {
@@ -105,13 +106,15 @@ $picture_gradient = $data['picture_gradient'] ?? '';
 
     .masonry {
       columns: 3;
-      column-gap: 16px;
+      column-gap: 8px;
+      max-width: 75%;
+      margin: 0 auto;
     }
 
     .masonry-img {
       width: 100%;
       height: auto;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
       break-inside: avoid;
       border-radius: 12px;
       cursor: pointer;
@@ -162,15 +165,40 @@ $picture_gradient = $data['picture_gradient'] ?? '';
         grid-template-columns: 1fr;
         gap: 40px;
         margin-top: 16px;
+        max-width: 94%;
+      }
+
+      .parcours-content h1 {
+        text-align: center;
+      }
+
+      .parcours-desc {
+        font-size: 17px;
+        text-align: left;
+      }
+
+      .parcours-image {
+        text-align: center;
+      }
+
+      .parcours-image img {
+        width: 90%;
+        margin: 0 auto;
       }
 
       .masonry {
         columns: 2;
         column-gap: 12px;
+        max-width: 85%;
       }
 
       .masonry-img {
         margin-bottom: 12px;
+      }
+
+      .section-divider img {
+        width: 100%;
+        max-width: 100%;
       }
     }
 

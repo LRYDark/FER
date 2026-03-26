@@ -230,6 +230,7 @@ function getCreateTableStatements(): array
           `picture_parcours` varchar(255) DEFAULT NULL,
           `div_reglementation` mediumtext DEFAULT NULL,
           `link_cancer` varchar(255) DEFAULT NULL,
+          `partners_title` varchar(255) DEFAULT NULL,
           `debogage` int(2) NOT NULL DEFAULT 0,
           `client_id` TEXT DEFAULT NULL,
           `client_secret` TEXT DEFAULT NULL,
@@ -339,6 +340,7 @@ function getCreateTableStatements(): array
           `title` varchar(255) NOT NULL,
           `img` varchar(255) DEFAULT NULL,
           `desc` mediumtext DEFAULT NULL,
+          `status` varchar(20) NOT NULL DEFAULT 'published',
           `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
@@ -359,6 +361,7 @@ function getCreateTableStatements(): array
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `year` int(11) NOT NULL,
           `title` varchar(255) NOT NULL,
+          `status` varchar(20) NOT NULL DEFAULT 'published',
           `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
@@ -400,6 +403,7 @@ function getCreateTableStatements(): array
           `image` varchar(255) DEFAULT NULL,
           `image_position` varchar(50) DEFAULT '50% 50% 1',
           `sort_order` int(11) NOT NULL DEFAULT 0,
+          `status` varchar(20) NOT NULL DEFAULT 'published',
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",

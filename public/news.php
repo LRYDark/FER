@@ -18,14 +18,38 @@ $link_instagram = $data['link_instagram'] ?? null;
 $link_facebook = $data['link_facebook'] ?? null;
 $link_cancer = $data['link_cancer'] ?? null;
 
+// ─── Check status/deleted_at columns exist ───
+$hasStatusCol = false;
+try { $pdo->query("SELECT status FROM news LIMIT 0"); $hasStatusCol = true; } catch (PDOException $e) {}
+
+// ─── Mode preview (admin only) ───
+$isPreview = false;
+$previewId = isset($_GET['preview']) ? (int)$_GET['preview'] : 0;
+
 // ─── Mode article unique ───
-$articleId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$articleId = $previewId ?: (isset($_GET['id']) ? (int)$_GET['id'] : 0);
 $singleArticle = null;
 
 if ($articleId > 0) {
-    $stmtA = $pdo->prepare('SELECT * FROM news WHERE id = :id LIMIT 1');
-    $stmtA->execute(['id' => $articleId]);
-    $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
+    if ($previewId > 0) {
+        // Preview mode: admin only, any status
+        if (session_status() === PHP_SESSION_NONE) { session_start(); }
+        if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+            header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
+        }
+        $isPreview = true;
+        $stmtA = $pdo->prepare('SELECT * FROM news WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmtA->execute(['id' => $articleId]);
+        $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
+    } else {
+        // Public mode: only published articles
+        $pubSql = $hasStatusCol
+            ? 'SELECT * FROM news WHERE id = :id AND deleted_at IS NULL AND status = \'published\' LIMIT 1'
+            : 'SELECT * FROM news WHERE id = :id LIMIT 1';
+        $stmtA = $pdo->prepare($pubSql);
+        $stmtA->execute(['id' => $articleId]);
+        $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
+    }
 }
 
 // ─── Mode listing ───
@@ -36,6 +60,11 @@ $search = $_GET['search'] ?? '';
 
 $whereConditions = [];
 $params = [];
+
+// Only show published, non-deleted articles on public listing
+if ($hasStatusCol) {
+    $whereConditions[] = "deleted_at IS NULL AND status = 'published'";
+}
 
 if (!empty($search)) {
     $whereConditions[] = '(title_article LIKE :search OR desc_article LIKE :search)';
@@ -743,6 +772,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       </button>
     </div>
   </section>
+
+  <?php if ($isPreview): ?>
+    <div style="background:#fd7e14;color:#fff;text-align:center;padding:10px;font-weight:600;font-size:14px;margin-top:12px;border-radius:8px;max-width:1200px;margin-left:auto;margin-right:auto;">
+      <i class="bi bi-eye"></i> Aperçu – Cet article n'est pas encore publié
+    </div>
+  <?php endif; ?>
 
   <!-- ─── Article content ─── -->
   <div class="article-detail">

@@ -11,7 +11,7 @@ $route = $_GET['route'] ?? '';
 function logLoginAttempt($pdo, $userId, $email, $success, $reason = null) {
     try {
         $pdo->prepare('INSERT INTO login_logs (user_id, email, ip_address, user_agent, success, reason) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$userId, $email, $_SERVER['REMOTE_ADDR'] ?? '', mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500), $success ? 1 : 0, $reason]);
+            ->execute([$userId, $email, getClientIp(), mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500), $success ? 1 : 0, $reason]);
         // Keep only last 500 entries
         $pdo->exec('DELETE FROM login_logs WHERE id NOT IN (SELECT id FROM (SELECT id FROM login_logs ORDER BY created_at DESC LIMIT 500) AS t)');
     } catch (\Throwable $e) {} // Table may not exist yet
@@ -25,19 +25,28 @@ function isIpBanned($pdo, $ip) {
     } catch (\Throwable $e) { return false; }
 }
 
-function checkTrustedDevice($pdo, $userId, $ip) {
+function getClientIp() {
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'] as $key) {
+        $val = $_SERVER[$key] ?? '';
+        if ($val) { $ip = strtok($val, ','); return trim($ip); }
+    }
+    return '0.0.0.0';
+}
+
+function checkTrustedDevice($pdo, $userId) {
     try {
         $token = $_COOKIE['fer_trust'] ?? '';
         if (!$token) return false;
-        $st = $pdo->prepare('SELECT 1 FROM trusted_devices WHERE user_id = ? AND token = ? AND ip_address = ? AND expires_at > NOW() LIMIT 1');
-        $st->execute([$userId, $token, $ip]);
+        $st = $pdo->prepare('SELECT 1 FROM trusted_devices WHERE user_id = ? AND token = ? AND expires_at > NOW() LIMIT 1');
+        $st->execute([$userId, $token]);
         return (bool) $st->fetch();
     } catch (\Throwable $e) { return false; }
 }
 
-function createTrustedDevice($pdo, $userId, $ip) {
+function createTrustedDevice($pdo, $userId) {
     try {
         $token = bin2hex(random_bytes(32));
+        $ip = getClientIp();
         $ua = mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500);
         $pdo->prepare('INSERT INTO trusted_devices (user_id, token, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))')
             ->execute([$userId, $token, $ip, $ua]);
@@ -75,7 +84,7 @@ function send2faCode($pdo, $user) {
 /* ───── LOGIN / LOGOUT ───────────────────────── */
 if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $d = json_decode(file_get_contents('php://input'), true);
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = getClientIp();
 
     // Check IP ban
     if (isIpBanned($pdo, $ip)) {
@@ -116,7 +125,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
 
         if ($mailOk && $has2faCols && $userHasEmail) {
             // Check trusted device
-            if (checkTrustedDevice($pdo, $u['id'], $ip)) {
+            if (checkTrustedDevice($pdo, $u['id'])) {
                 // Trusted → login direct
                 $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
                 logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Appareil de confiance');
@@ -206,8 +215,7 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     // Trust device if requested
     if ($trustDevice) {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        createTrustedDevice($pdo, $uid, $ip);
+        createTrustedDevice($pdo, $uid);
     }
 
     echo json_encode(['ok'=>true, 'role'=>$_SESSION['role']]); exit;

@@ -97,9 +97,25 @@ $partenaires_cols2 = count($partenaires) > 5;
 
 $link_cancer = $data['link_cancer'] ?? null;
 
+// Timeline preview mode
+$isTimelinePreview = isset($_GET['preview_timeline']) && $_GET['preview_timeline'] == '1';
+if ($isTimelinePreview) {
+    if (session_status() === PHP_SESSION_NONE) { session_start(); }
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+        $isTimelinePreview = false;
+    }
+}
+
+$hasTimelineStatusCol = false;
+try { $pdo->query("SELECT status FROM timeline_items LIMIT 0"); $hasTimelineStatusCol = true; } catch (PDOException $e) {}
+
 // Récupération des items de la timeline
 try {
-    $stmtTimeline = $pdo->prepare('SELECT * FROM timeline_items ORDER BY sort_order ASC');
+    if ($isTimelinePreview || !$hasTimelineStatusCol) {
+        $stmtTimeline = $pdo->prepare('SELECT * FROM timeline_items ORDER BY sort_order ASC');
+    } else {
+        $stmtTimeline = $pdo->prepare("SELECT * FROM timeline_items WHERE status = 'published' ORDER BY sort_order ASC");
+    }
     $stmtTimeline->execute();
     $timelineItems = $stmtTimeline->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2023,8 +2039,16 @@ function generateTimelineSVG(int $count): array {
       position: relative;
       width: 100%;
       height: 180px;
-      overflow: hidden;
+      overflow: visible;
+      border-radius: 0 0 16px 16px;
       background: linear-gradient(135deg, #fdf2f8, #fce7f3);
+    }
+
+    .t-media-inner {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 0 0 16px 16px;
     }
 
     .t-media img {
@@ -2034,36 +2058,31 @@ function generateTimelineSVG(int $count): array {
       display: block;
     }
 
-    .t-media::after {
-      content: "";
+    .t-kicker {
       position: absolute;
       bottom: 0;
-      left: 0;
-      right: 0;
-      height: 80px;
-      background: linear-gradient(to top, rgba(255,255,255,1), transparent);
-      pointer-events: none;
-    }
-
-    .t-content {
-      padding: 20px 24px 24px;
-      margin-top: -20px;
-      position: relative;
-      text-align: left;
-      z-index: 2;
-    }
-
-    .t-kicker {
+      left: 16px;
+      transform: translateY(50%);
+      z-index: 3;
       display: inline-block;
       font-size: 11px;
       letter-spacing: .14em;
       text-transform: uppercase;
       color: var(--pink);
       font-weight: 800;
-      margin-bottom: 8px;
       padding: 6px 12px;
-      background: linear-gradient(135deg, #fdf2f8, #fce7f3);
+      background: #fce7f3;
       border-radius: 100px;
+      margin: 0;
+      border: 5px solid #fff;
+      box-shadow: 0 0 0 1px #fff;
+    }
+
+    .t-content {
+      padding: 20px 24px 24px;
+      position: relative;
+      text-align: left;
+      z-index: 2;
     }
 
     .t-amount {
@@ -2190,7 +2209,7 @@ function generateTimelineSVG(int $count): array {
     .community-container{
       max-width: 1400px;
       margin: 0 auto;
-      padding: 100px var(--side-pad);
+      padding: 50px var(--side-pad);
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 80px;
@@ -2202,7 +2221,7 @@ function generateTimelineSVG(int $count): array {
     }
     
     .community-image img{
-      width: 100%;
+      width: 85%;
       height: auto;
       display: block;
       border-radius: 12px;
@@ -2214,18 +2233,18 @@ function generateTimelineSVG(int $count): array {
     }
     
     .community-title{
-      font-size: clamp(32px, 4vw, 52px);
+      font-size: clamp(22px, 2.5vw, 32px);
       font-weight: 700;
-      line-height: 1.1;
-      margin: 0 0 24px 0;
+      line-height: 1.15;
+      margin: 0 0 16px 0;
       letter-spacing: -0.02em;
     }
-    
+
     .community-text{
-      font-size: 18px;
+      font-size: 15px;
       line-height: 1.6;
       color: rgba(255,255,255,.85);
-      margin: 0 0 32px 0;
+      margin: 0 0 24px 0;
       max-width: 600px;
     }
     
@@ -2330,7 +2349,7 @@ function generateTimelineSVG(int $count): array {
     .news-band-container{
       max-width: 1400px;
       margin: 0 auto;
-      padding: 64px var(--side-pad) 72px;
+      padding: 40px var(--side-pad) 44px;
     }
 
     .news-band-head{
@@ -2455,16 +2474,25 @@ function generateTimelineSVG(int $count): array {
       
       .community-container{
         grid-template-columns: 1fr;
-        gap: 60px;
-        padding: 80px var(--side-pad);
+        gap: 32px;
+        padding: 40px var(--side-pad);
       }
-      
+
+      .community-image{
+        text-align: center;
+      }
+
+      .community-image img{
+        width: 92%;
+        margin: 0 auto;
+      }
+
       .community-title{
-        font-size: 32px;
+        font-size: 24px;
       }
-      
+
       .community-text{
-        font-size: 16px;
+        font-size: 15px;
       }
       
       .form-group{
@@ -2743,12 +2771,11 @@ function generateTimelineSVG(int $count): array {
     body.dark-theme .t-media{
       background: linear-gradient(135deg, #1a1025, #1e1230);
     }
-    body.dark-theme .t-media::after{
-      background: linear-gradient(to top, #1e1f28, transparent);
-    }
     body.dark-theme .t-kicker{
-      background: linear-gradient(135deg, #1a1025, #1e1230);
+      background: #1a1025;
       color: var(--pink);
+      border-color: #1e1f28;
+      box-shadow: 0 0 0 1px #1e1f28;
     }
     body.dark-theme .t-amount{
       color: #ffffff;
@@ -3383,6 +3410,11 @@ function generateTimelineSVG(int $count): array {
     </section>
     
 <!-- TIMELINE (below video) -->
+    <?php if ($isTimelinePreview): ?>
+    <div style="background:#fd7e14;color:#fff;text-align:center;padding:10px;font-weight:600;font-size:14px;margin:12px auto;border-radius:8px;max-width:1200px;">
+      Aperçu Timeline – Les brouillons sont visibles
+    </div>
+    <?php endif; ?>
     <?php if ($timelineCount > 0):
         $svg = generateTimelineSVG($timelineCount);
     ?>
@@ -3414,6 +3446,7 @@ function generateTimelineSVG(int $count): array {
               <span class="t-dot" aria-hidden="true"></span>
               <article class="t-card">
                 <div class="t-media">
+                  <div class="t-media-inner">
                   <?php if (!empty($ti['image'])):
                     $posRaw = $ti['image_position'] ?? '50% 50% 1';
                     $posParts = preg_split('/\s+/', trim($posRaw));
@@ -3428,9 +3461,10 @@ function generateTimelineSVG(int $count): array {
                   ?>
                     <img src="../files/_TimeLine/<?= htmlspecialchars($ti['image']) ?>" alt="<?= htmlspecialchars($ti['title']) ?>" style="<?= $imgStyle ?>">
                   <?php endif; ?>
+                  </div>
+                  <div class="t-kicker"><?= htmlspecialchars($ti['title']) ?></div>
                 </div>
                 <div class="t-content">
-                  <div class="t-kicker"><?= htmlspecialchars($ti['title']) ?></div>
                   <div class="t-amount"><?= htmlspecialchars($ti['content']) ?></div>
                   <?php if (!empty($elements)): ?>
                   <div class="t-meta">

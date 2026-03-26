@@ -13,6 +13,12 @@ if (!is_dir($timelineDir)) {
     @mkdir($timelineDir, 0755, true);
 }
 
+$hasStatusCol = false;
+try {
+    $pdo->query("SELECT status FROM timeline_items LIMIT 0");
+    $hasStatusCol = true;
+} catch (PDOException $e) {}
+
 // ─── Reorder via AJAX ───
 if (isset($_POST['reorder_items'])) {
     $ids = json_decode($_POST['ids'], true);
@@ -46,8 +52,14 @@ if (isset($_POST['add_item'])) {
     $imgPos = trim($_POST['image_position'] ?? '50% 50% 1');
 
     $maxOrder = (int)$pdo->query("SELECT COALESCE(MAX(sort_order), 0) FROM timeline_items")->fetchColumn();
-    $stmt = $pdo->prepare("INSERT INTO timeline_items (title, content, image, image_position, sort_order) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$title, $content, $imgName, $imgPos, $maxOrder + 1]);
+    if ($hasStatusCol) {
+        $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+        $stmt = $pdo->prepare("INSERT INTO timeline_items (title, content, image, image_position, sort_order, status) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$title, $content, $imgName, $imgPos, $maxOrder + 1, $status]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO timeline_items (title, content, image, image_position, sort_order) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$title, $content, $imgName, $imgPos, $maxOrder + 1]);
+    }
     $lastId = $pdo->lastInsertId();
 
     $elements = trim($_POST['elements'] ?? '');
@@ -70,6 +82,8 @@ if (isset($_POST['update_item'])) {
     $content = trim($_POST['content'] ?? '');
     $imgPos  = trim($_POST['image_position'] ?? '50% 50% 1');
 
+    $status = $hasStatusCol ? (isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft') : null;
+
     if (!empty($_FILES['image']['name'])) {
         $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
         $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -84,12 +98,22 @@ if (isset($_POST['update_item'])) {
 
             $imgName = uniqid('img_', true) . '.' . $ext;
             move_uploaded_file($_FILES['image']['tmp_name'], $timelineDir . $imgName);
-            $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image = ?, image_position = ? WHERE id = ?");
-            $stmt->execute([$title, $content, $imgName, $imgPos, $itemId]);
+            if ($hasStatusCol) {
+                $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image = ?, image_position = ?, status = ? WHERE id = ?");
+                $stmt->execute([$title, $content, $imgName, $imgPos, $status, $itemId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image = ?, image_position = ? WHERE id = ?");
+                $stmt->execute([$title, $content, $imgName, $imgPos, $itemId]);
+            }
         }
     } else {
-        $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image_position = ? WHERE id = ?");
-        $stmt->execute([$title, $content, $imgPos, $itemId]);
+        if ($hasStatusCol) {
+            $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image_position = ?, status = ? WHERE id = ?");
+            $stmt->execute([$title, $content, $imgPos, $status, $itemId]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image_position = ? WHERE id = ?");
+            $stmt->execute([$title, $content, $imgPos, $itemId]);
+        }
     }
 
     // Re-insert elements
@@ -228,7 +252,12 @@ foreach ($items as $item) {
                 $side = ($idx % 2 === 0) ? 'Gauche' : 'Droite';
             ?>
             <div class="col-md-6 col-lg-4 col-xl-3 sortable-item" data-id="<?= $item['id'] ?>">
-              <div class="tl-card bg-white">
+              <div class="tl-card bg-white" style="position:relative">
+                <?php if ($hasStatusCol): ?>
+                  <span class="badge <?= ($item['status'] ?? 'draft') === 'published' ? 'bg-success' : 'bg-warning text-dark' ?>" style="position:absolute;top:10px;right:10px;z-index:2;font-size:0.7rem;padding:4px 10px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.15);">
+                    <?= ($item['status'] ?? 'draft') === 'published' ? 'Publié' : 'Brouillon' ?>
+                  </span>
+                <?php endif; ?>
                 <?php if (!empty($item['image'])):
                     $pr = preg_split('/\s+/', trim($item['image_position'] ?? '50% 50% 1'));
                     $tx = $pr[0] ?? '50%'; $ty = $pr[1] ?? '50%';
@@ -265,6 +294,9 @@ foreach ($items as $item) {
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="tl-order">#<?= $item['sort_order'] ?> · <?= $side ?></span>
                     <div class="d-flex gap-1">
+                      <a href="../public/accueil.php?preview_timeline=1" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu timeline">
+                        <i class="bi bi-eye"></i>
+                      </a>
                       <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
                         <i class="bi bi-pencil"></i>
                       </button>
@@ -307,6 +339,15 @@ foreach ($items as $item) {
                         <label class="form-label">Tags / Éléments (séparés par virgule)</label>
                         <input type="text" name="elements" class="form-control" value="<?= htmlspecialchars($elString) ?>">
                       </div>
+                      <?php if ($hasStatusCol): ?>
+                      <div class="col-md-6">
+                        <label class="form-label">Statut</label>
+                        <select name="status" class="form-select">
+                          <option value="draft" <?= ($item['status'] ?? 'draft') === 'draft' ? 'selected' : '' ?>>Brouillon</option>
+                          <option value="published" <?= ($item['status'] ?? 'draft') === 'published' ? 'selected' : '' ?>>Publié</option>
+                        </select>
+                      </div>
+                      <?php endif; ?>
                       <?php if (!empty($item['image'])): ?>
                       <div class="col-12">
                         <label class="form-label">Position de l'image <small class="text-muted">(glissez + zoom)</small></label>
@@ -365,6 +406,15 @@ foreach ($items as $item) {
             <label class="form-label">Tags / Éléments (séparés par virgule)</label>
             <input type="text" name="elements" class="form-control" placeholder="05-08 sept., Les Bureaux du Cœur">
           </div>
+          <?php if ($hasStatusCol): ?>
+          <div class="col-md-6">
+            <label class="form-label">Statut</label>
+            <select name="status" class="form-select">
+              <option value="draft" selected>Brouillon</option>
+              <option value="published">Publié</option>
+            </select>
+          </div>
+          <?php endif; ?>
           <div class="col-12" id="addItemPositioner" style="display:none">
             <label class="form-label">Position de l'image <small class="text-muted">(glissez + zoom)</small></label>
             <div class="img-positioner" data-field="imgpos_new">

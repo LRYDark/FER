@@ -72,10 +72,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       padding: 0 20px;
       flex: 1;
     }
+    @media (max-width: 768px) {
+      .contact-section {
+        margin-top: 20px;
+      }
+    }
     .contact-section h1 {
       font-size: 2rem;
       margin-bottom: 0.5rem;
-      color: var(--fer-pink, #e91e63);
+      color: var(--pink);
     }
     .contact-section .subtitle {
       color: #666;
@@ -108,14 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .contact-form input:focus,
     .contact-form textarea:focus {
       outline: none;
-      border-color: var(--fer-pink, #e91e63);
+      border-color: var(--pink);
     }
     .contact-form textarea {
       min-height: 160px;
       resize: vertical;
     }
     .contact-submit {
-      background: var(--fer-pink, #e91e63);
+      background: var(--pink);
       color: #fff;
       border: none;
       padding: 14px 32px;
@@ -127,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       align-self: flex-start;
     }
     .contact-submit:hover {
-      background: #c2185b;
+      background: var(--pink-dark);
     }
     .alert {
       padding: 14px 18px;
