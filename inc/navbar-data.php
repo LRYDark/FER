@@ -30,27 +30,27 @@ try {
     $link_cancer = null;
 }
 
-// Récupération des années photos pour le menu
+// Récupération des années photos pour le menu (uniquement publiées)
 try {
-    $stmtPhotos = $pdo->prepare('SELECT id, year, title FROM photo_years ORDER BY year DESC LIMIT 10');
+    $stmtPhotos = $pdo->prepare("SELECT id, year, title FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC LIMIT 10");
     $stmtPhotos->execute();
     $galeries = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $galeries = [];
 }
 
-// Récupération des actualités pour le menu
+// Récupération des actualités pour le menu (uniquement publiées)
 try {
-    $stmtActus = $pdo->prepare('SELECT id, title_article as title, img_article, date_publication FROM news ORDER BY date_publication DESC LIMIT 10');
+    $stmtActus = $pdo->prepare("SELECT id, title_article as title, img_article, date_publication FROM news WHERE deleted_at IS NULL AND status = 'published' ORDER BY date_publication DESC LIMIT 10");
     $stmtActus->execute();
     $actualites = $stmtActus->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $actualites = [];
 }
 
-// Récupération des années partenaires pour le menu
+// Récupération des années partenaires pour le menu (uniquement publiées)
 try {
-    $stmtPartners = $pdo->prepare('SELECT id, year, title FROM partners_years ORDER BY year DESC LIMIT 10');
+    $stmtPartners = $pdo->prepare("SELECT id, year, title FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC LIMIT 10");
     $stmtPartners->execute();
     $partenaires = $stmtPartners->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {

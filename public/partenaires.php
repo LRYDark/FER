@@ -54,6 +54,21 @@ $partners_desc = $settingData['partners_desc'] ?? '';
 $partners_img = $settingData['partners_img'] ?? '';
 
 if ($selectedYearId) {
+    // Vérifier que l'année existe et est publiée (sauf en preview admin)
+    if ($isPreview) {
+        $stmtYear = $pdo->prepare('SELECT * FROM partners_years WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+    } else {
+        $stmtYear = $pdo->prepare("SELECT * FROM partners_years WHERE id = :id AND deleted_at IS NULL AND status = 'published' LIMIT 1");
+    }
+    $stmtYear->execute(['id' => $selectedYearId]);
+    $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
+
+    if (!$selectedYear && !$isPreview) {
+        // L'année n'existe pas ou est en brouillon → rediriger vers la page partenaires
+        header('Location: partenaires.php');
+        exit;
+    }
+
     if ($isPreview) {
         $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id AND deleted_at IS NULL');
     } else {
@@ -61,10 +76,6 @@ if ($selectedYearId) {
     }
     $stmtAlbums->execute(['year_id' => $selectedYearId]);
     $partners = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
-
-    $stmtYear = $pdo->prepare('SELECT * FROM partners_years WHERE id = :id LIMIT 1');
-    $stmtYear->execute(['id' => $selectedYearId]);
-    $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
 }
 ?>
 <!DOCTYPE html>

@@ -38,9 +38,19 @@ $albums = [];
 $selectedYear = null;
 
 if ($selectedYearId) {
-    $stmtYear = $pdo->prepare('SELECT * FROM photo_years WHERE id = :id LIMIT 1');
+    if ($isPreview) {
+        $stmtYear = $pdo->prepare('SELECT * FROM photo_years WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+    } else {
+        $stmtYear = $pdo->prepare("SELECT * FROM photo_years WHERE id = :id AND deleted_at IS NULL AND status = 'published' LIMIT 1");
+    }
     $stmtYear->execute(['id' => $selectedYearId]);
     $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
+
+    if (!$selectedYear && !$isPreview) {
+        // L'année n'existe pas ou est en brouillon → rediriger vers la page photos
+        header('Location: photos.php');
+        exit;
+    }
 
     if ($isPreview) {
         $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL');
