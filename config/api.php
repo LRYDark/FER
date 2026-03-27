@@ -1214,7 +1214,8 @@ if ($route === 'registrations-archive') {
 
 // Gestion des QR Codes
 if ($route === 'qrcodes') {
-    
+    requireRole(['admin']);
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Récupération des QR codes - avec gestion d'erreurs
         try {
