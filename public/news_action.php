@@ -64,8 +64,9 @@ case 'get_comments':
 
 case 'add_comment':
     $newsId = intval($_POST['news_id'] ?? 0);
-    $authorName = trim(strip_tags($_POST['author_name'] ?? ''));
-    $content = trim(strip_tags($_POST['content'] ?? ''));
+    // 🔒 [SEC-11] htmlspecialchars plus robuste que strip_tags contre XSS (CWE-79)
+    $authorName = htmlspecialchars(trim($_POST['author_name'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $content = htmlspecialchars(trim($_POST['content'] ?? ''), ENT_QUOTES, 'UTF-8');
     $parentId = !empty($_POST['parent_id']) ? intval($_POST['parent_id']) : null;
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
@@ -91,11 +92,13 @@ case 'add_comment':
         exit;
     }
 
-    // Rate limit : 30s
-    $stmtRate = $pdo->prepare('SELECT id FROM news_comments WHERE news_id = :nid AND ip_address = :ip AND created_at > DATE_SUB(NOW(), INTERVAL 30 SECOND) LIMIT 1');
+    // Rate limit : 15s (calcul côté MySQL pour éviter le décalage d'horloge PHP/MySQL)
+    $stmtRate = $pdo->prepare('SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed FROM news_comments WHERE news_id = :nid AND ip_address = :ip ORDER BY created_at DESC LIMIT 1');
     $stmtRate->execute(['nid' => $newsId, 'ip' => $ip]);
-    if ($stmtRate->fetch()) {
-        echo json_encode(['success' => false, 'error' => 'Veuillez patienter avant de poster un nouveau commentaire.']);
+    $lastComment = $stmtRate->fetch();
+    if ($lastComment && $lastComment['elapsed'] < 15) {
+        $remaining = 15 - (int)$lastComment['elapsed'];
+        echo json_encode(['success' => false, 'error' => 'Veuillez patienter ' . $remaining . 's avant de publier un nouveau commentaire.']);
         exit;
     }
 
@@ -241,13 +244,17 @@ default:
         exit;
     }
 
+    // 🔒 [SEC-14] Mapping explicite — pas d'interpolation SQL directe (CWE-89)
+    $colMap = ['like' => '`like`', 'dislike' => '`dislike`'];
     $pdo->beginTransaction();
     try {
-        if (in_array($remove, ['like', 'dislike'])) {
-            $stmt = $pdo->prepare("UPDATE news SET `$remove` = `$remove` - 1 WHERE id = :id AND `$remove` > 0");
+        if ($remove !== null && isset($colMap[$remove])) {
+            $col = $colMap[$remove];
+            $stmt = $pdo->prepare("UPDATE news SET $col = $col - 1 WHERE id = :id AND $col > 0");
             $stmt->execute(['id' => $id]);
         }
-        $stmt = $pdo->prepare("UPDATE news SET `$type` = `$type` + 1 WHERE id = :id");
+        $colType = $colMap[$type];
+        $stmt = $pdo->prepare("UPDATE news SET $colType = $colType + 1 WHERE id = :id");
         $stmt->execute(['id' => $id]);
         $stmt = $pdo->prepare("SELECT `like`, `dislike` FROM news WHERE id = :id");
         $stmt->execute(['id' => $id]);

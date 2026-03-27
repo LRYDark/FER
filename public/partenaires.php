@@ -595,7 +595,7 @@ if ($selectedYearId) {
               if (empty($partner['album_title']) && empty($partner['album_img']) && empty($partner['album_desc'])) continue;
               $hasPartnerImg = !empty($partner['album_img']) && is_file('../files/_partners/' . $partner['album_img']);
             ?>
-            <div class="partner-card"<?php if ($hasPartnerImg): ?> onclick="showImageModal('../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>')"<?php endif; ?>>
+            <div class="partner-card"<?php if ($hasPartnerImg): ?> data-img="../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>"<?php endif; ?>>
               <?php if ($hasPartnerImg): ?>
                 <div class="partner-card-image-wrapper">
                   <img src="../files/_partners/<?= htmlspecialchars($partner['album_img']) ?>"
@@ -628,7 +628,7 @@ if ($selectedYearId) {
 
       <div class="years-grid" style="max-width: 1200px; margin: 30px auto 0; padding: 0 24px;">
         <?php if ($hasInfo): ?>
-          <div class="info-card" data-label="Info" onclick="document.getElementById('infoModal').classList.add('active')">
+          <div class="info-card" data-label="Info" id="infoCardTrigger">
             <span class="info-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <span class="info-card-title"><?= htmlspecialchars($partners_title ?: 'Nos partenaires') ?></span>
           </div>
@@ -652,9 +652,9 @@ if ($selectedYearId) {
       </div>
 
       <?php if ($hasInfo): ?>
-        <div id="infoModal" class="info-modal-overlay" onclick="if(event.target===this)this.classList.remove('active')">
+        <div id="infoModal" class="info-modal-overlay">
           <div class="info-modal">
-            <button class="info-modal-close" onclick="document.getElementById('infoModal').classList.remove('active')">&times;</button>
+            <button class="info-modal-close" id="infoModalClose">&times;</button>
             <?php $hasModalImg = !empty($partners_img) && is_file('../files/_partners/' . $partners_img); ?>
             <div class="info-modal-grid"<?php if (!$hasModalImg): ?> style="grid-template-columns:1fr"<?php endif; ?>>
               <?php if ($hasModalImg): ?>
@@ -665,7 +665,7 @@ if ($selectedYearId) {
                   <h2 class="info-modal-title"><?= htmlspecialchars($partners_title) ?></h2>
                 <?php endif; ?>
                 <?php if (!empty($partners_desc)): ?>
-                  <div class="info-modal-desc"><?= $partners_desc ?></div>
+                  <div class="info-modal-desc"><?= sanitizeHtml($partners_desc ?? '') ?></div>
                 <?php endif; ?>
               </div>
             </div>
@@ -677,7 +677,7 @@ if ($selectedYearId) {
 
   <!-- Modal pour afficher l'image en grand -->
   <div id="imageModal" class="modal">
-    <span class="modal-close" onclick="document.getElementById('imageModal').classList.remove('active')">&times;</span>
+    <span class="modal-close" id="imageModalClose">&times;</span>
     <img id="modalImage" src="" class="modal-image" alt="">
   </div>
 
@@ -690,15 +690,32 @@ if ($selectedYearId) {
       document.getElementById('imageModal').classList.add('active');
     }
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        document.getElementById('imageModal').classList.remove('active');
-      }
+    // Partner cards → ouvrir l'image en grand
+    document.querySelectorAll('.partner-card[data-img]').forEach(card => {
+      card.addEventListener('click', () => showImageModal(card.dataset.img));
     });
 
-    document.getElementById('imageModal').addEventListener('click', (e) => {
-      if (e.target.id === 'imageModal') {
-        document.getElementById('imageModal').classList.remove('active');
+    // Info card → ouvrir le modal info
+    const infoTrigger = document.getElementById('infoCardTrigger');
+    const infoModal   = document.getElementById('infoModal');
+    if (infoTrigger && infoModal) {
+      infoTrigger.addEventListener('click', () => infoModal.classList.add('active'));
+    }
+
+    // Fermer le modal info (bouton close + clic sur overlay)
+    const infoClose = document.getElementById('infoModalClose');
+    if (infoClose)  infoClose.addEventListener('click', () => infoModal.classList.remove('active'));
+    if (infoModal)  infoModal.addEventListener('click', (e) => { if (e.target === infoModal) infoModal.classList.remove('active'); });
+
+    // Fermer le modal image (bouton close + clic sur overlay + Escape)
+    const imageModal = document.getElementById('imageModal');
+    document.getElementById('imageModalClose').addEventListener('click', () => imageModal.classList.remove('active'));
+    imageModal.addEventListener('click', (e) => { if (e.target === imageModal) imageModal.classList.remove('active'); });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        imageModal.classList.remove('active');
+        if (infoModal) infoModal.classList.remove('active');
       }
     });
   </script>

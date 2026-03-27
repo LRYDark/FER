@@ -5,7 +5,14 @@
  */
 
 // ── SECURITE : bloquer si déjà installé ─────────────────────
-$envPath = __DIR__ . '/config/.env';
+// 🔒 [SEC-13] Double verrou .env + .install.lock (CWE-749)
+$envPath  = __DIR__ . '/config/.env';
+$lockPath = __DIR__ . '/config/.install.lock';
+
+if (file_exists($lockPath) && file_exists($envPath)) {
+    header('Location: login.php');
+    exit;
+}
 if (file_exists($envPath)) {
     $envContent = file_get_contents($envPath);
     $complete   = true;
@@ -16,6 +23,9 @@ if (file_exists($envPath)) {
         }
     }
     if ($complete) {
+        if (!file_exists($lockPath)) {
+            @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
+        }
         header('Location: login.php');
         exit;
     }
@@ -189,6 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 3) 
                     $step = 3;
                 } else {
                     file_put_contents($envPath, $envContent);
+                    @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
                     $_SESSION['install_done'] = true;
                     $_SESSION['install_admin'] = $adminUser;
                     unset($_SESSION['install']);

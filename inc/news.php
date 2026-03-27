@@ -407,7 +407,7 @@ if ($migrationDone) {
                     <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                   </button>
                 </form>
-                <form method="post" onsubmit="return confirm('Supprimer DÉFINITIVEMENT cet article ? Cette action est irréversible.');">
+                <form method="post" data-confirm="Supprimer DÉFINITIVEMENT cet article ? Cette action est irréversible.">
                   <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                   <button type="submit" name="permanent_delete_news" class="btn btn-sm btn-danger">
@@ -422,7 +422,7 @@ if ($migrationDone) {
                 <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditNews<?= $n['id'] ?>">
                   <i class="bi bi-pencil"></i> Modifier
                 </button>
-                <form method="post" onsubmit="return confirm('<?= $migrationDone ? 'Mettre cet article en corbeille ?' : 'Supprimer definitivement cet article ?' ?>');">
+                <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cet article en corbeille ?' : 'Supprimer definitivement cet article ?' ?>">
                   <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                   <button type="submit" name="delete_news" class="btn btn-sm btn-outline-danger">
@@ -447,7 +447,7 @@ if ($migrationDone) {
             <div class="modal-body">
               <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabContent<?= $n['id'] ?>">Contenu</a></li>
-                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabComments<?= $n['id'] ?>" onclick="loadAdminComments(<?= $n['id'] ?>)">Commentaires</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabComments<?= $n['id'] ?>" data-action="load-comments" data-news-id="<?= $n['id'] ?>">Commentaires</a></li>
               </ul>
               <div class="tab-content">
                 <!-- Onglet Contenu -->
@@ -646,8 +646,19 @@ if ($migrationDone) {
                 "CC99FF", "Prune"
             ],
 
-            // Permettre tous les éléments HTML
-            extended_valid_elements: '*[*]',
+            // 🔒 [SEC-04] Whitelist HTML sécurisée (CWE-79)
+            extended_valid_elements: 'a[href|target|title|class|rel],'
+              + 'img[src|alt|title|width|height|class|loading],'
+              + 'p[class|style],span[class|style],div[class|style],'
+              + 'table[class|border|cellpadding|cellspacing|style],thead,tbody,tfoot,'
+              + 'tr,td[class|style|colspan|rowspan],th[class|style|colspan|rowspan],'
+              + 'ul[class],ol[class|type|start],li[class],'
+              + 'blockquote[class|cite],pre[class],code,strong/b,em/i,u,s,sub,sup,br,'
+              + 'hr[class],h1[class|style],h2[class|style],h3[class|style],'
+              + 'h4[class|style],h5[class|style],h6[class|style],'
+              + 'figure[class],figcaption,video[src|controls|width|height|class],'
+              + 'audio[src|controls|class],source[src|type]',
+            invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
 
             // Configuration du mode code
             toolbar_mode: 'sliding'
@@ -716,11 +727,11 @@ function loadAdminComments(newsId) {
                 html += '</div>';
                 html += '</div>';
                 html += '<div class="admin-comment-actions">';
-                html += '<button class="btn btn-outline-danger btn-sm" title="Supprimer" onclick="deleteAdminComment(' + c.id + ', ' + newsId + ')"><i class="bi bi-trash"></i></button>';
+                html += '<button class="btn btn-outline-danger btn-sm" title="Supprimer" data-action="delete-comment" data-comment-id="' + c.id + '" data-news-id="' + newsId + '"><i class="bi bi-trash"></i></button>';
                 if (!c.is_banned) {
-                    html += '<button class="btn btn-outline-warning btn-sm" title="Bannir IP" onclick="banAdminIP(\'' + escHtml(c.ip_address) + '\', ' + newsId + ')"><i class="bi bi-shield-x"></i></button>';
+                    html += '<button class="btn btn-outline-warning btn-sm" title="Bannir IP" data-action="ban-ip" data-ip="' + escHtml(c.ip_address) + '" data-news-id="' + newsId + '"><i class="bi bi-shield-x"></i></button>';
                 } else {
-                    html += '<button class="btn btn-outline-success btn-sm" title="Debannir IP" onclick="unbanAdminIP(\'' + escHtml(c.ip_address) + '\', ' + newsId + ')"><i class="bi bi-shield-check"></i></button>';
+                    html += '<button class="btn btn-outline-success btn-sm" title="Debannir IP" data-action="unban-ip" data-ip="' + escHtml(c.ip_address) + '" data-news-id="' + newsId + '"><i class="bi bi-shield-check"></i></button>';
                 }
                 html += '</div>';
                 html += '</div>';
@@ -801,6 +812,17 @@ document.addEventListener('input', function(e) {
         var text = c.textContent.toLowerCase();
         c.style.display = text.indexOf(query) !== -1 ? '' : 'none';
     });
+});
+
+// ─── Event delegation admin comments (CSP-compatible) ───
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var action = el.dataset.action;
+    if (action === 'load-comments') loadAdminComments(parseInt(el.dataset.newsId));
+    if (action === 'delete-comment') deleteAdminComment(parseInt(el.dataset.commentId), parseInt(el.dataset.newsId));
+    if (action === 'ban-ip') banAdminIP(el.dataset.ip, parseInt(el.dataset.newsId));
+    if (action === 'unban-ip') unbanAdminIP(el.dataset.ip, parseInt(el.dataset.newsId));
 });
 </script>
 </body>

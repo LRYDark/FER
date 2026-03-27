@@ -734,7 +734,7 @@ function updateSelectedRecipientsDisplay() {
       <span class="badge bg-primary me-2 mb-2 d-inline-flex align-items-center" style="font-size: 0.8rem;">
         <span class="me-2">${recipient.name} (${recipient.email})</span>
         <button type="button" class="btn-close"
-                onclick="removeRecipient('${recipient.email}')"
+                data-action="remove-recipient" data-email="${recipient.email}"
                 style="font-size: 0.6rem;"
                 title="Supprimer"></button>
       </span>
@@ -926,6 +926,12 @@ document.addEventListener('DOMContentLoaded', function() {
       hiddenForm.submit();
     });
   }
+});
+
+// ─── Event delegation (CSP-compatible) ───
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-action="remove-recipient"]');
+  if (el && typeof removeRecipient === 'function') removeRecipient(el.dataset.email);
 });
 </script>
 </body>

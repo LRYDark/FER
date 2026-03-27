@@ -232,7 +232,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
           <span class="badge-size"><?= $sizeStr ?></span>
           <span class="badge-lines"><?= $lines ?> ligne<?= $lines > 1 ? 's' : '' ?></span>
           <?php if (!$isEmpty): ?>
-            <form method="post" class="d-inline" onsubmit="return confirm('Vider le fichier « <?= htmlspecialchars($lf['name']) ?> » ?');">
+            <form method="post" class="d-inline" data-confirm="Vider le fichier « <?= htmlspecialchars($lf['name']) ?> » ?">
               <?= csrf_field() ?>
               <input type="hidden" name="clear_log" value="<?= htmlspecialchars($lf['key']) ?>">
               <button type="submit" class="btn btn-clear">

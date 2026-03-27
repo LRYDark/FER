@@ -302,7 +302,8 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     // ── Rate-limit : 3 demandes max par heure par IP ──────────────────────────
     $ip = getClientIp();
-    $rlKey = md5('fwdpwd_' . $ip);
+    // 🔒 [SEC-16] SHA-256 au lieu de MD5 (CWE-916)
+    $rlKey = substr(hash('sha256', 'fwdpwd_' . $ip), 0, 32);
     $rlFile = sys_get_temp_dir() . '/fer_' . $rlKey . '.json';
     $rlWindow = 3600; $rlMax = 3;
     $rlTimes = [];
@@ -334,8 +335,8 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
         try {
             require_once __DIR__ . '/googleMail.php';
             if (isGoogleConnectionValid()) {
-                $resetUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                          . '://' . $_SERVER['HTTP_HOST']
+                // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
+                $resetUrl = getAppBaseUrl()
                           . dirname(dirname($_SERVER['SCRIPT_NAME']))
                           . '/reset-password.php?token=' . $token;
 
@@ -649,7 +650,8 @@ if ($route==='registrations'){
         // 🔒 [FIX-08] Rate limiting sur les inscriptions publiques non authentifiées (CWE-770)
         if (!currentUserId()) {
             $ip = getClientIp();
-            $rlKey  = md5('reg_' . $ip);
+            // 🔒 [SEC-16] SHA-256 au lieu de MD5 (CWE-916)
+            $rlKey  = substr(hash('sha256', 'reg_' . $ip), 0, 32);
             $rlFile = sys_get_temp_dir() . '/fer_' . $rlKey . '.json';
             $rlTimes = [];
             if (@file_exists($rlFile)) { $rlTimes = json_decode(@file_get_contents($rlFile), true) ?: []; }

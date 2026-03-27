@@ -65,5 +65,27 @@ document.addEventListener('DOMContentLoaded', function() {
       if (dropdown) dropdown.classList.remove('show');
     });
   }
+  // ── Confirmation dialogs CSP-compatible (data-confirm) ──
+  document.addEventListener('submit', function(e) {
+    var form = e.target.closest('form[data-confirm]');
+    if (form && !confirm(form.dataset.confirm)) e.preventDefault();
+  });
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-confirm]');
+    if (btn && !confirm(btn.dataset.confirm)) e.preventDefault();
+  });
+
+  // ── Generic data-action handlers ──
+  document.addEventListener('change', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    if (el.dataset.action === 'month-navigate') {
+      var v = el.value.split('-');
+      window.location.href = '?period=month&y=' + v[0] + '&m=' + v[1];
+    }
+    if (el.dataset.action === 'preview-new-image' && typeof previewNewImage === 'function') {
+      previewNewImage(el, el.dataset.positioner, el.dataset.imgpos);
+    }
+  });
 });
 </script>

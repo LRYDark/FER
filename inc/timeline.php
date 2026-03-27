@@ -307,7 +307,7 @@ foreach ($items as $item) {
                       <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
                         <i class="bi bi-pencil"></i>
                       </button>
-                      <form method="post" class="d-inline" onsubmit="return confirm('Supprimer cet item et ses tags ?');">
+                      <form method="post" class="d-inline" data-confirm="Supprimer cet item et ses tags ?">
                         <?= csrf_field() ?>
                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                         <button type="submit" name="delete_item" class="btn btn-sm btn-outline-danger">
@@ -410,7 +410,7 @@ foreach ($items as $item) {
           </div>
           <div class="col-md-6">
             <label class="form-label">Image</label>
-            <input type="file" name="image" class="form-control" accept="image/*" onchange="previewNewImage(this, 'addItemPositioner', 'imgpos_new')">
+            <input type="file" name="image" class="form-control" accept="image/*" data-action="preview-new-image" data-positioner="addItemPositioner" data-imgpos="imgpos_new">
           </div>
           <div class="col-md-6">
             <label class="form-label">Tags / Éléments (séparés par virgule)</label>
