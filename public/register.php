@@ -464,7 +464,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
       <?php
       // 🔒 [SEC-09] Validation domaine AssoConnect avant echo brut (CWE-79)
-      if ($assoconnectIframe && preg_match('#^<iframe[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectIframe))) {
+      if ($assoconnectIframe && preg_match('#^<(iframe[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/|div[^>]+class=["\'][^"\']*iframe-asc-container)#i', trim($assoconnectIframe))) {
           echo $assoconnectIframe, PHP_EOL;
       }
       if ($assoconnectJs && preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectJs))) {
@@ -499,10 +499,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
       </div>
       <div class="modal-body">
         <?php
-        // 🔒 [FIX-01] Sanitisation HTML pour éviter XSS stocké (CWE-79)
-        // ⚠️ [À VÉRIFIER] Installer ezyang/htmlpurifier via Composer pour sanitisation complète
-        $allowedTags = '<p><br><strong><em><b><i><u><ul><ol><li><h1><h2><h3><h4><a><span><div><table><tr><td><th><thead><tbody><img>';
-        echo strip_tags($div_reglementation ?? '', $allowedTags);
+        // 🔒 [FIX-01] Sanitisation HTML via DOMDocument whitelist (CWE-79)
+        echo sanitizeHtml($div_reglementation ?? '');
         ?>
       </div>
       <div class="modal-footer">
