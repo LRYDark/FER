@@ -35,7 +35,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <title>QR Codes</title>
 
 <!-- CSS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
 
@@ -163,9 +163,9 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <?php require 'admin-footer.php'; ?>
 
 <!-- Scripts -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 
 <script>
@@ -284,15 +284,12 @@ $(document).ready(function() {
             base_url: $('[name="base_url"]').val()
         };
 
-        console.log('Données envoyées:', formData);
-
         $.ajax({
             url: '../config/api.php?route=qrcodes',
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(formData),
             success: function(response) {
-                console.log('Réponse serveur:', response);
                 if (response.success) {
                     alert('QR Code créé avec succès !');
                     $('#createQrModal').modal('hide');

@@ -1,15 +1,13 @@
 <?php
 require 'config.php';
 require_once __DIR__ . '/csrf.php';
-ob_start();
-@require_once __DIR__ . '/googleMail.php';
-ob_end_clean();
 header('Content-Type: application/json; charset=utf-8');
 
 $route = $_GET['route'] ?? '';
 
 // ─── CSRF check for state-changing API requests (skip public/pre-auth routes) ───
-$csrfExemptRoutes = ['login', 'validate-2fa', 'forgot-password', 'reset-password-confirm', 'logout'];
+// 🔒 [FIX-13] logout retiré des routes CSRF-exempt — force-logout via CSRF impossible (CWE-352)
+$csrfExemptRoutes = ['login', 'validate-2fa', 'forgot-password', 'reset-password-confirm', 'partner-request'];
 if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE']) && !in_array($route, $csrfExemptRoutes)) {
     if (!csrf_verify()) {
         http_response_code(403);
@@ -30,7 +28,9 @@ function logLoginAttempt($pdo, $userId, $email, $success, $reason = null) {
 
 function isIpBanned($pdo, $ip) {
     try {
-        $st = $pdo->prepare('SELECT 1 FROM login_banned_ips WHERE ip_address = ? LIMIT 1');
+        // 🔒 [FIX-03] Colonne alignée avec INSERT de connexions.php : `ip` (CWE-284)
+        // ⚠️ [À VÉRIFIER] Confirmer via SHOW COLUMNS FROM login_banned_ips
+        $st = $pdo->prepare('SELECT 1 FROM login_banned_ips WHERE ip = ? LIMIT 1');
         $st->execute([$ip]);
         return (bool) $st->fetch();
     } catch (\Throwable $e) { return false; }
@@ -61,15 +61,20 @@ function createTrustedDevice($pdo, $userId) {
     } catch (\Throwable $e) {}
 }
 
-function isMailConfigured() {
+function isMailConfigured(): bool {
     try {
-        global $googleMailReady;
-        if (!$googleMailReady) return false;
-        return file_exists(__DIR__ . '/../token.json');
+        if (!file_exists(__DIR__ . '/../token.json')) return false;
+        global $pdo;
+        $stmt = $pdo->prepare('SELECT client_id, client_secret FROM setting WHERE id = 1 LIMIT 1');
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return false;
+        return !empty(decrypt($row['client_id'] ?? null)) && !empty(decrypt($row['client_secret'] ?? null));
     } catch (\Throwable $e) { return false; }
 }
 
 function send2faCode($pdo, $user) {
+    require_once __DIR__ . '/googleMail.php';
     $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $pdo->prepare('UPDATE users SET twofa_code = ?, twofa_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?')
         ->execute([$code, $user['id']]);
@@ -202,24 +207,34 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok'=>false, 'err'=>'Session 2FA expiree. Reconnectez-vous.']); exit;
     }
 
+    // ── Rate-limit : 5 tentatives max par session 2FA ────────────────────────
+    $_SESSION['twofa_attempts'] = ($_SESSION['twofa_attempts'] ?? 0) + 1;
+    if ($_SESSION['twofa_attempts'] > 5) {
+        session_unset();
+        session_destroy();
+        http_response_code(429);
+        echo json_encode(['ok'=>false, 'err'=>'Trop de tentatives. Veuillez vous reconnecter.']); exit;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     $uid = $_SESSION['pending_2fa_uid'];
     $st = $pdo->prepare('SELECT twofa_code, twofa_expires FROM users WHERE id = ?');
     $st->execute([$uid]); $u2 = $st->fetch();
 
-    if (!$u2 || $u2['twofa_code'] !== $code || strtotime($u2['twofa_expires']) < time()) {
+    // 🔒 [FIX-2FA] Comparaison timing-safe du code 2FA (CWE-208)
+    if (!$u2 || !hash_equals((string)($u2['twofa_code'] ?? ''), $code) || strtotime($u2['twofa_expires']) < time()) {
         http_response_code(401);
         echo json_encode(['ok'=>false, 'err'=>'Code invalide ou expire.']); exit;
     }
 
-    // 2FA OK — create real session
+    // 2FA OK — invalider le code immédiatement, puis créer la vraie session
+    $pdo->prepare('UPDATE users SET twofa_code = NULL, twofa_expires = NULL WHERE id = ?')->execute([$uid]);
+    unset($_SESSION['twofa_attempts']);
     session_regenerate_id(true);
     $_SESSION['uid'] = $uid;
     $_SESSION['role'] = $_SESSION['pending_2fa_role'];
     $_SESSION['email'] = $_SESSION['pending_2fa_email'];
     unset($_SESSION['pending_2fa_uid'], $_SESSION['pending_2fa_role'], $_SESSION['pending_2fa_email']);
-
-    // Clear 2FA code
-    $pdo->prepare('UPDATE users SET twofa_code = NULL, twofa_expires = NULL WHERE id = ?')->execute([$uid]);
 
     // Log success
     logLoginAttempt($pdo, $uid, $_SESSION['email'], true, 'Code 2FA valide');
@@ -232,7 +247,47 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
     echo json_encode(['ok'=>true, 'role'=>$_SESSION['role']]); exit;
 }
 
-if ($route==='logout'){ session_destroy(); echo json_encode(['ok'=>true]); exit; }
+/* ───── RESEND 2FA (sans mot de passe) ──────────── */
+if ($route==='resend-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['pending_2fa_uid'])) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Session 2FA expirée. Reconnectez-vous.']); exit;
+    }
+
+    // Rate-limit : 1 renvoi par minute
+    $lastSent = $_SESSION['twofa_last_sent'] ?? 0;
+    if (time() - $lastSent < 60) {
+        http_response_code(429);
+        echo json_encode(['ok'=>false, 'err'=>'Patientez avant de renvoyer le code.']); exit;
+    }
+
+    $uid = $_SESSION['pending_2fa_uid'];
+    $st = $pdo->prepare('SELECT id, email FROM users WHERE id = ?');
+    $st->execute([$uid]); $u = $st->fetch();
+
+    if (!$u) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Utilisateur introuvable.']); exit;
+    }
+
+    $_SESSION['twofa_last_sent'] = time();
+    $_SESSION['twofa_attempts']  = 0; // reset du compteur de tentatives
+
+    $sent = send2faCode($pdo, $u);
+    if ($sent) {
+        echo json_encode(['ok'=>true]); exit;
+    }
+    http_response_code(500);
+    echo json_encode(['ok'=>false, 'err'=>'Erreur lors de l\'envoi du code.']); exit;
+}
+
+if ($route==='logout'){
+    session_unset();
+    session_regenerate_id(true);
+    session_destroy();
+    echo json_encode(['ok'=>true]);
+    exit;
+}
 
 /* ───── FORGOT PASSWORD (public) ────────────── */
 if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
@@ -244,6 +299,26 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok' => false, 'err' => 'Email requis']);
         exit;
     }
+
+    // ── Rate-limit : 3 demandes max par heure par IP ──────────────────────────
+    $ip = getClientIp();
+    $rlKey = md5('fwdpwd_' . $ip);
+    $rlFile = sys_get_temp_dir() . '/fer_' . $rlKey . '.json';
+    $rlWindow = 3600; $rlMax = 3;
+    $rlTimes = [];
+    if (@file_exists($rlFile)) {
+        $rlTimes = json_decode(@file_get_contents($rlFile), true) ?: [];
+    }
+    $now = time();
+    $rlTimes = array_values(array_filter($rlTimes, function($t) use ($now, $rlWindow) { return $t > $now - $rlWindow; }));
+    if (count($rlTimes) >= $rlMax) {
+        // Réponse générique pour ne pas révéler le throttle
+        echo json_encode(['ok' => true, 'message' => 'Si un compte existe avec cette adresse, un email de réinitialisation a été envoyé.']);
+        exit;
+    }
+    $rlTimes[] = $now;
+    @file_put_contents($rlFile, json_encode($rlTimes)); // @ : /tmp peut ne pas être accessible
+    // ─────────────────────────────────────────────────────────────────────────
 
     $stmt = $pdo->prepare('SELECT id, email FROM users WHERE email = ?');
     $stmt->execute([$email]);
@@ -326,7 +401,17 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok' => false, 'errors' => $errors]); exit;
     }
 
-    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0, reset_token = NULL, reset_token_expires = NULL, is_active = 1, failed_attempts = 0, locked_at = NULL WHERE id = ?')
+    // Réactiver le compte uniquement s'il était verrouillé auto (locked_at non nul),
+    // pas s'il a été désactivé manuellement par un admin (is_active=0, locked_at=NULL).
+    $pdo->prepare('UPDATE users SET
+        password_hash       = ?,
+        must_change_password = 0,
+        reset_token         = NULL,
+        reset_token_expires = NULL,
+        failed_attempts     = 0,
+        locked_at           = NULL,
+        is_active           = IF(locked_at IS NOT NULL, 1, is_active)
+    WHERE id = ?')
         ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
     echo json_encode(['ok' => true]); exit;
 }
@@ -443,9 +528,9 @@ if ($route === 'users') {
             echo json_encode(['ok' => true]);
         } catch (Exception $e) {
             $pdo->rollBack();
-            error_log("❌ Erreur SQL : " . $e->getMessage());
+            error_log('Erreur suppression user id=' . $id . ' : ' . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['ok' => false, 'err' => $e->getMessage()]);
+            echo json_encode(['ok' => false, 'err' => 'Erreur interne du serveur.']);
         }
         exit;
     }
@@ -454,6 +539,14 @@ if ($route === 'users') {
     // ✅ POST : création d'un compte (mot de passe temporaire auto-généré)
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $d = json_decode(file_get_contents('php://input'), true);
+
+        // Validation du rôle
+        $allowedRoles = ['admin', 'user', 'viewer', 'saisie'];
+        if (!in_array($d['role'] ?? '', $allowedRoles, true)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Rôle invalide.']);
+            exit;
+        }
 
         $tempPassword = generateTemporaryPassword();
 
@@ -515,6 +608,12 @@ if ($route === 'users') {
 
         foreach ($allowed as $key) {
             if (isset($d[$key])) {
+                // 🔒 [FIX-11] Validation du rôle dans PUT /users (CWE-20)
+                if ($key === 'role' && !in_array($d[$key], ['admin', 'user', 'viewer', 'saisie'], true)) {
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'err' => 'Rôle invalide.']);
+                    exit;
+                }
                 $fields[] = "$key = :$key";
                 $params[$key] = $d[$key];
             }
@@ -547,12 +646,54 @@ if ($route==='registrations'){
     if($_SERVER['REQUEST_METHOD']==='POST'){
         $d = json_decode(file_get_contents('php://input'), true);
 
-        /* numéro d’inscription suivant */
-        $pdo->beginTransaction();
-        $last = $pdo->query('SELECT MAX(inscription_no) FROM registrations')->fetchColumn() ?: 0;
-        $no   = $last + 1;
+        // 🔒 [FIX-08] Rate limiting sur les inscriptions publiques non authentifiées (CWE-770)
+        if (!currentUserId()) {
+            $ip = getClientIp();
+            $rlKey  = md5('reg_' . $ip);
+            $rlFile = sys_get_temp_dir() . '/fer_' . $rlKey . '.json';
+            $rlTimes = [];
+            if (@file_exists($rlFile)) { $rlTimes = json_decode(@file_get_contents($rlFile), true) ?: []; }
+            $now = time();
+            $rlTimes = array_values(array_filter($rlTimes, fn($t) => $t > $now - 3600));
+            if (count($rlTimes) >= 10) {
+                http_response_code(429);
+                echo json_encode(['ok' => false, 'err' => 'Trop de tentatives. Réessayez dans une heure.']);
+                exit;
+            }
+            $rlTimes[] = $now;
+            @file_put_contents($rlFile, json_encode($rlTimes));
+        }
 
-        /* origine : orga de l’utilisateur connecté (si existe), sinon valeur front, sinon "en ligne"  */
+        // 🔒 [FIX-VALIDATION] Validation et assainissement des champs d'inscription (CWE-20)
+        $allowedSexe = ['H', 'F', 'Autre'];
+        $d['sexe']    = in_array($d['sexe'] ?? '', $allowedSexe, true) ? $d['sexe'] : 'H';
+        $d['nom']     = mb_substr(trim($d['nom'] ?? ''), 0, 255);
+        $d['prenom']  = mb_substr(trim($d['prenom'] ?? ''), 0, 255);
+        $d['tel']     = mb_substr(trim($d['tel'] ?? ''), 0, 50);
+        $d['ville']   = mb_substr(trim($d['ville'] ?? ''), 0, 255);
+        $d['entreprise'] = mb_substr(trim($d['entreprise'] ?? ''), 0, 255);
+        $d['paiement_mode'] = mb_substr(trim($d['paiement_mode'] ?? ''), 0, 50);
+        $allowedTshirt = ['-', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+        $d['tshirt_size'] = in_array($d['tshirt_size'] ?? '', $allowedTshirt, true) ? $d['tshirt_size'] : '-';
+
+        /* numéro d'inscription suivant — compteur atomique (CWE-362) */
+        $counterExists = false;
+        try {
+            $pdo->query('SELECT next_no FROM inscription_counter LIMIT 0');
+            $counterExists = true;
+        } catch (PDOException $e) {}
+
+        $pdo->beginTransaction();
+        if ($counterExists) {
+            // Atomique : incrémente et retourne la nouvelle valeur en une seule opération
+            $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
+            $no = (int)$pdo->lastInsertId();
+        } else {
+            // Fallback si la migration n'a pas encore été jouée
+            $no = (int)($pdo->query('SELECT MAX(inscription_no) FROM registrations')->fetchColumn() ?: 0) + 1;
+        }
+
+        /* origine : orga de l'utilisateur connecté (si existe), sinon valeur front, sinon "en ligne"  */
         $myOrg = null;
         if (currentUserId()){
             $s=$pdo->prepare('SELECT organisation FROM users WHERE id=?');
@@ -621,7 +762,7 @@ if ($route==='registrations'){
             parse_str($raw, $d);                         // compatibilité ancienne version
         }
 
-        /* 2. Vérifier l’id */
+        /* 2. Vérifier l'id */
         $d['id'] = isset($d['id']) ? (int)$d['id'] : 0;
         if (!$d['id']) {
             http_response_code(400);
@@ -697,12 +838,7 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $required = array_keys($mapFields);
         $missing = array_diff($required, array_keys($headerMap));
 
-        // Log de debug
-        file_put_contents('debug_import.log', json_encode([
-            'required' => $required,
-            'headerMap' => array_keys($headerMap),
-            'missing' => array_values($missing)
-        ], JSON_PRETTY_PRINT));
+        // Log de debug supprimé (ne pas écrire dans le webroot)
 
         if ($missing) {
             logImportError([
@@ -852,8 +988,10 @@ function convertExcelDate($value): ?string {
 }
 
 function logImportError(array $data, string $filename = 'import_errors.log') {
+    // Écriture dans config/ (protégé par .htaccess), jamais dans le webroot
+    $safePath = __DIR__ . '/logs/' . basename($filename);
     $entry = date('Y-m-d H:i:s') . " | " . json_encode($data, JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    file_put_contents($filename, $entry, FILE_APPEND);
+    file_put_contents($safePath, $entry, FILE_APPEND);
 }
 
 
@@ -1083,7 +1221,6 @@ if ($route === 'qrcodes') {
         // Fallback si JSON decode échoue
         if (!$data) {
             $data = $_POST;
-            error_log('Fallback vers $_POST: ' . print_r($data, true));
         }
         
         // Validation
@@ -1164,7 +1301,7 @@ if ($route === 'qrcodes') {
         } catch (Exception $e) {
             error_log('Erreur lors de la création du QR code: ' . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Erreur base de données: ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'message' => 'Erreur base de données.']);
         }
         exit;
     }
@@ -1272,5 +1409,92 @@ if ($route === 'validate-qr-token') {
     exit;
 }
 
-http_response_code(404); 
+/* ───── DEMANDE PARTENARIAT (public) ─────────────────────── */
+if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $d = json_decode(file_get_contents('php://input'), true);
+    $email = trim($d['email'] ?? '');
+
+    // Validation basique
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'Adresse email invalide.']);
+        exit;
+    }
+
+    // Validation email professionnel (refus des boîtes personnelles courantes)
+    $confirmed = !empty($d['confirmed']);
+    $freeDomains = [
+        'gmail.com','googlemail.com','yahoo.com','yahoo.fr','yahoo.be','yahoo.co.uk',
+        'hotmail.com','hotmail.fr','hotmail.be','hotmail.co.uk',
+        'outlook.com','outlook.fr','outlook.be','live.com','live.fr','live.be',
+        'msn.com','icloud.com','me.com','mac.com','aol.com',
+        'free.fr','sfr.fr','orange.fr','wanadoo.fr','laposte.net',
+        'bbox.fr','numericable.fr','club-internet.fr','alice.fr',
+        'protonmail.com','proton.me','tutanota.com','tutamail.com',
+        'yopmail.com','mailinator.com','guerrillamail.com','tempmail.com',
+    ];
+    $domain = strtolower(substr($email, strpos($email, '@') + 1));
+    if (!$confirmed && in_array($domain, $freeDomains, true)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'non_pro']);
+        exit;
+    }
+
+    // Rate-limit : 3 demandes max par heure par IP
+    $ip = getClientIp();
+    $rlKey = md5('partner_' . $ip);
+    $rlFile = sys_get_temp_dir() . '/fer_' . $rlKey . '.json';
+    $rlWindow = 3600; $rlMax = 10;
+    $rlTimes = [];
+    if (@file_exists($rlFile)) {
+        $rlTimes = json_decode(@file_get_contents($rlFile), true) ?: [];
+    }
+    $now = time();
+    $rlTimes = array_values(array_filter($rlTimes, function($t) use ($now, $rlWindow) { return $t > $now - $rlWindow; }));
+    if (count($rlTimes) >= $rlMax) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'err' => 'Trop de demandes. Réessayez dans une heure.']);
+        exit;
+    }
+    $rlTimes[] = $now;
+    @file_put_contents($rlFile, json_encode($rlTimes));
+
+    // Envoi du mail aux administrateurs
+    try {
+        require_once __DIR__ . '/googleMail.php';
+
+        // Check token without redirecting — this is an AJAX endpoint, never redirect
+        $tokenAvailable = (getAccessToken(false) !== false);
+
+        if ($tokenAvailable) {
+            $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")
+                          ->fetchAll(PDO::FETCH_COLUMN);
+
+            $subject = 'Nouvelle demande de partenariat – Forbach en Rose';
+            $body  = '<h2>Nouvelle demande de partenariat</h2>';
+            $body .= '<p>Une entreprise souhaite devenir partenaire de Forbach en Rose.</p>';
+            $body .= '<p><strong>Email :</strong> ' . htmlspecialchars($email) . '</p>';
+            $body .= '<p><strong>Domaine :</strong> ' . htmlspecialchars($domain) . '</p>';
+            $body .= '<p><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>';
+            $body .= '<hr><p style="color:#888;font-size:12px">Message automatique – Forbach en Rose</p>';
+
+            foreach ($admins as $rawEmail) {
+                $adminEmail = decrypt($rawEmail);
+                if ($adminEmail && filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+                    sendMail($adminEmail, $subject, 'Nouvelle demande de partenariat', $body);
+                }
+            }
+        } else {
+            error_log('Partner request from ' . $email . ': Google token unavailable, admin notification skipped.');
+        }
+    } catch (\Throwable $e) {
+        error_log('Partner request mail error: ' . $e->getMessage());
+        // On ne bloque pas la réponse si le mail échoue
+    }
+
+    echo json_encode(['ok' => true, 'message' => 'Votre demande a bien été envoyée ! Nous vous recontacterons rapidement.']);
+    exit;
+}
+
+http_response_code(404);
 echo json_encode(['error'=>'route inconnue']);

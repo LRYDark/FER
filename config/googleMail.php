@@ -17,7 +17,7 @@ $googleMailReady = ($clientID && $clientSecret);
 
 // Fonction pour enregistrer des logs dans un fichier texte
 function writeLog($message) {
-    $logFile = __DIR__ .'/logs_google_mails.txt'; // Nom du fichier de log
+    $logFile = __DIR__ .'/logs/logs_google_mails.txt'; // Nom du fichier de log
     $timestamp = date("Y-m-d H:i:s"); // Ajoute un timestamp au message de log
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND); // Écrit le message dans le fichier
 }
@@ -27,7 +27,8 @@ function isGoogleConnectionValid() {
     global $clientID, $clientSecret, $googleMailReady;
     if (!$googleMailReady) return false;
 
-    $tokenFile = __DIR__ .'/../token.json';
+    // 🔒 [FIX-06] token.json déplacé dans config/ — hors webroot direct (CWE-538)
+    $tokenFile = __DIR__ . '/token.json';
 
     if (!file_exists($tokenFile)) {
         writeLog('Fichier token.json non trouvé.');
@@ -77,7 +78,12 @@ function isGoogleConnectionValid() {
 function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
     global $clientID, $clientSecret, $googleMailReady;
     if (!$googleMailReady) return null;
-    
+
+    // Générer un état CSRF pour le callback OAuth (RFC 6749 §10.12)
+    if (session_status() === PHP_SESSION_NONE) session_start();
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['oauth_state'] = $state;
+
     $client = new Google_Client();
     $client->setClientId($clientID);
     $client->setClientSecret($clientSecret);
@@ -86,6 +92,7 @@ function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
     $client->setAccessType('offline');
     $client->setPrompt('consent');
     $client->setIncludeGrantedScopes(true);
+    $client->setState($state);
 
     return $client->createAuthUrl();
 }
@@ -95,7 +102,7 @@ function getAccessToken(bool $autoRedirect = true) {
     global $clientID, $clientSecret, $googleMailReady;
     if (!$googleMailReady) return false;
     
-    $tokenFile = __DIR__ .'/../token.json';
+    $tokenFile = __DIR__ . '/token.json';
     $client = new Google_Client();
     $client->setClientId($clientID);
     $client->setClientSecret($clientSecret);
@@ -247,7 +254,7 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
 
 // Fonction pour supprimer le token (déconnexion)
 function revokeGoogleConnection() {
-    $tokenFile = __DIR__ .'/../token.json';
+    $tokenFile = __DIR__ . '/token.json';
     
     if (file_exists($tokenFile)) {
         unlink($tokenFile);

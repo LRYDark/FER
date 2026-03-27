@@ -1,0 +1,17 @@
+[2026-03-27 19:52:33] Fichier token.json non trouvé.
+[2026-03-27 19:52:37] Fichier token.json non trouvé.
+[2026-03-27 19:52:37] Fichier token.json non trouvé.
+[2026-03-27 19:52:56] ✅ Token OAuth2 généré et sauvegardé avec succès dans : /var/www/html/FER/config/token.json
+[2026-03-27 19:52:56] Redirection vers : inc/setting.php
+[2026-03-27 19:52:56] Connexion Google valide.
+[2026-03-27 19:52:59] Connexion Google valide.
+[2026-03-27 19:52:59] Connexion Google valide.
+[2026-03-27 19:53:37] Le jeton d'accès est valide.
+[2026-03-27 19:53:37] Le jeton d'accès est valide.
+[2026-03-27 19:53:38] ✅ Mail envoyé à : reinert.joris@gmail.com
+[2026-03-27 19:54:03] Le jeton d'accès est valide.
+[2026-03-27 19:54:03] Le jeton d'accès est valide.
+[2026-03-27 19:54:04] ✅ Mail envoyé à : reinert.joris@gmail.com
+[2026-03-27 19:55:50] Connexion Google valide.
+[2026-03-27 19:55:55] Connexion Google valide.
+[2026-03-27 19:57:32] Connexion Google valide.

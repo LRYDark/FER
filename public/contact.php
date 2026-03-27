@@ -12,6 +12,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $error = 'Session expirée. Veuillez réessayer.';
     } else {
+        // 🔒 [FIX-12] Rate limiting formulaire contact : 3 envois/heure/IP (CWE-770)
+        $contactIp  = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $rlFile = sys_get_temp_dir() . '/fer_' . md5('contact_' . $contactIp) . '.json';
+        $rlTimes = @file_exists($rlFile) ? (json_decode(@file_get_contents($rlFile), true) ?: []) : [];
+        $now = time();
+        $rlTimes = array_values(array_filter($rlTimes, fn($t) => $t > $now - 3600));
+        if (count($rlTimes) >= 3) {
+            $error = 'Trop de messages envoyés. Réessayez dans une heure.';
+        } else {
+            $rlTimes[] = $now;
+            @file_put_contents($rlFile, json_encode($rlTimes));
     $nom = trim($_POST['nom'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $sujet = trim($_POST['sujet'] ?? '');
@@ -54,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Une erreur est survenue, veuillez réessayer plus tard.";
         }
     }
+        } // end rate limit else
   } // end csrf_verify else
 }
 ?>

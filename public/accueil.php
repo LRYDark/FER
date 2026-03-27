@@ -21,15 +21,23 @@ if (isset($_GET['check_registration'])) {
         $searchStatus = 'warn';
         $searchMessage = "Oups, cet email ne semble pas valide. Pouvez‑vous le vérifier ?";
     } else {
-        $stmtSearch = $pdo->prepare(
-            'SELECT COUNT(*) AS total FROM registrations WHERE LOWER(email) = LOWER(:email)'
-        );
-        $stmtSearch->execute(['email' => $searchEmail]);
-        $matchCount = (int)($stmtSearch->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+        // Les emails sont chiffrés AES-256-GCM (IV aléatoire) : on ne peut pas faire WHERE email = ?
+        // On déchiffre côté PHP et on compare en minuscules.
+        $stmtSearch = $pdo->query('SELECT email FROM registrations');
+        $matchCount = 0;
+        $needle = strtolower($searchEmail);
+        while ($row = $stmtSearch->fetch(PDO::FETCH_ASSOC)) {
+            if (strtolower((string)decrypt($row['email'])) === $needle) {
+                $matchCount++;
+            }
+        }
 
         if ($matchCount > 0) {
             $searchStatus = 'success';
-            $searchMessage = "Merci ! Votre inscription est bien enregistrée. Hâte de vous voir le jour J 😊";
+            $countLabel = $matchCount === 1
+                ? "1 inscription enregistrée"
+                : "$matchCount inscriptions enregistrées";
+            $searchMessage = "Merci ! $countLabel pour cet email. Hâte de vous voir le jour J 😊";
         } else {
             $searchStatus = 'danger';
             $searchMessage = "On ne retrouve pas d'inscription avec cet email 😔. Vérifiez l'adresse ou inscrivez‑vous en 1 minute 😁";
@@ -3353,17 +3361,18 @@ function generateTimelineSVG(int $count): array {
             solidaire auprès de notre communauté.
           </p>
           
-          <form class="partner-form" action="#" method="POST">
+          <form class="partner-form" id="partnerForm">
             <div class="form-group">
-              <input 
-                type="email" 
-                name="partner_email" 
-                class="partner-email-input" 
-                placeholder="Votre email professionnel" 
+              <input
+                type="email"
+                id="partnerEmail"
+                name="partner_email"
+                class="partner-email-input"
+                placeholder="Votre email professionnel"
                 required
                 aria-label="Email professionnel"
               >
-              <button type="submit" class="partner-submit">
+              <button type="submit" class="partner-submit" id="partnerSubmitBtn">
                 Devenir partenaire
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -3371,6 +3380,7 @@ function generateTimelineSVG(int $count): array {
               </button>
             </div>
             <p class="form-note">Nous vous recontacterons dans les plus brefs délais pour discuter des modalités de partenariat.</p>
+            <div id="partnerResult" style="display:none;margin-top:.75rem;padding:.6rem 1rem;border-radius:.5rem;font-size:.9rem;"></div>
           </form>
         </div>
       </div>
@@ -3587,6 +3597,101 @@ function generateTimelineSVG(int $count): array {
           if (submitBtn) submitBtn.disabled = false;
           form.removeAttribute('aria-busy');
         }
+      });
+    })();
+
+    // ===== PARTNER FORM =====
+    (function(){
+      const form = document.getElementById('partnerForm');
+      if (!form) return;
+
+      async function sendPartnerRequest(email, confirmed) {
+        const btn    = document.getElementById('partnerSubmitBtn');
+        const result = document.getElementById('partnerResult');
+        btn.disabled = true;
+        try {
+          const res = await fetch('../config/api.php?route=partner-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, confirmed: confirmed })
+          });
+          const data = await res.json();
+          result.style.display = 'block';
+          if (data.ok) {
+            result.style.background = '#d1fae5';
+            result.style.color = '#065f46';
+            result.style.border = '1px solid #6ee7b7';
+            result.textContent = data.message;
+            form.reset();
+          } else if (data.err === 'non_pro') {
+            // Show friendly popup
+            result.style.display = 'none';
+            btn.disabled = false;
+            showNonProPopup(email);
+          } else {
+            result.style.background = '#fee2e2';
+            result.style.color = '#991b1b';
+            result.style.border = '1px solid #fca5a5';
+            result.textContent = data.err || 'Une erreur est survenue.';
+            btn.disabled = false;
+          }
+        } catch (err) {
+          result.style.display = 'block';
+          result.style.background = '#fee2e2';
+          result.style.color = '#991b1b';
+          result.style.border = '1px solid #fca5a5';
+          result.textContent = 'Erreur de connexion. Réessayez.';
+          btn.disabled = false;
+        }
+      }
+
+      function showNonProPopup(email) {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'partnerPopupOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+
+        overlay.innerHTML = `
+          <div style="background:#fff;border-radius:1rem;padding:2rem;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:center;">
+            <div style="font-size:2.5rem;margin-bottom:.75rem;">💌</div>
+            <h3 style="margin:0 0 .75rem;color:#1e293b;font-size:1.15rem;font-weight:700;">Un email personnel détecté</h3>
+            <p style="color:#475569;font-size:.92rem;line-height:1.6;margin:0 0 1.25rem;">
+              L'adresse <strong style="color:#db2777;">${escHtml(email)}</strong> semble être une adresse personnelle.<br>
+              Pour les partenariats professionnels, nous recommandons d'utiliser votre email d'entreprise.<br><br>
+              <span style="color:#64748b;font-size:.85rem;">Vous pouvez quand même envoyer votre demande si vous le souhaitez !</span>
+            </p>
+            <div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;">
+              <button id="partnerPopupCancel" style="background:#f1f5f9;border:none;border-radius:.6rem;padding:.6rem 1.25rem;font-size:.9rem;font-weight:600;color:#475569;cursor:pointer;">Modifier mon email</button>
+              <button id="partnerPopupConfirm" style="background:linear-gradient(135deg,#e91e8c,#c2166a);border:none;border-radius:.6rem;padding:.6rem 1.25rem;font-size:.9rem;font-weight:600;color:#fff;cursor:pointer;">Envoyer quand même</button>
+            </div>
+          </div>`;
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('partnerPopupCancel').onclick = function() {
+          overlay.remove();
+          document.getElementById('partnerEmail').focus();
+        };
+        document.getElementById('partnerPopupConfirm').onclick = function() {
+          overlay.remove();
+          sendPartnerRequest(email, true);
+        };
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) {
+            overlay.remove();
+            document.getElementById('partnerEmail').focus();
+          }
+        });
+      }
+
+      function escHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('partnerEmail').value.trim();
+        sendPartnerRequest(email, false);
       });
     })();
 

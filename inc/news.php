@@ -37,10 +37,16 @@ if (isset($_POST['add_news'])) {
     $desc = $_POST['desc_article'];
     $imgName = '';
 
-    if (!empty($_FILES['img_article']['name'])) {
-        $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
+        $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        // 🔒 [FIX-04] Validation MIME réelle via magic bytes, pas seulement l'extension (CWE-434)
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        // 🔒 [FIX-UPLOAD-SIZE] Limite taille fichier à 5 Mo (CWE-400)
         $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, $allowedExts)) {
+        $finfo    = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
+        if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
+            && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
             $imgName = uniqid('news_', true) . '.' . $ext;
             move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $imgName);
         }
@@ -64,13 +70,19 @@ if (isset($_POST['update_news'])) {
     $title = $_POST['title_article'];
     $desc = $_POST['desc_article'];
 
-    $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    // 🔒 [FIX-04] Validation MIME réelle via magic bytes, pas seulement l'extension (CWE-434)
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
     if ($migrationDone) {
         $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
-        if (!empty($_FILES['img_article']['name'])) {
+        if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, $allowedExts)) {
+            $finfo    = new finfo(FILEINFO_MIME_TYPE);
+            $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
+            // 🔒 [FIX-UPLOAD-SIZE] Limite taille fichier à 5 Mo (CWE-400)
+            if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
+                && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
                 $safeName = uniqid('news_', true) . '.' . $ext;
                 move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
                 $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ?, status = ? WHERE id = ?");
@@ -84,9 +96,13 @@ if (isset($_POST['update_news'])) {
             $stmt->execute([$title, $desc, $status, $id]);
         }
     } else {
-        if (!empty($_FILES['img_article']['name'])) {
+        if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
-            if (in_array($ext, $allowedExts)) {
+            $finfo    = new finfo(FILEINFO_MIME_TYPE);
+            $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
+            // 🔒 [FIX-UPLOAD-SIZE] Limite taille fichier à 5 Mo (CWE-400)
+            if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
+                && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
                 $safeName = uniqid('news_', true) . '.' . $ext;
                 move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
                 $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
@@ -200,9 +216,9 @@ if ($migrationDone) {
 <title>Actualités</title>
 
 <!-- ─── CSS ─── -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
 .card {
@@ -574,10 +590,12 @@ if ($migrationDone) {
             text-align: center; padding: 24px 0; color: #adb5bd;
         }
     </style>
-    <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="../js/tinymce/tinymce.min.js"></script>
     <script>
         tinymce.init({
             selector: '.tinymce-editor',
+            license_key: 'gpl',
+            language: 'fr_FR',
             plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
             toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
             height: 500,
@@ -639,8 +657,8 @@ if ($migrationDone) {
 
 <?php include 'admin-footer.php'; ?>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script>
 // ─── Client-side search filter ───
 document.addEventListener('DOMContentLoaded', function() {

@@ -1,7 +1,14 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-require '../config/googleMail.php';
+// 🔒 [FIX-SETTING] Chargement lazy de googleMail pour éviter HTTP 500 si lib indisponible (CWE-755)
+try {
+    require '../config/googleMail.php';
+} catch (\Throwable $e) {
+    $isConnected = false;
+    $authUrl = '#';
+    error_log('googleMail load error: ' . $e->getMessage());
+}
 
 requireRole(['admin','user','viewer','saisie']);
 $role = currentRole();
@@ -210,13 +217,17 @@ if (isset($_POST['config'])) {
 
         if (!empty($_FILES['picture']['name'])) {
 
-            $allowed   = ['jpg','jpeg','png','gif','webp'];
-            $uploadDir = '../files/_pictures/';
-            $origName  = $_FILES['picture']['name'];
-            $ext       = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+            $allowed      = ['jpg','jpeg','png','gif','webp'];
+            $allowedMime  = ['image/jpeg','image/png','image/gif','image/webp'];
+            $uploadDir    = '../files/_pictures/';
+            $ext          = strtolower(pathinfo($_FILES['picture']['name'], PATHINFO_EXTENSION));
+            $finfo        = new finfo(FILEINFO_MIME_TYPE);
+            $mimeType     = $finfo->file($_FILES['picture']['tmp_name']);
 
-            if (!in_array($ext, $allowed, true)) {
+            if (!in_array($ext, $allowed, true) || !in_array($mimeType, $allowedMime, true)) {
                 $alert = makeAlert('danger', 'Format d\'image non autorisé.');
+            } elseif ($_FILES['picture']['size'] > 5 * 1024 * 1024) {
+                $alert = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeName = uniqid('img_', true) . '.' . $ext;
                 $tmp      = $_FILES['picture']['tmp_name'];
@@ -337,13 +348,17 @@ if ($date_course) {
             $allowed   = ['jpg','jpeg','png','gif','webp'];
             $uploadDir = '../files/_pictures/';
 
-        $newPictureAccueil = $picture_accueil; 
+        $newPictureAccueil = $picture_accueil;
         if (!empty($_FILES['picture_accueil']['name'])) {
-            $origNameAccueil  = $_FILES['picture_accueil']['name'];
-            $extAccueil       = strtolower(pathinfo($origNameAccueil, PATHINFO_EXTENSION));
+            $extAccueil      = strtolower(pathinfo($_FILES['picture_accueil']['name'], PATHINFO_EXTENSION));
+            $finfoA          = new finfo(FILEINFO_MIME_TYPE);
+            $mimeAccueil     = $finfoA->file($_FILES['picture_accueil']['tmp_name']);
+            $allowedMimeImg  = ['image/jpeg','image/png','image/gif','image/webp'];
 
-            if (!in_array($extAccueil, $allowed, true)) {
+            if (!in_array($extAccueil, $allowed, true) || !in_array($mimeAccueil, $allowedMimeImg, true)) {
                 $alertAccueil = makeAlert('danger', 'Format d\'image non autorisé.');
+            } elseif ($_FILES['picture_accueil']['size'] > 5 * 1024 * 1024) {
+                $alertAccueil = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeNameAccueil = uniqid('img_', true) . '.' . $extAccueil;
                 $tmpAccueil      = $_FILES['picture_accueil']['tmp_name'];
@@ -356,13 +371,17 @@ if ($date_course) {
             }
         }
 
-        $newPicturePartner = $picture_partner; 
+        $newPicturePartner = $picture_partner;
         if (!empty($_FILES['picture_partner']['name'])) {
-            $origNamePartner  = $_FILES['picture_partner']['name'];
-            $extPartner       = strtolower(pathinfo($origNamePartner, PATHINFO_EXTENSION));
+            $extPartner      = strtolower(pathinfo($_FILES['picture_partner']['name'], PATHINFO_EXTENSION));
+            $finfoP          = new finfo(FILEINFO_MIME_TYPE);
+            $mimePartner     = $finfoP->file($_FILES['picture_partner']['tmp_name']);
+            $allowedMimeImg2 = ['image/jpeg','image/png','image/gif','image/webp'];
 
-            if (!in_array($extPartner, $allowed, true)) {
+            if (!in_array($extPartner, $allowed, true) || !in_array($mimePartner, $allowedMimeImg2, true)) {
                 $alertAccueil = makeAlert('danger', 'Format d\'image non autorisé.');
+            } elseif ($_FILES['picture_partner']['size'] > 5 * 1024 * 1024) {
+                $alertAccueil = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeNamePartner = uniqid('img_', true) . '.' . $extPartner;
                 $tmpPartner      = $_FILES['picture_partner']['tmp_name'];
@@ -432,13 +451,17 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
             $allowed   = ['jpg','jpeg','png','gif','webp'];
             $uploadDir = '../files/_pictures/';
 
-        $newPictureGradient = $picture_gradient; 
+        $newPictureGradient = $picture_gradient;
         if (!empty($_FILES['picture_gradient']['name'])) {
-            $origNameGradient  = $_FILES['picture_gradient']['name'];
-            $extGradient       = strtolower(pathinfo($origNameGradient, PATHINFO_EXTENSION));
+            $extGradient     = strtolower(pathinfo($_FILES['picture_gradient']['name'], PATHINFO_EXTENSION));
+            $finfoG          = new finfo(FILEINFO_MIME_TYPE);
+            $mimeGradient    = $finfoG->file($_FILES['picture_gradient']['tmp_name']);
+            $allowedMimeImg3 = ['image/jpeg','image/png','image/gif','image/webp'];
 
-            if (!in_array($extGradient, $allowed, true)) {
+            if (!in_array($extGradient, $allowed, true) || !in_array($mimeGradient, $allowedMimeImg3, true)) {
                 $alertParcours = makeAlert('danger', 'Format d\'image non autorisé.');
+            } elseif ($_FILES['picture_gradient']['size'] > 5 * 1024 * 1024) {
+                $alertParcours = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeNameGradient = uniqid('img_', true) . '.' . $extGradient;
                 $tmpGradient      = $_FILES['picture_gradient']['tmp_name'];
@@ -451,13 +474,17 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
             }
         }
 
-        $newPictureParcours = $picture_parcours; 
+        $newPictureParcours = $picture_parcours;
         if (!empty($_FILES['picture_parcours']['name'])) {
-            $origNameParcours  = $_FILES['picture_parcours']['name'];
-            $extParcours       = strtolower(pathinfo($origNameParcours, PATHINFO_EXTENSION));
+            $extParcours     = strtolower(pathinfo($_FILES['picture_parcours']['name'], PATHINFO_EXTENSION));
+            $finfoParc       = new finfo(FILEINFO_MIME_TYPE);
+            $mimeParcours    = $finfoParc->file($_FILES['picture_parcours']['tmp_name']);
+            $allowedMimeImg4 = ['image/jpeg','image/png','image/gif','image/webp'];
 
-            if (!in_array($extParcours, $allowed, true)) {
+            if (!in_array($extParcours, $allowed, true) || !in_array($mimeParcours, $allowedMimeImg4, true)) {
                 $alertParcours = makeAlert('danger', 'Format d\'image non autorisé.');
+            } elseif ($_FILES['picture_parcours']['size'] > 5 * 1024 * 1024) {
+                $alertParcours = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeNameParcours = uniqid('img_', true) . '.' . $extParcours;
                 $tmpParcours      = $_FILES['picture_parcours']['tmp_name'];
@@ -525,9 +552,13 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
     if (count($files['name']) > $remaining) {
         echo makeAlert('danger', "Vous ne pouvez importer que $remaining image(s) supplémentaires.");
     } else {
-        for ($i = 0; $i < count($files['name']); $i++) {
-            $ext = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
-            if (in_array($ext, $allowed)) {
+        $allowedGalMime = ['image/jpeg','image/png','image/gif','image/webp'];
+    for ($i = 0; $i < count($files['name']); $i++) {
+            $ext      = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
+            $finfoGal = new finfo(FILEINFO_MIME_TYPE);
+            $mimeGal  = $finfoGal->file($files['tmp_name'][$i]);
+            if (in_array($ext, $allowed) && in_array($mimeGal, $allowedGalMime)
+                && $files['size'][$i] <= 5 * 1024 * 1024) {
                 $safeName = uniqid('img_', true) . '.' . $ext;
                 if (move_uploaded_file($files['tmp_name'][$i], $uploadDir . $safeName)) {
                     try {
@@ -825,9 +856,9 @@ if (isset($_POST['deleteImage'])) {
 <title>Réglages</title>
 
 <!-- ─── CSS ─── -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -1283,10 +1314,12 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
     </div><!-- /col-12 -->
   </div><!-- /row -->
 
-  <script src="https://cdn.tiny.cloud/1/ocg6h1zh0bqfzq51xcl7ht600996lxdjpymxlculzjx5q3bd/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+  <script src="../js/tinymce/tinymce.min.js"></script>
   <script>
     tinymce.init({
         selector: '#divReglementation',
+        license_key: 'gpl',
+        language: 'fr_FR',
         plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
         toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
         height: 430,
@@ -1589,8 +1622,8 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 <?php include '../inc/admin-footer.php'; ?>
 
 <!-- JS -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script>
 // Settings tabs switching
 document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {

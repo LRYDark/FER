@@ -44,11 +44,11 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <title>Statistiques</title>
 
 <!-- ─── CSS ─── -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-KE9wPQ6…(clé-cdn)…" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+<link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet" integrity="sha384-Vxog91rIpStbMsSBAP+6bkpv+SJeVDvusYx9GKzKVQBzh085ohJ4QIgNlO4QbkVz" crossorigin="anonymous">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .stat-card{border-radius:1.25rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
@@ -186,11 +186,9 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 </div>
 <?php include '../inc/admin-footer.php'; ?>
 
-<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js"></script>
+<script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script>
 const stats = <?= json_encode($stats) ?>;
-
-console.log('Stats disponibles:', stats); // Debug pour vérifier les données
 
 /* ─────────── 1. Graphiques généraux ─────────── */
 const lblYears = stats.map(s=>s.year);
@@ -254,9 +252,7 @@ function fillYearCards(year){
     console.error('Statistiques non trouvées pour l\'année:', year);
     return;
   }
-  
-  console.log('Données pour l\'année', year, ':', s); // Debug
-  
+
   const wrap = document.getElementById('cardsYear');
   wrap.innerHTML = `
   <div class="col"><div class="stat-card text-center"><div class="stat-title">Total</div><div class="h5 ">${s.total_inscrits || 0}</div></div></div>
