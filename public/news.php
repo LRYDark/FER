@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 require_once '../config/tracker.php';
 trackPageVisit();
 require '../inc/navbar-data.php';
@@ -139,11 +140,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                     <span class="ncard-date"><?= $dateFormatted ?></span>
                 </div>
                 <div class="ncard-bottom">
-                    <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
-                        <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                    <div class="ncard-votes" data-stop-propagation>
+                        <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" data-action="vote">
                             👍 <span class="nvote-count"><?= $article['like'] ?></span>
                         </button>
-                        <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+                        <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" data-action="vote">
                             👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
                         </button>
                     </div>
@@ -186,6 +187,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
   <title><?= $singleArticle ? htmlspecialchars($singleArticle['title_article']) : 'Actualités' ?></title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <style>
@@ -680,8 +682,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: none;
       white-space: pre-line;
     }
-    .comment-msg.error { display: block; background: rgba(239,68,68,.08); color: #dc2626; border: 1px solid rgba(239,68,68,.15); }
-    .comment-msg.success { display: block; background: rgba(16,185,129,.08); color: #059669; border: 1px solid rgba(16,185,129,.15); }
+    .comment-msg.error, .reply-msg.error { display: block; background: rgba(239,68,68,.08); color: #dc2626; border: 1px solid rgba(239,68,68,.15); }
+    .comment-msg.success, .reply-msg.success { display: block; background: rgba(16,185,129,.08); color: #059669; border: 1px solid rgba(16,185,129,.15); }
+    .reply-msg { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; margin-bottom: 8px; display: none; }
 
     /* @Mentions */
     .comment-mention {
@@ -757,10 +760,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     </div>
 
     <div class="news-hero-votes">
-      <button class="hero-vote nvote-like" data-id="<?= $singleArticle['id'] ?>" onclick="handleVote(this);">
+      <button class="hero-vote nvote-like" data-id="<?= $singleArticle['id'] ?>" data-action="vote">
         👍 <span class="nvote-count"><?= $singleArticle['like'] ?></span>
       </button>
-      <button class="hero-vote nvote-dislike" data-id="<?= $singleArticle['id'] ?>" onclick="handleVote(this);">
+      <button class="hero-vote nvote-dislike" data-id="<?= $singleArticle['id'] ?>" data-action="vote">
         👎 <span class="nvote-count"><?= $singleArticle['dislike'] ?></span>
       </button>
     </div>
@@ -794,15 +797,15 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     <div class="article-separator">
       <div></div>
       <div class="share-buttons">
-        <button class="share-btn" onclick="shareOnFacebook()" title="Partager sur Facebook">
+        <button class="share-btn" data-action="share-facebook" title="Partager sur Facebook">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
           <span>Facebook</span>
         </button>
-        <button class="share-btn" onclick="shareOnX()" title="Partager sur X">
+        <button class="share-btn" data-action="share-x" title="Partager sur X">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
           <span>X</span>
         </button>
-        <button class="share-btn" id="copyLinkBtn" onclick="copyArticleLink()" title="Copier le lien">
+        <button class="share-btn" id="copyLinkBtn" data-action="copy-link" title="Copier le lien">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <span>Copier</span>
         </button>
@@ -824,7 +827,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         </div>
         <textarea id="commentContent" placeholder="Ecrire un commentaire..." maxlength="2000"></textarea>
         <div class="comment-form-actions">
-          <button class="comment-submit" onclick="submitComment()">Publier</button>
+          <button class="comment-submit" data-action="submit-comment">Publier</button>
         </div>
       </div>
 
@@ -887,11 +890,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             <span class="ncard-date"><?= $dateFormatted ?></span>
           </div>
           <div class="ncard-bottom">
-            <div class="ncard-votes" onclick="event.preventDefault(); event.stopPropagation();">
-              <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+            <div class="ncard-votes" data-stop-propagation>
+              <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" data-action="vote">
                 👍 <span class="nvote-count"><?= $article['like'] ?></span>
               </button>
-              <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" onclick="event.preventDefault(); event.stopPropagation(); handleVote(this);">
+              <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" data-action="vote">
                 👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
               </button>
             </div>
@@ -932,6 +935,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+// ─── CSRF token pour tous les AJAX POST ───
+var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+$.ajaxSetup({
+    beforeSend: function(xhr, settings) {
+        if (settings.type && settings.type.toUpperCase() === 'POST') {
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+        }
+    }
+});
+
 // ─── Vote system ───
 function getVoteCookie(id) {
     const name = 'vote_' + id + '=';
@@ -1035,14 +1048,14 @@ function renderComment(c, isReply, replyCount) {
     html += '</div>';
     html += '<div class="comment-text">' + highlightMentions(escapeHtml(c.content)).replace(/\n/g, '<br>') + '</div>';
     html += '<div class="comment-actions">';
-    html += '<button class="comment-action-btn' + (liked ? ' liked' : '') + '" onclick="likeComment(' + c.id + ', this)">';
+    html += '<button class="comment-action-btn' + (liked ? ' liked' : '') + '" data-action="like-comment" data-comment-id="' + c.id + '">';
     html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="' + (liked ? 'var(--pink)' : 'none') + '" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     html += ' <span class="like-count">' + (likeCount > 0 ? likeCount : '') + '</span>';
     html += '</button>';
     if (!isReply) {
-        html += '<button class="comment-action-btn" onclick="showReplyForm(' + c.id + ')">Repondre</button>';
+        html += '<button class="comment-action-btn" data-action="show-reply" data-comment-id="' + c.id + '">Repondre</button>';
         if (replyCount > 0) {
-            html += '<button class="comment-toggle-replies" onclick="toggleReplies(' + c.id + ', this)">';
+            html += '<button class="comment-toggle-replies" data-action="toggle-replies" data-comment-id="' + c.id + '">';
             html += '<span class="toggle-replies-count">' + replyCount + ' reponse' + (replyCount > 1 ? 's' : '') + '</span>';
             html += '<svg class="toggle-replies-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
             html += '</button>';
@@ -1092,7 +1105,7 @@ function showMentionDropdown(textarea, query) {
     mentionIndex = 0;
     var html = '';
     filtered.forEach(function(name, i) {
-        html += '<div class="mention-item' + (i === 0 ? ' active' : '') + '" data-name="' + escapeHtml(name) + '" onmousedown="selectMention(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">' + escapeHtml(name) + '</div>';
+        html += '<div class="mention-item' + (i === 0 ? ' active' : '') + '" data-name="' + escapeHtml(name) + '" data-action="select-mention">' + escapeHtml(name) + '</div>';
     });
     dd.innerHTML = html;
 
@@ -1301,6 +1314,20 @@ function submitComment(parentId) {
     localStorage.setItem('comment_name', name);
     btn.disabled = true;
 
+    // Conteneur du message : inline si réponse, global sinon
+    var msgTarget = null;
+    if (parentId) {
+        var form = document.getElementById('replyForm_' + parentId);
+        if (form) {
+            msgTarget = form.querySelector('.reply-msg');
+            if (!msgTarget) {
+                msgTarget = document.createElement('div');
+                msgTarget.className = 'reply-msg';
+                form.insertBefore(msgTarget, form.firstChild);
+            }
+        }
+    }
+
     $.ajax({
         url: 'news_action.php',
         type: 'POST',
@@ -1323,7 +1350,7 @@ function submitComment(parentId) {
                 showCommentMsg('Commentaire publié !', 'success');
                 loadComments(true);
             } else {
-                showCommentMsg(res.error || 'Erreur lors de la publication.', 'error');
+                showCommentMsg(res.error || 'Erreur lors de la publication.', 'error', msgTarget);
             }
         },
         error: function() {
@@ -1361,8 +1388,8 @@ function showReplyForm(commentId) {
     form.id = 'replyForm_' + commentId;
     form.innerHTML = '<textarea placeholder="Votre reponse..." maxlength="2000"></textarea>'
         + '<div class="reply-form-actions">'
-        + '<button class="reply-cancel" onclick="this.closest(\'.reply-form-inline\').remove()">Annuler</button>'
-        + '<button class="reply-submit" onclick="submitComment(' + commentId + ')">Repondre</button>'
+        + '<button class="reply-cancel" data-action="cancel-reply">Annuler</button>'
+        + '<button class="reply-submit" data-action="submit-reply" data-comment-id="' + commentId + '">Repondre</button>'
         + '</div>';
 
     // Insert after the comment item (or after replies block)
@@ -1400,12 +1427,12 @@ function likeComment(commentId, btn) {
     });
 }
 
-function showCommentMsg(msg, type) {
-    var el = document.getElementById('commentMsg');
+function showCommentMsg(msg, type, inlineTarget) {
+    var el = inlineTarget || document.getElementById('commentMsg');
     el.textContent = msg;
-    el.className = 'comment-msg ' + type;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(function() { el.className = 'comment-msg'; el.textContent = ''; }, 10000);
+    el.className = (inlineTarget ? 'reply-msg ' : 'comment-msg ') + type;
+    if (!inlineTarget) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function() { el.className = inlineTarget ? 'reply-msg' : 'comment-msg'; el.textContent = ''; }, 10000);
 }
 
 // ─── Share functions ───
@@ -1495,6 +1522,56 @@ $(function() {
     });
 });
 <?php endif; ?>
+
+// ─── Event delegation — remplace tous les onclick inline (CSP-compatible) ───
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) {
+        // Stop propagation pour ncard-votes
+        if (e.target.closest('[data-stop-propagation]')) { e.preventDefault(); e.stopPropagation(); }
+        return;
+    }
+    var action = el.dataset.action;
+    switch (action) {
+        case 'vote':
+            e.preventDefault(); e.stopPropagation();
+            handleVote(el);
+            break;
+        case 'share-facebook':
+            shareOnFacebook();
+            break;
+        case 'share-x':
+            shareOnX();
+            break;
+        case 'copy-link':
+            copyArticleLink();
+            break;
+        case 'submit-comment':
+            submitComment();
+            break;
+        case 'like-comment':
+            likeComment(parseInt(el.dataset.commentId), el);
+            break;
+        case 'show-reply':
+            showReplyForm(parseInt(el.dataset.commentId));
+            break;
+        case 'toggle-replies':
+            toggleReplies(parseInt(el.dataset.commentId), el);
+            break;
+        case 'cancel-reply':
+            var form = el.closest('.reply-form-inline');
+            if (form) form.remove();
+            break;
+        case 'submit-reply':
+            submitComment(parseInt(el.dataset.commentId));
+            break;
+    }
+});
+// Mention dropdown — mousedown delegation
+document.addEventListener('mousedown', function(e) {
+    var el = e.target.closest('[data-action="select-mention"]');
+    if (el) selectMention(el.dataset.name);
+});
 </script>
 
 <script src="../js/fer-modern.js"></script>

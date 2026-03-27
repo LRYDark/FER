@@ -534,7 +534,7 @@ if ($migrationDone) {
                       <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                     </button>
                   </form>
-                  <form method="post" onsubmit="return confirm('Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.');">
+                  <form method="post" data-confirm="Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.">
                     <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                     <button type="submit" name="permanent_delete_year" class="btn btn-sm btn-danger">
@@ -600,7 +600,7 @@ if ($migrationDone) {
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
                     </form>
 
-                    <form method="post" onsubmit="return confirm('<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>');">
+                    <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <button type="submit" name="delete_year" class="btn btn-outline-danger mb-4">
@@ -631,7 +631,7 @@ if ($migrationDone) {
                               <div class="col-md-1 text-end">
                                 <div class="d-flex gap-1 justify-content-end">
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
-                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" onclick="return confirm('<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>');"><i class="bi bi-x-lg"></i></button>
+                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" data-confirm="<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>"><i class="bi bi-x-lg"></i></button>
                                 </div>
                               </div>
                             </div>
@@ -778,8 +778,19 @@ if ($migrationDone) {
                 "CC99FF", "Prune"
             ],
 
-            // Permettre tous les éléments HTML
-            extended_valid_elements: '*[*]',
+            // 🔒 [SEC-05] Whitelist HTML sécurisée (CWE-79)
+            extended_valid_elements: 'a[href|target|title|class|rel],'
+              + 'img[src|alt|title|width|height|class|loading],'
+              + 'p[class|style],span[class|style],div[class|style],'
+              + 'table[class|border|cellpadding|cellspacing|style],thead,tbody,tfoot,'
+              + 'tr,td[class|style|colspan|rowspan],th[class|style|colspan|rowspan],'
+              + 'ul[class],ol[class|type|start],li[class],'
+              + 'blockquote[class|cite],pre[class],code,strong/b,em/i,u,s,sub,sup,br,'
+              + 'hr[class],h1[class|style],h2[class|style],h3[class|style],'
+              + 'h4[class|style],h5[class|style],h6[class|style],'
+              + 'figure[class],figcaption,video[src|controls|width|height|class],'
+              + 'audio[src|controls|class],source[src|type]',
+            invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
 
             // Configuration du mode code
             toolbar_mode: 'sliding'

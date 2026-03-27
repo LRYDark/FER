@@ -1,7 +1,15 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 require '../config/googleMail.php';
 requireRole(['admin','user']);
+
+// 🔒 [SEC-02] Vérification CSRF avant envoi de mails en masse (CWE-352)
+if (!csrf_verify()) {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Session expirée. Veuillez réessayer.'];
+    header('Location: ../public/accueil');
+    exit;
+}
 
     $mailData = json_decode($_POST['mail_data'], true);
     $recipients = $mailData['recipients'] ?? [];

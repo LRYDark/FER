@@ -157,7 +157,7 @@ if (!$hasCurrentMonth) {
         <?php endforeach; ?>
     </ul>
     <?php if ($period === 'month'): ?>
-        <select class="month-select" onchange="window.location.href='?period=month&y='+this.value.split('-')[0]+'&m='+this.value.split('-')[1]">
+        <select class="month-select" data-action="month-navigate">
             <?php foreach ($dropdownOptions as $opt): ?>
                 <option value="<?= $opt['y'] ?>-<?= $opt['m'] ?>" <?= ($opt['y'] == $selYear && $opt['m'] == $selMonth) ? 'selected' : '' ?>>
                     <?= $opt['label'] ?>

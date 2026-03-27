@@ -467,7 +467,7 @@ if ($migrationDone) {
                       <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                     </button>
                   </form>
-                  <form method="post" onsubmit="return confirm('Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.');">
+                  <form method="post" data-confirm="Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.">
                     <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                     <button type="submit" name="permanent_delete_year" class="btn btn-sm btn-danger">
@@ -533,7 +533,7 @@ if ($migrationDone) {
                         <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
                     </form>
 
-                    <form method="post" onsubmit="return confirm('<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>');">
+                    <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <button type="submit" name="delete_year" class="btn btn-outline-danger mb-4">
@@ -568,7 +568,7 @@ if ($migrationDone) {
                               <div class="col-md-1 text-end">
                                 <div class="d-flex gap-1 justify-content-end">
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
-                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" onclick="return confirm('<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>');"><i class="bi bi-x-lg"></i></button>
+                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" data-confirm="<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>"><i class="bi bi-x-lg"></i></button>
                                 </div>
                               </div>
                             </div>

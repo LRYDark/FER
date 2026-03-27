@@ -1367,7 +1367,19 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
             "99CCFF", "Bleu clair",
             "CC99FF", "Prune"
         ],
-        extended_valid_elements: '*[*]',
+        // 🔒 [SEC-06] Whitelist HTML sécurisée (CWE-79)
+        extended_valid_elements: 'a[href|target|title|class|rel],'
+          + 'img[src|alt|title|width|height|class|loading],'
+          + 'p[class|style],span[class|style],div[class|style],'
+          + 'table[class|border|cellpadding|cellspacing|style],thead,tbody,tfoot,'
+          + 'tr,td[class|style|colspan|rowspan],th[class|style|colspan|rowspan],'
+          + 'ul[class],ol[class|type|start],li[class],'
+          + 'blockquote[class|cite],pre[class],code,strong/b,em/i,u,s,sub,sup,br,'
+          + 'hr[class],h1[class|style],h2[class|style],h3[class|style],'
+          + 'h4[class|style],h5[class|style],h6[class|style],'
+          + 'figure[class],figcaption,video[src|controls|width|height|class],'
+          + 'audio[src|controls|class],source[src|type]',
+        invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
         toolbar_mode: 'sliding'
     });
   </script>
@@ -1566,7 +1578,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                             </button>
                         </form>
 
-                        <form method="post" style="display: inline;" onsubmit="return confirm('Etes-vous sur de vouloir vous deconnecter de Gmail ?');">
+                        <form method="post" style="display: inline;" data-confirm="Etes-vous sur de vouloir vous deconnecter de Gmail ?">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="disconnect">
                             <button type="submit" class="btn btn-danger">

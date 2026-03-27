@@ -21,26 +21,43 @@ if (isset($_GET['check_registration'])) {
         $searchStatus = 'warn';
         $searchMessage = "Oups, cet email ne semble pas valide. Pouvez‑vous le vérifier ?";
     } else {
-        // Les emails sont chiffrés AES-256-GCM (IV aléatoire) : on ne peut pas faire WHERE email = ?
-        // On déchiffre côté PHP et on compare en minuscules.
-        $stmtSearch = $pdo->query('SELECT email FROM registrations');
-        $matchCount = 0;
-        $needle = strtolower($searchEmail);
-        while ($row = $stmtSearch->fetch(PDO::FETCH_ASSOC)) {
-            if (strtolower((string)decrypt($row['email'])) === $needle) {
-                $matchCount++;
-            }
-        }
+        // 🔒 [SEC-07] Rate-limit : 10 recherches/min par IP (CWE-400)
+        $_rlIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $_rlKey = substr(hash('sha256', 'email_search_' . $_rlIp), 0, 16);
+        $_rlFile = sys_get_temp_dir() . '/fer_' . $_rlKey . '.json';
+        $_rlTimes = [];
+        if (@file_exists($_rlFile)) { $_rlTimes = json_decode(@file_get_contents($_rlFile), true) ?: []; }
+        $_rlNow = time();
+        $_rlTimes = array_values(array_filter($_rlTimes, fn($t) => $t > $_rlNow - 60));
 
-        if ($matchCount > 0) {
-            $searchStatus = 'success';
-            $countLabel = $matchCount === 1
-                ? "1 inscription enregistrée"
-                : "$matchCount inscriptions enregistrées";
-            $searchMessage = "Merci ! $countLabel pour cet email. Hâte de vous voir le jour J 😊";
+        if (count($_rlTimes) >= 10) {
+            $searchStatus = 'warn';
+            $searchMessage = "Trop de recherches, veuillez patienter quelques instants.";
         } else {
-            $searchStatus = 'danger';
-            $searchMessage = "On ne retrouve pas d'inscription avec cet email 😔. Vérifiez l'adresse ou inscrivez‑vous en 1 minute 😁";
+            $_rlTimes[] = $_rlNow;
+            @file_put_contents($_rlFile, json_encode($_rlTimes));
+
+            // Les emails sont chiffrés AES-256-GCM (IV aléatoire) : on ne peut pas faire WHERE email = ?
+            // On déchiffre côté PHP et on compare en minuscules.
+            $stmtSearch = $pdo->query('SELECT email FROM registrations');
+            $matchCount = 0;
+            $needle = strtolower($searchEmail);
+            while ($row = $stmtSearch->fetch(PDO::FETCH_ASSOC)) {
+                if (strtolower((string)decrypt($row['email'])) === $needle) {
+                    $matchCount++;
+                }
+            }
+
+            if ($matchCount > 0) {
+                $searchStatus = 'success';
+                $countLabel = $matchCount === 1
+                    ? "1 inscription enregistrée"
+                    : "$matchCount inscriptions enregistrées";
+                $searchMessage = "Merci ! $countLabel pour cet email. Hâte de vous voir le jour J 😊";
+            } else {
+                $searchStatus = 'danger';
+                $searchMessage = "On ne retrouve pas d'inscription avec cet email 😔. Vérifiez l'adresse ou inscrivez‑vous en 1 minute 😁";
+            }
         }
     }
 }

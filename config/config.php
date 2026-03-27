@@ -150,8 +150,8 @@ function getAssoConnectCodes(int $id = 1): array
  */
 function oauth2_callback_url(): string
 {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
+    $baseUrl = getAppBaseUrl();
     $projectRoot = realpath(__DIR__ . '/..');
     $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
     if ($projectRoot === $docRoot || $projectRoot === false || $docRoot === false) {
@@ -159,7 +159,7 @@ function oauth2_callback_url(): string
     } else {
         $baseDir = str_replace('\\', '/', substr($projectRoot, strlen($docRoot)));
     }
-    return $scheme . '://' . $host . $baseDir . '/oauth2callback.php';
+    return $baseUrl . $baseDir . '/oauth2callback.php';
 }
 
 /**
@@ -249,9 +249,38 @@ function decryptRows(array $rows): array {
     return array_map('decryptRow', $rows);
 }
 
+// 🔒 [SEC-01] URL de base fiable — empêche le Host header injection (CWE-644)
+function getAppBaseUrl(): string {
+    if (!empty($_ENV['APP_URL'])) {
+        return rtrim($_ENV['APP_URL'], '/');
+    }
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if (!preg_match('/^[a-zA-Z0-9._:-]+$/', $host)) {
+        error_log('[SECURITY] Rejected malformed Host header: ' . substr($host, 0, 100));
+        $host = 'localhost';
+    }
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return $scheme . '://' . $host;
+}
+
+// 🔒 [SEC-08] Assainissement HTML pour contenu riche (CWE-79)
+function sanitizeHtml(?string $html): string {
+    if ($html === null || $html === '') return '';
+    $allowed = '<p><br><strong><b><em><i><u><s><h1><h2><h3><h4><h5><h6>'
+             . '<ul><ol><li><a><img><table><thead><tbody><tfoot><tr><td><th>'
+             . '<blockquote><pre><code><div><span><hr><sub><sup><figure><figcaption>';
+    $html = strip_tags($html, $allowed);
+    $html = preg_replace('/\bon\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i', '', $html);
+    $html = preg_replace('/(href|src|action|formaction)\s*=\s*["\']?\s*(?:javascript|vbscript|data)\s*:/i', '$1="', $html);
+    return $html;
+}
+
 // ── CSP nonce par requête ─────────────────────────────────────────────────────
 // Généré ici pour que TOUS les templates qui require config.php l'aient.
 // Le header CSP est émis ici (pas dans .htaccess) pour embarquer la valeur dynamique.
+// 🔒 [SEC-10] style-src 'unsafe-inline' conservé — requis par les attributs style="" du site
+// 🔒 [SEC-15] img-src https: requis pour les images externes du contenu riche
+// 🔒 [SEC-17] frame-src *.assoconnect.com — idéalement spécifier le sous-domaine exact
 $GLOBALS['csp_nonce'] = base64_encode(random_bytes(16));
 header(
     "Content-Security-Policy: " .

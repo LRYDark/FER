@@ -249,7 +249,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
               <td><?= htmlspecialchars($ban['reason'] ?? '-') ?></td>
               <td><?= htmlspecialchars($ban['banned_at'] ?? '') ?></td>
               <td>
-                <form method="post" style="display:inline" onsubmit="return confirm('Débannir cette IP ?')">
+                <form method="post" style="display:inline" data-confirm="Débannir cette IP ?">
                   <?= csrf_field() ?>
                   <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
                   <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-success">
@@ -277,7 +277,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0">Appareils de confiance</h5>
       <?php if (!empty($devices)): ?>
-        <form method="post" onsubmit="return confirm('Révoquer TOUS les appareils de confiance ?')">
+        <form method="post" data-confirm="Révoquer TOUS les appareils de confiance ?">
           <?= csrf_field() ?>
           <button type="submit" name="revoke_all_devices" value="1" class="btn btn-sm btn-outline-danger">
             <i class="bi bi-trash me-1"></i>Révoquer tous les appareils
@@ -312,7 +312,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
               <td><?= htmlspecialchars($device['created_at'] ?? '') ?></td>
               <td><?= htmlspecialchars($device['expires_at'] ?? '') ?></td>
               <td>
-                <form method="post" style="display:inline" onsubmit="return confirm('Révoquer cet appareil ?')">
+                <form method="post" style="display:inline" data-confirm="Révoquer cet appareil ?">
                   <?= csrf_field() ?>
                   <input type="hidden" name="device_id" value="<?= (int)$device['id'] ?>">
                   <button type="submit" name="revoke_device" value="1" class="btn btn-sm btn-outline-danger">

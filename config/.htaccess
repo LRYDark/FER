@@ -4,6 +4,7 @@
 </FilesMatch>
 
 # Bloquer aussi les fichiers sensibles par extension
-<FilesMatch "\.(env|log|bak|sql|old|txt)$">
+# 🔒 [SEC-03] .json ajouté pour protéger token.json (CWE-538)
+<FilesMatch "\.(env|log|bak|sql|old|txt|json)$">
     Require all denied
 </FilesMatch>

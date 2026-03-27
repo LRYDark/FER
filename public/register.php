@@ -463,8 +463,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
       <h2 class="register-online-title text-center mb-4">Inscription en ligne</h2>
 
       <?php
-      if ($assoconnectIframe && $assoconnectJs) {
-          echo $assoconnectIframe, PHP_EOL, $assoconnectJs;
+      // 🔒 [SEC-09] Validation domaine AssoConnect avant echo brut (CWE-79)
+      if ($assoconnectIframe && preg_match('#^<iframe[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectIframe))) {
+          echo $assoconnectIframe, PHP_EOL;
+      }
+      if ($assoconnectJs && preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectJs))) {
+          echo $assoconnectJs, PHP_EOL;
       }
       ?>
     <?php endif; ?>
