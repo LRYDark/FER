@@ -288,7 +288,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
   <?php include '../inc/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     // Lightbox
     document.addEventListener("DOMContentLoaded", function () {
       const lightbox = document.getElementById("lightbox");

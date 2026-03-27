@@ -931,7 +931,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 <?php include '../inc/footer-modern.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 // ─── Vote system ───
 function getVoteCookie(id) {
     const name = 'vote_' + id + '=';

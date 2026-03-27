@@ -187,7 +187,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <?php include '../inc/admin-footer.php'; ?>
 
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const stats = <?= json_encode($stats) ?>;
 
 /* ─────────── 1. Graphiques généraux ─────────── */

@@ -2815,7 +2815,7 @@ function generateTimelineSVG(int $count): array {
 
   <!-- NAV -->
   <!-- Theme: apply saved preference immediately to avoid flash -->
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
   (function(){var t=localStorage.getItem('fer-theme');if(t==='dark')document.body.classList.add('dark-theme');})();
   </script>
 
@@ -3547,7 +3547,7 @@ function generateTimelineSVG(int $count): array {
 <?php include '../inc/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     // NOTE: Mega menu, Mobile menu, Nav scroll and Theme toggle are in fer-modern.js
 
     // ===== Registration check (AJAX, no refresh) =====

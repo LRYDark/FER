@@ -9,7 +9,7 @@
 ?>
 
 <!-- Theme: apply saved preference immediately to avoid flash -->
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){var t=localStorage.getItem('fer-theme');if(t==='dark')document.body.classList.add('dark-theme');})();
 </script>
 

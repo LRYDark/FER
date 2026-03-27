@@ -860,7 +860,7 @@ if (isset($_POST['deleteImage'])) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.alert').forEach(alertEl => {
     // ferme après 3 000 ms
@@ -1315,7 +1315,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
   </div><!-- /row -->
 
   <script src="../js/tinymce/tinymce.min.js"></script>
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     tinymce.init({
         selector: '#divReglementation',
         license_key: 'gpl',
@@ -1624,7 +1624,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 <!-- JS -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 // Settings tabs switching
 document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
   tab.addEventListener('click', function(e) {

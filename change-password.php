@@ -96,7 +96,7 @@ $footer  = $data['footer']  ?? '';
     <div class="oc-footer"><?= htmlspecialchars($footer) ?></div>
   </main>
 
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     var pass = document.getElementById('newPass');
     var conf = document.getElementById('confirmPass');
     var btn  = document.getElementById('btnSubmit');
