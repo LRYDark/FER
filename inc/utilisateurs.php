@@ -370,7 +370,7 @@ require 'navbar-data.php';
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 const userRole = '<?= $role ?>';
 let availableEmails = [];

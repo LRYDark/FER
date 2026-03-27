@@ -42,9 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 if (isset($_POST['update_partners_desc'])) {
     $partnersTitle = $_POST['partners_title'] ?? '';
     if (!empty($_FILES['partners_img']['name'])) {
-        $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $ext = strtolower(pathinfo($_FILES['partners_img']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, $allowedExts)) {
+        $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $ext  = strtolower(pathinfo($_FILES['partners_img']['name'], PATHINFO_EXTENSION));
+        $mime = mime_content_type($_FILES['partners_img']['tmp_name']);
+        if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
             $safeName = uniqid('partner_', true) . '.' . $ext;
             move_uploaded_file($_FILES['partners_img']['tmp_name'], "../files/_partners/" . $safeName);
             $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ?, partners_img = ? WHERE id = 1");
@@ -86,9 +88,11 @@ if (isset($_POST['update_album'])) {
   $yearId = $_POST['year_id'];
 
   if (!empty($_FILES['album_img']['name'])) {
-    $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-    $ext = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
-    if (in_array($ext, $allowedExts)) {
+    $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+    $mime = mime_content_type($_FILES['album_img']['tmp_name']);
+    if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
       $safeName = uniqid('partner_', true) . '.' . $ext;
       move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $safeName);
       $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = ?, album_desc = ? WHERE id = ?");
@@ -108,9 +112,11 @@ if (isset($_POST['update_album'])) {
 
 if (isset($_POST['add_album'])) {
   $yearId = $_POST['year_id'];
-  $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-  $ext = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
-  if (in_array($ext, $allowedExts)) {
+  $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+  $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+  $mime = mime_content_type($_FILES['album_img']['tmp_name']);
+  if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
     $safeName = uniqid('partner_', true) . '.' . $ext;
     move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $safeName);
     $stmt = $pdo->prepare("INSERT INTO partners_albums (year_id, album_title, album_img, album_desc) VALUES (?, ?, ?, ?)");
@@ -426,7 +432,7 @@ if ($migrationDone) {
             <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
             <!-- Reopen modal script -->
             <?php if (isset($_SESSION['reopen_modal'])): ?>
-            <script>
+            <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.addEventListener('DOMContentLoaded', function () {
                 var modalId = 'modalYear<?= $_SESSION['reopen_modal'] ?>';
                 var el = document.getElementById(modalId);
@@ -717,7 +723,7 @@ if ($migrationDone) {
         }
     </style>
     <script src="../js/tinymce/tinymce.min.js"></script>
-    <script>
+    <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
         tinymce.init({
             selector: '#partners_desc_editor',
             license_key: 'gpl',

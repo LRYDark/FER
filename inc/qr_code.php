@@ -168,7 +168,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 let qrTable;
 let currentQrData = null;
 
@@ -375,7 +375,7 @@ $(document).ready(function() {
                     <p>${currentQrData.description || ''}</p>
                     <img src="${canvas.toDataURL()}" style="max-width:400px;">
                     <p style="font-size:12px; margin-top:20px;">Token: ${currentQrData.token}</p>
-                    <script>window.onload = function(){ window.print(); }<\/script>
+                    <script nonce="<?= $GLOBALS['csp_nonce'] ?>">window.onload = function(){ window.print(); }<\/script>
                 </body>
             </html>
         `);

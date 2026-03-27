@@ -248,3 +248,21 @@ function decryptRow(array $row): array {
 function decryptRows(array $rows): array {
     return array_map('decryptRow', $rows);
 }
+
+// ── CSP nonce par requête ─────────────────────────────────────────────────────
+// Généré ici pour que TOUS les templates qui require config.php l'aient.
+// Le header CSP est émis ici (pas dans .htaccess) pour embarquer la valeur dynamique.
+$GLOBALS['csp_nonce'] = base64_encode(random_bytes(16));
+header(
+    "Content-Security-Policy: " .
+    "default-src 'self'; " .
+    "script-src 'self' 'nonce-" . $GLOBALS['csp_nonce'] . "' " .
+        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net; " .
+    "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net 'unsafe-inline'; " .
+    "img-src 'self' data: blob: https:; " .
+    "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://cdn.datatables.net; " .
+    "frame-src 'self' https://*.assoconnect.com; " .
+    "connect-src 'self'; " .
+    "object-src 'none'; " .
+    "base-uri 'self';"
+);

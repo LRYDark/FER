@@ -3,7 +3,7 @@
 </div><!-- /oc-app-container -->
 
 <!-- ═══════ ADMIN LAYOUT SCRIPTS ═══════ -->
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
   // ── Sidebar toggle (mobile) ──
   var burger  = document.getElementById('ocBurger');

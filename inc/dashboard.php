@@ -233,7 +233,7 @@ tr.filters select{
       </div>
     </div>
     <?php endif; ?>
-    <script>
+    <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
       // Auto-masquage des messages flash au bout de 5 secondes
       document.addEventListener('DOMContentLoaded', function() {
         const flashAlert = document.querySelector('.alert');
@@ -258,7 +258,7 @@ tr.filters select{
         <?php endif; ?>
         <?php if($role==='admin' || $role==='user'): ?>
           <button id="btnExport" class="btn btn-info">Export Excel</button>
-            <script>
+            <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.getElementById('btnExport').addEventListener('click', () => {
               // simple redirection => déclenche le téléchargement
               window.location = '../config/api.php?route=export-excel';
@@ -268,7 +268,7 @@ tr.filters select{
           <?php if($role==='admin'): ?>
             <button id="btnArchiveNow" class="btn btn-danger">Archiver&nbsp;<?= date('Y') ?></button>
 
-            <script>
+            <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.getElementById('btnArchiveNow').addEventListener('click', async () => {
               if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
 
@@ -365,7 +365,7 @@ tr.filters select{
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 const userRole = '<?= $role ?>';
 let tableData = []; // Pour stocker les données triées par date

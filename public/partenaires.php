@@ -684,7 +684,7 @@ if ($selectedYearId) {
   <?php include '../inc/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     function showImageModal(src) {
       document.getElementById('modalImage').src = src;
       document.getElementById('imageModal').classList.add('active');

@@ -102,7 +102,7 @@ $footer  = $data['footer']  ?? '';
   </main>
 
   <?php if ($tokenValid): ?>
-  <script>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     var pass = document.getElementById('newPass');
     var conf = document.getElementById('confirmPass');
     var btn  = document.getElementById('btnSubmit');

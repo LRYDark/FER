@@ -285,7 +285,7 @@ if (!$hasCurrentMonth) {
 </div>
 
 <!-- Chart.js initialization -->
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
     const dailyData = <?= json_encode($dailyVisits, JSON_FORCE_OBJECT) ?>;
     const labels = Object.keys(dailyData);

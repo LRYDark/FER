@@ -234,7 +234,7 @@ foreach ($items as $item) {
             $reopenId = $_SESSION['reopen_modal'];
             unset($_SESSION['reopen_modal']);
         ?>
-        <script>
+        <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
         document.addEventListener('DOMContentLoaded', function(){
             var el = document.getElementById('modalEditItem<?= (int)$reopenId ?>');
             if(el){ var m = new bootstrap.Modal(el); m.show(); }
@@ -449,7 +449,7 @@ foreach ($items as $item) {
 </div>
 
 <?php include '../inc/admin-footer.php'; ?>
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 // ===== Image Position Dragger (X+Y + Zoom) =====
 (function(){
   // Store references to avoid duplicate bindings
@@ -663,7 +663,7 @@ foreach ($items as $item) {
 
 })();
 </script>
-<script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
   var el = document.getElementById('sortableTimeline');
   if (el) {

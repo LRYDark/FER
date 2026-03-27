@@ -807,6 +807,21 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Validation extension + MIME
+    $xlsExt  = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
+    $xlsMime = mime_content_type($_FILES['file']['tmp_name']);
+    $allowedXlsExts  = ['xlsx', 'xls'];
+    $allowedXlsMimes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+        'application/vnd.ms-excel',                                           // xls
+        'application/zip',                                                    // xlsx détecté comme zip sur certains serveurs
+    ];
+    if (!in_array($xlsExt, $allowedXlsExts, true) || !in_array($xlsMime, $allowedXlsMimes, true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls)']);
+        exit;
+    }
+
     try {
         require_once __DIR__ . '/../vendor/autoload.php';
 

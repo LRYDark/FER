@@ -23,6 +23,17 @@ if (file_exists($envPath)) {
 
 session_start();
 
+// ── CSP nonce ────────────────────────────────────────────────
+$csp_nonce = base64_encode(random_bytes(16));
+header(
+    "Content-Security-Policy: " .
+    "default-src 'self'; " .
+    "script-src 'self' 'nonce-" . $csp_nonce . "' https://cdn.jsdelivr.net; " .
+    "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " .
+    "img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net; " .
+    "connect-src 'self'; object-src 'none'; base-uri 'self';"
+);
+
 // ── CSRF ────────────────────────────────────────────────────
 if (empty($_SESSION['csrf_install'])) {
     $_SESSION['csrf_install'] = bin2hex(random_bytes(32));
@@ -1123,7 +1134,7 @@ $stepLabels = [
             </button>
           </form>
 
-          <script>
+          <script nonce="<?= $csp_nonce ?>">
           (function() {
             var pass  = document.getElementById('adminPass');
             var conf  = document.getElementById('adminPassConfirm');
