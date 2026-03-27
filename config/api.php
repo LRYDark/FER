@@ -154,10 +154,13 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 $_SESSION['pending_2fa_email'] = $u['email'];
                 echo json_encode(['ok'=>true, 'requires_2fa'=>true]); exit;
             }
-            // Mail send failed → login direct (failsafe)
+            // 🔒 [FIX-2FA-FALLBACK] Ne plus contourner le 2FA si l'envoi échoue (CWE-287)
+            logLoginAttempt($pdo, $u['id'], $u['email'], false, 'Echec envoi code 2FA');
+            http_response_code(503);
+            echo json_encode(['ok'=>false, 'err'=>'Impossible d\'envoyer le code de verification. Veuillez reessayer dans quelques instants.']); exit;
         }
 
-        // No 2FA needed or mail not configured → login direct
+        // No 2FA needed (mail not configured or columns absent) → login direct
         session_regenerate_id(true);
         $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
         logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Connexion directe');
@@ -187,12 +190,10 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             echo json_encode(['ok'=>false, 'err'=>'Compte verrouille apres 3 tentatives echouees.']); exit;
         } else {
             $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]);
-            $remaining = 3 - $attempts;
-            http_response_code(401);
-            echo json_encode(['ok'=>false, 'err'=>"Identifiants incorrects. $remaining tentative(s) restante(s)."]); exit;
         }
     }
 
+    // 🔒 [FIX-ENUM] Message uniforme — ne pas révéler si l'email existe (CWE-204)
     http_response_code(401); echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects.']); exit;
 }
 
@@ -460,7 +461,12 @@ if ($route === 'users') {
             }
         }
 
-        echo json_encode(['ok' => true, 'temp_password' => $tempPassword, 'email_sent' => $emailSent]);
+        // 🔒 [FIX-PWD-EXPOSE] Ne retourner le MDP temporaire que si l'email n'a pas été envoyé (CWE-319)
+        $response = ['ok' => true, 'email_sent' => $emailSent];
+        if (!$emailSent) {
+            $response['temp_password'] = $tempPassword;
+        }
+        echo json_encode($response);
         exit;
     }
 
@@ -582,7 +588,12 @@ if ($route === 'users') {
             error_log('Create user mail error: ' . $e->getMessage());
         }
 
-        echo json_encode(['ok' => true, 'temp_password' => $tempPassword, 'email_sent' => $emailSent]);
+        // 🔒 [FIX-PWD-EXPOSE] Ne retourner le MDP temporaire que si l'email n'a pas été envoyé (CWE-319)
+        $response = ['ok' => true, 'email_sent' => $emailSent];
+        if (!$emailSent) {
+            $response['temp_password'] = $tempPassword;
+        }
+        echo json_encode($response);
         exit;
     }
 

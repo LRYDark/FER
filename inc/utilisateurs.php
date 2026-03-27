@@ -504,7 +504,11 @@ document.getElementById('btnResetPwd').addEventListener('click', function () {
   .then(j => {
     if (j.ok) {
       bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
-      showTempPasswordModal(j.temp_password, currentEditUser.email, j.email_sent);
+      if (j.temp_password) {
+        showTempPasswordModal(j.temp_password, currentEditUser.email, j.email_sent);
+      } else {
+        alert('Mot de passe r\u00e9initialis\u00e9. Un email a \u00e9t\u00e9 envoy\u00e9 \u00e0 ' + currentEditUser.email + '.');
+      }
       usrTbl.ajax.reload();
     } else {
       alert('Erreur : ' + (j.err || 'inconnue'));

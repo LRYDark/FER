@@ -279,12 +279,16 @@ if (isset($_POST['config'])) {
 $alertAsso = '';
 if (isset($_POST['LinkAssoConnect'])) {
 
-    /* a) Lecture & validation */
+    /* a) Lecture & validation (CWE-79) */
     $iframe = trim($_POST['assoconnect_iframe'] ?? '');
     $script = trim($_POST['assoconnect_js']     ?? '');
 
     if ($iframe === '' || $script === '') {
          $alertAsso = makeAlert('danger', 'Les deux champs sont obligatoires.');
+    } elseif (!preg_match('#^<(iframe[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/|div[^>]+class=["\'][^"\']*iframe-asc-container)#i', $iframe)) {
+         $alertAsso = makeAlert('danger', 'Le code DIV/iframe doit provenir d\'AssoConnect.');
+    } elseif (!preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', $script)) {
+         $alertAsso = makeAlert('danger', 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).');
     } else {
 
         /* b) Requête préparée */
@@ -580,8 +584,8 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
 $alertReglementation = '';
 if (isset($_POST['reglementation'])) {
 
-    /* a) Lecture & validation */
-    $div_reglementation = trim($_POST['div_reglementation'] ?? '');
+    /* a) Lecture & sanitisation HTML (CWE-79) */
+    $div_reglementation = sanitizeHtml(trim($_POST['div_reglementation'] ?? ''));
 
     /* b) Requête préparée */
     $upd = $pdo->prepare(

@@ -1,11 +1,15 @@
 # Fichiers sensibles
 config/.env
 config/.env.test
+config/.install.lock
 token.json
+config/token.json
+
+# Logs
 *.log
 debug_import.log
 import_errors.log
-config/logs_google_mails.txt
+config/logs/
 
 # Fichiers de migration (one-shot)
 migrate_*.php

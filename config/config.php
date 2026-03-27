@@ -263,16 +263,111 @@ function getAppBaseUrl(): string {
     return $scheme . '://' . $host;
 }
 
-// 🔒 [SEC-08] Assainissement HTML pour contenu riche (CWE-79)
+// 🔒 [SEC-08] Assainissement HTML via DOMDocument — whitelist tags + attributs (CWE-79)
 function sanitizeHtml(?string $html): string {
     if ($html === null || $html === '') return '';
-    $allowed = '<p><br><strong><b><em><i><u><s><h1><h2><h3><h4><h5><h6>'
-             . '<ul><ol><li><a><img><table><thead><tbody><tfoot><tr><td><th>'
-             . '<blockquote><pre><code><div><span><hr><sub><sup><figure><figcaption>';
-    $html = strip_tags($html, $allowed);
-    $html = preg_replace('/\bon\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)/i', '', $html);
-    $html = preg_replace('/(href|src|action|formaction)\s*=\s*["\']?\s*(?:javascript|vbscript|data)\s*:/i', '$1="', $html);
-    return $html;
+
+    // Tags autorisés et leurs attributs autorisés
+    $allowedTags = [
+        'p','br','strong','b','em','i','u','s',
+        'h1','h2','h3','h4','h5','h6',
+        'ul','ol','li','a','img',
+        'table','thead','tbody','tfoot','tr','td','th',
+        'blockquote','pre','code','div','span','hr',
+        'sub','sup','figure','figcaption',
+    ];
+    $allowedAttrs = [
+        'a'     => ['href', 'title', 'target', 'rel'],
+        'img'   => ['src', 'alt', 'width', 'height', 'loading'],
+        'td'    => ['colspan', 'rowspan'],
+        'th'    => ['colspan', 'rowspan'],
+        'ol'    => ['start', 'type'],
+        'table' => ['border'],
+    ];
+    // Schémes autorisés pour href/src
+    $safeSchemes = ['http', 'https', 'mailto'];
+
+    // Parser via DOMDocument
+    libxml_use_internal_errors(true);
+    $doc = new DOMDocument('1.0', 'UTF-8');
+    $doc->loadHTML(
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>' . $html . '</body></html>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR
+    );
+    libxml_clear_errors();
+
+    $body = $doc->getElementsByTagName('body')->item(0);
+    if (!$body) return '';
+
+    // Parcourir récursivement et nettoyer
+    _sanitizeNode($body, $allowedTags, $allowedAttrs, $safeSchemes, $doc);
+
+    // Extraire le contenu du <body>
+    $result = '';
+    foreach ($body->childNodes as $child) {
+        $result .= $doc->saveHTML($child);
+    }
+    return $result;
+}
+
+/** @internal Recursively sanitize DOM nodes — whitelist approach */
+function _sanitizeNode(DOMNode $node, array $allowedTags, array $allowedAttrs, array $safeSchemes, DOMDocument $doc): void {
+    $toRemove = [];
+    foreach ($node->childNodes as $child) {
+        if ($child->nodeType === XML_ELEMENT_NODE) {
+            $tag = strtolower($child->nodeName);
+            if (!in_array($tag, $allowedTags, true)) {
+                // Tag interdit : remplacer par ses enfants (conserver le texte)
+                $toRemove[] = $child;
+            } else {
+                // Tag autorisé : nettoyer ses attributs
+                $attrsToRemove = [];
+                foreach ($child->attributes as $attr) {
+                    $attrName = strtolower($attr->nodeName);
+                    // Bloquer tous les event handlers (on*)
+                    if (str_starts_with($attrName, 'on')) {
+                        $attrsToRemove[] = $attr->nodeName;
+                        continue;
+                    }
+                    // Attribut pas dans la whitelist de ce tag
+                    $tagAllowed = $allowedAttrs[$tag] ?? [];
+                    if (!in_array($attrName, $tagAllowed, true)) {
+                        $attrsToRemove[] = $attr->nodeName;
+                        continue;
+                    }
+                    // Valider les URLs (href, src)
+                    if (in_array($attrName, ['href', 'src'], true)) {
+                        $val = trim($attr->nodeValue);
+                        $scheme = strtolower(parse_url($val, PHP_URL_SCHEME) ?? '');
+                        if ($scheme !== '' && !in_array($scheme, $safeSchemes, true)) {
+                            $attrsToRemove[] = $attr->nodeName;
+                        }
+                    }
+                }
+                foreach ($attrsToRemove as $aName) {
+                    $child->removeAttribute($aName);
+                }
+                // Forcer rel=noopener sur les liens avec target
+                if ($tag === 'a' && $child->hasAttribute('target')) {
+                    $child->setAttribute('rel', 'noopener noreferrer');
+                }
+                // Récursion sur les enfants
+                _sanitizeNode($child, $allowedTags, $allowedAttrs, $safeSchemes, $doc);
+            }
+        }
+    }
+    // Remplacer les tags interdits par leurs enfants
+    foreach ($toRemove as $badNode) {
+        $fragment = $doc->createDocumentFragment();
+        while ($badNode->firstChild) {
+            $fragment->appendChild($badNode->firstChild);
+        }
+        $badNode->parentNode->replaceChild($fragment, $badNode);
+    }
+    // Relancer sur les nœuds déplacés
+    if (!empty($toRemove)) {
+        _sanitizeNode($node, $allowedTags, $allowedAttrs, $safeSchemes, $doc);
+    }
 }
 
 // ── CSP nonce par requête ─────────────────────────────────────────────────────
@@ -286,12 +381,12 @@ header(
     "Content-Security-Policy: " .
     "default-src 'self'; " .
     "script-src 'self' 'nonce-" . $GLOBALS['csp_nonce'] . "' " .
-        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net; " .
+        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net https://*.assoconnect.com; " .
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net 'unsafe-inline'; " .
     "img-src 'self' data: blob: https:; " .
     "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://cdn.datatables.net; " .
     "frame-src 'self' https://*.assoconnect.com; " .
-    "connect-src 'self'; " .
+    "connect-src 'self' https://*.assoconnect.com https://cdn.jsdelivr.net; " .
     "object-src 'none'; " .
     "base-uri 'self';"
 );
