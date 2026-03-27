@@ -510,6 +510,12 @@ function getCreateTableStatements(): array
           INDEX `idx_visited_at` (`visited_at`),
           INDEX `idx_page_url` (`page_url`(191))
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `inscription_counter` (
+          `id`      int(11) NOT NULL,
+          `next_no` int(11) NOT NULL DEFAULT 0,
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
     ];
 }
 
@@ -545,6 +551,9 @@ function getDefaultInserts(): array
           (10, 'paiement_mode', 'Moyen de paiement'),
           (11, 'origine', 'pays'),
           (12, 'created_at', 'date de creation')",
+
+        // Compteur atomique pour inscription_no (évite la race condition CWE-362)
+        "INSERT IGNORE INTO `inscription_counter` (`id`, `next_no`) VALUES (1, 0)",
     ];
 }
 

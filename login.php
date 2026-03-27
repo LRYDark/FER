@@ -460,14 +460,12 @@ $picture= $data['picture'] ?? '';
   </div>
 
   <!-- Scripts -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+          integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+          crossorigin="anonymous"></script>
   <script>
     // CSRF token
     var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-    // Store login credentials for potential 2FA resend
-    var _loginEmail = '';
-    var _loginPassword = '';
 
     function redirectAfterLogin(j) {
       if (j.must_change_password) {
@@ -513,8 +511,6 @@ $picture= $data['picture'] ?? '';
       document.getElementById('err').classList.remove('visible');
 
       var formData = Object.fromEntries(new FormData(e.target));
-      _loginEmail = formData.email || '';
-      _loginPassword = formData.password || '';
 
       fetch('config/api.php?route=login', {
         method: 'POST',
@@ -590,33 +586,30 @@ $picture= $data['picture'] ?? '';
       });
     });
 
-    // Resend 2FA code (re-submits login)
+    // Resend 2FA code (route dédiée, sans mot de passe)
     document.getElementById('resendCode').addEventListener('click', function(e) {
       e.preventDefault();
       document.getElementById('twofaErr').classList.remove('visible');
-
-      if (!_loginEmail || !_loginPassword) {
-        showLoginSection();
-        return;
-      }
 
       this.style.pointerEvents = 'none';
       this.textContent = 'Envoi en cours...';
       var self = this;
 
-      fetch('config/api.php?route=login', {
+      fetch('config/api.php?route=resend-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
-        body: JSON.stringify({ email: _loginEmail, password: _loginPassword })
+        body: JSON.stringify({})
       })
       .then(r => r.json())
       .then(function(j) {
         self.style.pointerEvents = '';
         self.textContent = 'Renvoyer le code';
-        if (j.requires_2fa === true) {
-          // Clear previous code input
+        if (j.ok) {
           document.querySelector('#fTwofa input[name="code"]').value = '';
           document.querySelector('#fTwofa input[name="code"]').focus();
+        } else {
+          document.getElementById('twofaErrText').textContent = j.err || 'Erreur lors du renvoi.';
+          document.getElementById('twofaErr').classList.add('visible');
         }
       })
       .catch(function() {

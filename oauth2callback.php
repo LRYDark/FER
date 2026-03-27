@@ -1,6 +1,19 @@
 <?php
 require 'config/config.php';
 
+// ── Vérifier que l'utilisateur est un admin authentifié ──────────────────────
+requireRole(['admin']);
+
+// ── Vérifier le paramètre state (protection CSRF OAuth — RFC 6749 §10.12) ───
+if (!isset($_GET['state']) || !isset($_SESSION['oauth_state'])
+    || !hash_equals($_SESSION['oauth_state'], $_GET['state'])) {
+    error_log('OAuth2callback : état CSRF invalide ou absent.');
+    unset($_SESSION['oauth_state']);
+    header('Location: inc/setting.php?auth=error&message=' . urlencode('État OAuth invalide. Veuillez relancer l\'autorisation.'));
+    exit;
+}
+unset($_SESSION['oauth_state']);
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -19,7 +32,7 @@ if (!$clientID || !$clientSecret) {
 
 // Fonction pour enregistrer des logs
 function writeLog($message) {
-    $logFile = __DIR__ . '/config/logs_google_mails.txt';
+    $logFile = __DIR__ . '/config/logs/logs_google_mails.txt';
     $timestamp = date("Y-m-d H:i:s");
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }
@@ -49,8 +62,9 @@ try {
         die('Erreur OAuth : ' . htmlspecialchars($errMsg));
     }
 
-    // Sauvegarder le token dans token.json à la racine
-    $tokenFile = __DIR__ . '/token.json';
+    // 🔒 [FIX-06] token.json stocké dans config/ (protégé par .htaccess) (CWE-538)
+    $tokenFile = __DIR__ . '/config/token.json';
+    // ⚠️ [IMPACT FONCTIONNEL] Mettre à jour googleMail.php : __DIR__.'/../token.json' → __DIR__.'/token.json'
     file_put_contents($tokenFile, json_encode($token));
     
     writeLog('✅ Token OAuth2 généré et sauvegardé avec succès dans : ' . $tokenFile);

@@ -62,10 +62,22 @@ if ($_POST) {
         $error_message = "Token invalide. Inscription refusée.";
     } else {
         try {
-            $stmt = $pdo->prepare('SELECT MAX(inscription_no) as max_no FROM registrations');
-            $stmt->execute();
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $nextInscriptionNo = ($result['max_no'] ?? 0) + 1;
+            // Compteur atomique — évite la race condition (CWE-362)
+            $counterExists = false;
+            try {
+                $pdo->query('SELECT next_no FROM inscription_counter LIMIT 0');
+                $counterExists = true;
+            } catch (PDOException $e) {}
+
+            if ($counterExists) {
+                $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
+                $nextInscriptionNo = (int)$pdo->lastInsertId();
+            } else {
+                $stmt2 = $pdo->prepare('SELECT MAX(inscription_no) as max_no FROM registrations');
+                $stmt2->execute();
+                $result2 = $stmt2->fetch(PDO::FETCH_ASSOC);
+                $nextInscriptionNo = ($result2['max_no'] ?? 0) + 1;
+            }
 
             $formData = [
                 'inscription_no' => $nextInscriptionNo,
@@ -132,7 +144,10 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Inscription</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+      crossorigin="anonymous">
 <style>
   :root{
     --rose-500:#ec4899;
@@ -457,7 +472,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 </main>
 <?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
 
 <div class="reglement-wrap">
   <button type="button" class="reglement-cta" data-bs-toggle="modal" data-bs-target="#reglementModal">
@@ -477,7 +494,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
       </div>
       <div class="modal-body">
-        <?= $div_reglementation ?>
+        <?php
+        // 🔒 [FIX-01] Sanitisation HTML pour éviter XSS stocké (CWE-79)
+        // ⚠️ [À VÉRIFIER] Installer ezyang/htmlpurifier via Composer pour sanitisation complète
+        $allowedTags = '<p><br><strong><em><b><i><u><ul><ol><li><h1><h2><h3><h4><a><span><div><table><tr><td><th><thead><tbody><img>';
+        echo strip_tags($div_reglementation ?? '', $allowedTags);
+        ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>

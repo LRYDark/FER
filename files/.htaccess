@@ -1,0 +1,7 @@
+# Bloquer l'exécution PHP dans ce dossier (fichiers uploadés)
+# 🔒 [FIX-04] Empêche l'exécution de fichiers PHP déposés par upload (CWE-434)
+<FilesMatch "\.php$">
+    Require all denied
+</FilesMatch>
+
+Options -ExecCGI
