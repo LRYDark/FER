@@ -281,10 +281,23 @@ function sanitizeHtml(?string $html): string {
     $allowedAttrs = [
         'a'     => ['href', 'title', 'target', 'rel'],
         'img'   => ['src', 'alt', 'width', 'height', 'loading', 'style'],
-        'td'    => ['colspan', 'rowspan'],
-        'th'    => ['colspan', 'rowspan'],
+        'td'    => ['colspan', 'rowspan', 'style'],
+        'th'    => ['colspan', 'rowspan', 'style'],
         'ol'    => ['start', 'type'],
         'table' => ['border'],
+        'p'     => ['style'],
+        'div'   => ['style'],
+        'span'  => ['style'],
+        'h1'    => ['style'],
+        'h2'    => ['style'],
+        'h3'    => ['style'],
+        'h4'    => ['style'],
+        'h5'    => ['style'],
+        'h6'    => ['style'],
+        'li'    => ['style'],
+        'blockquote' => ['style'],
+        'figure'     => ['style'],
+        'figcaption' => ['style'],
     ];
     // Schémes autorisés pour href/src
     $safeSchemes = ['http', 'https', 'mailto'];
@@ -352,14 +365,35 @@ function _sanitizeNode(DOMNode $node, array $allowedTags, array $allowedAttrs, a
                 foreach ($attrsToRemove as $aName) {
                     $child->removeAttribute($aName);
                 }
-                // Sanitiser le style des images (n'autoriser que width/height/max-width)
-                if ($tag === 'img' && $child->hasAttribute('style')) {
+                // Sanitiser le style (n'autoriser que certaines propriétés CSS sûres)
+                if ($child->hasAttribute('style')) {
                     $rawStyle = $child->getAttribute('style');
                     $safeProps = [];
                     foreach (explode(';', $rawStyle) as $decl) {
                         $decl = trim($decl);
                         if ($decl === '') continue;
+                        // width, height, max-width (images et autres)
                         if (preg_match('/^(width|height|max-width)\s*:\s*[\d.]+(px|%|em|rem|auto)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // text-align (center, left, right, justify)
+                        if (preg_match('/^text-align\s*:\s*(left|center|right|justify)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // line-height
+                        if (preg_match('/^line-height\s*:\s*[\d.]+(px|%|em|rem|)?\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // margin (avec auto pour centrer les images)
+                        if (preg_match('/^(margin|margin-left|margin-right|margin-top|margin-bottom)\s*:\s*([\d.]+(px|%|em|rem)|auto)(\s+([\d.]+(px|%|em|rem)|auto))*\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // display: block/inline/inline-block (pour centrer les images)
+                        if (preg_match('/^display\s*:\s*(block|inline|inline-block)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // float (left, right, none)
+                        if (preg_match('/^float\s*:\s*(left|right|none)\s*$/i', $decl)) {
                             $safeProps[] = $decl;
                         }
                     }

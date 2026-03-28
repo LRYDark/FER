@@ -638,6 +638,11 @@ function initTinyMCE() {
       'alignright alignjustify | bullist numlist outdent indent | ' +
       'removeformat | help',
     content_style: 'body { font-family:Arial,sans-serif; font-size:14px }',
+    valid_styles: {
+        '*': 'text-align,line-height,color,background-color,font-size,font-weight,font-style,text-decoration,padding,padding-left,padding-right,padding-top,padding-bottom,margin,margin-left,margin-right,margin-top,margin-bottom',
+        'img': 'width,height,max-width,float,margin,margin-left,margin-right,margin-top,margin-bottom,display',
+        'table': 'width,height,border-collapse,border-spacing'
+    },
     language: 'fr_FR',
 
     // Upload images sur le serveur au lieu de base64

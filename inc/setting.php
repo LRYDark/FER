@@ -1389,6 +1389,11 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         menubar: false,
         branding: false,
         content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+        valid_styles: {
+            '*': 'text-align,line-height,color,background-color,font-size,font-weight,font-style,text-decoration,padding,padding-left,padding-right,padding-top,padding-bottom,margin,margin-left,margin-right,margin-top,margin-bottom',
+            'img': 'width,height,max-width,float,margin,margin-left,margin-right,margin-top,margin-bottom,display',
+            'table': 'width,height,border-collapse,border-spacing'
+        },
         color_map: [
             "000000", "Noir",
             "993300", "Marron fonce",
@@ -1432,7 +1437,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         ],
         // 🔒 [SEC-06] Whitelist HTML sécurisée (CWE-79)
         extended_valid_elements: 'a[href|target|title|class|rel],'
-          + 'img[src|alt|title|width|height|class|loading],'
+          + 'img[src|alt|title|width|height|class|loading|style],'
           + 'p[class|style],span[class|style],div[class|style],'
           + 'table[class|border|cellpadding|cellspacing|style],thead,tbody,tfoot,'
           + 'tr,td[class|style|colspan|rowspan],th[class|style|colspan|rowspan],'
