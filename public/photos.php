@@ -517,8 +517,26 @@ function resolveAlbumDateLabel(array $album): string
               if (empty($album['album_title']) && empty($album['album_link'])) continue;
               $creatorName = resolveAlbumCreator($album);
               $dateLabel = resolveAlbumDateLabel($album);
+              $isLocal = (($album['album_type'] ?? 'link') === 'local');
+              $albumHref = $isLocal
+                ? 'gallery.php?album_id=' . $album['id']
+                : htmlspecialchars($album['album_link']);
+              $albumTarget = $isLocal ? '_self' : '_blank';
+
+              // Count photos for local albums
+              $localPhotoCount = 0;
+              if ($isLocal && !empty($album['album_link'])) {
+                $localDir = __DIR__ . '/../files/_albums/' . basename($album['album_link']);
+                if (is_dir($localDir)) {
+                  $exts = ['jpg','jpeg','png','gif','webp'];
+                  foreach (scandir($localDir) as $f) {
+                    if ($f === '.' || $f === '..') continue;
+                    if (in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), $exts)) $localPhotoCount++;
+                  }
+                }
+              }
             ?>
-            <a href="<?= htmlspecialchars($album['album_link']) ?>" target="_blank" rel="noopener noreferrer" class="album-card">
+            <a href="<?= $albumHref ?>" <?= $isLocal ? '' : 'rel="noopener noreferrer"' ?> target="<?= $albumTarget ?>" class="album-card">
               <div class="album-card-media">
                 <div class="album-card-media-inner">
                   <?php if (!empty($album['album_img']) && is_file('../files/_albums/' . $album['album_img'])): ?>
@@ -535,6 +553,9 @@ function resolveAlbumDateLabel(array $album): string
                 <h2 class="album-card-title"><?= htmlspecialchars($album['album_title']) ?></h2>
                 <div class="album-card-footer">
                   <p class="album-card-date"><?= htmlspecialchars($dateLabel) ?></p>
+                  <?php if ($isLocal && $localPhotoCount > 0): ?>
+                    <span style="font-size:13px;color:#7c3aed;font-weight:600"><?= $localPhotoCount ?> photo<?= $localPhotoCount > 1 ? 's' : '' ?></span>
+                  <?php endif; ?>
                 </div>
               </div>
             </a>
