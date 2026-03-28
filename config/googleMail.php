@@ -1,6 +1,9 @@
 <?php
 require_once 'config.php'; // Inclure le fichier fusionné (même dossier)
 
+// Force global scope — nécessaire quand googleMail.php est chargé depuis une fonction
+global $data, $clientID, $clientSecret, $googleMailReady;
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -102,7 +105,10 @@ function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
 // Fonction pour obtenir le jeton d'accès OAuth2
 function getAccessToken(bool $autoRedirect = true) {
     global $clientID, $clientSecret, $googleMailReady;
-    if (!$googleMailReady) return false;
+    if (!$googleMailReady) {
+        writeLog('❌ getAccessToken : googleMailReady=false (client_id ou client_secret manquant)');
+        return false;
+    }
     
     $tokenFile = __DIR__ . '/token.json';
     $client = new Google_Client();

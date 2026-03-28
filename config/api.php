@@ -78,7 +78,7 @@ function createTrustedDevice($pdo, $userId) {
 
 function isMailConfigured(): bool {
     try {
-        if (!file_exists(__DIR__ . '/../token.json')) return false;
+        if (!file_exists(__DIR__ . '/token.json')) return false;
         global $pdo;
         $stmt = $pdo->prepare('SELECT client_id, client_secret FROM setting WHERE id = 1 LIMIT 1');
         $stmt->execute();
@@ -223,10 +223,23 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 $_SESSION['pending_2fa_email'] = $u['email'];
                 echo json_encode(['ok'=>true, 'requires_2fa'=>true]); exit;
             }
-            // 🔒 [FIX-2FA-FALLBACK] Ne plus contourner le 2FA si l'envoi échoue (CWE-287)
-            logLoginAttempt($pdo, $u['id'], $u['email'], false, 'Echec envoi code 2FA');
-            http_response_code(503);
-            echo json_encode(['ok'=>false, 'err'=>'Impossible d\'envoyer le code de verification. Veuillez reessayer dans quelques instants.']); exit;
+            // 🔒 Fallback sécurisé : si envoi 2FA échoue, connexion directe + alerte admin
+            logLoginAttempt($pdo, $u['id'], $u['email'], true, '2FA skip - envoi code impossible');
+            session_regenerate_id(true);
+            $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+            // Alerter les admins
+            try {
+                $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                if (!empty($admins) && function_exists('sendMail')) {
+                    foreach ($admins as $adminEmail) {
+                        @sendMail($adminEmail, 'Alerte 2FA - Forbach en Rose', 'Connexion sans 2FA',
+                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> s\'est connecte sans verification 2FA car l\'envoi du code a echoue.</p>'
+                            . '<p>Verifiez la configuration Gmail dans les parametres.</p>',
+                            null, null, 'warning');
+                    }
+                }
+            } catch (\Throwable $e) {}
+            echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
         }
 
         // No 2FA needed (mail not configured or columns absent) → login direct

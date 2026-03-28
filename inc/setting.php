@@ -1635,7 +1635,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                 <div class="info">
                     <h3>Informations</h3>
                     <ul>
-                        <li><strong>Fichier token :</strong> <?php echo file_exists(__DIR__ . '/../token.json') ? 'Present' : 'Absent'; ?></li>
+                        <li><strong>Fichier token :</strong> <?php echo file_exists(__DIR__ . '/../config/token.json') ? 'Present' : 'Absent'; ?></li>
                         <li><strong>Derniere verification :</strong> <?php echo date('d/m/Y H:i:s'); ?></li>
                         <li><strong>Scopes requis :</strong> Gmail Send (envoi d'emails)</li>
                     </ul>
