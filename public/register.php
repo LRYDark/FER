@@ -116,9 +116,13 @@ if ($_POST) {
 }
 
 // Récupération des paramètres de configuration
-$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $data = [];
+}
 
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;

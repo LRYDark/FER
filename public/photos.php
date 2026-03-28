@@ -18,19 +18,23 @@ if ($previewYearId > 0) {
 }
 
 // Recuperation des annees disponibles
-if ($isPreview) {
-    // Preview: show published + draft, but NOT trashed
-    $stmtYears = $pdo->prepare('SELECT * FROM photo_years WHERE deleted_at IS NULL ORDER BY year DESC');
-    $stmtYears->execute();
-} else {
-    if ($hasStatusCol) {
-        $stmtYears = $pdo->prepare("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC");
+try {
+    if ($isPreview) {
+        // Preview: show published + draft, but NOT trashed
+        $stmtYears = $pdo->prepare('SELECT * FROM photo_years WHERE deleted_at IS NULL ORDER BY year DESC');
+        $stmtYears->execute();
     } else {
-        $stmtYears = $pdo->prepare('SELECT * FROM photo_years ORDER BY year DESC');
+        if ($hasStatusCol) {
+            $stmtYears = $pdo->prepare("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC");
+        } else {
+            $stmtYears = $pdo->prepare('SELECT * FROM photo_years ORDER BY year DESC');
+        }
+        $stmtYears->execute();
     }
-    $stmtYears->execute();
+    $years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $years = [];
 }
-$years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
 
 // Si une annee est selectionnee, recuperer les albums associes
 $selectedYearId = $previewYearId ?: (isset($_GET['year_id']) ? (int)$_GET['year_id'] : null);
@@ -38,27 +42,27 @@ $albums = [];
 $selectedYear = null;
 
 if ($selectedYearId) {
-    if ($isPreview) {
-        $stmtYear = $pdo->prepare('SELECT * FROM photo_years WHERE id = :id AND deleted_at IS NULL LIMIT 1');
-    } else {
-        $stmtYear = $pdo->prepare("SELECT * FROM photo_years WHERE id = :id AND deleted_at IS NULL AND status = 'published' LIMIT 1");
-    }
-    $stmtYear->execute(['id' => $selectedYearId]);
-    $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
+    try {
+        if ($isPreview) {
+            $stmtYear = $pdo->prepare('SELECT * FROM photo_years WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        } else {
+            $stmtYear = $pdo->prepare("SELECT * FROM photo_years WHERE id = :id AND deleted_at IS NULL AND status = 'published' LIMIT 1");
+        }
+        $stmtYear->execute(['id' => $selectedYearId]);
+        $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
 
-    if (!$selectedYear && !$isPreview) {
-        // L'année n'existe pas ou est en brouillon → rediriger vers la page photos
-        header('Location: photos');
-        exit;
-    }
+        if (!$selectedYear && !$isPreview) {
+            header('Location: photos');
+            exit;
+        }
 
-    if ($isPreview) {
         $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL');
-    } else {
-        $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+        $stmtAlbums->execute(['year_id' => $selectedYearId]);
+        $albums = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $selectedYear = null;
+        $albums = [];
     }
-    $stmtAlbums->execute(['year_id' => $selectedYearId]);
-    $albums = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function formatAlbumDateLabel(int $timestamp): string

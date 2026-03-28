@@ -7,14 +7,22 @@ trackPageVisit();
 require '../inc/navbar-data.php';
 
 // Récupération du nombre d'inscrits
-$stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');
-$stmtcount->execute();
-$count = $stmtcount->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+try {
+    $stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');
+    $stmtcount->execute();
+    $count = $stmtcount->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+} catch (PDOException $e) {
+    $count = 0;
+}
 
 // Récupération des paramètres de la page parcours
-$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $data = [];
+}
 
 $titleParcours  = $data['titleParcours'] ?? 'Parcours';
 $parcoursDesc = $data['parcoursDesc'] ?? '';

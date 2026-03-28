@@ -4,9 +4,13 @@ require_once '../config/tracker.php';
 trackPageVisit();
 
 // Récupération du nombre d'inscrits
-$stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');
-$stmtcount->execute();
-$count = $stmtcount->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+try {
+    $stmtcount = $pdo->prepare('SELECT COUNT(*) AS total FROM registrations');
+    $stmtcount->execute();
+    $count = $stmtcount->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+} catch (PDOException $e) {
+    $count = 0;
+}
 
 // Recherche d'inscription par email (GET)
 $searchEmail = trim($_GET['search_email'] ?? '');
@@ -39,24 +43,29 @@ if (isset($_GET['check_registration'])) {
 
             // Les emails sont chiffrés AES-256-GCM (IV aléatoire) : on ne peut pas faire WHERE email = ?
             // On déchiffre côté PHP et on compare en minuscules.
-            $stmtSearch = $pdo->query('SELECT email FROM registrations');
-            $matchCount = 0;
-            $needle = strtolower($searchEmail);
-            while ($row = $stmtSearch->fetch(PDO::FETCH_ASSOC)) {
-                if (strtolower((string)decrypt($row['email'])) === $needle) {
-                    $matchCount++;
+            try {
+                $stmtSearch = $pdo->query('SELECT email FROM registrations');
+                $matchCount = 0;
+                $needle = strtolower($searchEmail);
+                while ($row = $stmtSearch->fetch(PDO::FETCH_ASSOC)) {
+                    if (strtolower((string)decrypt($row['email'])) === $needle) {
+                        $matchCount++;
+                    }
                 }
-            }
 
-            if ($matchCount > 0) {
-                $searchStatus = 'success';
-                $countLabel = $matchCount === 1
-                    ? "1 inscription enregistrée"
-                    : "$matchCount inscriptions enregistrées";
-                $searchMessage = "Merci ! $countLabel pour cet email. Hâte de vous voir le jour J 😊";
-            } else {
-                $searchStatus = 'danger';
-                $searchMessage = "On ne retrouve pas d'inscription avec cet email 😔. Vérifiez l'adresse ou inscrivez‑vous en 1 minute 😁";
+                if ($matchCount > 0) {
+                    $searchStatus = 'success';
+                    $countLabel = $matchCount === 1
+                        ? "1 inscription enregistrée"
+                        : "$matchCount inscriptions enregistrées";
+                    $searchMessage = "Merci ! $countLabel pour cet email. Hâte de vous voir le jour J 😊";
+                } else {
+                    $searchStatus = 'danger';
+                    $searchMessage = "On ne retrouve pas d'inscription avec cet email 😔. Vérifiez l'adresse ou inscrivez‑vous en 1 minute 😁";
+                }
+            } catch (PDOException $e) {
+                $searchStatus = 'warn';
+                $searchMessage = "Erreur lors de la recherche. Veuillez réessayer.";
             }
         }
     }
@@ -72,9 +81,13 @@ if (isset($_GET['ajax']) && isset($_GET['check_registration'])) {
 }
 
 // Récupération des paramètres
-$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $data = [];
+}
 
 $titleAccueil  = $data['titleAccueil'] ?? '';
 $picture = $data['picture'] ?? '';  
