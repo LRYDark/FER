@@ -124,10 +124,10 @@ function countRecentIpFailures($pdo, $ip, int $windowMinutes = 15): int {
 function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 1440): void {
     if (isIpBanned($pdo, $ip)) return;
 
-    $failures = countRecentIpFailures($pdo, $ip);
+    $failures = countRecentIpFailures($pdo, $ip, $banMinutes);
     if ($failures < $threshold) return;
 
-    $reason = "Auto-ban : $failures echecs de connexion en 15 min";
+    $reason = "Auto-ban : $failures echecs de connexion en 24h (multi-comptes)";
     try {
         $pdo->prepare(
             'INSERT INTO login_banned_ips (ip, reason, banned_at, expires_at)
@@ -140,6 +140,22 @@ function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 144
                 ->execute([$ip, $reason]);
         } catch (\Throwable $e2) {}
     }
+
+    // Notifier les admins du ban IP
+    try {
+        require_once __DIR__ . '/googleMail.php';
+        if (isGoogleConnectionValid()) {
+            $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+            $durationH = round($banMinutes / 60);
+            foreach ($admins as $adminEmail) {
+                sendMail($adminEmail, 'Ban IP automatique – Forbach en Rose', 'IP bannie automatiquement',
+                    '<p>L\'adresse IP <strong>' . htmlspecialchars($ip) . '</strong> a ete bannie automatiquement pour ' . $durationH . 'h.</p>'
+                    . '<p><strong>Raison :</strong> ' . htmlspecialchars($reason) . '</p>'
+                    . '<p>Le ban expirera automatiquement. Vous pouvez le lever manuellement depuis l\'espace d\'administration.</p>',
+                    null, null, 'warning');
+            }
+        }
+    } catch (\Throwable $e) { error_log('IP ban notification mail error: ' . $e->getMessage()); }
 }
 
 /* ───── LOGIN / LOGOUT ───────────────────────── */
@@ -243,9 +259,12 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 }
             } catch (\Throwable $e) { error_log('Lock notification mail error: ' . $e->getMessage()); }
             http_response_code(403);
-            echo json_encode(['ok'=>false, 'err'=>'Compte verrouille apres 3 tentatives echouees.']); exit;
+            echo json_encode(['ok'=>false, 'err'=>'Compte verrouille apres 3 tentatives echouees. Utilisez "Mot de passe oublie" pour reactiver votre compte.']); exit;
         } else {
             $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]);
+            $remaining = 3 - $attempts;
+            http_response_code(401);
+            echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects. Il vous reste ' . $remaining . ' tentative(s) avant blocage du compte.']); exit;
         }
     }
 
