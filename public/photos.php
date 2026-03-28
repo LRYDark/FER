@@ -296,7 +296,7 @@ function resolveAlbumDateLabel(array $album): string
 
     .album-card-title {
       margin: 0;
-      font-size: clamp(17px, 1.35vw, 22px);
+      font-size: clamp(14px, 1.1vw, 16px);
       font-weight: 500;
       letter-spacing: -0.01em;
       line-height: 1.25;
@@ -546,11 +546,13 @@ function resolveAlbumDateLabel(array $album): string
                          loading="lazy">
                   <?php endif; ?>
                 </div>
-                <span class="album-card-creator"><?= htmlspecialchars($creatorName) ?></span>
+                <span class="album-card-creator"><?= htmlspecialchars($album['album_title']) ?></span>
               </div>
 
               <div class="album-card-content">
-                <h2 class="album-card-title"><?= htmlspecialchars($album['album_title']) ?></h2>
+                <?php if ($creatorName !== 'Auteur inconnu'): ?>
+                  <h2 class="album-card-title"><?= htmlspecialchars($creatorName) ?></h2>
+                <?php endif; ?>
                 <div class="album-card-footer">
                   <p class="album-card-date"><?= htmlspecialchars($dateLabel) ?></p>
                   <?php if ($isLocal && $localPhotoCount > 0): ?>
