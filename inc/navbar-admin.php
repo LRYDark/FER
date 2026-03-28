@@ -662,6 +662,79 @@ html, body {
 #oc-content::-webkit-scrollbar-track { background: transparent; }
 #oc-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 #oc-content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ══ Admin Overrides : boutons & alertes pleins ══════════════════════════ */
+
+/* Alertes pleines */
+.alert-success {
+  background: #16a34a !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.alert-danger {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+.alert-warning {
+  background: #f59e0b !important;
+  color: #fff !important;
+  border: none !important;
+}
+.alert-warning .btn-close { filter: invert(1); }
+
+.alert-info {
+  background: #0ea5e9 !important;
+  color: #fff !important;
+  border: none !important;
+}
+.alert-info .btn-close { filter: invert(1); }
+
+/* Boutons pleins */
+.btn-success {
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #fff !important;
+}
+.btn-success:hover { background: #15803d !important; border-color: #15803d !important; }
+
+.btn-outline-danger {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+}
+.btn-outline-danger:hover { background: #b91c1c !important; border-color: #b91c1c !important; }
+
+/* btn-outline-secondary : garder le style Bootstrap par défaut (boutons Aperçu etc.) */
+
+/* Modals : header bord à bord */
+.modal-content.p-4 { padding: 0 !important; }
+.modal-content.p-4 .modal-header { padding: 1rem 1.5rem; }
+.modal-content.p-4 .modal-body { padding: 1.5rem; }
+.modal-content.p-4 .modal-footer { padding: 1rem 1.5rem; }
+
+.btn-danger {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+}
+.btn-danger:hover { background: #b91c1c !important; border-color: #b91c1c !important; }
+
+.btn-outline-success {
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+  color: #fff !important;
+}
+.btn-outline-success:hover { background: #15803d !important; border-color: #15803d !important; }
+
+.btn-outline-warning {
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #fff !important;
+}
+.btn-outline-warning:hover { background: #d97706 !important; border-color: #d97706 !important; }
 </style>
 
 <!-- ═══════ TOPBAR ═══════ -->

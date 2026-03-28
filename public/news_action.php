@@ -177,21 +177,45 @@ case 'get_admin_comments':
     $newsId = intval($_GET['news_id'] ?? 0);
     if ($newsId <= 0) { echo json_encode(['success' => false]); exit; }
 
+    $page    = max(1, intval($_GET['page'] ?? 1));
+    $perPage = max(1, min(100, intval($_GET['per_page'] ?? 10)));
+    $search  = trim($_GET['search'] ?? '');
+    $offset  = ($page - 1) * $perPage;
+
     try {
-        $stmt = $pdo->prepare('
+        $where = 'c.news_id = :nid';
+        $params = ['nid' => $newsId];
+        if ($search !== '') {
+            $where .= ' AND (c.author_name LIKE :q OR c.content LIKE :q OR c.ip_address LIKE :q)';
+            $params['q'] = "%$search%";
+        }
+
+        $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM news_comments c WHERE $where");
+        $stmtCount->execute($params);
+        $total = (int) $stmtCount->fetchColumn();
+
+        $stmt = $pdo->prepare("
             SELECT c.*, (b.id IS NOT NULL) as is_banned, b.reason as ban_reason
             FROM news_comments c
             LEFT JOIN news_banned_ips b ON c.ip_address = b.ip_address
-            WHERE c.news_id = :nid
+            WHERE $where
             ORDER BY c.created_at DESC
-        ');
-        $stmt->execute(['nid' => $newsId]);
+            LIMIT $perPage OFFSET $offset
+        ");
+        $stmt->execute($params);
         $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($comments as &$c) {
             $c['is_banned'] = (bool)$c['is_banned'];
             $c['likes'] = (int)$c['likes'];
         }
-        echo json_encode(['success' => true, 'comments' => $comments]);
+        echo json_encode([
+            'success'  => true,
+            'comments' => $comments,
+            'total'    => $total,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'pages'    => max(1, (int) ceil($total / $perPage)),
+        ]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'error' => 'Erreur chargement commentaires']);
     }

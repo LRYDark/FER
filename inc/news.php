@@ -60,6 +60,7 @@ if (isset($_POST['add_news'])) {
         $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
         $stmt->execute([$imgName, $title, $desc]);
     }
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article ajouté avec succès.'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -117,7 +118,15 @@ if (isset($_POST['update_news'])) {
         }
     }
 
-    header("Location: " . $_SERVER['PHP_SELF']);
+    // Rediriger vers la même page/filtre et rouvrir le modal
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis à jour avec succès.'];
+    $_SESSION['reopen_news_modal'] = $id;
+    $qs = http_build_query(array_filter([
+        'filter' => $_GET['filter'] ?? '',
+        'page'   => $_GET['page'] ?? '',
+        'q'      => $_GET['q'] ?? '',
+    ], fn($v) => $v !== ''));
+    header("Location: " . $_SERVER['PHP_SELF'] . ($qs ? "?$qs" : ''));
     exit;
 }
 
@@ -128,6 +137,7 @@ if (isset($_POST['delete_news'])) {
         // Soft delete (move to trash)
         $stmt = $pdo->prepare("UPDATE news SET deleted_at = NOW() WHERE id = ?");
         $stmt->execute([$id]);
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis en corbeille.'];
         header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
     } else {
         // Hard delete (old behavior)
@@ -139,6 +149,7 @@ if (isset($_POST['delete_news'])) {
         }
         $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
         $stmt->execute([$id]);
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé.'];
         header("Location: " . $_SERVER['PHP_SELF']);
     }
     exit;
@@ -150,7 +161,7 @@ if ($migrationDone) {
         $id = $_POST['news_id'];
         $stmt = $pdo->prepare("UPDATE news SET deleted_at = NULL WHERE id = ?");
         $stmt->execute([$id]);
-
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article restauré.'];
         header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
         exit;
     }
@@ -168,34 +179,60 @@ if ($migrationDone) {
 
         $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
         $stmt->execute([$id]);
-
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé définitivement.'];
         header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
         exit;
     }
 }
 
-// ─── Filter logic ───
+// ─── Filter, Search & Pagination logic ───
 $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+$search = trim($_GET['q'] ?? '');
 $isTrashed = false;
+$perPage = 12;
+$page = max(1, (int) ($_GET['page'] ?? 1));
 
 if ($migrationDone) {
+    // Build WHERE clause based on filter
     switch ($filter) {
         case 'published':
-            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NULL AND status = 'published' ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+            $where = "deleted_at IS NULL AND status = 'published'";
+            $orderBy = "date_publication DESC";
             break;
         case 'draft':
-            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NULL AND status = 'draft' ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+            $where = "deleted_at IS NULL AND status = 'draft'";
+            $orderBy = "date_publication DESC";
             break;
         case 'trashed':
-            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+            $where = "deleted_at IS NOT NULL";
+            $orderBy = "deleted_at DESC";
             break;
         default:
             $filter = '';
-            $articles = $pdo->query("SELECT * FROM news WHERE deleted_at IS NULL ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+            $where = "deleted_at IS NULL";
+            $orderBy = "date_publication DESC";
             break;
     }
 
-    // Counts for tab badges
+    // Add search condition
+    $params = [];
+    if ($search !== '') {
+        $where .= " AND title_article LIKE ?";
+        $params[] = "%$search%";
+    }
+
+    $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM news WHERE $where");
+    $stmtCount->execute($params);
+    $totalArticles = (int) $stmtCount->fetchColumn();
+    $totalPages = max(1, (int) ceil($totalArticles / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+
+    $stmtArticles = $pdo->prepare("SELECT * FROM news WHERE $where ORDER BY $orderBy LIMIT $perPage OFFSET $offset");
+    $stmtArticles->execute($params);
+    $articles = $stmtArticles->fetchAll(PDO::FETCH_ASSOC);
+
+    // Counts for tab badges (not affected by search)
     $countAll      = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NULL")->fetchColumn();
     $countPublished = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NULL AND status = 'published'")->fetchColumn();
     $countDraft    = $pdo->query("SELECT COUNT(*) FROM news WHERE deleted_at IS NULL AND status = 'draft'")->fetchColumn();
@@ -204,7 +241,21 @@ if ($migrationDone) {
     $isTrashed = ($filter === 'trashed');
 } else {
     $filter = '';
-    $articles = $pdo->query("SELECT * FROM news ORDER BY date_publication DESC")->fetchAll(PDO::FETCH_ASSOC);
+    $params = [];
+    $where = '1=1';
+    if ($search !== '') {
+        $where = "title_article LIKE ?";
+        $params[] = "%$search%";
+    }
+    $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM news WHERE $where");
+    $stmtCount->execute($params);
+    $totalArticles = (int) $stmtCount->fetchColumn();
+    $totalPages = max(1, (int) ceil($totalArticles / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+    $stmtArticles = $pdo->prepare("SELECT * FROM news WHERE $where ORDER BY date_publication DESC LIMIT $perPage OFFSET $offset");
+    $stmtArticles->execute($params);
+    $articles = $stmtArticles->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
 
@@ -330,6 +381,16 @@ if ($migrationDone) {
 <div class="container py-4">
   <h1 class="mb-3 fw-bold">Actualités</h1>
 
+  <?php if (isset($_SESSION['flash_message']) && !isset($_SESSION['reopen_news_modal'])):
+    $flash = $_SESSION['flash_message'];
+    unset($_SESSION['flash_message']);
+  ?>
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flash['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
+      <?= htmlspecialchars($flash['message']) ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <?php endif; ?>
+
   <?php if (!$migrationDone): ?>
   <div class="alert alert-warning" role="alert">
     <i class="bi bi-exclamation-triangle"></i> Veuillez executer la mise a jour BDD pour activer toutes les fonctionnalites (statut, corbeille, filtres).
@@ -356,12 +417,16 @@ if ($migrationDone) {
 
   <!-- Search bar + Add button row -->
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div class="news-search-bar">
+    <form class="news-search-bar" method="get" action="">
+      <input type="hidden" name="filter" value="<?= htmlspecialchars($filter) ?>">
       <div class="input-group input-group-sm">
         <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-        <input type="text" id="newsSearchInput" class="form-control" placeholder="Rechercher un article par titre...">
+        <input type="text" name="q" class="form-control" placeholder="Rechercher un article par titre..." value="<?= htmlspecialchars($search) ?>">
+        <?php if ($search !== ''): ?>
+          <a href="?filter=<?= htmlspecialchars($filter) ?>" class="btn btn-sm btn-outline-secondary">&times;</a>
+        <?php endif; ?>
       </div>
-    </div>
+    </form>
     <?php if (!$isTrashed): ?>
     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddNews">
       <i class="bi bi-plus-lg"></i> Ajouter un article
@@ -369,23 +434,26 @@ if ($migrationDone) {
     <?php endif; ?>
   </div>
 
+  <!-- Spinner de chargement -->
+  <div id="loadingSpinner" class="text-center py-5">
+    <div class="spinner-border text-pink" role="status" style="width:2.5rem;height:2.5rem;color:#ec4899;"></div>
+    <p class="text-muted mt-2 small">Chargement des articles...</p>
+  </div>
+
   <?php if (empty($articles)): ?>
-    <div class="text-center text-muted py-5">
+    <div class="text-center text-muted py-5 content-loaded" style="display:none;">
       <i class="bi bi-newspaper" style="font-size:3rem;"></i>
       <p class="mt-2"><?= $isTrashed ? 'La corbeille est vide.' : 'Aucun article trouvé.' ?></p>
     </div>
   <?php else: ?>
-  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="newsCardContainer">
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 content-loaded" id="newsCardContainer" style="display:none;">
     <?php foreach ($articles as $n): ?>
       <div class="col news-card-col" data-title="<?= htmlspecialchars(strtolower($n['title_article'])) ?>">
         <div class="card h-100 shadow-sm border-0 <?= $isTrashed ? 'card-trashed' : '' ?>">
-          <?php if ($migrationDone && !$isTrashed): ?>
-            <span class="badge-status <?= $n['status'] === 'published' ? 'badge-published' : 'badge-draft' ?>">
-              <?= $n['status'] === 'published' ? 'Publié' : 'Brouillon' ?>
-            </span>
-          <?php endif; ?>
-          <?php if (!empty($n['img_article'])): ?>
+          <?php if (!empty($n['img_article']) && file_exists("../files/_news/" . $n['img_article'])): ?>
             <img src="../files/_news/<?= htmlspecialchars($n['img_article']) ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
+          <?php else: ?>
+            <div style="height:200px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.3;">📰</div>
           <?php endif; ?>
           <div class="card-body d-flex flex-column">
             <h6 class="card-title fw-bold"><?= htmlspecialchars($n['title_article']) ?></h6>
@@ -397,7 +465,7 @@ if ($migrationDone) {
                 Publié le <?= date('d/m/Y H:i', strtotime($n['date_publication'])) ?>
               <?php endif; ?>
             </p>
-            <div class="mt-auto d-flex gap-2 flex-wrap">
+            <div class="mt-auto d-flex gap-2 flex-wrap align-items-center">
               <?php if ($migrationDone && $isTrashed): ?>
                 <!-- Trash view buttons -->
                 <form method="post">
@@ -429,6 +497,11 @@ if ($migrationDone) {
                     <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>
                   </button>
                 </form>
+                <?php if ($migrationDone): ?>
+                  <span class="ms-auto badge <?= $n['status'] === 'published' ? 'bg-success' : 'bg-warning text-dark' ?>">
+                    <?= $n['status'] === 'published' ? 'Publié' : 'Brouillon' ?>
+                  </span>
+                <?php endif; ?>
               <?php endif; ?>
             </div>
           </div>
@@ -445,6 +518,13 @@ if ($migrationDone) {
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+              <?php if (isset($_SESSION['flash_message']) && isset($_SESSION['reopen_news_modal']) && $_SESSION['reopen_news_modal'] == $n['id']): ?>
+                <div class="alert alert-<?= $_SESSION['flash_message']['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $_SESSION['flash_message']['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
+                  <?= htmlspecialchars($_SESSION['flash_message']['message']) ?>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php unset($_SESSION['flash_message']); ?>
+              <?php endif; ?>
               <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabContent<?= $n['id'] ?>">Contenu</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabComments<?= $n['id'] ?>" data-action="load-comments" data-news-id="<?= $n['id'] ?>">Commentaires</a></li>
@@ -485,10 +565,22 @@ if ($migrationDone) {
                 </div>
                 <!-- Onglet Commentaires -->
                 <div class="tab-pane fade" id="tabComments<?= $n['id'] ?>">
-                  <input type="text" class="form-control form-control-sm mb-3 comment-search" data-news-id="<?= $n['id'] ?>" placeholder="Rechercher un commentaire...">
+                  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                      <label class="small text-muted mb-0">Afficher</label>
+                      <select class="form-select form-select-sm comment-per-page" data-news-id="<?= $n['id'] ?>" style="width:75px;">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                      </select>
+                      <span class="small text-muted mb-0">entrées</span>
+                    </div>
+                    <input type="text" class="form-control form-control-sm comment-search" data-news-id="<?= $n['id'] ?>" placeholder="Rechercher..." style="max-width:220px;">
+                  </div>
                   <div id="adminCommentsList<?= $n['id'] ?>" class="admin-comments-list">
                     <p class="text-muted text-center py-4">Cliquez sur l'onglet pour charger les commentaires...</p>
                   </div>
+                  <div id="adminCommentsPagination<?= $n['id'] ?>" class="d-flex justify-content-between align-items-center mt-3" style="display:none!important;"></div>
                 </div>
               </div>
             </div>
@@ -498,6 +590,37 @@ if ($migrationDone) {
       <?php endif; ?>
     <?php endforeach; ?>
   </div>
+
+  <?php
+    if ($totalPages > 1):
+      // pagination is also hidden initially via content-loaded
+      $qParam = $search !== '' ? '&q=' . urlencode($search) : '';
+  ?>
+  <nav class="d-flex justify-content-center mt-4 content-loaded" style="display:none;">
+    <ul class="pagination pagination-sm">
+      <?php if ($page > 1): ?>
+        <li class="page-item">
+          <a class="page-link" href="?filter=<?= $filter ?>&page=<?= $page - 1 ?><?= $qParam ?>">&laquo;</a>
+        </li>
+      <?php endif; ?>
+      <?php
+      $start = max(1, $page - 2);
+      $end = min($totalPages, $page + 2);
+      for ($i = $start; $i <= $end; $i++): ?>
+        <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+          <a class="page-link" href="?filter=<?= $filter ?>&page=<?= $i ?><?= $qParam ?>"><?= $i ?></a>
+        </li>
+      <?php endfor; ?>
+      <?php if ($page < $totalPages): ?>
+        <li class="page-item">
+          <a class="page-link" href="?filter=<?= $filter ?>&page=<?= $page + 1 ?><?= $qParam ?>">&raquo;</a>
+        </li>
+      <?php endif; ?>
+    </ul>
+    <span class="text-muted small align-self-center ms-3"><?= $totalArticles ?> article<?= $totalArticles > 1 ? 's' : '' ?></span>
+  </nav>
+  <?php endif; ?>
+
   <?php endif; ?>
 
   <!-- Modal Ajouter -->
@@ -660,6 +783,39 @@ if ($migrationDone) {
               + 'audio[src|controls|class],source[src|type]',
             invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
 
+            // Upload images sur le serveur au lieu de base64
+            images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', blobInfo.blob(), blobInfo.filename());
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+                fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                    .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                    .then(data => { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+                    .catch(e => reject(e.message));
+            }),
+            automatic_uploads: true,
+            images_reuse_filename: true,
+
+            // Upload fichiers (PDF, images) via le sélecteur de fichiers
+            file_picker_types: 'file image',
+            file_picker_callback: (callback, value, meta) => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+                input.addEventListener('change', () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('csrf_token', '<?= csrf_token() ?>');
+                    fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                        .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                        .then(data => { if (data.location) { const n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+                        .catch(e => alert('Erreur upload: ' + e.message));
+                });
+                input.click();
+            },
+
             // Configuration du mode code
             toolbar_mode: 'sliding'
         });
@@ -671,39 +827,61 @@ if ($migrationDone) {
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
-// ─── Client-side search filter ───
 document.addEventListener('DOMContentLoaded', function() {
-    var searchInput = document.getElementById('newsSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            var query = this.value.toLowerCase().trim();
-            var cards = document.querySelectorAll('.news-card-col');
-            cards.forEach(function(col) {
-                var title = col.getAttribute('data-title') || '';
-                col.style.display = title.indexOf(query) !== -1 ? '' : 'none';
-            });
-        });
-    }
+  // Rouvrir le modal après mise à jour
+  <?php if (isset($_SESSION['reopen_news_modal'])):
+    $reopenId = $_SESSION['reopen_news_modal'];
+    unset($_SESSION['reopen_news_modal']);
+  ?>
+  var modalEl = document.getElementById('modalEditNews<?= (int)$reopenId ?>');
+  if (modalEl) new bootstrap.Modal(modalEl).show();
+  <?php endif; ?>
+
+  // Masquer spinner, afficher contenu
+  var spinner = document.getElementById('loadingSpinner');
+  if (spinner) spinner.style.display = 'none';
+  document.querySelectorAll('.content-loaded').forEach(function(el) { el.style.display = ''; });
+
+  // Auto-dismiss des alertes
+  document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
+    var delay = parseInt(alert.dataset.dismissDelay) || 5000;
+    setTimeout(function() {
+      var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      bsAlert.close();
+    }, delay);
+  });
 });
 
-// ─── Admin Comments Management ───
-function loadAdminComments(newsId) {
+// ─── Admin Comments Management (paginé + recherche serveur) ───
+var commentState = {}; // { newsId: { page, perPage, search } }
+
+function loadAdminComments(newsId, page, perPage, search) {
+    var state = commentState[newsId] || { page: 1, perPage: 10, search: '' };
+    state.page = page || state.page;
+    state.perPage = perPage || state.perPage;
+    if (typeof search === 'string') state.search = search;
+    commentState[newsId] = state;
+
     var container = document.getElementById('adminCommentsList' + newsId);
+    var pagination = document.getElementById('adminCommentsPagination' + newsId);
     if (!container) return;
-    container.innerHTML = '<div class="admin-comments-spinner"><div class="spinner-border spinner-border-sm" role="status"></div> Chargement...</div>';
+
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="width:2rem;height:2rem;color:#ec4899;"></div><p class="text-muted mt-2 small">Chargement des commentaires...</p></div>';
+    if (pagination) pagination.style.display = 'none';
 
     $.ajax({
         url: '../public/news_action.php',
         type: 'GET',
         dataType: 'json',
-        data: { action: 'get_admin_comments', news_id: newsId },
+        data: { action: 'get_admin_comments', news_id: newsId, page: state.page, per_page: state.perPage, search: state.search },
         success: function(res) {
             if (!res.success) {
                 container.innerHTML = '<p class="text-danger text-center py-3">Erreur : ' + (res.error || 'Impossible de charger') + '</p>';
                 return;
             }
-            if (res.comments.length === 0) {
-                container.innerHTML = '<p class="text-muted text-center py-4">Aucun commentaire pour cet article.</p>';
+            if (res.total === 0) {
+                container.innerHTML = '<p class="text-muted text-center py-4">' + (state.search ? 'Aucun résultat pour "' + escHtml(state.search) + '".' : 'Aucun commentaire pour cet article.') + '</p>';
+                if (pagination) pagination.style.display = 'none';
                 return;
             }
             var html = '';
@@ -713,30 +891,42 @@ function loadAdminComments(newsId) {
                 html += '<div class="admin-comment-head">';
                 html += '<span class="admin-comment-author">' + escHtml(c.author_name) + '</span>';
                 html += '<span class="admin-comment-ip">' + escHtml(c.ip_address) + '</span>';
-                if (c.is_banned) {
-                    html += '<span class="badge-banned">IP bannie</span>';
-                }
-                if (c.parent_id) {
-                    html += '<span class="badge bg-secondary" style="font-size:10px;">Reponse</span>';
-                }
+                if (c.is_banned) html += '<span class="badge-banned">IP bannie</span>';
+                if (c.parent_id) html += '<span class="badge bg-secondary" style="font-size:10px;">Réponse</span>';
                 html += '</div>';
                 html += '<div class="admin-comment-text">' + escHtml(c.content) + '</div>';
                 html += '<div class="admin-comment-meta">';
                 html += '<span>' + c.created_at + '</span>';
                 html += '<span><i class="bi bi-heart-fill"></i> ' + c.likes + '</span>';
-                html += '</div>';
-                html += '</div>';
+                html += '</div></div>';
                 html += '<div class="admin-comment-actions">';
-                html += '<button class="btn btn-outline-danger btn-sm" title="Supprimer" data-action="delete-comment" data-comment-id="' + c.id + '" data-news-id="' + newsId + '"><i class="bi bi-trash"></i></button>';
+                html += '<button class="btn btn-danger btn-sm" title="Supprimer" data-action="delete-comment" data-comment-id="' + c.id + '" data-news-id="' + newsId + '"><i class="bi bi-trash"></i></button>';
                 if (!c.is_banned) {
-                    html += '<button class="btn btn-outline-warning btn-sm" title="Bannir IP" data-action="ban-ip" data-ip="' + escHtml(c.ip_address) + '" data-news-id="' + newsId + '"><i class="bi bi-shield-x"></i></button>';
+                    html += '<button class="btn btn-warning btn-sm" title="Bannir IP" data-action="ban-ip" data-ip="' + escHtml(c.ip_address) + '" data-news-id="' + newsId + '"><i class="bi bi-shield-x"></i></button>';
                 } else {
-                    html += '<button class="btn btn-outline-success btn-sm" title="Debannir IP" data-action="unban-ip" data-ip="' + escHtml(c.ip_address) + '" data-news-id="' + newsId + '"><i class="bi bi-shield-check"></i></button>';
+                    html += '<button class="btn btn-success btn-sm" title="Débannir IP" data-action="unban-ip" data-ip="' + escHtml(c.ip_address) + '" data-news-id="' + newsId + '"><i class="bi bi-shield-check"></i></button>';
                 }
-                html += '</div>';
-                html += '</div>';
+                html += '</div></div>';
             });
             container.innerHTML = html;
+
+            // Pagination
+            if (pagination && res.pages > 1) {
+                var pHtml = '<span class="small text-muted">' + res.total + ' commentaire' + (res.total > 1 ? 's' : '') + '</span>';
+                pHtml += '<nav><ul class="pagination pagination-sm mb-0">';
+                if (res.page > 1) pHtml += '<li class="page-item"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + (res.page - 1) + '">&laquo;</a></li>';
+                var s = Math.max(1, res.page - 2), e = Math.min(res.pages, res.page + 2);
+                for (var i = s; i <= e; i++) {
+                    pHtml += '<li class="page-item ' + (i === res.page ? 'active' : '') + '"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + i + '">' + i + '</a></li>';
+                }
+                if (res.page < res.pages) pHtml += '<li class="page-item"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + (res.page + 1) + '">&raquo;</a></li>';
+                pHtml += '</ul></nav>';
+                pagination.innerHTML = pHtml;
+                pagination.style.display = 'flex';
+            } else if (pagination) {
+                pagination.innerHTML = '<span class="small text-muted">' + res.total + ' commentaire' + (res.total > 1 ? 's' : '') + '</span>';
+                pagination.style.display = 'flex';
+            }
         },
         error: function() {
             container.innerHTML = '<p class="text-danger text-center py-3">Erreur de connexion.</p>';
@@ -745,55 +935,28 @@ function loadAdminComments(newsId) {
 }
 
 function deleteAdminComment(commentId, newsId) {
-    if (!confirm('Supprimer ce commentaire et ses reponses ?')) return;
-    $.ajax({
-        url: '../public/news_action.php',
-        type: 'POST',
-        dataType: 'json',
-        data: { action: 'delete_comment', comment_id: commentId },
-        success: function(res) {
-            if (res.success) {
-                loadAdminComments(newsId);
-            } else {
-                alert('Erreur : ' + (res.error || 'Impossible de supprimer'));
-            }
-        }
-    });
+    if (!confirm('Supprimer ce commentaire et ses réponses ?')) return;
+    $.post('../public/news_action.php', { action: 'delete_comment', comment_id: commentId }, function(res) {
+        if (res.success) loadAdminComments(newsId);
+        else alert('Erreur : ' + (res.error || 'Impossible de supprimer'));
+    }, 'json');
 }
 
 function banAdminIP(ip, newsId) {
     var reason = prompt('Raison du bannissement (optionnel) :');
     if (reason === null) return;
-    $.ajax({
-        url: '../public/news_action.php',
-        type: 'POST',
-        dataType: 'json',
-        data: { action: 'ban_ip', ip_address: ip, reason: reason },
-        success: function(res) {
-            if (res.success) {
-                loadAdminComments(newsId);
-            } else {
-                alert('Erreur : ' + (res.error || 'Impossible de bannir'));
-            }
-        }
-    });
+    $.post('../public/news_action.php', { action: 'ban_ip', ip_address: ip, reason: reason }, function(res) {
+        if (res.success) loadAdminComments(newsId);
+        else alert('Erreur : ' + (res.error || 'Impossible de bannir'));
+    }, 'json');
 }
 
 function unbanAdminIP(ip, newsId) {
-    if (!confirm('Debannir cette IP ?')) return;
-    $.ajax({
-        url: '../public/news_action.php',
-        type: 'POST',
-        dataType: 'json',
-        data: { action: 'unban_ip', ip_address: ip },
-        success: function(res) {
-            if (res.success) {
-                loadAdminComments(newsId);
-            } else {
-                alert('Erreur : ' + (res.error || 'Impossible de debannir'));
-            }
-        }
-    });
+    if (!confirm('Débannir cette IP ?')) return;
+    $.post('../public/news_action.php', { action: 'unban_ip', ip_address: ip }, function(res) {
+        if (res.success) loadAdminComments(newsId);
+        else alert('Erreur : ' + (res.error || 'Impossible de débannir'));
+    }, 'json');
 }
 
 function escHtml(str) {
@@ -802,16 +965,22 @@ function escHtml(str) {
     return div.innerHTML;
 }
 
-// Comment search filter
+// Recherche serveur (debounced)
+var commentSearchTimers = {};
 document.addEventListener('input', function(e) {
     if (!e.target.classList.contains('comment-search')) return;
     var newsId = e.target.dataset.newsId;
-    var query = e.target.value.toLowerCase();
-    var comments = document.querySelectorAll('#adminCommentsList' + newsId + ' .admin-comment');
-    comments.forEach(function(c) {
-        var text = c.textContent.toLowerCase();
-        c.style.display = text.indexOf(query) !== -1 ? '' : 'none';
-    });
+    clearTimeout(commentSearchTimers[newsId]);
+    commentSearchTimers[newsId] = setTimeout(function() {
+        loadAdminComments(parseInt(newsId), 1, null, e.target.value.trim());
+    }, 400);
+});
+
+// Changement nombre d'entrées
+document.addEventListener('change', function(e) {
+    if (!e.target.classList.contains('comment-per-page')) return;
+    var newsId = parseInt(e.target.dataset.newsId);
+    loadAdminComments(newsId, 1, parseInt(e.target.value));
 });
 
 // ─── Event delegation admin comments (CSP-compatible) ───
@@ -820,6 +989,7 @@ document.addEventListener('click', function(e) {
     if (!el) return;
     var action = el.dataset.action;
     if (action === 'load-comments') loadAdminComments(parseInt(el.dataset.newsId));
+    if (action === 'comment-page') { e.preventDefault(); loadAdminComments(parseInt(el.dataset.newsId), parseInt(el.dataset.page)); }
     if (action === 'delete-comment') deleteAdminComment(parseInt(el.dataset.commentId), parseInt(el.dataset.newsId));
     if (action === 'ban-ip') banAdminIP(el.dataset.ip, parseInt(el.dataset.newsId));
     if (action === 'unban-ip') unbanAdminIP(el.dataset.ip, parseInt(el.dataset.newsId));

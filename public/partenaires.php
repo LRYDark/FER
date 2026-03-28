@@ -242,6 +242,59 @@ if ($selectedYearId) {
       line-height: 1.7;
       color: rgba(15,23,42,0.65);
     }
+    .info-modal-desc table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0 0 16px;
+    }
+    .info-modal-desc td, .info-modal-desc th {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+    }
+    /* Bouton PDF */
+    .pdf-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 14px;
+      background: #fff;
+      border: 1px solid rgba(15,23,42,.12);
+      border-radius: 12px;
+      color: #0f172a;
+      font-size: 14px;
+      text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+      transition: all .2s ease;
+      margin: 8px 0;
+    }
+    .pdf-link:hover {
+      border-color: #ec4899;
+      box-shadow: 0 4px 16px rgba(236,72,153,.12);
+      transform: translateY(-1px);
+    }
+    .pdf-link-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px;
+      background: rgba(236,72,153,.08);
+      border-radius: 10px; flex-shrink: 0;
+    }
+    .pdf-link:hover .pdf-link-icon { background: rgba(236,72,153,.14); }
+    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #ec4899; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
+    .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
+    .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
+
+    .info-modal-desc img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .info-modal-desc img:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    }
 
     @media (max-width: 768px) {
       .info-modal {
@@ -714,6 +767,25 @@ if ($selectedYearId) {
     const imageModal = document.getElementById('imageModal');
     document.getElementById('imageModalClose').addEventListener('click', () => imageModal.classList.remove('active'));
     imageModal.addEventListener('click', (e) => { if (e.target === imageModal) imageModal.classList.remove('active'); });
+
+    // Images TinyMCE dans la description → ouvrir en grand
+    document.querySelectorAll('.info-modal-desc img').forEach(img => {
+      img.addEventListener('click', (e) => { e.stopPropagation(); showImageModal(img.src); });
+    });
+
+    // Transformer les liens PDF en jolis boutons (dédupliqués)
+    const seenPdf = new Set();
+    document.querySelectorAll('.info-modal-desc a[href$=".pdf"]').forEach(a => {
+      const href = a.getAttribute('href');
+      if (seenPdf.has(href)) { a.remove(); return; }
+      seenPdf.add(href);
+      const raw = (a.title || href.split('/').pop()).replace(/\.[^.]+$/, '');
+      const name = /^tiny_[a-f0-9.]+$/.test(raw) ? 'Document' : raw;
+      a.className = 'pdf-link';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.innerHTML = '<span class="pdf-link-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg></span><span class="pdf-link-info"><span class="pdf-link-name">' + name + '.pdf</span><span class="pdf-link-hint">Cliquer pour ouvrir</span></span>';
+    });
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {

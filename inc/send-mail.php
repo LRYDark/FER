@@ -42,6 +42,6 @@ if (!csrf_verify()) {
         ];
     }
 
-    header('Location: dashboard.php');
+    header('Location: utilisateurs.php?tab=mail');
     exit;
 ?>

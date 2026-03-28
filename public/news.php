@@ -462,6 +462,77 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       max-width: 780px;
     }
     .article-content p { margin: 0 0 16px; }
+    .article-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0 0 16px;
+    }
+    .article-content td, .article-content th {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+    }
+    .article-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .article-content img:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    }
+
+    /* Bouton PDF */
+    .pdf-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 14px;
+      background: #fff;
+      border: 1px solid rgba(15,23,42,.12);
+      border-radius: 12px;
+      color: #0f172a;
+      font-size: 14px;
+      text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+      transition: all .2s ease;
+      margin: 8px 0;
+    }
+    .pdf-link:hover {
+      border-color: #ec4899;
+      box-shadow: 0 4px 16px rgba(236,72,153,.12);
+      transform: translateY(-1px);
+    }
+    .pdf-link-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px;
+      background: rgba(236,72,153,.08);
+      border-radius: 10px; flex-shrink: 0;
+    }
+    .pdf-link:hover .pdf-link-icon { background: rgba(236,72,153,.14); }
+    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #ec4899; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
+    .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
+    .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
+
+    /* Lightbox */
+    .tiny-lightbox {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.9); z-index: 99999;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .tiny-lightbox.active { display: flex; }
+    .tiny-lightbox-close {
+      position: absolute; top: 30px; right: 40px;
+      font-size: 48px; color: #fff; cursor: pointer;
+      user-select: none; transition: transform .2s ease;
+    }
+    .tiny-lightbox-close:hover { transform: scale(1.1); }
+    .tiny-lightbox-img {
+      max-width: 90%; max-height: 90%;
+      border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    }
 
     /* ─── Separator + Share ─── */
     .article-separator {
@@ -804,7 +875,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     </div>
 
     <div class="article-content">
-      <?= nl2br(htmlspecialchars($singleArticle['desc_article'])) ?>
+      <?= sanitizeHtml($singleArticle['desc_article'] ?? '') ?>
     </div>
 
     <!-- Separator + Share -->
@@ -1600,7 +1671,40 @@ document.addEventListener('mousedown', function(e) {
 });
 </script>
 
+<!-- Lightbox pour images TinyMCE -->
+<div class="tiny-lightbox" id="tinyLightbox">
+  <span class="tiny-lightbox-close">&times;</span>
+  <img class="tiny-lightbox-img" id="tinyLightboxImg" alt="">
+</div>
+
 <script src="../js/fer-modern.js"></script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  const lb = document.getElementById('tinyLightbox');
+  const lbImg = document.getElementById('tinyLightboxImg');
+  if (!lb) return;
+  document.querySelectorAll('.article-content img').forEach(img => {
+    img.addEventListener('click', () => { lbImg.src = img.src; lb.classList.add('active'); });
+  });
+  lb.querySelector('.tiny-lightbox-close').addEventListener('click', () => lb.classList.remove('active'));
+  lb.addEventListener('click', e => { if (e.target === lb) lb.classList.remove('active'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') lb.classList.remove('active'); });
+
+  // Transformer les liens PDF en jolis boutons (dédupliqués)
+  const seenPdf = new Set();
+  document.querySelectorAll('.article-content a[href$=".pdf"]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (seenPdf.has(href)) { a.remove(); return; }
+    seenPdf.add(href);
+    const raw = (a.title || href.split('/').pop()).replace(/\.[^.]+$/, '');
+    const name = /^tiny_[a-f0-9.]+$/.test(raw) ? 'Document' : raw;
+    a.className = 'pdf-link';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.innerHTML = '<span class="pdf-link-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg></span><span class="pdf-link-info"><span class="pdf-link-name">' + name + '.pdf</span><span class="pdf-link-hint">Cliquer pour ouvrir</span></span>';
+  });
+})();
+</script>
 
 </body>
 </html>

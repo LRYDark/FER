@@ -14,5 +14,20 @@ config/logs/
 # Fichiers de migration (one-shot)
 migrate_*.php
 
+# Images et médias
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+*.svg
+*.ico
+*.tiff
+*.tif
+
+# PDF
+*.pdf
+
 # Dépendances
 vendor/

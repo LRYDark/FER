@@ -59,6 +59,7 @@ if (isset($_POST['update_partners_desc'])) {
         $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
         $stmt->execute([$partnersTitle, $_POST['partners_desc']]);
     }
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Description mise à jour.'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -77,6 +78,7 @@ if (isset($_POST['update_year'])) {
     $stmt->execute([$year, $title, $yearId]);
   }
   $_SESSION['reopen_modal'] = $yearId;
+  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise à jour.'];
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
@@ -106,6 +108,7 @@ if (isset($_POST['update_album'])) {
     $stmt->execute([$album_title, $album_desc, $albumId]);
   }
   $_SESSION['reopen_modal'] = $yearId;
+  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis à jour.'];
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
@@ -128,6 +131,7 @@ if (isset($_POST['add_album'])) {
     ]);
   }
   $_SESSION['reopen_modal'] = $yearId;
+  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire ajouté.'];
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
@@ -141,6 +145,7 @@ if (isset($_POST['delete_album'])) {
     $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE id = ?");
     $stmt->execute([$albumId]);
     $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis en corbeille.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
   } else {
     // Hard delete (old behavior)
@@ -153,6 +158,7 @@ if (isset($_POST['delete_album'])) {
     $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
     $stmt->execute([$albumId]);
     $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire supprimé.'];
     header("Location: " . $_SERVER['PHP_SELF']);
   }
   exit;
@@ -167,6 +173,7 @@ if (isset($_POST['add_year'])) {
     $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
     $stmt->execute([$_POST['year'], $_POST['title']]);
   }
+  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année ajoutée.'];
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
@@ -202,6 +209,7 @@ if (isset($_POST['delete_year'])) {
     // Soft-delete all child albums
     $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE year_id = ?");
     $stmt->execute([$yearId]);
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
   } else {
     // Hard delete (old behavior)
@@ -217,6 +225,7 @@ if (isset($_POST['delete_year'])) {
     $stmt1->execute([$yearId]);
     $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
     $stmt2->execute([$yearId]);
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
     header("Location: " . $_SERVER['PHP_SELF']);
   }
   exit;
@@ -233,6 +242,7 @@ if ($migrationDone) {
     $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE year_id = ?");
     $stmt->execute([$yearId]);
 
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année restaurée.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
   }
@@ -246,6 +256,7 @@ if ($migrationDone) {
     $stmt->execute([$albumId]);
 
     $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire restauré.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
   }
@@ -278,6 +289,7 @@ if ($migrationDone) {
     $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
     $stmt2->execute([$yearId]);
 
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée définitivement.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
   }
@@ -301,6 +313,7 @@ if ($migrationDone) {
     $stmt->execute([$albumId]);
 
     $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire supprimé définitivement.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
   }
@@ -449,15 +462,32 @@ if ($migrationDone) {
 
 <?php include '../inc/navbar-admin.php'; ?>
 
+<?php
+  $reopenModalId = $_SESSION['reopen_modal'] ?? null;
+  $flashForModal = null;
+  if ($reopenModalId && isset($_SESSION['flash_message'])) {
+      $flashForModal = $_SESSION['flash_message'];
+      unset($_SESSION['flash_message']);
+  }
+?>
+
+<!-- Spinner de chargement -->
+<div id="loadingSpinner" class="text-center py-5">
+  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#ec4899;"></div>
+  <p class="text-muted mt-2 small">Chargement des partenaires...</p>
+</div>
+
 <!-- MAIN -->
-    <div class="row g-4 align-items-stretch">
+    <div class="row g-4 align-items-stretch content-loaded" style="display:none;">
         <div class="col-12 col-lg-12 d-flex flex-column gap-4">
             <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
             <!-- Reopen modal script -->
-            <?php if (isset($_SESSION['reopen_modal'])): ?>
+            <?php if ($reopenModalId):
+                unset($_SESSION['reopen_modal']);
+            ?>
             <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.addEventListener('DOMContentLoaded', function () {
-                var modalId = 'modalYear<?= $_SESSION['reopen_modal'] ?>';
+                var modalId = 'modalYear<?= $reopenModalId ?>';
                 var el = document.getElementById(modalId);
                 if (el) {
                     var modal = new bootstrap.Modal(el);
@@ -465,10 +495,19 @@ if ($migrationDone) {
                 }
             });
             </script>
-            <?php unset($_SESSION['reopen_modal']); ?>
             <?php endif; ?>
 
             <h1 class="mb-3 fw-bold">Gestion des Partenaires par Année</h1>
+
+            <?php if (!$reopenModalId && isset($_SESSION['flash_message'])):
+                $flash = $_SESSION['flash_message'];
+                unset($_SESSION['flash_message']);
+            ?>
+                <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flash['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
+                  <?= htmlspecialchars($flash['message']) ?>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
 
             <?php if (!$migrationDone): ?>
             <div class="alert alert-warning" role="alert">
@@ -598,6 +637,12 @@ if ($migrationDone) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                    <?php if ($flashForModal && $reopenModalId == $year['id']): ?>
+                    <div class="alert alert-<?= $flashForModal['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flashForModal['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
+                      <?= htmlspecialchars($flashForModal['message']) ?>
+                      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -620,16 +665,17 @@ if ($migrationDone) {
                           </div>
                           <?php endif; ?>
                         </div>
-                        <button type="submit" name="update_year" class="btn btn-primary mt-3">Enregistrer</button>
+                        <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+                          <button type="submit" name="update_year" class="btn btn-primary">Enregistrer</button>
                     </form>
-
-                    <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-                        <button type="submit" name="delete_year" class="btn btn-outline-danger mb-4">
-                          <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Mettre en corbeille' : 'Supprimer' ?>
-                        </button>
-                    </form>
+                          <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
+                            <button type="submit" name="delete_year" class="btn btn-danger">
+                              <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Mettre en corbeille' : 'Supprimer' ?>
+                            </button>
+                          </form>
+                        </div>
 
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
                     <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
@@ -818,6 +864,39 @@ if ($migrationDone) {
               + 'audio[src|controls|class],source[src|type]',
             invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
 
+            // Upload images sur le serveur au lieu de base64
+            images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', blobInfo.blob(), blobInfo.filename());
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+                fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                    .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                    .then(data => { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+                    .catch(e => reject(e.message));
+            }),
+            automatic_uploads: true,
+            images_reuse_filename: true,
+
+            // Upload fichiers (PDF, images) via le sélecteur de fichiers
+            file_picker_types: 'file image',
+            file_picker_callback: (callback, value, meta) => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+                input.addEventListener('change', () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('csrf_token', '<?= csrf_token() ?>');
+                    fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                        .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                        .then(data => { if (data.location) { const n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+                        .catch(e => alert('Erreur upload: ' + e.message));
+                });
+                input.click();
+            },
+
             // Configuration du mode code
             toolbar_mode: 'sliding'
         });
@@ -829,6 +908,20 @@ if ($migrationDone) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+// Masquer spinner, afficher contenu
+var sp = document.getElementById('loadingSpinner');
+if (sp) sp.style.display = 'none';
+document.querySelectorAll('.content-loaded').forEach(function(el) { el.style.display = ''; });
+
+// Auto-dismiss des alertes
+document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
+  var delay = parseInt(alert.dataset.dismissDelay) || 5000;
+  setTimeout(function() {
+    var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+    bsAlert.close();
+  }, delay);
+});
+
 document.querySelectorAll('.sortable-albums').forEach(function(container) {
   Sortable.create(container, {
     handle: '.drag-handle-album',

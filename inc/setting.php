@@ -198,10 +198,11 @@ foreach ($fields as $field) {
  *****************************************************************/
 function makeAlert(string $type, string $message, int $delay = 3000): string
 {
+    $autoDismiss = $delay > 0 ? ' auto-dismiss' : '';
+    $dataDelay   = $delay > 0 ? ' data-dismiss-delay="' . $delay . '"' : '';
     return '
-    <div class="alert alert-' . $type . ' alert-dismissible fade show"
-         role="alert"
-         data-auto-dismiss="' . $delay . '">
+    <div class="alert alert-' . $type . ' alert-dismissible fade show' . $autoDismiss . '"
+         role="alert"' . $dataDelay . '>
         ' . $message . '
         <button type="button" class="btn-close"
                 data-bs-dismiss="alert"
@@ -595,7 +596,8 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
                 }
             }
         }
-        header("Refresh:0"); // recharge la page pour voir les nouvelles images
+        header("Location: " . $_SERVER['PHP_SELF'] . "?tab=parcours");
+        exit;
     }
 }
 
@@ -886,13 +888,13 @@ if (isset($_POST['deleteImage'])) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.alert').forEach(alertEl => {
-    // ferme après 3 000 ms
-    setTimeout(() => {
-      // ferme proprement (même animation que le bouton « X »)
-      bootstrap.Alert.getOrCreateInstance(alertEl).close();
-    }, 5000);
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
+    var delay = parseInt(alert.dataset.dismissDelay) || 5000;
+    setTimeout(function() {
+      var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      bsAlert.close();
+    }, delay);
   });
 });
 </script>
@@ -934,7 +936,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // Determine active tab based on which form was submitted
 $activeTab = 'general';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['accueil'])) $activeTab = 'accueil';
+    if (isset($_POST['config']) || isset($_POST['LinkAssoConnect'])) $activeTab = 'general';
+    elseif (isset($_POST['accueil'])) $activeTab = 'accueil';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
     elseif (isset($_POST['required']) || isset($_POST['importExcel'])) $activeTab = 'formulaire';
@@ -1405,6 +1408,40 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
           + 'figure[class],figcaption,video[src|controls|width|height|class],'
           + 'audio[src|controls|class],source[src|type]',
         invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
+
+        // Upload images sur le serveur au lieu de base64
+        images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', blobInfo.blob(), blobInfo.filename());
+            formData.append('csrf_token', '<?= csrf_token() ?>');
+            fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                .then(data => { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+                .catch(e => reject(e.message));
+        }),
+        automatic_uploads: true,
+        images_reuse_filename: true,
+
+        // Upload fichiers (PDF, images) via le sélecteur de fichiers
+        file_picker_types: 'file image',
+        file_picker_callback: (callback, value, meta) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+            input.addEventListener('change', () => {
+                const file = input.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+                fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                    .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                    .then(data => { if (data.location) { const n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+                    .catch(e => alert('Erreur upload: ' + e.message));
+            });
+            input.click();
+        },
+
         toolbar_mode: 'sliding'
     });
   </script>
