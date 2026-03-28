@@ -401,7 +401,7 @@ $photoCount = count($photos);
           <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
         </a>
         <div class="gallery-hero-info">
-          <h1 class="gallery-hero-title"><?= htmlspecialchars($albumTitle) ?></h1>
+          <h1 class="gallery-hero-title"><?= htmlspecialchars(!empty($album['album_desc']) ? $album['album_desc'] : $albumTitle) ?></h1>
           <span class="gallery-hero-meta"><?= htmlspecialchars($yearTitle) ?> &middot; <?= $photoCount ?> photo<?= $photoCount > 1 ? 's' : '' ?></span>
         </div>
       </div>
