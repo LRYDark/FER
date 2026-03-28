@@ -85,45 +85,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'test_connection':
-                $connectionStatus = isGoogleConnectionValid();
-                $message = $connectionStatus ? 
-                    "✅ Connexion Google OK - Prêt à envoyer des emails" : 
-                    "❌ Connexion Google non valide";
-                $messageClass = $connectionStatus ? 'success' : 'error';
-                break;
-                
-            case 'send_test_mail':
-                $adminEmail = $_SESSION['email'] ?? '';
-                if ($adminEmail && isGoogleConnectionValid()) {
-                    $result = sendMail(
-                        $adminEmail,
-                        'Mail de test - Forbach en Rose',
-                        'Test réussi !',
-                        'Ce mail de test confirme que la configuration email fonctionne correctement. Vous pouvez envoyer des emails depuis votre application Forbach en Rose.',
-                        null,
-                        null,
-                        'info'
-                    );
-                    if ($result) {
-                        $message = "✅ Mail de test envoyé avec succès à " . htmlspecialchars($adminEmail);
-                        $messageClass = 'success';
-                    } else {
-                        $message = "❌ Échec de l'envoi du mail de test";
-                        $messageClass = 'error';
-                    }
-                } else {
-                    $message = "❌ Connexion Google non valide ou email admin introuvable";
+                try {
+                    $connectionStatus = isGoogleConnectionValid();
+                    $message = $connectionStatus ?
+                        "✅ Connexion Google OK - Prêt à envoyer des emails" :
+                        "❌ Connexion Google non valide";
+                    $messageClass = $connectionStatus ? 'success' : 'error';
+                } catch (\Throwable $e) {
+                    $message = "❌ Connexion Google non valide";
                     $messageClass = 'error';
+                    writeLog("❌ Exception test connexion : " . $e->getMessage());
+                }
+                break;
+
+            case 'send_test_mail':
+                try {
+                    $adminEmail = $_SESSION['email'] ?? '';
+                    if (!$adminEmail) {
+                        $message = "❌ Email admin introuvable dans la session.";
+                        $messageClass = 'error';
+                    } elseif (!isGoogleConnectionValid()) {
+                        $message = "❌ Connexion Google non valide. Reconnectez-vous à Gmail.";
+                        $messageClass = 'error';
+                    } else {
+                        $result = sendMail(
+                            $adminEmail,
+                            'Mail de test - Forbach en Rose',
+                            'Test réussi !',
+                            'Ce mail de test confirme que la configuration email fonctionne correctement. Vous pouvez envoyer des emails depuis votre application Forbach en Rose.',
+                            null,
+                            null,
+                            'info'
+                        );
+                        if ($result) {
+                            $message = "✅ Mail de test envoyé avec succès à " . htmlspecialchars($adminEmail);
+                            $messageClass = 'success';
+                        } else {
+                            $message = "❌ Échec de l'envoi du mail de test";
+                            $messageClass = 'error';
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $message = "❌ Échec de l'envoi du mail de test";
+                    $messageClass = 'error';
+                    writeLog("❌ Exception envoi test : " . $e->getMessage());
                 }
                 break;
 
             case 'disconnect':
-                if (revokeGoogleConnection()) {
-                    $message = "✅ Déconnexion Google effectuée";
-                    $messageClass = 'success';
-                } else {
+                try {
+                    if (revokeGoogleConnection()) {
+                        $message = "✅ Déconnexion Google effectuée";
+                        $messageClass = 'success';
+                    } else {
+                        $message = "❌ Erreur lors de la déconnexion";
+                        $messageClass = 'error';
+                    }
+                } catch (\Throwable $e) {
                     $message = "❌ Erreur lors de la déconnexion";
                     $messageClass = 'error';
+                    writeLog("❌ Exception déconnexion : " . $e->getMessage());
                 }
                 break;
         }

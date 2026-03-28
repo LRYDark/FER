@@ -69,8 +69,10 @@ ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 
 if($data['debogage'] == 1){
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
     ini_set('log_errors', 1);
-    ini_set('error_log', __DIR__.'/logs/php-error.log');
+    ini_set('error_log', $logDir . '/php-error.log');
     error_reporting(E_ALL);
 } else {
     error_reporting(0);
