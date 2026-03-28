@@ -28,6 +28,22 @@ try {
     $hasStatusCol = true;
 } catch (PDOException $e) {}
 
+// Helper: recursively delete a directory and its contents
+function deleteDirectory(string $dir): void {
+    if (!is_dir($dir)) return;
+    $items = scandir($dir);
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($path)) {
+            deleteDirectory($path);
+        } else {
+            unlink($path);
+        }
+    }
+    rmdir($dir);
+}
+
 // ─── CSRF check for all POST actions ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403);
@@ -57,9 +73,17 @@ if (isset($_POST['update_year'])) {
 if (isset($_POST['update_album'])) {
   $albumId = $_POST['album_id'];
   $album_title = $_POST['album_title'];
-  $album_link = $_POST['album_link'];
   $album_desc = $_POST['album_desc'];
   $yearId = $_POST['year_id'];
+
+  // Get current album to check type
+  $stmtCur = $pdo->prepare("SELECT album_type, album_link FROM photo_albums WHERE id = ?");
+  $stmtCur->execute([$albumId]);
+  $curAlbum = $stmtCur->fetch(PDO::FETCH_ASSOC);
+  $isLocal = (($curAlbum['album_type'] ?? 'link') === 'local');
+
+  // For link type, update the link; for local, keep the folder path
+  $album_link = $isLocal ? $curAlbum['album_link'] : ($_POST['album_link'] ?? '');
 
   if (!empty($_FILES['album_img']['name'])) {
     $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -87,22 +111,40 @@ if (isset($_POST['update_album'])) {
 
 if (isset($_POST['add_album'])) {
   $yearId = $_POST['year_id'];
+  $albumType = (isset($_POST['album_type']) && $_POST['album_type'] === 'local') ? 'local' : 'link';
   $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
   $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
-  $mime = mime_content_type($_FILES['album_img']['tmp_name']);
-  if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
-    $safeName = uniqid('album_', true) . '.' . $ext;
-    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $safeName);
-    $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_img, album_desc) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([
-      $yearId,
-      $_POST['album_title'],
-      $_POST['album_link'],
-      $safeName,
-      $_POST['album_desc']
-    ]);
+
+  $safeName = null;
+  if (!empty($_FILES['album_img']['name'])) {
+    $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+    $mime = mime_content_type($_FILES['album_img']['tmp_name']);
+    if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
+      $safeName = uniqid('album_', true) . '.' . $ext;
+      move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $safeName);
+    }
   }
+
+  if ($albumType === 'local') {
+    // Create album first, then create folder with album ID
+    $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, '', 'local', ?, ?)");
+    $stmt->execute([$yearId, $_POST['album_title'], $safeName, $_POST['album_desc']]);
+    $newId = $pdo->lastInsertId();
+    $basePath = __DIR__ . '/../files/_albums/';
+    $folderName = 'album_' . $newId . '_' . bin2hex(random_bytes(6));
+    while (is_dir($basePath . $folderName)) {
+      $folderName = 'album_' . $newId . '_' . bin2hex(random_bytes(6));
+    }
+    mkdir($basePath . $folderName, 0755, true);
+    $stmt2 = $pdo->prepare("UPDATE photo_albums SET album_link = ? WHERE id = ?");
+    $stmt2->execute([$folderName, $newId]);
+  } else {
+    if ($safeName) {
+      $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, ?, 'link', ?, ?)");
+      $stmt->execute([$yearId, $_POST['album_title'], $_POST['album_link'], $safeName, $_POST['album_desc']]);
+    }
+  }
+
   $_SESSION['reopen_modal'] = $yearId;
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album ajouté.'];
   header("Location: " . $_SERVER['PHP_SELF']);
@@ -114,26 +156,32 @@ if (isset($_POST['delete_album'])) {
   $albumId = $_POST['album_id'];
   $yearId = $_POST['year_id'];
 
-  if ($migrationDone) {
-    $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NOW() WHERE id = ?");
-    $stmt->execute([$albumId]);
-    $_SESSION['reopen_modal'] = $yearId;
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
-  } else {
-    // Hard delete (old behavior)
-    $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE id = ?");
-    $stmt->execute([$albumId]);
-    $img = $stmt->fetchColumn();
-    if ($img && file_exists("../files/_albums/" . $img)) {
-      unlink("../files/_albums/" . $img);
+  // Get album info to check type
+  $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
+  $stmt->execute([$albumId]);
+  $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  if ($albumRow) {
+    // Delete thumbnail
+    if (!empty($albumRow['album_img']) && file_exists("../files/_albums/" . $albumRow['album_img'])) {
+      unlink("../files/_albums/" . $albumRow['album_img']);
     }
-    $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
-    $stmt->execute([$albumId]);
-    $_SESSION['reopen_modal'] = $yearId;
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé.'];
-    header("Location: " . $_SERVER['PHP_SELF']);
+    // Delete local album folder
+    if (($albumRow['album_type'] ?? 'link') === 'local' && !empty($albumRow['album_link'])) {
+      $folderPath = __DIR__ . '/../files/_albums/' . basename($albumRow['album_link']);
+      if (is_dir($folderPath)) {
+        deleteDirectory($folderPath);
+      }
+    }
   }
+
+  // Always hard delete (no trash for albums in modal)
+  $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
+  $stmt->execute([$albumId]);
+
+  $_SESSION['reopen_modal'] = $yearId;
+  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé définitivement.'];
+  header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
   exit;
 }
 
@@ -186,12 +234,16 @@ if (isset($_POST['delete_year'])) {
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
   } else {
     // Hard delete (old behavior)
-    $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE year_id = ?");
+    $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
     $stmt->execute([$yearId]);
-    $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($albumImgs as $img) {
-      if ($img && file_exists("../files/_albums/" . $img)) {
-        unlink("../files/_albums/" . $img);
+    $albumRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($albumRows as $ar) {
+      if (!empty($ar['album_img']) && file_exists("../files/_albums/" . $ar['album_img'])) {
+        unlink("../files/_albums/" . $ar['album_img']);
+      }
+      if (($ar['album_type'] ?? 'link') === 'local' && !empty($ar['album_link'])) {
+        $fp = __DIR__ . '/../files/_albums/' . basename($ar['album_link']);
+        if (is_dir($fp)) deleteDirectory($fp);
       }
     }
     $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
@@ -238,13 +290,17 @@ if ($migrationDone) {
   if (isset($_POST['permanent_delete_year'])) {
     $yearId = $_POST['year_id'];
 
-    // Delete image files for all albums
-    $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE year_id = ?");
+    // Delete image files and local folders for all albums
+    $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
     $stmt->execute([$yearId]);
-    $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($albumImgs as $img) {
-      if ($img && file_exists("../files/_albums/" . $img)) {
-        unlink("../files/_albums/" . $img);
+    $albumRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($albumRows as $ar) {
+      if (!empty($ar['album_img']) && file_exists("../files/_albums/" . $ar['album_img'])) {
+        unlink("../files/_albums/" . $ar['album_img']);
+      }
+      if (($ar['album_type'] ?? 'link') === 'local' && !empty($ar['album_link'])) {
+        $fp = __DIR__ . '/../files/_albums/' . basename($ar['album_link']);
+        if (is_dir($fp)) deleteDirectory($fp);
       }
     }
 
@@ -264,13 +320,23 @@ if ($migrationDone) {
     $albumId = $_POST['album_id'];
     $yearId = $_POST['year_id'];
 
-    // Delete image file
-    $stmt = $pdo->prepare("SELECT album_img FROM photo_albums WHERE id = ?");
+    // Get album info
+    $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
     $stmt->execute([$albumId]);
-    $img = $stmt->fetchColumn();
+    $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($img && file_exists("../files/_albums/" . $img)) {
-      unlink("../files/_albums/" . $img);
+    if ($albumRow) {
+      $img = $albumRow['album_img'];
+      if ($img && file_exists("../files/_albums/" . $img)) {
+        unlink("../files/_albums/" . $img);
+      }
+      // Delete local album folder
+      if (($albumRow['album_type'] ?? 'link') === 'local' && !empty($albumRow['album_link'])) {
+        $folderPath = __DIR__ . '/../files/_albums/' . basename($albumRow['album_link']);
+        if (is_dir($folderPath)) {
+          deleteDirectory($folderPath);
+        }
+      }
     }
 
     // Delete album permanently
@@ -610,21 +676,40 @@ if ($migrationDone) {
                         </div>
 
                     <h6>Ajouter un nouvel album</h6>
-                    <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff">
+                    <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff" class="add-album-form">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
+                        <div class="row g-2 mb-3">
+                          <div class="col-12">
+                            <label class="form-label" style="font-size:12px;font-weight:600">Type d'album</label>
+                            <div class="d-flex gap-3">
+                              <div class="form-check">
+                                <input class="form-check-input album-type-radio" type="radio" name="album_type" value="link" id="type_link_<?= $year['id'] ?>" checked>
+                                <label class="form-check-label" for="type_link_<?= $year['id'] ?>">
+                                  <i class="bi bi-link-45deg"></i> Lien externe
+                                </label>
+                              </div>
+                              <div class="form-check">
+                                <input class="form-check-input album-type-radio" type="radio" name="album_type" value="local" id="type_local_<?= $year['id'] ?>">
+                                <label class="form-check-label" for="type_local_<?= $year['id'] ?>">
+                                  <i class="bi bi-images"></i> Album local (photos sur le serveur)
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         <div class="row g-2 align-items-end">
                           <div class="col-md-3">
                             <label class="form-label" style="font-size:12px">Titre</label>
                             <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
                           </div>
-                          <div class="col-md-3">
+                          <div class="col-md-3 album-link-field">
                             <label class="form-label" style="font-size:12px">Lien</label>
-                            <input type="url" name="album_link" class="form-control" placeholder="Lien">
+                            <input type="url" name="album_link" class="form-control" placeholder="https://...">
                           </div>
                           <div class="col-md-2">
-                            <label class="form-label" style="font-size:12px">Image</label>
-                            <input type="file" name="album_img" class="form-control" required>
+                            <label class="form-label" style="font-size:12px">Image de couverture</label>
+                            <input type="file" name="album_img" class="form-control album-img-input">
                           </div>
                           <div class="col-md-3">
                             <label class="form-label" style="font-size:12px">Description</label>
@@ -634,6 +719,9 @@ if ($migrationDone) {
                             <button type="submit" name="add_album" class="btn btn-primary" style="height:38px;width:38px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:8px"><i class="bi bi-plus-lg"></i></button>
                           </div>
                         </div>
+                        <div class="album-local-hint mt-2" style="display:none">
+                          <small class="text-muted"><i class="bi bi-info-circle"></i> Un dossier sera cree sur le serveur. Vous pourrez ajouter des photos apres la creation.</small>
+                        </div>
                     </form>
 
                     <div class="mb-3"></div>
@@ -641,7 +729,9 @@ if ($migrationDone) {
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
                     <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
-                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid #f0e8eb;border-radius:8px;background:#fdf8f9">
+                        <?php $isLocalAlbum = (($album['album_type'] ?? 'link') === 'local'); ?>
+                        <div class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid <?= $isLocalAlbum ? '#c4b5fd' : '#f0e8eb' ?>;border-radius:8px;background:<?= $isLocalAlbum ? '#f5f3ff' : '#fdf8f9' ?>">
+                        <form method="post" enctype="multipart/form-data">
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -649,16 +739,25 @@ if ($migrationDone) {
                               <div class="col-auto d-flex align-items-center" style="min-width:30px">
                                 <span class="drag-handle-album" style="cursor:grab;color:#94a3b8;font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
                               </div>
+                              <div class="col-auto d-flex align-items-center">
+                                <?php if ($isLocalAlbum): ?>
+                                  <span class="badge bg-purple" style="background:#7c3aed;font-size:0.7rem"><i class="bi bi-images"></i> Local</span>
+                                <?php else: ?>
+                                  <span class="badge bg-info" style="font-size:0.7rem"><i class="bi bi-link-45deg"></i> Lien</span>
+                                <?php endif; ?>
+                              </div>
                               <div class="col">
                                 <label class="form-label" style="font-size:12px">Titre</label>
                                 <input type="text" name="album_title" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_title']) ?>">
                               </div>
+                              <?php if (!$isLocalAlbum): ?>
                               <div class="col">
                                 <label class="form-label" style="font-size:12px">Lien</label>
                                 <input type="text" name="album_link" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_link']) ?>">
                               </div>
+                              <?php endif; ?>
                               <div class="col-auto" style="min-width:140px">
-                                <label class="form-label" style="font-size:12px">Image</label>
+                                <label class="form-label" style="font-size:12px">Couverture</label>
                                 <input type="file" name="album_img" class="form-control form-control-sm">
                               </div>
                               <div class="col">
@@ -667,12 +766,34 @@ if ($migrationDone) {
                               </div>
                               <div class="col-auto text-end">
                                 <div class="d-flex gap-1">
+                                  <?php if ($isLocalAlbum): ?>
+                                  <button type="button" class="btn btn-sm btn-outline-primary btn-manage-photos" data-album-id="<?= $album['id'] ?>" data-album-title="<?= htmlspecialchars($album['album_title']) ?>" title="Gerer les photos"><i class="bi bi-camera"></i></button>
+                                  <?php endif; ?>
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
-                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" data-confirm="<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>"><i class="bi bi-x-lg"></i></button>
+                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="Supprimer" data-confirm="Supprimer définitivement cet album ?"><i class="bi bi-x-lg"></i></button>
                                 </div>
                               </div>
                             </div>
                         </form>
+                        <?php if ($isLocalAlbum): ?>
+                          <?php
+                            $localFolder = __DIR__ . '/../files/_albums/' . basename($album['album_link']);
+                            $photoCount = 0;
+                            if (is_dir($localFolder)) {
+                              $exts = ['jpg','jpeg','png','gif','webp'];
+                              foreach (scandir($localFolder) as $f) {
+                                if ($f === '.' || $f === '..') continue;
+                                if (in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), $exts)) $photoCount++;
+                              }
+                            }
+                          ?>
+                          <div class="mt-2 d-flex align-items-center gap-2">
+                            <small class="text-muted photo-count-label" data-album-id="<?= $album['id'] ?>"><i class="bi bi-folder2-open"></i> <span class="photo-count-num"><?= $photoCount ?></span> photo<?= $photoCount > 1 ? 's' : '' ?></small>
+                            <small class="text-muted">|</small>
+                            <small class="text-muted"><?= htmlspecialchars(basename($album['album_link'])) ?></small>
+                          </div>
+                        <?php endif; ?>
+                        </div>
                         <?php endforeach; ?>
                     </div>
                     </div>
@@ -725,6 +846,57 @@ if ($migrationDone) {
         </div>
     </div><!-- /row -->
 
+<!-- Modal gestion photos album local -->
+<div class="modal fade" id="modalPhotosManager" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-images"></i> Photos - <span id="pmAlbumTitle"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Upload zone -->
+        <div id="pmUploadZone" style="border:2px dashed #c4b5fd;border-radius:12px;padding:30px;text-align:center;background:#f5f3ff;cursor:pointer;transition:all .2s;margin-bottom:20px">
+          <i class="bi bi-cloud-arrow-up" style="font-size:2.5rem;color:#7c3aed"></i>
+          <p class="mb-1 fw-semibold" style="color:#7c3aed">Glissez vos photos ici ou cliquez pour selectionner</p>
+          <p class="text-muted small mb-0">JPG, PNG, GIF, WEBP - Plusieurs fichiers a la fois</p>
+          <input type="file" id="pmFileInput" multiple accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
+        </div>
+
+        <!-- Progress bar -->
+        <div id="pmProgressWrap" style="display:none;margin-bottom:20px">
+          <div class="d-flex justify-content-between mb-1">
+            <small class="fw-semibold" id="pmProgressLabel">Upload en cours...</small>
+            <small id="pmProgressPercent">0%</small>
+          </div>
+          <div class="progress" style="height:8px;border-radius:4px">
+            <div class="progress-bar" id="pmProgressBar" role="progressbar" style="width:0%;background:#7c3aed;transition:width .3s"></div>
+          </div>
+          <small class="text-muted" id="pmProgressDetail"></small>
+        </div>
+
+        <!-- Delete all button -->
+        <div id="pmDeleteAllWrap" style="display:none;margin-bottom:15px;text-align:right">
+          <button type="button" class="btn btn-sm btn-danger" id="pmDeleteAll"><i class="bi bi-trash3"></i> Tout supprimer</button>
+        </div>
+
+        <!-- Photos grid -->
+        <div id="pmPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
+        </div>
+
+        <div id="pmEmpty" style="text-align:center;padding:40px;color:#94a3b8;display:none">
+          <i class="bi bi-image" style="font-size:3rem"></i>
+          <p class="mt-2">Aucune photo dans cet album</p>
+        </div>
+
+        <div id="pmLoading" style="text-align:center;padding:30px">
+          <div class="spinner-border" style="color:#7c3aed"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php include '../inc/admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -743,6 +915,7 @@ document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
   }, delay);
 });
 
+// Sortable albums
 document.querySelectorAll('.sortable-albums').forEach(function(container) {
   Sortable.create(container, {
     handle: '.drag-handle-album',
@@ -764,6 +937,307 @@ document.querySelectorAll('.sortable-albums').forEach(function(container) {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         body: form
       });
+    }
+  });
+});
+
+// ─── Album type toggle (add form) ───
+document.querySelectorAll('.add-album-form').forEach(function(form) {
+  var radios = form.querySelectorAll('.album-type-radio');
+  var linkField = form.querySelector('.album-link-field');
+  var imgInput = form.querySelector('.album-img-input');
+  var hint = form.querySelector('.album-local-hint');
+
+  radios.forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      if (this.value === 'local') {
+        if (linkField) linkField.style.display = 'none';
+        if (imgInput) imgInput.removeAttribute('required');
+        if (hint) hint.style.display = 'block';
+      } else {
+        if (linkField) linkField.style.display = '';
+        if (hint) hint.style.display = 'none';
+      }
+    });
+  });
+});
+
+// ─── Photo manager ───
+var csrfToken = '<?= $_SESSION['csrf_token'] ?? '' ?>';
+var currentAlbumId = null;
+var pmModal = null;
+var parentYearModalEl = null;
+
+document.querySelectorAll('.btn-manage-photos').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    currentAlbumId = this.dataset.albumId;
+    document.getElementById('pmAlbumTitle').textContent = this.dataset.albumTitle;
+
+    // Find the parent year modal element
+    var yearModalEl = this.closest('.modal');
+    parentYearModalEl = yearModalEl;
+
+    if (yearModalEl) {
+      // Get or create instance and hide it
+      var inst = bootstrap.Modal.getInstance(yearModalEl) || new bootstrap.Modal(yearModalEl);
+      inst.hide();
+
+      // Open photos modal after parent finishes closing
+      yearModalEl.addEventListener('hidden.bs.modal', function openPhotos() {
+        yearModalEl.removeEventListener('hidden.bs.modal', openPhotos);
+        if (!pmModal) {
+          pmModal = new bootstrap.Modal(document.getElementById('modalPhotosManager'));
+        }
+        pmModal.show();
+        loadPhotos();
+      });
+    } else {
+      if (!pmModal) {
+        pmModal = new bootstrap.Modal(document.getElementById('modalPhotosManager'));
+      }
+      pmModal.show();
+      loadPhotos();
+    }
+  });
+});
+
+// Reopen parent year modal when photos modal is closed + update photo count
+document.getElementById('modalPhotosManager').addEventListener('hidden.bs.modal', function() {
+  // Update photo count via API
+  if (currentAlbumId) {
+    fetch('album-photos-handler.php?action=list&album_id=' + currentAlbumId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var count = (data.photos && data.photos.length) || 0;
+        var label = document.querySelector('.photo-count-label[data-album-id="' + currentAlbumId + '"]');
+        if (label) {
+          label.innerHTML = '<i class="bi bi-folder2-open"></i> ' + count + ' photo' + (count > 1 ? 's' : '');
+        }
+      });
+  }
+
+  if (parentYearModalEl) {
+    var inst = bootstrap.Modal.getInstance(parentYearModalEl) || new bootstrap.Modal(parentYearModalEl);
+    inst.show();
+    parentYearModalEl = null;
+  }
+});
+
+// Upload zone interactions
+var uploadZone = document.getElementById('pmUploadZone');
+var fileInput = document.getElementById('pmFileInput');
+
+if (uploadZone && fileInput) {
+  uploadZone.addEventListener('click', function() { fileInput.click(); });
+  uploadZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#7c3aed';
+    this.style.background = '#ede9fe';
+  });
+  uploadZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#c4b5fd';
+    this.style.background = '#f5f3ff';
+  });
+  uploadZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#c4b5fd';
+    this.style.background = '#f5f3ff';
+    if (e.dataTransfer.files.length) {
+      uploadPhotos(e.dataTransfer.files);
+    }
+  });
+  fileInput.addEventListener('change', function() {
+    if (this.files.length) {
+      uploadPhotos(this.files);
+      this.value = '';
+    }
+  });
+}
+
+function loadPhotos() {
+  var grid = document.getElementById('pmPhotosGrid');
+  var empty = document.getElementById('pmEmpty');
+  var loading = document.getElementById('pmLoading');
+  var deleteAllWrap = document.getElementById('pmDeleteAllWrap');
+  grid.innerHTML = '';
+  empty.style.display = 'none';
+  deleteAllWrap.style.display = 'none';
+  loading.style.display = 'block';
+
+  fetch('album-photos-handler.php?action=list&album_id=' + currentAlbumId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      loading.style.display = 'none';
+      if (!data.photos || data.photos.length === 0) {
+        empty.style.display = 'block';
+        return;
+      }
+      deleteAllWrap.style.display = 'block';
+      data.photos.forEach(function(photo) {
+        grid.appendChild(createPhotoCard(photo));
+      });
+    })
+    .catch(function() {
+      loading.style.display = 'none';
+      empty.style.display = 'block';
+    });
+}
+
+// Delete all photos
+document.getElementById('pmDeleteAll').addEventListener('click', function() {
+  if (!confirm('Supprimer definitivement TOUTES les photos de cet album ?')) return;
+  var form = new FormData();
+  form.append('action', 'delete_all');
+  form.append('album_id', currentAlbumId);
+  form.append('csrf_token', csrfToken);
+  fetch('album-photos-handler.php', { method: 'POST', body: form })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) loadPhotos();
+    });
+});
+
+function createPhotoCard(photo) {
+  var card = document.createElement('div');
+  card.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9';
+  card.innerHTML =
+    '<img src="' + photo.url + '" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">' +
+    '<div style="position:absolute;top:6px;right:6px;display:flex;gap:4px">' +
+      '<button class="btn btn-sm btn-light pm-set-thumb" data-filename="' + photo.filename + '" title="Definir comme couverture" style="width:28px;height:28px;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:0.85"><i class="bi bi-star" style="font-size:12px"></i></button>' +
+      '<button class="btn btn-sm btn-danger pm-delete" data-filename="' + photo.filename + '" title="Supprimer" style="width:28px;height:28px;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:0.85"><i class="bi bi-trash3" style="font-size:12px"></i></button>' +
+    '</div>';
+
+  card.querySelector('.pm-delete').addEventListener('click', function() {
+    if (!confirm('Supprimer cette photo ?')) return;
+    var fn = this.dataset.filename;
+    var form = new FormData();
+    form.append('action', 'delete_photo');
+    form.append('album_id', currentAlbumId);
+    form.append('filename', fn);
+    form.append('csrf_token', csrfToken);
+    fetch('album-photos-handler.php', { method: 'POST', body: form })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          card.remove();
+          var grid = document.getElementById('pmPhotosGrid');
+          if (!grid.children.length) {
+            document.getElementById('pmEmpty').style.display = 'block';
+            document.getElementById('pmDeleteAllWrap').style.display = 'none';
+          }
+        }
+      });
+  });
+
+  card.querySelector('.pm-set-thumb').addEventListener('click', function() {
+    var fn = this.dataset.filename;
+    var form = new FormData();
+    form.append('action', 'set_thumbnail');
+    form.append('album_id', currentAlbumId);
+    form.append('filename', fn);
+    form.append('csrf_token', csrfToken);
+    fetch('album-photos-handler.php', { method: 'POST', body: form })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          alert('Couverture mise a jour !');
+        }
+      });
+  });
+
+  return card;
+}
+
+function uploadPhotos(files) {
+  var progressWrap = document.getElementById('pmProgressWrap');
+  var progressBar = document.getElementById('pmProgressBar');
+  var progressLabel = document.getElementById('pmProgressLabel');
+  var progressPercent = document.getElementById('pmProgressPercent');
+  var progressDetail = document.getElementById('pmProgressDetail');
+
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressPercent.textContent = '0%';
+
+  var total = files.length;
+  var done = 0;
+  var batchSize = 3; // Upload 3 at a time
+  var queue = Array.from(files);
+  var errors = [];
+
+  progressLabel.textContent = 'Upload en cours...';
+  progressDetail.textContent = '0 / ' + total + ' photos';
+
+  function uploadNext() {
+    if (queue.length === 0) {
+      if (done >= total) {
+        progressLabel.textContent = 'Upload termine !';
+        progressDetail.textContent = done + ' / ' + total + ' photos' + (errors.length ? ' (' + errors.length + ' erreur(s))' : '');
+        setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
+        loadPhotos();
+      }
+      return;
+    }
+
+    var batch = queue.splice(0, batchSize);
+    var form = new FormData();
+    form.append('action', 'upload');
+    form.append('album_id', currentAlbumId);
+    form.append('csrf_token', csrfToken);
+    batch.forEach(function(file) {
+      form.append('photos[]', file);
+    });
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'album-photos-handler.php');
+
+    xhr.upload.addEventListener('progress', function(e) {
+      if (e.lengthComputable) {
+        var batchProgress = e.loaded / e.total;
+        var overallProgress = ((done + batchProgress * batch.length) / total) * 100;
+        progressBar.style.width = Math.round(overallProgress) + '%';
+        progressPercent.textContent = Math.round(overallProgress) + '%';
+      }
+    });
+
+    xhr.addEventListener('load', function() {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        done += resp.success_count || batch.length;
+        if (resp.errors && resp.errors.length) {
+          errors = errors.concat(resp.errors);
+        }
+      } catch(e) {
+        done += batch.length;
+      }
+      progressDetail.textContent = done + ' / ' + total + ' photos';
+      var pct = Math.round((done / total) * 100);
+      progressBar.style.width = pct + '%';
+      progressPercent.textContent = pct + '%';
+      uploadNext();
+    });
+
+    xhr.addEventListener('error', function() {
+      done += batch.length;
+      errors.push('Erreur reseau pour un lot');
+      progressDetail.textContent = done + ' / ' + total + ' photos';
+      uploadNext();
+    });
+
+    xhr.send(form);
+  }
+
+  uploadNext();
+}
+
+// Confirm dialogs
+document.querySelectorAll('[data-confirm]').forEach(function(form) {
+  form.addEventListener('submit', function(e) {
+    if (!confirm(this.dataset.confirm)) {
+      e.preventDefault();
     }
   });
 });

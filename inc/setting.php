@@ -569,17 +569,24 @@ if (isset($_POST['reorder_gallery'])) {
 
 // Upload images
 if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     $uploadDir = '../files/_parcours/';
     $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     $files = $_FILES['galerieImages'];
     $existing = is_dir($uploadDir) ? array_diff(scandir($uploadDir), ['.', '..']) : [];
     $remaining = 30 - count($existing);
+    $uploaded = [];
 
     if (count($files['name']) > $remaining) {
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => "Limite: $remaining image(s) restantes", 'uploaded' => []]);
+            exit;
+        }
         echo makeAlert('danger', "Vous ne pouvez importer que $remaining image(s) supplémentaires.");
     } else {
         $allowedGalMime = ['image/jpeg','image/png','image/gif','image/webp'];
-    for ($i = 0; $i < count($files['name']); $i++) {
+        for ($i = 0; $i < count($files['name']); $i++) {
             $ext      = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
             $finfoGal = new finfo(FILEINFO_MIME_TYPE);
             $mimeGal  = $finfoGal->file($files['tmp_name'][$i]);
@@ -587,14 +594,20 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
                 && $files['size'][$i] <= 5 * 1024 * 1024) {
                 $safeName = uniqid('img_', true) . '.' . $ext;
                 if (move_uploaded_file($files['tmp_name'][$i], $uploadDir . $safeName)) {
+                    $uploaded[] = $safeName;
                     try {
                         $maxStmt = $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM parcours_images");
                         $nextOrder = $maxStmt->fetch(PDO::FETCH_ASSOC)['next_order'];
                         $insStmt = $pdo->prepare("INSERT INTO parcours_images (filename, sort_order) VALUES (?, ?)");
                         $insStmt->execute([$safeName, $nextOrder]);
-                    } catch (PDOException $e) {} // Table may not exist yet
+                    } catch (PDOException $e) {}
                 }
             }
+        }
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['uploaded' => $uploaded]);
+            exit;
         }
         header("Location: " . $_SERVER['PHP_SELF'] . "?tab=parcours");
         exit;
@@ -1280,36 +1293,58 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Galerie d'images du parcours</h5>
+          <h5 class="modal-title"><i class="bi bi-images"></i> Galerie d'images du parcours</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
         </div>
         <div class="modal-body">
-          <!-- Formulaire d'import -->
-          <form id="uploadForm" action="" method="post" enctype="multipart/form-data" class="mb-4">
-            <?= csrf_field() ?>
-            <label for="galerieImages" class="form-label">
-              Importer jusqu'a <span id="remainingCount"><?= $remaining ?></span> image(s) :
-            </label>
-            <input type="file" name="galerieImages[]" id="galerieImages" class="form-control" accept="image/*" multiple <?= $remaining <= 0 ? 'disabled' : '' ?>>
-            <button type="submit" name="uploadGalerie" class="btn btn-primary mt-2" <?= $remaining <= 0 ? 'disabled' : '' ?>>Importer</button>
-            <?php if ($remaining <= 0): ?>
-              <div class="text-danger mt-2">Limite de 30 images atteinte. Supprimez des images pour en ajouter.</div>
-            <?php endif; ?>
-          </form>
+          <!-- Upload zone drag & drop -->
+          <div id="galUploadZone" style="border:2px dashed #93c5fd;border-radius:12px;padding:30px;text-align:center;background:#eff6ff;cursor:pointer;transition:all .2s;margin-bottom:20px">
+            <i class="bi bi-cloud-arrow-up" style="font-size:2.5rem;color:#2563eb"></i>
+            <p class="mb-1 fw-semibold" style="color:#2563eb">Glissez vos photos ici ou cliquez pour selectionner</p>
+            <p class="text-muted small mb-0">JPG, PNG, GIF, WEBP - Max 5 Mo/image - <span id="remainingCount"><?= $remaining ?></span> place(s) restante(s)</p>
+            <input type="file" id="galFileInput" multiple accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
+          </div>
 
-          <!-- Galerie d'images -->
-          <div class="row" id="galerieContainer">
+          <!-- Progress bar -->
+          <div id="galProgressWrap" style="display:none;margin-bottom:20px">
+            <div class="d-flex justify-content-between mb-1">
+              <small class="fw-semibold" id="galProgressLabel">Upload en cours...</small>
+              <small id="galProgressPercent">0%</small>
+            </div>
+            <div class="progress" style="height:8px;border-radius:4px">
+              <div class="progress-bar" id="galProgressBar" role="progressbar" style="width:0%;background:#2563eb;transition:width .3s"></div>
+            </div>
+            <small class="text-muted" id="galProgressDetail"></small>
+          </div>
+
+          <!-- Delete all button -->
+          <div id="galDeleteAllWrap" style="<?= empty($images) ? 'display:none;' : '' ?>margin-bottom:15px;text-align:right">
+            <button type="button" class="btn btn-sm btn-danger" id="galDeleteAll"><i class="bi bi-trash3"></i> Tout supprimer</button>
+          </div>
+
+          <!-- Photos grid -->
+          <div id="galerieContainer" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
             <?php foreach ($images as $img): ?>
-              <div class="col-md-3 text-center mb-4 sortable-image-item" data-img="<?= htmlspecialchars($img) ?>" data-filename="<?= htmlspecialchars($img) ?>" style="position:relative;cursor:grab">
-                <img src="<?= $galerieDir . rawurlencode($img) ?>" class="img-thumbnail" style="max-height: 150px;">
-                <form class="deleteForm">
-                  <?= csrf_field() ?>
-                  <input type="hidden" name="deleteImage" value="<?= htmlspecialchars($img) ?>">
-                  <button type="button" class="delete-btn" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Supprimer">&times;</button>
-                </form>
+              <div class="sortable-image-item" data-filename="<?= htmlspecialchars($img) ?>" style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9;cursor:grab">
+                <img src="<?= $galerieDir . rawurlencode($img) ?>" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">
+                <div style="position:absolute;top:6px;right:6px">
+                  <button type="button" class="delete-btn btn btn-sm btn-danger" data-filename="<?= htmlspecialchars($img) ?>" title="Supprimer" style="width:28px;height:28px;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:0.85"><i class="bi bi-trash3" style="font-size:12px"></i></button>
+                </div>
               </div>
             <?php endforeach; ?>
           </div>
+
+          <?php if (empty($images)): ?>
+          <div id="galEmpty" style="text-align:center;padding:40px;color:#94a3b8">
+            <i class="bi bi-image" style="font-size:3rem"></i>
+            <p class="mt-2">Aucune photo dans la galerie</p>
+          </div>
+          <?php else: ?>
+          <div id="galEmpty" style="text-align:center;padding:40px;color:#94a3b8;display:none">
+            <i class="bi bi-image" style="font-size:3rem"></i>
+            <p class="mt-2">Aucune photo dans la galerie</p>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -1710,35 +1745,156 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
   });
 });
 
-// Galerie images - validation
-document.getElementById('galerieImages')?.addEventListener('change', function () {
-  const max = <?= $remaining ?>;
-  if (this.files.length > max) {
-    alert('Vous ne pouvez selectionner que ' + max + ' image(s) maximum.');
-    this.value = '';
-  }
-});
-
+// ─── Galerie parcours ───
 document.addEventListener('DOMContentLoaded', function() {
   var maxImages = 30;
-  var input = document.getElementById('galerieImages');
+  var csrfVal = document.querySelector('input[name="csrf_token"]')?.value || '';
   var countSpan = document.getElementById('remainingCount');
-  var uploadBtn = document.querySelector('button[name="uploadGalerie"]');
+  var galerieEl = document.getElementById('galerieContainer');
+  var galEmpty = document.getElementById('galEmpty');
+  var galDeleteAllWrap = document.getElementById('galDeleteAllWrap');
+  var uploadZone = document.getElementById('galUploadZone');
+  var fileInput = document.getElementById('galFileInput');
 
-  // Validation dynamique
-  if (input) {
-    input.addEventListener('change', function () {
-      var remaining = parseInt(countSpan ? countSpan.textContent : '0');
-      if (this.files.length > remaining) {
-        alert('Vous ne pouvez selectionner que ' + remaining + ' image(s) maximum.');
-        this.value = '';
-      }
+  function getRemaining() { return parseInt(countSpan?.textContent || '0'); }
+  function setRemaining(val) { if (countSpan) countSpan.textContent = val; }
+
+  function galAddCard(filename) {
+    var card = document.createElement('div');
+    card.className = 'sortable-image-item';
+    card.dataset.filename = filename;
+    card.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9;cursor:grab';
+    card.innerHTML =
+      '<img src="../files/_parcours/' + encodeURIComponent(filename) + '" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">' +
+      '<div style="position:absolute;top:6px;right:6px">' +
+        '<button type="button" class="delete-btn btn btn-sm btn-danger" data-filename="' + filename + '" title="Supprimer" style="width:28px;height:28px;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:0.85"><i class="bi bi-trash3" style="font-size:12px"></i></button>' +
+      '</div>';
+    galerieEl.appendChild(card);
+  }
+
+  function updateEmpty() {
+    var count = galerieEl ? galerieEl.querySelectorAll('.sortable-image-item').length : 0;
+    if (galEmpty) galEmpty.style.display = count === 0 ? 'block' : 'none';
+    if (galDeleteAllWrap) galDeleteAllWrap.style.display = count === 0 ? 'none' : '';
+  }
+
+  // Upload zone interactions
+  if (uploadZone && fileInput) {
+    uploadZone.addEventListener('click', function() { fileInput.click(); });
+    uploadZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.style.borderColor = '#2563eb';
+      this.style.background = '#dbeafe';
+    });
+    uploadZone.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      this.style.borderColor = '#93c5fd';
+      this.style.background = '#eff6ff';
+    });
+    uploadZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.style.borderColor = '#93c5fd';
+      this.style.background = '#eff6ff';
+      if (e.dataTransfer.files.length) galUploadFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', function() {
+      if (this.files.length) { galUploadFiles(this.files); this.value = ''; }
     });
   }
 
+  function galUploadFiles(files) {
+    var remaining = getRemaining();
+    var fileList = Array.from(files);
+    if (fileList.length > remaining) {
+      alert('Vous ne pouvez importer que ' + remaining + ' image(s) supplementaires.');
+      fileList = fileList.slice(0, remaining);
+    }
+    if (fileList.length === 0) return;
+
+    var progressWrap = document.getElementById('galProgressWrap');
+    var progressBar = document.getElementById('galProgressBar');
+    var progressLabel = document.getElementById('galProgressLabel');
+    var progressPercent = document.getElementById('galProgressPercent');
+    var progressDetail = document.getElementById('galProgressDetail');
+
+    progressWrap.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressPercent.textContent = '0%';
+    progressLabel.textContent = 'Upload en cours...';
+
+    var total = fileList.length;
+    var done = 0;
+    var batchSize = 3;
+    var queue = fileList.slice();
+
+    progressDetail.textContent = '0 / ' + total + ' photos';
+
+    function uploadNext() {
+      if (queue.length === 0) {
+        if (done >= total) {
+          progressLabel.textContent = 'Upload termine !';
+          progressDetail.textContent = done + ' / ' + total + ' photos';
+          setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
+        }
+        return;
+      }
+
+      var batch = queue.splice(0, batchSize);
+      var form = new FormData();
+      form.append('uploadGalerie', '1');
+      form.append('csrf_token', csrfVal);
+      batch.forEach(function(file) { form.append('galerieImages[]', file); });
+
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', window.location.pathname);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+          var batchProgress = e.loaded / e.total;
+          var overallProgress = ((done + batchProgress * batch.length) / total) * 100;
+          progressBar.style.width = Math.round(overallProgress) + '%';
+          progressPercent.textContent = Math.round(overallProgress) + '%';
+        }
+      });
+
+      xhr.addEventListener('load', function() {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.uploaded && resp.uploaded.length) {
+            resp.uploaded.forEach(function(filename) {
+              galAddCard(filename);
+            });
+            done += resp.uploaded.length;
+            setRemaining(getRemaining() - resp.uploaded.length);
+          } else {
+            done += batch.length;
+          }
+        } catch(e) {
+          done += batch.length;
+        }
+        progressDetail.textContent = done + ' / ' + total + ' photos';
+        var pct = Math.round((done / total) * 100);
+        progressBar.style.width = pct + '%';
+        progressPercent.textContent = pct + '%';
+        updateEmpty();
+        uploadNext();
+      });
+
+      xhr.addEventListener('error', function() {
+        done += batch.length;
+        progressDetail.textContent = done + ' / ' + total + ' photos (erreur reseau)';
+        uploadNext();
+      });
+
+      xhr.send(form);
+    }
+
+    uploadNext();
+  }
+
   // Drag & drop reordering
-  var galerieEl = document.getElementById('galerieContainer');
-  if (galerieEl) {
+  if (galerieEl && typeof Sortable !== 'undefined') {
     Sortable.create(galerieEl, {
       animation: 150,
       ghostClass: 'sortable-ghost',
@@ -1750,48 +1906,71 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('', {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-          body: 'reorder_gallery=1&filenames=' + JSON.stringify(filenames) + '&csrf_token=' + encodeURIComponent(document.querySelector('input[name="csrf_token"]').value)
+          body: 'reorder_gallery=1&filenames=' + JSON.stringify(filenames) + '&csrf_token=' + encodeURIComponent(csrfVal)
         });
       }
     });
   }
 
-  // Suppression dynamique
-  document.querySelectorAll('.delete-btn').forEach(function(btn) {
-    btn.addEventListener('click', function () {
-      var form = this.closest('.deleteForm');
-      var imageName = form.querySelector('input[name="deleteImage"]').value;
+  // Suppression dynamique (delegation)
+  if (galerieEl) {
+    galerieEl.addEventListener('click', function(e) {
+      var btn = e.target.closest('.delete-btn');
+      if (!btn) return;
+      if (!confirm('Supprimer cette photo ?')) return;
+      var imageName = btn.dataset.filename;
+      var card = btn.closest('.sortable-image-item');
 
       fetch('', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ deleteImage: imageName, csrf_token: document.querySelector('input[name="csrf_token"]').value })
+        body: new URLSearchParams({ deleteImage: imageName, csrf_token: csrfVal })
       })
-      .then(function(response) { return response.text(); })
+      .then(function(r) { return r.text(); })
       .then(function(result) {
         if (result.trim() === 'OK') {
-          var container = form.closest('[data-img]');
-          container.remove();
-
-          // Met a jour le compteur
-          var current = parseInt(countSpan.textContent);
-          if (!isNaN(current) && current < maxImages) {
-            current += 1;
-            countSpan.textContent = current;
-          }
-
-          // Reactive le champ d'import si desactive
-          if (input && input.disabled) input.disabled = false;
-          if (uploadBtn && uploadBtn.disabled) uploadBtn.disabled = false;
+          card.remove();
+          setRemaining(getRemaining() + 1);
+          updateEmpty();
         } else {
-          alert("Erreur lors de la suppression : " + result);
+          alert('Erreur : ' + result);
         }
-      })
-      .catch(function(error) {
-        alert("Erreur reseau : " + error);
       });
     });
-  });
+  }
+
+  // Delete all
+  var galDeleteAllBtn = document.getElementById('galDeleteAll');
+  if (galDeleteAllBtn) {
+    galDeleteAllBtn.addEventListener('click', function() {
+      if (!confirm('Supprimer definitivement TOUTES les photos de la galerie ?')) return;
+      var items = galerieEl.querySelectorAll('.sortable-image-item');
+      var filenames = [];
+      items.forEach(function(item) { filenames.push(item.dataset.filename); });
+
+      var deleted = 0;
+      var total = filenames.length;
+
+      filenames.forEach(function(fn) {
+        fetch('', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ deleteImage: fn, csrf_token: csrfVal })
+        })
+        .then(function(r) { return r.text(); })
+        .then(function() {
+          deleted++;
+          if (deleted >= total) {
+            galerieEl.innerHTML = '';
+            setRemaining(maxImages);
+            updateEmpty();
+          }
+        });
+      });
+    });
+  }
+
+  updateEmpty();
 });
 </script>
 

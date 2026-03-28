@@ -728,7 +728,7 @@ if ($migrationDone) {
                               <div class="col-auto text-end">
                                 <div class="d-flex gap-1">
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
-                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" data-confirm="<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>"><i class="bi bi-x-lg"></i></button>
+                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="Supprimer" data-confirm="Supprimer définitivement cet album ?"><i class="bi bi-x-lg"></i></button>
                                 </div>
                               </div>
                             </div>

@@ -400,6 +400,7 @@ function getCreateTableStatements(): array
           `year_id` int(11) NOT NULL,
           `album_title` varchar(255) NOT NULL,
           `album_link` text NOT NULL,
+          `album_type` varchar(10) NOT NULL DEFAULT 'link',
           `album_img` varchar(255) DEFAULT NULL,
           `album_desc` text DEFAULT NULL,
           `sort_order` int(11) NOT NULL DEFAULT 0,
