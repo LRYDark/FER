@@ -171,6 +171,26 @@ if (isset($_POST['add_year'])) {
   exit;
 }
 
+// ─── Reorder albums (AJAX) ───
+if (isset($_POST['reorder_albums'])) {
+  $ids = json_decode($_POST['album_ids'], true);
+  if (is_array($ids)) {
+    $stmt = $pdo->prepare("UPDATE partners_albums SET sort_order = ? WHERE id = ?");
+    foreach ($ids as $i => $id) {
+      $stmt->execute([$i, (int)$id]);
+    }
+  }
+  if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => true]);
+    exit;
+  }
+  $yearId = $_POST['year_id'] ?? '';
+  $_SESSION['reopen_modal'] = $yearId;
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
+}
+
 // ─── Delete year ───
 if (isset($_POST['delete_year'])) {
   $yearId = $_POST['year_id'];
@@ -306,9 +326,9 @@ if ($migrationDone) {
   $albumsByYear = [];
   foreach ($years as $y) {
     if ($isTrashed) {
-      $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ?");
+      $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ? ORDER BY sort_order");
     } else {
-      $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ? AND deleted_at IS NULL");
+      $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ? AND deleted_at IS NULL ORDER BY sort_order");
     }
     $stmt->execute([$y['id']]);
     $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -330,7 +350,7 @@ if ($migrationDone) {
 
   $albumsByYear = [];
   foreach ($years as $y) {
-    $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM partners_albums WHERE year_id = ? ORDER BY sort_order");
     $stmt->execute([$y['id']]);
     $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
   }
@@ -419,6 +439,9 @@ if ($migrationDone) {
     opacity: 0.7;
     border: 1px dashed #dc3545;
   }
+  /* Drag-and-drop albums */
+  .drag-handle-album:hover { color: #ec4899 !important; }
+  .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
 </style>
 </head>
 
@@ -609,27 +632,30 @@ if ($migrationDone) {
                     </form>
 
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
-                    <div class="mb-3">
+                    <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
-                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2" style="border:1px solid #f0e8eb;border-radius:8px;background:#fdf8f9">
+                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid #f0e8eb;border-radius:8px;background:#fdf8f9">
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-                            <div class="row g-2 align-items-end">
-                              <div class="col-md-4">
+                            <div class="row g-2 align-items-end flex-nowrap">
+                              <div class="col-auto d-flex align-items-center" style="min-width:30px">
+                                <span class="drag-handle-album" style="cursor:grab;color:#94a3b8;font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
+                              </div>
+                              <div class="col">
                                 <label class="form-label" style="font-size:12px">Titre</label>
                                 <input type="text" name="album_title" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_title']) ?>">
                               </div>
-                              <div class="col-md-3">
+                              <div class="col-auto" style="min-width:140px">
                                 <label class="form-label" style="font-size:12px">Image</label>
                                 <input type="file" name="album_img" class="form-control form-control-sm">
                               </div>
-                              <div class="col-md-4">
+                              <div class="col">
                                 <label class="form-label" style="font-size:12px">Description</label>
                                 <input type="text" name="album_desc" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_desc']) ?>">
                               </div>
-                              <div class="col-md-1 text-end">
-                                <div class="d-flex gap-1 justify-content-end">
+                              <div class="col-auto text-end">
+                                <div class="d-flex gap-1">
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
                                   <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>" data-confirm="<?= $migrationDone ? 'Mettre en corbeille ?' : 'Supprimer ?' ?>"><i class="bi bi-x-lg"></i></button>
                                 </div>
@@ -801,5 +827,32 @@ if ($migrationDone) {
 <?php include '../inc/admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+document.querySelectorAll('.sortable-albums').forEach(function(container) {
+  Sortable.create(container, {
+    handle: '.drag-handle-album',
+    animation: 150,
+    ghostClass: 'sortable-ghost-album',
+    onEnd: function() {
+      var ids = [];
+      container.querySelectorAll('.sortable-album-item').forEach(function(item) {
+        ids.push(item.dataset.albumId);
+      });
+      var yearId = container.dataset.yearId;
+      var form = new FormData();
+      form.append('reorder_albums', '1');
+      form.append('album_ids', JSON.stringify(ids));
+      form.append('year_id', yearId);
+      form.append('csrf_token', '<?= $_SESSION['csrf_token'] ?? '' ?>');
+      fetch(window.location.pathname, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: form
+      });
+    }
+  });
+});
+</script>
 </body>
 </html>
