@@ -609,6 +609,35 @@ if ($migrationDone) {
                           </form>
                         </div>
 
+                    <h6>Ajouter un nouvel album</h6>
+                    <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
+                        <div class="row g-2 align-items-end">
+                          <div class="col-md-3">
+                            <label class="form-label" style="font-size:12px">Titre</label>
+                            <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label" style="font-size:12px">Lien</label>
+                            <input type="url" name="album_link" class="form-control" placeholder="Lien">
+                          </div>
+                          <div class="col-md-2">
+                            <label class="form-label" style="font-size:12px">Image</label>
+                            <input type="file" name="album_img" class="form-control" required>
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label" style="font-size:12px">Description</label>
+                            <input type="text" name="album_desc" class="form-control" placeholder="Description">
+                          </div>
+                          <div class="col-auto d-flex align-items-end">
+                            <button type="submit" name="add_album" class="btn btn-primary" style="height:38px;width:38px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:8px"><i class="bi bi-plus-lg"></i></button>
+                          </div>
+                        </div>
+                    </form>
+
+                    <div class="mb-3"></div>
+
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
                     <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
@@ -646,33 +675,6 @@ if ($migrationDone) {
                         </form>
                         <?php endforeach; ?>
                     </div>
-
-                    <h6>Ajouter un nouvel album</h6>
-                    <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-                        <div class="row g-2 align-items-end">
-                          <div class="col-md-3">
-                            <label class="form-label" style="font-size:12px">Titre</label>
-                            <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
-                          </div>
-                          <div class="col-md-3">
-                            <label class="form-label" style="font-size:12px">Lien</label>
-                            <input type="url" name="album_link" class="form-control" placeholder="Lien">
-                          </div>
-                          <div class="col-md-2">
-                            <label class="form-label" style="font-size:12px">Image</label>
-                            <input type="file" name="album_img" class="form-control" required>
-                          </div>
-                          <div class="col-md-3">
-                            <label class="form-label" style="font-size:12px">Description</label>
-                            <input type="text" name="album_desc" class="form-control" placeholder="Description">
-                          </div>
-                          <div class="col-md-1">
-                            <button type="submit" name="add_album" class="btn btn-primary btn-sm w-100">+</button>
-                          </div>
-                        </div>
-                    </form>
                     </div>
                 </div>
                 </div>
