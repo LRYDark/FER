@@ -92,6 +92,8 @@ if (isset($_POST['update_item'])) {
 
     $status = $hasStatusCol ? (isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft') : null;
 
+    $deleteImage = !empty($_POST['delete_image']);
+
     if (!empty($_FILES['image']['name'])) {
         $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
         $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -113,6 +115,21 @@ if (isset($_POST['update_item'])) {
                 $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image = ?, image_position = ? WHERE id = ?");
                 $stmt->execute([$title, $content, $imgName, $imgPos, $itemId]);
             }
+        }
+    } elseif ($deleteImage) {
+        // Supprimer l'image existante
+        $oldImg = $pdo->prepare("SELECT image FROM timeline_items WHERE id = ?");
+        $oldImg->execute([$itemId]);
+        $old = $oldImg->fetchColumn();
+        if ($old && file_exists($timelineDir . $old)) {
+            unlink($timelineDir . $old);
+        }
+        if ($hasStatusCol) {
+            $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image = NULL, image_position = ?, status = ? WHERE id = ?");
+            $stmt->execute([$title, $content, $imgPos, $status, $itemId]);
+        } else {
+            $stmt = $pdo->prepare("UPDATE timeline_items SET title = ?, content = ?, image = NULL, image_position = ? WHERE id = ?");
+            $stmt->execute([$title, $content, $imgPos, $itemId]);
         }
     } else {
         if ($hasStatusCol) {
@@ -379,6 +396,12 @@ foreach ($items as $item) {
                       <div class="col-md-6">
                         <label class="form-label">Image</label>
                         <input type="file" name="image" class="form-control" accept="image/*">
+                        <?php if (!empty($item['image'])): ?>
+                        <div class="form-check mt-1">
+                          <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImg<?= $item['id'] ?>">
+                          <label class="form-check-label text-danger" style="font-size:12px" for="delImg<?= $item['id'] ?>">Supprimer l'image</label>
+                        </div>
+                        <?php endif; ?>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label">Tags / Éléments (séparés par virgule)</label>

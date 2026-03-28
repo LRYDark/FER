@@ -126,6 +126,14 @@ try {
     }
 } catch (Exception $e) {}
 
+// Extraire la première image du contenu HTML si pas d'image de couverture
+function getFirstContentImage(string $html): ?string {
+    if (preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $html, $m)) {
+        return $m[1];
+    }
+    return null;
+}
+
 // Traitement AJAX
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     header('Content-Type: application/json');
@@ -135,6 +143,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         if (empty($article['title_article'])) continue;
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
+        $contentImg = null;
+        if (!$hasImage) {
+            $contentImg = getFirstContentImage($article['desc_article'] ?? '');
+        }
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         $nbComments = $commentCounts[$article['id']] ?? 0;
         ?>
@@ -142,6 +154,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             <div class="ncard-img">
                 <?php if ($hasImage): ?>
                     <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
+                <?php elseif ($contentImg): ?>
+                    <img src="<?= htmlspecialchars($contentImg) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
                 <?php else: ?>
                     <div class="ncard-placeholder">📰</div>
                 <?php endif; ?>
@@ -862,11 +876,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
   <!-- ─── Article content ─── -->
   <div class="article-detail">
+    <h2 class="article-title"><?= htmlspecialchars($singleArticle['title_article']) ?></h2>
+
     <?php if ($hasImg): ?>
       <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($singleArticle['title_article']) ?>" class="article-img">
     <?php endif; ?>
-
-    <h2 class="article-title"><?= htmlspecialchars($singleArticle['title_article']) ?></h2>
 
     <div class="article-meta">
       <span class="ncard-source">Forbach en Rose</span>
@@ -960,6 +974,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         if (empty($article['title_article'])) continue;
         $imgPath = '../files/_news/' . $article['img_article'];
         $hasImage = !empty($article['img_article']) && is_file($imgPath);
+        $contentImg = null;
+        if (!$hasImage) {
+            $contentImg = getFirstContentImage($article['desc_article'] ?? '');
+        }
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         $nbComments = $commentCounts[$article['id']] ?? 0;
       ?>
@@ -967,6 +985,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         <div class="ncard-img">
           <?php if ($hasImage): ?>
             <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
+          <?php elseif ($contentImg): ?>
+            <img src="<?= htmlspecialchars($contentImg) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
           <?php else: ?>
             <div class="ncard-placeholder">📰</div>
           <?php endif; ?>
