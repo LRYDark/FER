@@ -26,14 +26,29 @@ function logLoginAttempt($pdo, $userId, $email, $success, $reason = null) {
     } catch (\Throwable $e) {} // Table may not exist yet
 }
 
-function isIpBanned($pdo, $ip) {
+// 🔒 [FIX-U2] Ban IP avec support auto-ban temporaire (expires_at) et ban permanent (CWE-307)
+function getIpBanInfo($pdo, $ip): ?array {
     try {
-        // 🔒 [FIX-03] Colonne alignée avec INSERT de connexions.php : `ip` (CWE-284)
-        // ⚠️ [À VÉRIFIER] Confirmer via SHOW COLUMNS FROM login_banned_ips
-        $st = $pdo->prepare('SELECT 1 FROM login_banned_ips WHERE ip = ? LIMIT 1');
+        $st = $pdo->prepare(
+            'SELECT reason, expires_at FROM login_banned_ips
+             WHERE ip = ? AND (expires_at IS NULL OR expires_at > NOW())
+             LIMIT 1'
+        );
         $st->execute([$ip]);
-        return (bool) $st->fetch();
-    } catch (\Throwable $e) { return false; }
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (\Throwable $e) {
+        // Fallback si colonne expires_at absente
+        try {
+            $st = $pdo->prepare('SELECT reason FROM login_banned_ips WHERE ip = ? LIMIT 1');
+            $st->execute([$ip]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            return $row ? array_merge($row, ['expires_at' => null]) : null;
+        } catch (\Throwable $e2) { return null; }
+    }
+}
+
+function isIpBanned($pdo, $ip) {
+    return getIpBanInfo($pdo, $ip) !== null;
 }
 
 function getClientIp() {
@@ -93,15 +108,53 @@ function send2faCode($pdo, $user) {
     }
 }
 
+/* ───── IP rate-limit inter-comptes (CWE-307) ──────── */
+function countRecentIpFailures($pdo, $ip, int $windowMinutes = 15): int {
+    try {
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) FROM login_logs
+             WHERE ip_address = ? AND success = 0
+               AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)'
+        );
+        $st->execute([$ip, $windowMinutes]);
+        return (int) $st->fetchColumn();
+    } catch (\Throwable $e) { return 0; }
+}
+
+function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 1440): void {
+    if (isIpBanned($pdo, $ip)) return;
+
+    $failures = countRecentIpFailures($pdo, $ip);
+    if ($failures < $threshold) return;
+
+    $reason = "Auto-ban : $failures echecs de connexion en 15 min";
+    try {
+        $pdo->prepare(
+            'INSERT INTO login_banned_ips (ip, reason, banned_at, expires_at)
+             VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE))'
+        )->execute([$ip, $reason, $banMinutes]);
+    } catch (\Throwable $e) {
+        // Fallback si colonne expires_at absente
+        try {
+            $pdo->prepare('INSERT INTO login_banned_ips (ip, reason, banned_at) VALUES (?, ?, NOW())')
+                ->execute([$ip, $reason]);
+        } catch (\Throwable $e2) {}
+    }
+}
+
 /* ───── LOGIN / LOGOUT ───────────────────────── */
 if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $d = json_decode(file_get_contents('php://input'), true);
     $ip = getClientIp();
 
-    // Check IP ban
-    if (isIpBanned($pdo, $ip)) {
+    // Check IP ban (permanent ou auto-ban temporaire)
+    $banInfo = getIpBanInfo($pdo, $ip);
+    if ($banInfo) {
         http_response_code(403);
-        echo json_encode(['ok'=>false, 'err'=>'Votre adresse IP a ete bannie. Contactez un administrateur.']); exit;
+        $msg = $banInfo['expires_at']
+            ? 'Trop de tentatives echouees. Votre adresse IP est temporairement bloquee. Reessayez plus tard.'
+            : 'Votre adresse IP a ete bannie. Contactez un administrateur.';
+        echo json_encode(['ok'=>false, 'err'=>$msg]); exit;
     }
 
     $st=$pdo->prepare('SELECT id,email,password_hash,role,must_change_password,is_active,failed_attempts,locked_at FROM users WHERE email=?');
@@ -169,6 +222,9 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     // Failed login
     logLoginAttempt($pdo, $u['id'] ?? null, $d['email'] ?? '', false, $u ? 'Mot de passe incorrect' : 'Email inconnu');
+
+    // 🔒 [FIX-U2] Auto-ban IP si trop d'échecs inter-comptes en 15 min (CWE-307)
+    autoBanIpIfNeeded($pdo, $ip);
 
     if ($u) {
         $attempts = $u['failed_attempts'] + 1;

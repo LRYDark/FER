@@ -219,7 +219,8 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
             <input type="text" class="form-control" id="banReason" name="reason" placeholder="Tentatives de connexion suspectes">
           </div>
           <div class="col-md-3">
-            <button type="submit" name="ban_ip" value="1" class="btn btn-rose w-100">
+            <label class="form-label">&nbsp;</label>
+            <button type="submit" name="ban_ip" value="1" class="btn btn-rose w-100" style="height: 37.2px; border: none;">
               <i class="bi bi-shield-x me-1"></i>Bannir
             </button>
           </div>
@@ -238,17 +239,36 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
             <tr>
               <th>IP</th>
               <th>Raison</th>
+              <th>Type</th>
               <th>Date</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($bans as $ban): ?>
-            <tr>
+            <?php foreach ($bans as $ban):
+              $hasExpiry  = array_key_exists('expires_at', $ban);
+              $isAutoban  = $hasExpiry && !empty($ban['expires_at']);
+              $isExpired  = $isAutoban && strtotime($ban['expires_at']) <= time();
+            ?>
+            <tr<?= $isExpired ? ' class="text-muted"' : '' ?>>
               <td><code><?= htmlspecialchars($ban['ip'] ?? '') ?></code></td>
               <td><?= htmlspecialchars($ban['reason'] ?? '-') ?></td>
+              <td>
+                <?php if ($isAutoban): ?>
+                  <?php if ($isExpired): ?>
+                    <span class="badge bg-secondary">Auto-ban expiré</span>
+                    <br><small class="text-muted">Expiré le <?= htmlspecialchars($ban['expires_at']) ?></small>
+                  <?php else: ?>
+                    <span class="badge bg-warning text-dark">Auto-ban</span>
+                    <br><small>Expire le <?= htmlspecialchars($ban['expires_at']) ?></small>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <span class="badge bg-danger">Permanent</span>
+                <?php endif; ?>
+              </td>
               <td><?= htmlspecialchars($ban['banned_at'] ?? '') ?></td>
               <td>
+                <?php if (!$isExpired): ?>
                 <form method="post" style="display:inline" data-confirm="Débannir cette IP ?">
                   <?= csrf_field() ?>
                   <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
@@ -256,6 +276,15 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
                     <i class="bi bi-unlock me-1"></i>Débannir
                   </button>
                 </form>
+                <?php else: ?>
+                <form method="post" style="display:inline" data-confirm="Supprimer cette entrée ?">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
+                  <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-trash me-1"></i>Supprimer
+                  </button>
+                </form>
+                <?php endif; ?>
               </td>
             </tr>
             <?php endforeach; ?>
