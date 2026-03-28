@@ -18,20 +18,24 @@ if ($previewYearId > 0) {
 }
 
 // Récupération des années disponibles pour les partenaires
-if ($isPreview) {
-    // Preview: show published + draft, but NOT trashed
-    $stmtYears = $pdo->prepare('SELECT * FROM partners_years WHERE deleted_at IS NULL ORDER BY year DESC');
-    $stmtYears->execute();
-} else {
-    // Public: only published, non-deleted
-    if ($hasStatusCol) {
-        $stmtYears = $pdo->prepare("SELECT * FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC");
+try {
+    if ($isPreview) {
+        // Preview: show published + draft, but NOT trashed
+        $stmtYears = $pdo->prepare('SELECT * FROM partners_years WHERE deleted_at IS NULL ORDER BY year DESC');
+        $stmtYears->execute();
     } else {
-        $stmtYears = $pdo->prepare('SELECT * FROM partners_years ORDER BY year DESC');
+        // Public: only published, non-deleted
+        if ($hasStatusCol) {
+            $stmtYears = $pdo->prepare("SELECT * FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC");
+        } else {
+            $stmtYears = $pdo->prepare('SELECT * FROM partners_years ORDER BY year DESC');
+        }
+        $stmtYears->execute();
     }
-    $stmtYears->execute();
+    $years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $years = [];
 }
-$years = $stmtYears->fetchAll(PDO::FETCH_ASSOC);
 
 // Si une année est sélectionnée, récupérer les partenaires associés
 $selectedYearId = $previewYearId ?: (isset($_GET['year_id']) ? (int)$_GET['year_id'] : null);
@@ -39,43 +43,40 @@ $partners = [];
 $selectedYear = null;
 
 // Récupération de la description générique des partenaires
-$hasPartnersTitle = false;
-try { $pdo->query("SELECT partners_title FROM setting LIMIT 0"); $hasPartnersTitle = true; } catch (PDOException $e) {}
-
-if ($hasPartnersTitle) {
+try {
     $stmtSetting = $pdo->prepare('SELECT partners_title, partners_desc, partners_img FROM setting WHERE id = 1 LIMIT 1');
-} else {
-    $stmtSetting = $pdo->prepare('SELECT partners_desc, partners_img FROM setting WHERE id = 1 LIMIT 1');
+    $stmtSetting->execute();
+    $settingData = $stmtSetting->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $settingData = [];
 }
-$stmtSetting->execute();
-$settingData = $stmtSetting->fetch(PDO::FETCH_ASSOC);
 $partners_title = $settingData['partners_title'] ?? '';
 $partners_desc = $settingData['partners_desc'] ?? '';
 $partners_img = $settingData['partners_img'] ?? '';
 
 if ($selectedYearId) {
-    // Vérifier que l'année existe et est publiée (sauf en preview admin)
-    if ($isPreview) {
-        $stmtYear = $pdo->prepare('SELECT * FROM partners_years WHERE id = :id AND deleted_at IS NULL LIMIT 1');
-    } else {
-        $stmtYear = $pdo->prepare("SELECT * FROM partners_years WHERE id = :id AND deleted_at IS NULL AND status = 'published' LIMIT 1");
-    }
-    $stmtYear->execute(['id' => $selectedYearId]);
-    $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
+    try {
+        // Vérifier que l'année existe et est publiée (sauf en preview admin)
+        if ($isPreview) {
+            $stmtYear = $pdo->prepare('SELECT * FROM partners_years WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        } else {
+            $stmtYear = $pdo->prepare("SELECT * FROM partners_years WHERE id = :id AND deleted_at IS NULL AND status = 'published' LIMIT 1");
+        }
+        $stmtYear->execute(['id' => $selectedYearId]);
+        $selectedYear = $stmtYear->fetch(PDO::FETCH_ASSOC);
 
-    if (!$selectedYear && !$isPreview) {
-        // L'année n'existe pas ou est en brouillon → rediriger vers la page partenaires
-        header('Location: partenaires');
-        exit;
-    }
+        if (!$selectedYear && !$isPreview) {
+            header('Location: partenaires');
+            exit;
+        }
 
-    if ($isPreview) {
         $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id AND deleted_at IS NULL');
-    } else {
-        $stmtAlbums = $pdo->prepare('SELECT * FROM partners_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+        $stmtAlbums->execute(['year_id' => $selectedYearId]);
+        $partners = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $selectedYear = null;
+        $partners = [];
     }
-    $stmtAlbums->execute(['year_id' => $selectedYearId]);
-    $partners = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -258,7 +259,7 @@ if ($selectedYearId) {
       align-items: center;
       gap: 16px;
       max-width: 1200px;
-      margin: 170px auto 0;
+      margin: 174px auto 0;
       padding: 0 24px;
     }
     @media (max-width: 980px) {
@@ -626,6 +627,7 @@ if ($selectedYearId) {
         <h2 class="partners-title-bar-title">Nos éditions</h2>
       </div>
 
+      <?php if ($hasInfo || !empty($years)): ?>
       <div class="years-grid" style="max-width: 1200px; margin: 30px auto 0; padding: 0 24px;">
         <?php if ($hasInfo): ?>
           <div class="info-card" data-label="Info" id="infoCardTrigger">
@@ -643,13 +645,14 @@ if ($selectedYearId) {
             </a>
           <?php endforeach; ?>
         <?php endif; ?>
-
-        <?php if (!$hasInfo && empty($years)): ?>
-          <div class="empty-state">
-            <p>Aucune année disponible pour le moment.</p>
-          </div>
-        <?php endif; ?>
       </div>
+      <?php endif; ?>
+
+      <?php if (!$hasInfo && empty($years)): ?>
+        <div style="text-align: center; padding: 60px 20px; color: var(--page-muted);">
+          <p>Aucune année disponible pour le moment.</p>
+        </div>
+      <?php endif; ?>
 
       <?php if ($hasInfo): ?>
         <div id="infoModal" class="info-modal-overlay">

@@ -6,9 +6,13 @@ trackPageVisit();
 require '../inc/navbar-data.php';
 
 // Récupération des paramètres du site
-$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    $data = [];
+}
 
 $titleAccueil = $data['titleAccueil'] ?? '';
 $picture = $data['picture'] ?? '';
@@ -32,24 +36,28 @@ $articleId = $previewId ?: (isset($_GET['id']) ? (int)$_GET['id'] : 0);
 $singleArticle = null;
 
 if ($articleId > 0) {
-    if ($previewId > 0) {
-        // Preview mode: admin only, any status
-        if (session_status() === PHP_SESSION_NONE) { session_start(); }
-        if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-            header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
+    try {
+        if ($previewId > 0) {
+            // Preview mode: admin only, any status
+            if (session_status() === PHP_SESSION_NONE) { session_start(); }
+            if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+                header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
+            }
+            $isPreview = true;
+            $stmtA = $pdo->prepare('SELECT * FROM news WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+            $stmtA->execute(['id' => $articleId]);
+            $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
+        } else {
+            // Public mode: only published articles
+            $pubSql = $hasStatusCol
+                ? 'SELECT * FROM news WHERE id = :id AND deleted_at IS NULL AND status = \'published\' LIMIT 1'
+                : 'SELECT * FROM news WHERE id = :id LIMIT 1';
+            $stmtA = $pdo->prepare($pubSql);
+            $stmtA->execute(['id' => $articleId]);
+            $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
         }
-        $isPreview = true;
-        $stmtA = $pdo->prepare('SELECT * FROM news WHERE id = :id AND deleted_at IS NULL LIMIT 1');
-        $stmtA->execute(['id' => $articleId]);
-        $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
-    } else {
-        // Public mode: only published articles
-        $pubSql = $hasStatusCol
-            ? 'SELECT * FROM news WHERE id = :id AND deleted_at IS NULL AND status = \'published\' LIMIT 1'
-            : 'SELECT * FROM news WHERE id = :id LIMIT 1';
-        $stmtA = $pdo->prepare($pubSql);
-        $stmtA->execute(['id' => $articleId]);
-        $singleArticle = $stmtA->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $singleArticle = null;
     }
 }
 
@@ -74,34 +82,40 @@ if (!empty($search)) {
 
 $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
 
-$countSql = "SELECT COUNT(*) as total FROM news $whereClause";
-$countStmt = $pdo->prepare($countSql);
-$countStmt->execute($params);
-$totalArticles = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-$totalPages = ceil($totalArticles / $limit);
+try {
+    $countSql = "SELECT COUNT(*) as total FROM news $whereClause";
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $totalArticles = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+    $totalPages = ceil($totalArticles / $limit);
 
-if (!empty($search)) {
-    $sql = "SELECT *,
-            CASE
-                WHEN title_article LIKE :search THEN 1
-                WHEN desc_article LIKE :search THEN 2
-                ELSE 3
-            END as search_priority
-            FROM news $whereClause
-            ORDER BY search_priority ASC, date_publication DESC
-            LIMIT :limit OFFSET :offset";
-} else {
-    $sql = "SELECT * FROM news $whereClause ORDER BY date_publication DESC LIMIT :limit OFFSET :offset";
-}
+    if (!empty($search)) {
+        $sql = "SELECT *,
+                CASE
+                    WHEN title_article LIKE :search THEN 1
+                    WHEN desc_article LIKE :search THEN 2
+                    ELSE 3
+                END as search_priority
+                FROM news $whereClause
+                ORDER BY search_priority ASC, date_publication DESC
+                LIMIT :limit OFFSET :offset";
+    } else {
+        $sql = "SELECT * FROM news $whereClause ORDER BY date_publication DESC LIMIT :limit OFFSET :offset";
+    }
 
-$stmt = $pdo->prepare($sql);
-foreach ($params as $key => $value) {
-    $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $articles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $totalArticles = 0;
+    $totalPages = 0;
+    $articles = [];
 }
-$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-$stmt->execute();
-$articles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Comptage des commentaires par article
 $commentCounts = [];
