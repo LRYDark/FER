@@ -74,6 +74,17 @@ if (isset($_POST['update_news'])) {
     $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     // 🔒 [FIX-04] Validation MIME réelle via magic bytes, pas seulement l'extension (CWE-434)
     $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $deleteImage = !empty($_POST['delete_image']);
+
+    // Supprimer l'image existante si demandé
+    if ($deleteImage) {
+        $stmtOld = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+        $stmtOld->execute([$id]);
+        $oldImg = $stmtOld->fetchColumn();
+        if ($oldImg && file_exists("../files/_news/" . $oldImg)) {
+            unlink("../files/_news/" . $oldImg);
+        }
+    }
 
     if ($migrationDone) {
         $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
@@ -92,6 +103,9 @@ if (isset($_POST['update_news'])) {
                 $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
                 $stmt->execute([$title, $desc, $status, $id]);
             }
+        } elseif ($deleteImage) {
+            $stmt = $pdo->prepare("UPDATE news SET img_article = '', title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+            $stmt->execute([$title, $desc, $status, $id]);
         } else {
             $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
             $stmt->execute([$title, $desc, $status, $id]);
@@ -112,6 +126,9 @@ if (isset($_POST['update_news'])) {
                 $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
                 $stmt->execute([$title, $desc, $id]);
             }
+        } elseif ($deleteImage) {
+            $stmt = $pdo->prepare("UPDATE news SET img_article = '', title_article = ?, desc_article = ? WHERE id = ?");
+            $stmt->execute([$title, $desc, $id]);
         } else {
             $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
             $stmt->execute([$title, $desc, $id]);
@@ -543,6 +560,12 @@ if ($migrationDone) {
                       <div class="<?= $migrationDone ? 'col-md-3' : 'col-md-6' ?>">
                         <label>Image (laisser vide pour conserver)</label>
                         <input type="file" name="img_article" class="form-control">
+                        <?php if (!empty($n['img_article'])): ?>
+                        <div class="form-check mt-1">
+                          <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImg<?= $n['id'] ?>">
+                          <label class="form-check-label text-danger" style="font-size:12px" for="delImg<?= $n['id'] ?>">Supprimer l'image</label>
+                        </div>
+                        <?php endif; ?>
                       </div>
                       <?php if ($migrationDone): ?>
                       <div class="col-md-3">

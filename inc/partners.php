@@ -88,6 +88,7 @@ if (isset($_POST['update_album'])) {
   $album_title = $_POST['album_title'];
   $album_desc = $_POST['album_desc'];
   $yearId = $_POST['year_id'];
+  $deleteImage = !empty($_POST['delete_image']);
 
   if (!empty($_FILES['album_img']['name'])) {
     $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -103,6 +104,16 @@ if (isset($_POST['update_album'])) {
       $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_desc = ? WHERE id = ?");
       $stmt->execute([$album_title, $album_desc, $albumId]);
     }
+  } elseif ($deleteImage) {
+    // Supprimer l'image existante
+    $stmtOld = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
+    $stmtOld->execute([$albumId]);
+    $oldImg = $stmtOld->fetchColumn();
+    if ($oldImg && file_exists("../files/_partners/" . $oldImg)) {
+      unlink("../files/_partners/" . $oldImg);
+    }
+    $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = '', album_desc = ? WHERE id = ?");
+    $stmt->execute([$album_title, $album_desc, $albumId]);
   } else {
     $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_desc = ? WHERE id = ?");
     $stmt->execute([$album_title, $album_desc, $albumId]);
@@ -720,6 +731,12 @@ if ($migrationDone) {
                               <div class="col-auto" style="min-width:140px">
                                 <label class="form-label" style="font-size:12px">Image</label>
                                 <input type="file" name="album_img" class="form-control form-control-sm">
+                                <?php if (!empty($album['album_img'])): ?>
+                                <div class="form-check mt-1">
+                                  <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImgPartner<?= $album['id'] ?>">
+                                  <label class="form-check-label text-danger" style="font-size:11px" for="delImgPartner<?= $album['id'] ?>">Supprimer</label>
+                                </div>
+                                <?php endif; ?>
                               </div>
                               <div class="col">
                                 <label class="form-label" style="font-size:12px">Description</label>
