@@ -56,7 +56,7 @@ if ($selectedYearId) {
             exit;
         }
 
-        $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL');
+        $stmtAlbums = $pdo->prepare('SELECT * FROM photo_albums WHERE year_id = :year_id AND deleted_at IS NULL ORDER BY sort_order');
         $stmtAlbums->execute(['year_id' => $selectedYearId]);
         $albums = $stmtAlbums->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
