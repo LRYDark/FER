@@ -17,9 +17,11 @@ $googleMailReady = ($clientID && $clientSecret);
 
 // Fonction pour enregistrer des logs dans un fichier texte
 function writeLog($message) {
-    $logFile = __DIR__ .'/logs/logs_google_mails.txt'; // Nom du fichier de log
-    $timestamp = date("Y-m-d H:i:s"); // Ajoute un timestamp au message de log
-    file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND); // Écrit le message dans le fichier
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
+    $logFile = $logDir . '/logs_google_mails.txt';
+    $timestamp = date("Y-m-d H:i:s");
+    file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }
 
 // Fonction pour vérifier si la connexion Google est OK
@@ -173,12 +175,18 @@ function render(string $path, array $vars = []): string
     return ob_get_clean();      // 4) récupère le rendu
 }
 
+/** @var string|null $lastMailError Dernière erreur détaillée de sendMail() */
+$lastMailError = null;
+
 function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info') {
-    global $data;
+    global $data, $lastMailError;
+    $lastMailError = null;
+
     /* ---------- Auth Gmail ---------- */
-    $accessToken = getAccessToken();
+    $accessToken = getAccessToken(false);
     if (!$accessToken) {
-        writeLog("❌ Impossible d'obtenir un token d'accès valide.");
+        $lastMailError = "Impossible d'obtenir un token d'accès valide. Vérifiez la connexion Google.";
+        writeLog("❌ " . $lastMailError);
         return false;
     }
 
@@ -187,15 +195,12 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     $service = new Google_Service_Gmail($client);
 
     /* ---------- Destinataires ---------- */
-    // $to  peut être tableau ou chaîne déjà formatée
     if (is_array($to)) {
-        // Tableau → on place tout en Bcc, To = expéditeur (soi-même)
         $bccHeader = implode(', ', $to);
-        $toHeader  = '';  // sera rempli avec $from après getProfile
+        $toHeader  = '';
     } else {
-        // Chaîne (déjà "Nom <mail>, Nom2 <mail2>")
         $toHeader  = $to;
-        $bccHeader = '';                           // pas de Bcc
+        $bccHeader = '';
     }
 
     /* ---------- Sujet ---------- */
@@ -204,12 +209,16 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     /* ---------- Corps (template unique) ---------- */
     $formattedDate = '';
     if ($type === 'inscription' && !empty($data['date_course'])) {
-        $dateCourse = new DateTime($data['date_course']);
-        $formatter = new IntlDateFormatter(
-            'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
-            'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
-        );
-        $formattedDate = $formatter->format($dateCourse);
+        try {
+            $dateCourse = new DateTime($data['date_course']);
+            $formatter = new IntlDateFormatter(
+                'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
+                'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
+            );
+            $formattedDate = $formatter->format($dateCourse);
+        } catch (\Throwable $e) {
+            writeLog("⚠️ Erreur formatage date : " . $e->getMessage());
+        }
     }
 
     $body = render('mail_template.php', [
@@ -225,12 +234,22 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         'mail_phone'  => $data['mail_phone'] ?? '',
     ]);
 
-    /* ---------- Construction du message ---------- */
-    $profile = $service->users->getProfile('me');
-    $from = $profile->getEmailAddress();
+    if (empty($body)) {
+        $lastMailError = "Le template mail est vide ou introuvable (mail_template.php).";
+        writeLog("❌ " . $lastMailError);
+        return false;
+    }
 
-    if ($toHeader === '') $toHeader = $from; // BCC mode: send to self
-    $raw  = "From: $from\r\n";
+    /* ---------- Construction du message ---------- */
+    // L'adresse From est remplie automatiquement par Gmail API
+    $from = $_SESSION['email'] ?? $data['mail_email'] ?? '';
+
+    if ($toHeader === '') $toHeader = $from ?: 'me';
+    if ($from) {
+        $raw = "From: $from\r\n";
+    } else {
+        $raw = '';
+    }
     $raw .= "To: $toHeader\r\n";
     if ($bccHeader) $raw .= "Bcc: $bccHeader\r\n";
     $raw .= "Subject: $encodedSubject\r\n";
@@ -246,8 +265,9 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         $service->users_messages->send('me', $msg);
         writeLog("✅ Mail envoyé à : " . (is_array($to) ? implode(', ', $to) : $toHeader));
         return true;
-    } catch (Exception $e) {
-        writeLog("❌ Erreur d'envoi : " . $e->getMessage());
+    } catch (\Throwable $e) {
+        $lastMailError = "Erreur d'envoi Gmail : " . $e->getMessage();
+        writeLog("❌ " . $lastMailError);
         return false;
     }
 }
