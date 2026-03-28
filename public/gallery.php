@@ -382,8 +382,12 @@ $photoCount = count($photos);
         padding: 0 8px;
       }
       .gallery-item { border-radius: 4px; }
-      .mosaic-row { gap: 4px; margin-bottom: 4px; }
-      .mosaic-item { border-radius: 4px; }
+      .mosaic-container { display: none !important; }
+      .gallery-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+      }
+      .view-toggle { display: none; }
       .lightbox-nav { width: 36px; height: 36px; font-size: 18px; }
       .lightbox-prev { left: 8px; }
       .lightbox-next { right: 8px; }
