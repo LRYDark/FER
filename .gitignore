@@ -9,7 +9,8 @@ config/token.json
 *.log
 debug_import.log
 import_errors.log
-config/logs/
+config/logs/*
+!config/logs/.gitkeep
 
 # Fichiers de migration (one-shot)
 migrate_*.php
