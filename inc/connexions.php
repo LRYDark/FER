@@ -125,7 +125,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
 </style>
 
 <?php if ($flash): ?>
-  <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show mx-3 mt-3" role="alert">
+  <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss mx-3 mt-3" role="alert" data-dismiss-delay="5000">
     <?= $flash['msg'] ?>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
@@ -368,6 +368,15 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
+  // ── Auto-dismiss alerts ──
+  document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
+    var delay = parseInt(alert.dataset.dismissDelay) || 5000;
+    setTimeout(function() {
+      var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      bsAlert.close();
+    }, delay);
+  });
+
   // ── Tab switching ──
   document.querySelectorAll('#connexionsTabs .nav-link').forEach(function(link) {
     link.addEventListener('click', function(e) {

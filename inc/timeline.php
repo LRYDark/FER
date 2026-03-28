@@ -78,6 +78,7 @@ if (isset($_POST['add_item'])) {
         }
     }
 
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement ajouté.'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -135,6 +136,7 @@ if (isset($_POST['update_item'])) {
     }
 
     $_SESSION['reopen_modal'] = $itemId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement mis à jour.'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -152,6 +154,7 @@ if (isset($_POST['delete_item'])) {
 
     $pdo->prepare("DELETE FROM timeline_items WHERE id = ?")->execute([$itemId]);
 
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement supprimé.'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -226,17 +229,42 @@ foreach ($items as $item) {
 <body>
 
 <?php include '../inc/navbar-admin.php'; ?>
-  <div class="row g-4">
+
+<?php
+  $reopenModalId = $_SESSION['reopen_modal'] ?? null;
+  $flashForModal = null;
+  if ($reopenModalId && isset($_SESSION['flash_message'])) {
+      $flashForModal = $_SESSION['flash_message'];
+      unset($_SESSION['flash_message']);
+  }
+?>
+
+<?php if (!$reopenModalId && isset($_SESSION['flash_message'])):
+    $flash = $_SESSION['flash_message'];
+    unset($_SESSION['flash_message']);
+?>
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flash['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
+      <?= htmlspecialchars($flash['message']) ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
+<!-- Spinner de chargement -->
+<div id="loadingSpinner" class="text-center py-5">
+  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#ec4899;"></div>
+  <p class="text-muted mt-2 small">Chargement de la timeline...</p>
+</div>
+
+  <div class="row g-4 content-loaded" style="display:none;">
     <div class="col-12">
       <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white">
 
-        <?php if (isset($_SESSION['reopen_modal'])):
-            $reopenId = $_SESSION['reopen_modal'];
+        <?php if ($reopenModalId):
             unset($_SESSION['reopen_modal']);
         ?>
         <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
         document.addEventListener('DOMContentLoaded', function(){
-            var el = document.getElementById('modalEditItem<?= (int)$reopenId ?>');
+            var el = document.getElementById('modalEditItem<?= (int)$reopenModalId ?>');
             if(el){ var m = new bootstrap.Modal(el); m.show(); }
         });
         </script>
@@ -304,13 +332,13 @@ foreach ($items as $item) {
                       <a href="../public/accueil.php?preview_timeline=1" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu timeline">
                         <i class="bi bi-eye"></i>
                       </a>
-                      <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
+                      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
                         <i class="bi bi-pencil"></i>
                       </button>
                       <form method="post" class="d-inline" data-confirm="Supprimer cet item et ses tags ?">
                         <?= csrf_field() ?>
                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                        <button type="submit" name="delete_item" class="btn btn-sm btn-outline-danger">
+                        <button type="submit" name="delete_item" class="btn btn-sm btn-danger">
                           <i class="bi bi-trash"></i>
                         </button>
                       </form>
@@ -332,6 +360,14 @@ foreach ($items as $item) {
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body row g-3">
+                      <?php if ($flashForModal && $reopenModalId == $item['id']): ?>
+                      <div class="col-12">
+                        <div class="alert alert-<?= $flashForModal['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flashForModal['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
+                          <?= htmlspecialchars($flashForModal['message']) ?>
+                          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                      </div>
+                      <?php endif; ?>
                       <div class="col-md-6">
                         <label class="form-label">Titre (kicker rose)</label>
                         <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($item['title']) ?>" required>
@@ -665,6 +701,20 @@ foreach ($items as $item) {
 </script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
+  // Masquer spinner, afficher contenu
+  var sp = document.getElementById('loadingSpinner');
+  if (sp) sp.style.display = 'none';
+  document.querySelectorAll('.content-loaded').forEach(function(el) { el.style.display = ''; });
+
+  // Auto-dismiss des alertes
+  document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
+    var delay = parseInt(alert.dataset.dismissDelay) || 5000;
+    setTimeout(function() {
+      var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      bsAlert.close();
+    }, delay);
+  });
+
   var el = document.getElementById('sortableTimeline');
   if (el) {
     Sortable.create(el, {

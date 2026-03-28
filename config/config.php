@@ -280,7 +280,7 @@ function sanitizeHtml(?string $html): string {
     ];
     $allowedAttrs = [
         'a'     => ['href', 'title', 'target', 'rel'],
-        'img'   => ['src', 'alt', 'width', 'height', 'loading'],
+        'img'   => ['src', 'alt', 'width', 'height', 'loading', 'style'],
         'td'    => ['colspan', 'rowspan'],
         'th'    => ['colspan', 'rowspan'],
         'ol'    => ['start', 'type'],
@@ -341,13 +341,38 @@ function _sanitizeNode(DOMNode $node, array $allowedTags, array $allowedAttrs, a
                     if (in_array($attrName, ['href', 'src'], true)) {
                         $val = trim($attr->nodeValue);
                         $scheme = strtolower(parse_url($val, PHP_URL_SCHEME) ?? '');
-                        if ($scheme !== '' && !in_array($scheme, $safeSchemes, true)) {
+                        // Autoriser data:image/* uniquement sur les <img> (ancien contenu TinyMCE)
+                        $isDataImage = ($tag === 'img' && $scheme === 'data'
+                            && preg_match('#^data:image/(jpeg|png|gif|webp);base64,#i', $val));
+                        if ($scheme !== '' && !$isDataImage && !in_array($scheme, $safeSchemes, true)) {
                             $attrsToRemove[] = $attr->nodeName;
                         }
                     }
                 }
                 foreach ($attrsToRemove as $aName) {
                     $child->removeAttribute($aName);
+                }
+                // Sanitiser le style des images (n'autoriser que width/height/max-width)
+                if ($tag === 'img' && $child->hasAttribute('style')) {
+                    $rawStyle = $child->getAttribute('style');
+                    $safeProps = [];
+                    foreach (explode(';', $rawStyle) as $decl) {
+                        $decl = trim($decl);
+                        if ($decl === '') continue;
+                        if (preg_match('/^(width|height|max-width)\s*:\s*[\d.]+(px|%|em|rem|auto)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                    }
+                    if (!empty($safeProps)) {
+                        $child->setAttribute('style', implode('; ', $safeProps));
+                    } else {
+                        $child->removeAttribute('style');
+                    }
+                }
+                // Supprimer les <a> vides (aucun texte ni enfant visible)
+                if ($tag === 'a' && trim($child->textContent) === '' && $child->getElementsByTagName('img')->length === 0) {
+                    $toRemove[] = $child;
+                    continue;
                 }
                 // Forcer rel=noopener sur les liens avec target
                 if ($tag === 'a' && $child->hasAttribute('target')) {

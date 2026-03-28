@@ -162,14 +162,25 @@ require 'navbar-data.php';
 <div class="bg-white p-4 card-dashboard">
   <h2 class="mb-3">Utilisateurs & Envoi de mail</h2>
 
+  <?php if (isset($_SESSION['flash_message'])):
+    $flash = $_SESSION['flash_message'];
+    unset($_SESSION['flash_message']);
+  ?>
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" role="alert" data-dismiss-delay="5000">
+      <?= htmlspecialchars($flash['message']) ?>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <?php endif; ?>
+
   <!-- Tabs -->
+  <?php $activeTab = (isset($_GET['tab']) && $_GET['tab'] === 'mail') ? 'mail' : 'users'; ?>
   <ul class="nav settings-tabs" id="userTabs">
-    <li class="nav-item"><a class="nav-link active" href="#" data-tab="users">Utilisateurs</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" data-tab="mail">Envoi de mail</a></li>
+    <li class="nav-item"><a class="nav-link <?= $activeTab === 'users' ? 'active' : '' ?>" href="#" data-tab="users">Utilisateurs</a></li>
+    <li class="nav-item"><a class="nav-link <?= $activeTab === 'mail' ? 'active' : '' ?>" href="#" data-tab="mail">Envoi de mail</a></li>
   </ul>
 
   <!-- ═══ Tab: Users ═══ -->
-  <div class="tab-section active" id="tab-users">
+  <div class="tab-section <?= $activeTab === 'users' ? 'active' : '' ?>" id="tab-users">
     <div class="users-toolbar">
       <button class="btn btn-rose" data-bs-toggle="modal" data-bs-target="#createUserModal">
         <i class="bi bi-plus-lg me-1"></i>Nouvel utilisateur
@@ -181,7 +192,7 @@ require 'navbar-data.php';
   </div>
 
   <!-- ═══ Tab: Mail ═══ -->
-  <div class="tab-section" id="tab-mail">
+  <div class="tab-section <?= $activeTab === 'mail' ? 'active' : '' ?>" id="tab-mail">
     <form id="fMail">
       <div class="row g-3">
         <!-- Destinataires -->
@@ -375,6 +386,15 @@ const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribut
 const userRole = '<?= $role ?>';
 let availableEmails = [];
 let selectedRecipients = [];
+
+/* ══ Auto-dismiss alerts ════ */
+document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
+  var delay = parseInt(alert.dataset.dismissDelay) || 5000;
+  setTimeout(function() {
+    var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+    bsAlert.close();
+  }, delay);
+});
 
 /* ══ Tab switching ════ */
 document.querySelectorAll('#userTabs .nav-link').forEach(function(tab) {
@@ -618,7 +638,40 @@ function initTinyMCE() {
       'alignright alignjustify | bullist numlist outdent indent | ' +
       'removeformat | help',
     content_style: 'body { font-family:Arial,sans-serif; font-size:14px }',
-    language: 'fr_FR'
+    language: 'fr_FR',
+
+    // Upload images sur le serveur au lieu de base64
+    images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', blobInfo.blob(), blobInfo.filename());
+        formData.append('csrf_token', '<?= csrf_token() ?>');
+        fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+            .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+            .then(data => { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+            .catch(e => reject(e.message));
+    }),
+    automatic_uploads: true,
+    images_reuse_filename: true,
+
+    // Upload fichiers (PDF, images) via le sélecteur de fichiers
+    file_picker_types: 'file image',
+    file_picker_callback: (callback, value, meta) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+        input.addEventListener('change', () => {
+            const file = input.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('csrf_token', '<?= csrf_token() ?>');
+            fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                .then(data => { if (data.location) { const n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+                .catch(e => alert('Erreur upload: ' + e.message));
+        });
+        input.click();
+    }
   });
 
   tinymceInitialized = true;
