@@ -233,18 +233,14 @@ function getCreateTableStatements(): array
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `assoconnect_js` longtext DEFAULT NULL,
           `assoconnect_iframe` longtext DEFAULT NULL,
-          `title` varchar(50) DEFAULT NULL,
-          `title_color` varchar(50) DEFAULT NULL,
-          `picture` varchar(50) DEFAULT NULL,
+          `title` TEXT DEFAULT NULL,
           `footer` varchar(50) DEFAULT NULL,
           `registration_fee` int(10) DEFAULT NULL,
-          `titleAccueil` varchar(50) DEFAULT NULL,
-          `edition` varchar(50) DEFAULT NULL,
+          `titleAccueil` TEXT DEFAULT NULL,
           `link_facebook` varchar(255) DEFAULT NULL,
           `link_instagram` varchar(255) DEFAULT NULL,
           `accueil_active` int(2) NOT NULL DEFAULT 0,
           `date_course` timestamp NULL DEFAULT NULL,
-          `picture_accueil` varchar(255) DEFAULT NULL,
           `picture_partner` varchar(255) DEFAULT NULL,
           `picture_gradient` varchar(255) DEFAULT NULL,
           `titleParcours` varchar(255) DEFAULT NULL,
@@ -262,6 +258,18 @@ function getCreateTableStatements(): array
           `client_secret` TEXT DEFAULT NULL,
           `mail_email` VARCHAR(255) DEFAULT NULL,
           `mail_phone` VARCHAR(50) DEFAULT NULL,
+          `flash_info_text` VARCHAR(500) DEFAULT NULL,
+          `flash_info_active` TINYINT(1) NOT NULL DEFAULT 0,
+          `qrcode_mail_mode` ENUM('none','all','first_x') NOT NULL DEFAULT 'none',
+          `qrcode_mail_limit` INT(11) NOT NULL DEFAULT 0,
+          `titleAccueil_mobile` TEXT DEFAULT NULL,
+          `title_mobile` TEXT DEFAULT NULL,
+          `navbar_logo` VARCHAR(255) DEFAULT 'logo_fer_rose.png',
+          `subtitle_accueil` VARCHAR(255) DEFAULT NULL,
+          `subtitle_accueil_mobile` VARCHAR(255) DEFAULT NULL,
+          `video_accueil` VARCHAR(255) DEFAULT 'FER.mp4',
+          `maintenance_mode` TINYINT(1) NOT NULL DEFAULT 0,
+          `maintenance_message` VARCHAR(500) DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -294,8 +302,20 @@ function getCreateTableStatements(): array
         "CREATE TABLE IF NOT EXISTS `forms` (
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `fields` varchar(50) DEFAULT NULL,
+          `label` varchar(100) DEFAULT NULL,
+          `field_type` varchar(20) NOT NULL DEFAULT 'text',
+          `bdd_column` varchar(50) DEFAULT NULL,
           `active` int(2) NOT NULL DEFAULT 0,
           `required` int(2) NOT NULL DEFAULT 0,
+          `is_locked` tinyint(1) NOT NULL DEFAULT 0,
+          `is_default` tinyint(1) NOT NULL DEFAULT 1,
+          `visible_public` tinyint(1) NOT NULL DEFAULT 1,
+          `visible_admin` tinyint(1) NOT NULL DEFAULT 1,
+          `visible_saisie` tinyint(1) NOT NULL DEFAULT 1,
+          `visible_qr` tinyint(1) NOT NULL DEFAULT 1,
+          `sort_order` int(11) NOT NULL DEFAULT 0,
+          `options_list` text DEFAULT NULL,
+          `encrypted` tinyint(1) NOT NULL DEFAULT 0,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -552,21 +572,22 @@ function getCreateTableStatements(): array
 function getDefaultInserts(): array
 {
     return [
-        "INSERT IGNORE INTO `setting` (`id`, `title`, `title_color`, `footer`, `registration_fee`, `accueil_active`, `debogage`)
-         VALUES (1, 'Forbach en Rose', '#ffffff', '© Forbach en Rose', 12, 0, 0)",
+        "INSERT IGNORE INTO `setting` (`id`, `title`, `footer`, `registration_fee`, `accueil_active`, `debogage`)
+         VALUES (1, 'Forbach en Rose', '© Forbach en Rose', 12, 0, 0)",
 
         "INSERT IGNORE INTO `customize` (`id`, `assoconnect_js`, `assoconnect_iframe`)
          VALUES (1, NULL, NULL)",
 
-        "INSERT IGNORE INTO `forms` (`id`, `fields`, `active`, `required`) VALUES
-          (1, 'required_name', 0, 1),
-          (2, 'required_firstname', 0, 1),
-          (3, 'required_phone', 0, 1),
-          (4, 'required_email', 0, 1),
-          (5, 'required_date_of_birth', 0, 1),
-          (6, 'required_sex', 0, 1),
-          (7, 'required_city', 0, 1),
-          (8, 'required_company', 0, 0)",
+        "INSERT IGNORE INTO `forms` (`id`, `fields`, `label`, `field_type`, `bdd_column`, `active`, `required`, `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`, `sort_order`, `options_list`, `encrypted`) VALUES
+          (1, 'required_name',          'Nom',              'text',   'nom',         1, 1, 1, 1, 1, 1, 1, 1, 1,  NULL, 1),
+          (2, 'required_firstname',     'Prénom',           'text',   'prenom',      1, 1, 1, 1, 1, 1, 1, 1, 2,  NULL, 1),
+          (3, 'required_phone',         'Téléphone',        'text',   'tel',         1, 0, 0, 1, 1, 1, 1, 1, 4,  NULL, 1),
+          (4, 'required_email',         'Email',            'email',  'email',       1, 1, 1, 1, 1, 1, 1, 1, 3,  NULL, 1),
+          (5, 'required_date_of_birth', 'Date de naissance','date',   'naissance',   1, 0, 0, 1, 1, 1, 1, 1, 5,  NULL, 1),
+          (6, 'required_sex',           'Sexe',             'select', 'sexe',        1, 0, 0, 1, 1, 1, 1, 1, 6,  'H,F,Autre', 0),
+          (7, 'required_city',          'Ville',            'text',   'ville',       1, 0, 0, 1, 1, 1, 1, 1, 7,  NULL, 1),
+          (8, 'required_company',       'Entreprise',       'text',   'entreprise',  1, 0, 0, 1, 1, 1, 1, 1, 8,  NULL, 1),
+          (9, 'required_tshirt',        'Taille T-shirt',   'select', 'tshirt_size', 0, 0, 0, 1, 0, 1, 0, 0, 9,  '-,XS,S,M,L,XL,XXL', 0)",
 
         "INSERT IGNORE INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES
           (1, 'inscription_no', 'numero billet'),
@@ -666,7 +687,7 @@ $stepLabels = [
     .oc-icon-circle svg {
       width: 28px;
       height: 28px;
-      color: #ec4899;
+      color: #F42182;
     }
 
     .oc-title {
@@ -715,12 +736,12 @@ $stepLabels = [
     }
 
     .oc-step-dot.active {
-      background: #ec4899;
+      background: #F42182;
       color: #fff;
     }
 
     .oc-step-dot.done {
-      background: #ec4899;
+      background: #F42182;
       color: #fff;
     }
 
@@ -732,7 +753,7 @@ $stepLabels = [
     }
 
     .oc-step-line.done {
-      background: #ec4899;
+      background: #F42182;
     }
 
     .oc-step-labels {
@@ -750,7 +771,7 @@ $stepLabels = [
     }
 
     .oc-step-label.active {
-      color: #ec4899;
+      color: #F42182;
       font-weight: 600;
     }
 
@@ -786,7 +807,7 @@ $stepLabels = [
     }
 
     .oc-input:focus {
-      border-color: #ec4899;
+      border-color: #F42182;
       box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
@@ -803,7 +824,7 @@ $stepLabels = [
       justify-content: center;
       width: 100%;
       height: 36px;
-      background: #ec4899;
+      background: #F42182;
       color: #fff;
       border: none;
       border-radius: 4px;

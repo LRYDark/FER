@@ -29,7 +29,7 @@
 
   /* Accents */
   --accent: #6d28d9; /* violet */
-  --pink: #ec4899;
+  --pink: #F42182;
   --pink-dark: #db2777;
   --mobile-header-bg: rgba(255, 255, 255, 0.82);
 
@@ -210,7 +210,7 @@ body.nav-scrolled .nav-card{
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: rgba(236,72,153,.12);
+  background: rgba(244,33,130,.12);
   color: var(--pink);
   flex: 0 0 auto;
 }
@@ -298,12 +298,12 @@ body.nav-scrolled .nav-card{
   gap: 8px;
   transition: all .2s ease;
   white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(236,72,153,.25);
+  box-shadow: 0 4px 14px rgba(244,33,130,.25);
 }
 .btn.pink:hover{
   background: var(--pink-dark);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(236,72,153,.35);
+  box-shadow: 0 8px 24px rgba(244,33,130,.35);
   gap: 12px;
 }
 .nav-cta{
@@ -452,7 +452,7 @@ body.nav-scrolled .mega{
 }
 
 .mega-link:hover{
-  background: rgba(236,72,153,.06);
+  background: rgba(244,33,130,.06);
 }
 
 .micon{
@@ -461,13 +461,13 @@ body.nav-scrolled .mega{
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: rgba(236,72,153,.08);
+  background: rgba(244,33,130,.08);
   flex: 0 0 auto;
   font-size: 20px;
 }
 
 .mega-link:hover .micon{
-  background: rgba(236,72,153,.14);
+  background: rgba(244,33,130,.14);
 }
 
 .mega-link-content{
@@ -858,7 +858,7 @@ body.nav-scrolled .mega{
 .mobile-menu-icon{
   width: 32px;
   height: 32px;
-  background: rgba(236,72,153,.08);
+  background: rgba(244,33,130,.08);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -908,7 +908,7 @@ body.nav-scrolled .mega{
   background: var(--pink);
   display: inline-flex;
   flex: 0 0 auto;
-  box-shadow: 0 2px 5px rgba(236,72,153,.2);
+  box-shadow: 0 2px 5px rgba(244,33,130,.2);
 }
 
 /* "See all" link — always at bottom of sub-view */
@@ -1301,7 +1301,7 @@ p.sub{
 .social-link:hover{
   background: var(--pink);
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(236,72,153,.3);
+  box-shadow: 0 8px 20px rgba(244,33,130,.3);
 }
 
 .social-link svg{
@@ -1343,7 +1343,7 @@ p.sub{
 .footer-contact-btn:hover{
   background: var(--pink-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(236,72,153,.3);
+  box-shadow: 0 4px 12px rgba(244,33,130,.3);
   gap: 8px;
 }
 
@@ -1690,7 +1690,7 @@ body.dark-theme .mobile-menu-trigger:hover{
 }
 body.dark-theme .mobile-menu-icon{
   color: #ffffff;
-  background: rgba(236,72,153,.15);
+  background: rgba(244,33,130,.15);
 }
 body.dark-theme .mobile-menu-sublink{
   color: rgba(255,255,255,.7);
@@ -1847,7 +1847,7 @@ body.dark-theme .news-search-bar input::placeholder{
 }
 body.dark-theme .news-search-bar input:focus{
   border-color: var(--pink);
-  box-shadow: 0 0 0 3px rgba(236,72,153,.15);
+  box-shadow: 0 0 0 3px rgba(244,33,130,.15);
 }
 body.dark-theme .news-search-clear{
   background: rgba(255,255,255,.1);
@@ -1968,7 +1968,7 @@ body.dark-theme .comment-form textarea::placeholder{
 body.dark-theme .comment-form input:focus,
 body.dark-theme .comment-form textarea:focus{
   border-color: var(--pink);
-  box-shadow: 0 0 0 3px rgba(236,72,153,.15);
+  box-shadow: 0 0 0 3px rgba(244,33,130,.15);
 }
 body.dark-theme .comment-submit{
   background: #ffffff;
@@ -2002,7 +2002,7 @@ body.dark-theme .comment-toggle-replies{
   color: var(--pink);
 }
 body.dark-theme .comment-toggle-replies:hover{
-  background: rgba(236,72,153,.1);
+  background: rgba(244,33,130,.1);
 }
 
 /* Reply form inline */
@@ -2043,7 +2043,7 @@ body.dark-theme .nvote:hover{
   background: rgba(255,255,255,.12);
 }
 body.dark-theme .nvote.voted{
-  background: rgba(236,72,153,.18);
+  background: rgba(244,33,130,.18);
 }
 body.dark-theme .nvote-count{
   color: #ffffff;
@@ -2051,7 +2051,7 @@ body.dark-theme .nvote-count{
 
 /* Hero vote buttons (article detail) */
 body.dark-theme .hero-vote.voted{
-  background: rgba(236,72,153,.18);
+  background: rgba(244,33,130,.18);
 }
 
 /* News card metadata */
@@ -2078,7 +2078,7 @@ body.dark-theme .mention-item{
 }
 body.dark-theme .mention-item:hover,
 body.dark-theme .mention-item.active{
-  background: rgba(236,72,153,.12);
+  background: rgba(244,33,130,.12);
   color: var(--pink);
 }
 

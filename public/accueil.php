@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+checkMaintenance();
 require_once '../config/tracker.php';
 trackPageVisit();
 
@@ -91,16 +92,15 @@ try {
 
 $titleAccueil  = $data['titleAccueil'] ?? '';
 $picture = $data['picture'] ?? '';  
-$titleColor = $data['title_color'] ?? '#ffffff';
-$edition = $data['edition'] ?? '';  
 $link_instagram = $data['link_instagram'] ?? null;
 $link_facebook = $data['link_facebook'] ?? null; 
 $link_twitter = $data['link_twitter'] ?? null;
 $link_youtube = $data['link_youtube'] ?? null;
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d\TH:i:s', strtotime($date_course)) : '2026-07-05T09:00:00';
-$picture_partner = $data['picture_partner'] ?? ''; 
-$picture_accueil = $data['picture_accueil'] ?? ''; 
+$picture_partner = $data['picture_partner'] ?? '';
+$flash_info_text = $data['flash_info_text'] ?? '';
+$flash_info_active = !empty($data['flash_info_active']) ? 1 : 0;
 
 // Récupération des années photos pour le menu
 try {
@@ -205,6 +205,9 @@ function generateTimelineSVG(int $count): array {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Accueil</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Bebas+Neue&family=Oswald:wght@700&family=Montserrat:wght@700;900&family=Dancing+Script:wght@700&family=Lobster&display=swap" rel="stylesheet">
 
   <style>
     :root{
@@ -233,7 +236,7 @@ function generateTimelineSVG(int $count): array {
 
       /* Accents */
       --accent: #6d28d9; /* violet */
-      --pink: #ec4899;
+      --pink: #F42182;
       --pink-dark: #db2777;
       --mobile-header-bg: rgba(255, 255, 255, 0.82);
 
@@ -266,6 +269,97 @@ function generateTimelineSVG(int $count): array {
     }
     body.nav-scrolled{
       padding-top: var(--nav-space);
+    }
+
+    /* ===== Flash Info Banner ===== */
+    .flash-banner{
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10001;
+      background: linear-gradient(135deg, #db2777 0%, #F42182 50%, #db2777 100%);
+      background-size: 200% 100%;
+      animation: flash-gradient 6s ease infinite;
+      overflow: hidden;
+      white-space: nowrap;
+      padding: 10px 0;
+      box-shadow: 0 2px 12px rgba(219,39,119,.25);
+    }
+    body.has-flash-banner .floating-nav{
+      top: 38px;
+    }
+    body.has-flash-banner.nav-scrolled .floating-nav{
+      top: 56px;
+    }
+    body.has-flash-banner .mobile-header{
+      top: 38px;
+    }
+    @media (max-width: 980px){
+      body.has-flash-banner{
+        padding-top: 110px !important;
+      }
+    }
+    @keyframes flash-gradient{
+      0%,100%{ background-position: 0% 50%; }
+      50%{ background-position: 100% 50%; }
+    }
+    .flash-banner-track{
+      display: inline-flex;
+      animation: flash-scroll 40s linear infinite;
+    }
+    .flash-banner-track:hover{
+      animation-play-state: paused;
+    }
+    @keyframes flash-scroll{
+      0%{ transform: translateX(0); }
+      100%{ transform: translateX(-50%); }
+    }
+    .flash-banner-item{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 48px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .flash-banner-item::before{
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: rgba(255,255,255,.7);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    @media (max-width: 600px){
+      .flash-banner-item{ font-size: 12px; padding: 0 32px; }
+    }
+
+    /* ===== Hero PC/Mobile toggle ===== */
+    .hero-mobile{ display: none; }
+    .hero-pc{ display: block; }
+    @media (max-width: 980px){
+      .hero-pc{ display: none; }
+      .hero-mobile{ display: block; }
+    }
+
+    /* ===== Hero logo image (mode image) ===== */
+    .hero-logo-img{
+      max-width: min(90%, 420px);
+      max-height: 160px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 8px 24px rgba(0,0,0,.35));
+      margin-bottom: 8px;
+    }
+    @media (max-width: 600px){
+      .hero-logo-img{ max-height: 100px; max-width: 80%; }
     }
 
     /* ===== Floating Navbar wrapper ===== */
@@ -411,7 +505,7 @@ function generateTimelineSVG(int $count): array {
       border-radius: 8px;
       display: grid;
       place-items: center;
-      background: rgba(236,72,153,.12);
+      background: rgba(244,33,130,.12);
       color: var(--pink);
       flex: 0 0 auto;
     }
@@ -499,12 +593,12 @@ function generateTimelineSVG(int $count): array {
       gap: 8px;
       transition: all .2s ease;
       white-space: nowrap;
-      box-shadow: 0 4px 14px rgba(236,72,153,.25);
+      box-shadow: 0 4px 14px rgba(244,33,130,.25);
     }
     .btn.pink:hover{
       background: var(--pink-dark);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(236,72,153,.35);
+      box-shadow: 0 8px 24px rgba(244,33,130,.35);
       gap: 12px;
     }
     .nav-cta{
@@ -653,7 +747,7 @@ function generateTimelineSVG(int $count): array {
     }
 
     .mega-link:hover{
-      background: rgba(236,72,153,.06);
+      background: rgba(244,33,130,.06);
     }
 
     .micon{
@@ -662,13 +756,13 @@ function generateTimelineSVG(int $count): array {
       border-radius: 10px;
       display: grid;
       place-items: center;
-      background: rgba(236,72,153,.08);
+      background: rgba(244,33,130,.08);
       flex: 0 0 auto;
       font-size: 20px;
     }
 
     .mega-link:hover .micon{
-      background: rgba(236,72,153,.14);
+      background: rgba(244,33,130,.14);
     }
 
     .mega-link-content{
@@ -1060,7 +1154,7 @@ function generateTimelineSVG(int $count): array {
     .mobile-menu-icon{
       width: 32px;
       height: 32px;
-      background: rgba(236,72,153,.08);
+      background: rgba(244,33,130,.08);
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -1110,7 +1204,7 @@ function generateTimelineSVG(int $count): array {
       background: var(--pink);
       display: inline-flex;
       flex: 0 0 auto;
-      box-shadow: 0 2px 5px rgba(236,72,153,.2);
+      box-shadow: 0 2px 5px rgba(244,33,130,.2);
     }
 
     /* "See all" link — always at bottom of sub-view */
@@ -1462,7 +1556,7 @@ function generateTimelineSVG(int $count): array {
     }
 
     .reg-input:focus {
-      box-shadow: 0 0 0 3px rgba(236,72,153,.15);
+      box-shadow: 0 0 0 3px rgba(244,33,130,.15);
     }
     .reg-submit {
       background: var(--pink);
@@ -1509,7 +1603,7 @@ function generateTimelineSVG(int $count): array {
     .reg-result.danger { 
       background: #fce7f3; 
       color: #9d174d;
-      border: 1px solid rgba(236,72,153,.35);
+      border: 1px solid rgba(244,33,130,.35);
     }
 
     /* Responsive */
@@ -1603,6 +1697,51 @@ function generateTimelineSVG(int $count): array {
       object-fit:cover;
       transform: scale(1.02);
       filter: saturate(1.05) contrast(1.02);
+    }
+
+    /* Bouton Play/Pause vidéo */
+    .video-toggle{
+      position:absolute;
+      z-index:10;
+      bottom:16px; right:16px;
+      width:40px; height:40px;
+      border-radius:50%;
+      border:none;
+      background:rgba(0,0,0,.35);
+      backdrop-filter:blur(6px);
+      color:#fff;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition:background .2s, transform .2s, opacity .2s;
+      opacity:.6;
+    }
+    .video-toggle:hover{
+      background:rgba(0,0,0,.55);
+      opacity:1;
+      transform:scale(1.08);
+    }
+    .video-toggle .vt-icon{
+      width:16px; height:16px;
+      pointer-events:none;
+    }
+    /* Mobile : en haut à droite, plus discret */
+    @media (max-width:980px){
+      .video-toggle{
+        top:12px; right:12px;
+        bottom:auto;
+        width:32px; height:32px;
+        opacity:.4;
+        background:rgba(0,0,0,.25);
+      }
+      .video-toggle:hover,
+      .video-toggle:active{
+        opacity:.8;
+      }
+      .video-toggle .vt-icon{
+        width:13px; height:13px;
+      }
     }
 
     /* Social card on video (right side) */
@@ -1786,12 +1925,12 @@ function generateTimelineSVG(int $count): array {
       text-decoration: none;
       transition: all .2s ease;
       white-space: nowrap;
-      box-shadow: 0 4px 14px rgba(236,72,153,.25);
+      box-shadow: 0 4px 14px rgba(244,33,130,.25);
     }
     .cta-pink:hover{
       background: var(--pink-dark);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(236,72,153,.35);
+      box-shadow: 0 8px 24px rgba(244,33,130,.35);
       gap: 12px;
     }
     .cta-pink:active{ transform: translateY(0); }
@@ -2039,14 +2178,14 @@ function generateTimelineSVG(int $count): array {
       border-radius: 50%;
       background: #fff;
       border: 4px solid var(--pink);
-      box-shadow: 0 0 0 6px rgba(236,72,153,.15);
+      box-shadow: 0 0 0 6px rgba(244,33,130,.15);
       z-index: 10;
       transition: transform .3s ease, box-shadow .3s ease;
     }
 
     .t-item:hover .t-dot {
       transform: translate(-50%, -50%) scale(1.2);
-      box-shadow: 0 0 0 10px rgba(236,72,153,.2);
+      box-shadow: 0 0 0 10px rgba(244,33,130,.2);
     }
 
     @media (min-width: 901px){
@@ -2316,7 +2455,7 @@ function generateTimelineSVG(int $count): array {
     .partner-email-input:focus{
       background: rgba(255,255,255,.12);
       border-color: var(--pink);
-      box-shadow: 0 0 0 3px rgba(236,72,153,.15);
+      box-shadow: 0 0 0 3px rgba(244,33,130,.15);
     }
     
     .partner-submit{
@@ -2339,7 +2478,7 @@ function generateTimelineSVG(int $count): array {
     .partner-submit:hover{
       background: var(--pink-dark);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(236,72,153,.35);
+      box-shadow: 0 8px 24px rgba(244,33,130,.35);
       gap: 12px;
     }
     
@@ -2439,7 +2578,7 @@ function generateTimelineSVG(int $count): array {
     .news-card:hover{
       transform: translateY(-3px);
       background: rgba(255,255,255,.12);
-      border-color: rgba(236,72,153,.6);
+      border-color: rgba(244,33,130,.6);
     }
 
     .news-media{
@@ -2598,11 +2737,14 @@ function generateTimelineSVG(int $count): array {
   color: #ffffff;
   opacity: 1;
   margin-bottom: 6px;
-  font-size: clamp(28px, 4vw, 52px); /* Taille police pour le titre Forbach en rose */
+  font-size: clamp(28px, 4vw, 52px);
   font-weight: 900;
   letter-spacing: -0.02em;
   text-transform: none;
   text-shadow: 0 10px 28px rgba(0,0,0,.4);
+}
+.demo-panel.video-float .demo-kicker p{
+  margin: 0;
 }
 
 .demo-panel.video-float .demo-desc{
@@ -2793,9 +2935,9 @@ function generateTimelineSVG(int $count): array {
       border-color: rgba(14,116,144,.35);
     }
     body.dark-theme .reg-result.danger{
-      background: rgba(236,72,153,.15);
+      background: rgba(244,33,130,.15);
       color: #f9a8d4;
-      border-color: rgba(236,72,153,.35);
+      border-color: rgba(244,33,130,.35);
     }
 
     body.dark-theme .t-card{
@@ -2841,7 +2983,7 @@ function generateTimelineSVG(int $count): array {
 </style>
 </head>
 
-<body>
+<body<?php if ($flash_info_active && !empty($flash_info_text)): ?> class="has-flash-banner"<?php endif; ?>>
 
   <!-- NAV -->
   <!-- Theme: apply saved preference immediately to avoid flash -->
@@ -2852,8 +2994,11 @@ function generateTimelineSVG(int $count): array {
   <header class="floating-nav" id="navRoot">
     <div class="mega-overlay" id="megaOverlay"></div>
     <div class="nav-pill">
+      <?php $navLogo = $data['navbar_logo'] ?? 'logo_fer_rose.png'; ?>
       <a class="brand" href="#">
-        <img class="brand-logo" src="../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
+        <?php if (!empty($navLogo) && file_exists(__DIR__ . '/../files/_logos/' . $navLogo)): ?>
+          <img class="brand-logo" src="../files/_logos/<?= rawurlencode($navLogo) ?>" alt="Forbach en Rose">
+        <?php endif; ?>
       </a>
 
       <button class="burger" id="burgerBtn" aria-expanded="false" aria-controls="mobileDrawer">
@@ -3083,7 +3228,9 @@ function generateTimelineSVG(int $count): array {
   <!-- ===== MOBILE HEADER (Vimeo style) ===== -->
   <header class="mobile-header" id="mobileHeader">
     <a class="brand" href="accueil">
-      <img class="brand-logo" src="../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
+      <?php if (!empty($navLogo) && file_exists(__DIR__ . '/../files/_logos/' . $navLogo)): ?>
+        <img class="brand-logo" src="../files/_logos/<?= rawurlencode($navLogo) ?>" alt="Forbach en Rose">
+      <?php endif; ?>
     </a>
   </header>
 
@@ -3286,21 +3433,59 @@ function generateTimelineSVG(int $count): array {
     <!-- ===== MOBILE MENU BACKDROP ===== -->
   <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
 
+  <!-- FLASH INFO BANNER -->
+  <?php if ($flash_info_active && !empty($flash_info_text)): ?>
+  <div class="flash-banner" id="flashBanner">
+    <div class="flash-banner-track">
+      <?php for ($i = 0; $i < 6; $i++): ?>
+        <span class="flash-banner-item"><?= htmlspecialchars($flash_info_text) ?></span>
+      <?php endfor; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <!-- PAGE -->
   <main>
     
 
     <div class="demo-wrap">
       <section class="demo-card" aria-label="Carte vidéo">
-        <video class="demo-video" autoplay muted loop playsinline>
-          <source src="../files/FER.mp4" type="video/mp4" />
+        <?php $videoFile = $data['video_accueil'] ?? 'FER.mp4'; ?>
+        <?php if ($videoFile && file_exists(__DIR__ . '/../files/' . $videoFile)): ?>
+        <video class="demo-video" id="heroVideo" autoplay muted loop playsinline>
+          <source src="../files/<?= rawurlencode($videoFile) ?>" type="video/mp4" />
         </video>
+
+        <!-- Bouton Play/Pause -->
+        <button class="video-toggle" id="videoToggle" aria-label="Pause la vidéo" type="button">
+          <svg class="vt-icon vt-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          <svg class="vt-icon vt-play" viewBox="0 0 24 24" fill="currentColor" style="display:none"><polygon points="6,4 20,12 6,20"/></svg>
+        </button>
+        <?php endif; ?>
 
         <div class="demo-overlay">
           <div class="demo-panel video-float">
             <div class="hero-text">
-              <div class="demo-kicker" style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($titleAccueil) ?></div>
-              <p class="demo-desc">Course et marche solidaires contre le cancer</strong>.</p>
+              <!-- PC -->
+              <div class="hero-device hero-pc">
+                <div class="demo-kicker"><?= $data['titleAccueil'] ?? '' ?></div>
+              </div>
+              <!-- Mobile -->
+              <div class="hero-device hero-mobile">
+                <div class="demo-kicker"><?= ($data['titleAccueil_mobile'] ?? '') ?: ($data['titleAccueil'] ?? '') ?></div>
+              </div>
+              <?php
+                $subPC = $data['subtitle_accueil'] ?? '';
+                $subMobile = $data['subtitle_accueil_mobile'] ?? '';
+              ?>
+              <?php if ($subPC !== ''): ?>
+                <p class="demo-desc hero-device hero-pc"><?= htmlspecialchars($subPC) ?></p>
+              <?php endif; ?>
+              <?php if ($subMobile !== ''): ?>
+                <p class="demo-desc hero-device hero-mobile"><?= htmlspecialchars($subMobile) ?></p>
+              <?php elseif ($subPC !== ''): ?>
+                <p class="demo-desc hero-device hero-mobile"><?= htmlspecialchars($subPC) ?></p>
+              <?php endif; ?>
             </div>
 
             <div class="countdown-wrap">
@@ -3472,7 +3657,7 @@ function generateTimelineSVG(int $count): array {
             <defs>
               <linearGradient id="gradient-line" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stop-color="#fce7f3" />
-                <stop offset="50%" stop-color="#ec4899" />
+                <stop offset="50%" stop-color="#F42182" />
                 <stop offset="100%" stop-color="#db2777" />
               </linearGradient>
             </defs>
@@ -3844,6 +4029,28 @@ function generateTimelineSVG(int $count): array {
         scheduleUpdate(true);
       });
       scheduleUpdate(true);
+    })();
+
+    // ===== Video Play/Pause toggle =====
+    (function(){
+      const vid = document.getElementById('heroVideo');
+      const btn = document.getElementById('videoToggle');
+      if (!vid || !btn) return;
+      const iconPause = btn.querySelector('.vt-pause');
+      const iconPlay  = btn.querySelector('.vt-play');
+      btn.addEventListener('click', function(){
+        if (vid.paused) {
+          vid.play();
+          iconPause.style.display = '';
+          iconPlay.style.display  = 'none';
+          btn.setAttribute('aria-label', 'Pause la vidéo');
+        } else {
+          vid.pause();
+          iconPause.style.display = 'none';
+          iconPlay.style.display  = '';
+          btn.setAttribute('aria-label', 'Lancer la vidéo');
+        }
+      });
     })();
   </script>
 

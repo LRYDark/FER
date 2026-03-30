@@ -1,6 +1,6 @@
 <?php
 require '../config/config.php';
-require '../config/googleMail.php';
+checkMaintenance();
 require_once '../config/csrf.php';
 
 // Variables d'état
@@ -79,31 +79,44 @@ if ($_POST) {
                 $nextInscriptionNo = ($result2['max_no'] ?? 0) + 1;
             }
 
-            $formData = [
-                'inscription_no' => $nextInscriptionNo,
-                'nom' => encrypt($_POST['nom'] ?? ''),
-                'prenom' => encrypt($_POST['prenom'] ?? ''),
-                'tel' => encrypt($_POST['tel'] ?? ''),
-                'email' => encrypt($_POST['email'] ?? ''),
-                'naissance' => encrypt($_POST['naissance'] ?? ''),
-                'sexe' => $_POST['sexe'] ?? '',
-                'ville' => encrypt($_POST['ville'] ?? ''),
-                'entreprise' => encrypt($_POST['entreprise'] ?? ''),
-                'tshirt_size' => $_POST['tshirt_size'] ?? '-',
-                'origine' => $_POST['origine'] ?? 'en ligne',
-                'paiement_mode' => $_POST['paiement_mode'] ?? 'en ligne (CB)'
-            ];
+            // Construction dynamique des données à insérer
+            require_once '../config/form_fields.php';
+            $fieldCols = getAllActiveFieldColumns($pdo);
 
-            $stmt = $pdo->prepare(
-                'INSERT INTO registrations (inscription_no, nom, prenom, tel, email, naissance, sexe, ville, entreprise, tshirt_size, origine, paiement_mode, created_at)
-                 VALUES (:inscription_no, :nom, :prenom, :tel, :email, :naissance, :sexe, :ville, :entreprise, :tshirt_size, :origine, :paiement_mode, NOW())'
-            );
+            $formData = ['inscription_no' => $nextInscriptionNo];
+            $columns = ['inscription_no'];
+            $placeholders = [':inscription_no'];
 
+            foreach ($fieldCols as $col => $meta) {
+                $raw = $_POST[$col] ?? '';
+                $formData[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
+                $columns[] = "`{$col}`";
+                $placeholders[] = ":{$col}";
+            }
+
+            // Champs système (toujours présents)
+            foreach (['origine', 'paiement_mode'] as $sysCol) {
+                if (!isset($formData[$sysCol])) {
+                    $formData[$sysCol] = $_POST[$sysCol] ?? ($sysCol === 'origine' ? 'en ligne' : 'en ligne (CB)');
+                    $columns[] = "`{$sysCol}`";
+                    $placeholders[] = ":{$sysCol}";
+                }
+            }
+            $columns[] = 'created_at';
+            $placeholders[] = 'NOW()';
+
+            $colStr = implode(', ', $columns);
+            $phStr  = implode(', ', $placeholders);
+
+            $stmt = $pdo->prepare("INSERT INTO registrations ({$colStr}) VALUES ({$phStr})");
             $stmt->execute($formData);
 
             $subject = 'Inscription enregistrée - Forbach en Rose';
             if($_POST['email'] != ''){
-              sendMail($_POST['email'], $subject, null, null, $_POST['nom'], $_POST['prenom'], 'inscription');
+              try {
+                require_once '../config/googleMail.php';
+                sendMail($_POST['email'], $subject, null, null, $_POST['nom'], $_POST['prenom'], 'inscription', $nextInscriptionNo);
+              } catch (\Throwable $e) { /* mail failure does not block registration */ }
             }
             $success_message = "👍 Inscription enregistrée avec succès !";
 
@@ -128,19 +141,13 @@ $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $footer= $data['footer'] ?? '';
-$titleColor = $data['title_color'] ?? '#ffffff';
 $registration_fee = $data['registration_fee'] ?? 0;
 $accueil_active = $data['accueil_active'] ? 1 : 0;
 $div_reglementation = $data['div_reglementation'] ?? '';
 
-// Formulaire
-$stmt = $pdo->prepare('SELECT * FROM forms');
-$stmt->execute();
-
-$required_fields = [];
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $required_fields[$row['fields']] = $row['required'] ? 1 : 0;
-}
+// Formulaire dynamique
+require_once '../config/form_fields.php';
+$formFields = getActiveFields($pdo, 'qr');
 ?>
 <!doctype html>
 <html lang="fr">
@@ -154,7 +161,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
       crossorigin="anonymous">
 <style>
   :root{
-    --rose-500:#ec4899;
+    --rose-500:#F42182;
     --rose-600:#db2777;
   }
   body{
@@ -347,18 +354,18 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     margin: 8px 0;
   }
   .pdf-link:hover {
-    border-color: #ec4899;
-    box-shadow: 0 4px 16px rgba(236,72,153,.12);
+    border-color: #F42182;
+    box-shadow: 0 4px 16px rgba(244,33,130,.12);
     transform: translateY(-1px);
   }
   .pdf-link-icon {
     display: flex; align-items: center; justify-content: center;
     width: 38px; height: 38px;
-    background: rgba(236,72,153,.08);
+    background: rgba(244,33,130,.08);
     border-radius: 10px; flex-shrink: 0;
   }
-  .pdf-link:hover .pdf-link-icon { background: rgba(236,72,153,.14); }
-  .pdf-link-icon svg { width: 20px; height: 20px; stroke: #ec4899; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
+  .pdf-link-icon svg { width: 20px; height: 20px; stroke: #F42182; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
   .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
   .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
@@ -436,7 +443,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
 <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
   <div class="card card-form p-4 bg-white">
-    <h1 class="register-page-title text-center mb-3"><?= htmlspecialchars($title) ?></h1>
+    <div class="register-page-title text-center mb-3" style="font-size:clamp(24px,4vw,42px);font-weight:900;"><?= $title ?></div>
 
     <?php if ($errorMessage): ?>
       <div class="alert alert-danger text-center mb-4">
@@ -471,51 +478,10 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
       <form id="fPub" class="row g-3 needs-validation" method="POST" action="" novalidate>
         <?= csrf_field() ?>
-        <div class="col-md-6">
-          <label class="form-label">Nom <?= $required_fields['required_name'] ? '*' : '' ?></label>
-          <input name="nom" class="form-control" <?= $required_fields['required_name'] ? 'required' : '' ?>>
-        </div>
+        <?php foreach ($formFields as $f): ?>
+          <?= renderFormField($f) ?>
+        <?php endforeach; ?>
 
-        <div class="col-md-6">
-          <label class="form-label">Prénom <?= $required_fields['required_firstname'] ? '*' : '' ?></label>
-          <input name="prenom" class="form-control" <?= $required_fields['required_firstname'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Téléphone <?= $required_fields['required_phone'] ? '*' : '' ?></label>
-          <input name="tel" class="form-control" <?= $required_fields['required_phone'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Email <?= $required_fields['required_email'] ? '*' : '' ?></label>
-          <input name="email" type="email" class="form-control" <?= $required_fields['required_email'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Date de naissance <?= $required_fields['required_date_of_birth'] ? '*' : '' ?></label>
-          <input name="naissance" type="date" class="form-control" <?= $required_fields['required_date_of_birth'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Sexe <?= $required_fields['required_sex'] ? '*' : '' ?></label>
-          <select name="sexe" class="form-select" <?= $required_fields['required_sex'] ? 'required' : '' ?>>
-            <option value="H">H</option>
-            <option value="F">F</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Ville <?= $required_fields['required_city'] ? '*' : '' ?></label>
-          <input name="ville" class="form-control" <?= $required_fields['required_city'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Entreprise <?= $required_fields['required_company'] ? '*' : '' ?></label>
-          <input name="entreprise" class="form-control" <?= $required_fields['required_company'] ? 'required' : '' ?>>
-        </div>
-
-        <input type="hidden" name="tshirt_size" value="-">
         <input type="hidden" name="qr_token" value="<?= htmlspecialchars($qrToken) ?>">
         <input type="hidden" name="origine" value="QR-<?= htmlspecialchars($qrData['organisation']) ?>">
         <input type="hidden" name="paiement_mode" value="En ligne">

@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+checkMaintenance();
 require_once '../config/csrf.php';
 require_once '../config/tracker.php';
 trackPageVisit();
@@ -16,8 +17,6 @@ try {
 
 $titleAccueil = $data['titleAccueil'] ?? '';
 $picture = $data['picture'] ?? '';
-$titleColor = $data['title_color'] ?? '#ffffff';
-$edition = $data['edition'] ?? '';
 $footer = $data['footer'] ?? null;
 $link_instagram = $data['link_instagram'] ?? null;
 $link_facebook = $data['link_facebook'] ?? null;
@@ -286,7 +285,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .news-search-bar input:focus {
       border-color: var(--pink);
-      box-shadow: 0 0 0 3px rgba(236,72,153,.1);
+      box-shadow: 0 0 0 3px rgba(244,33,130,.1);
     }
     .news-search-bar input::placeholder { color: rgba(15,23,42,.4); }
     .news-search-clear {
@@ -320,7 +319,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .hero-vote:hover { background: rgba(15,23,42,.08); }
     .hero-vote:active { transform: scale(.96); }
-    .hero-vote.voted { background: rgba(236,72,153,.10); border-color: rgba(236,72,153,.25); }
+    .hero-vote.voted { background: rgba(244,33,130,.10); border-color: rgba(244,33,130,.25); }
 
     /* ─── Cards grid (3 colonnes, vignette + texte) ─── */
     .ncards {
@@ -403,7 +402,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .nvote:hover { background: rgba(15,23,42,.1); }
     .nvote:active { transform: scale(.94); }
-    .nvote.voted { background: rgba(236,72,153,.12); }
+    .nvote.voted { background: rgba(244,33,130,.12); }
     .nvote-count { font-size: 12px; }
 
     @media (max-width: 980px) {
@@ -514,18 +513,18 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       margin: 8px 0;
     }
     .pdf-link:hover {
-      border-color: #ec4899;
-      box-shadow: 0 4px 16px rgba(236,72,153,.12);
+      border-color: #F42182;
+      box-shadow: 0 4px 16px rgba(244,33,130,.12);
       transform: translateY(-1px);
     }
     .pdf-link-icon {
       display: flex; align-items: center; justify-content: center;
       width: 38px; height: 38px;
-      background: rgba(236,72,153,.08);
+      background: rgba(244,33,130,.08);
       border-radius: 10px; flex-shrink: 0;
     }
-    .pdf-link:hover .pdf-link-icon { background: rgba(236,72,153,.14); }
-    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #ec4899; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
+    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #F42182; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
     .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
     .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
@@ -617,7 +616,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .comment-form input:focus,
     .comment-form textarea:focus {
       border-color: var(--pink);
-      box-shadow: 0 0 0 3px rgba(236,72,153,.08);
+      box-shadow: 0 0 0 3px rgba(244,33,130,.08);
     }
     .comment-form input { flex: 1; height: 42px; }
     .comment-form textarea { min-height: 70px; }
@@ -704,7 +703,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       transition: background .15s;
       margin-left: auto;
     }
-    .comment-toggle-replies:hover { background: rgba(236,72,153,.06); }
+    .comment-toggle-replies:hover { background: rgba(244,33,130,.06); }
     .toggle-replies-arrow {
       transition: transform .2s;
     }
@@ -817,7 +816,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .mention-item:only-child { border-radius: 10px; }
     .mention-item:hover,
     .mention-item.active {
-      background: rgba(236,72,153,.08);
+      background: rgba(244,33,130,.08);
       color: var(--pink);
     }
 

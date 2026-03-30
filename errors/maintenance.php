@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Accès refusé</title>
+  <title>Maintenance en cours</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     :root { --pink: #F42182; --dark: #0f172a; }
@@ -95,21 +95,40 @@
       width: 18px;
       height: 18px;
     }
+    .pulse-dot {
+      width: 10px; height: 10px;
+      background: var(--pink);
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      animation: pulse 1.5s ease-in-out infinite;
+      vertical-align: middle;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .4; transform: scale(.8); }
+    }
   </style>
 </head>
 <body>
   <div class="error-container">
-    <span class="error-code">403</span>
+    <span class="error-code">503</span>
     <div class="error-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
       </svg>
     </div>
-    <h1 class="error-title">Accès refusé</h1>
-    <p class="error-desc">Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
-    <a href="/FER/public/accueil.php" class="error-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
-      Retour à l'accueil
+    <h1 class="error-title"><span class="pulse-dot"></span>Maintenance en cours</h1>
+    <p class="error-desc">
+      <?php if (!empty($maintenance_message)): ?>
+        <?= htmlspecialchars($maintenance_message, ENT_QUOTES, 'UTF-8') ?>
+      <?php else: ?>
+        Notre site est temporairement indisponible pour maintenance. Nous travaillons pour revenir au plus vite. Merci de votre patience !
+      <?php endif; ?>
+    </p>
+    <a href="javascript:location.reload()" class="error-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Rafraichir
     </a>
   </div>
 </body>

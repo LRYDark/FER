@@ -15,7 +15,6 @@ $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';
 $footer= $data['footer'] ?? '';
-$titleColor = $data['title_color'] ?? '#ffffff';
 $picture= $data['picture'] ?? '';
 ?>
 <!doctype html>
@@ -92,7 +91,7 @@ $picture= $data['picture'] ?? '';
     .oc-icon-circle svg {
       width: 28px;
       height: 28px;
-      color: #ec4899;
+      color: #F42182;
     }
 
     .oc-title {
@@ -152,7 +151,7 @@ $picture= $data['picture'] ?? '';
     }
 
     .oc-input:focus {
-      border-color: #ec4899;
+      border-color: #F42182;
       box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
@@ -160,7 +159,7 @@ $picture= $data['picture'] ?? '';
     .oc-btn {
       width: 100%;
       height: 36px;
-      background: #ec4899;
+      background: #F42182;
       color: #fff;
       border: none;
       border-radius: 4px;
@@ -217,7 +216,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 16px;
-      color: #ec4899;
+      color: #F42182;
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -279,7 +278,7 @@ $picture= $data['picture'] ?? '';
     .oc-checkbox-group input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #ec4899;
+      accent-color: #F42182;
       cursor: pointer;
     }
 
@@ -294,7 +293,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 12px;
-      color: #ec4899;
+      color: #F42182;
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -317,7 +316,7 @@ $picture= $data['picture'] ?? '';
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      color: #ec4899;
+      color: #F42182;
       text-decoration: none;
       font-size: 13px;
       margin-bottom: 20px;

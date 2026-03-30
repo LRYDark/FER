@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+checkMaintenance();
 require_once '../config/tracker.php';
 trackPageVisit();
 

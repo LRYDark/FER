@@ -18,7 +18,9 @@
   <div class="mega-overlay" id="megaOverlay"></div>
   <div class="nav-pill">
     <a class="brand" href="accueil">
-      <img class="brand-logo" src="../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
+      <?php if (!empty($navbar_logo) && file_exists(__DIR__ . '/../files/_logos/' . $navbar_logo)): ?>
+        <img class="brand-logo" src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Forbach en Rose">
+      <?php endif; ?>
     </a>
 
     <button class="burger" id="burgerBtn" aria-expanded="false" aria-controls="mobileDrawer">
@@ -248,7 +250,9 @@
 <!-- ===== MOBILE HEADER (Vimeo style) ===== -->
 <header class="mobile-header" id="mobileHeader">
   <a class="brand" href="accueil">
-    <img class="brand-logo" src="../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
+    <?php if (!empty($navbar_logo) && file_exists(__DIR__ . '/../files/_logos/' . $navbar_logo)): ?>
+      <img class="brand-logo" src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Forbach en Rose">
+    <?php endif; ?>
   </a>
 </header>
 

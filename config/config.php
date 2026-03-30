@@ -56,26 +56,38 @@ $options = [
 $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $pdo->prepare(
-    'SELECT debogage
-       FROM setting
-      WHERE id = :id
-      LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare(
+        'SELECT debogage, maintenance_mode, maintenance_message
+           FROM setting
+          WHERE id = :id
+          LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+    // Fallback si les nouvelles colonnes n'existent pas encore (avant migration)
+    $stmt = $pdo->prepare('SELECT debogage FROM setting WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+}
 
 // Ne jamais exposer les erreurs PHP côté client (API JSON, pages HTML)
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 
-if($data['debogage'] == 1){
-    $logDir = __DIR__ . '/logs';
-    if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
-    ini_set('log_errors', 1);
-    ini_set('error_log', $logDir . '/php-error.log');
+$GLOBALS['debogage'] = (int) ($data['debogage'] ?? 0);
+
+$logDir = __DIR__ . '/logs';
+if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
+ini_set('log_errors', 1);
+ini_set('error_log', $logDir . '/php-error.log');
+
+if($GLOBALS['debogage'] == 1){
+    // Debug actif : tout loguer (notices, warnings, errors...)
     error_reporting(E_ALL);
 } else {
-    error_reporting(0);
+    // Debug inactif : loguer uniquement les erreurs critiques
+    error_reporting(E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR);
 }
 
 ini_set('session.cookie_httponly', 1);
@@ -94,6 +106,32 @@ function requireRole(array $roles)
         http_response_code(403);
         header('Location: ../login.php');
         exit;
+    }
+}
+
+/**
+ * Vérifie le mode maintenance.
+ * Appelé par les pages publiques — redirige vers la page de maintenance si activé.
+ * Les admins connectés ne sont pas bloqués.
+ */
+function checkMaintenance()
+{
+    global $pdo;
+    // Ne pas bloquer les admins connectés
+    if (isset($_SESSION['uid']) && in_array(currentRole(), ['admin', 'user'], true)) {
+        return;
+    }
+    try {
+        $s = $pdo->query('SELECT maintenance_mode, maintenance_message FROM setting WHERE id = 1 LIMIT 1');
+        $row = $s->fetch(PDO::FETCH_ASSOC);
+        if (!empty($row['maintenance_mode'])) {
+            $maintenance_message = $row['maintenance_message'] ?? '';
+            http_response_code(503);
+            include __DIR__ . '/../errors/maintenance.php';
+            exit;
+        }
+    } catch (\Throwable $e) {
+        // Si la colonne n'existe pas encore, ne pas bloquer
     }
 }
 
@@ -239,7 +277,20 @@ function encryptFields(array &$data): void {
 }
 
 function decryptRow(array $row): array {
-    foreach (PII_FIELDS as $f) {
+    static $allEncrypted = null;
+    if ($allEncrypted === null) {
+        $allEncrypted = PII_FIELDS;
+        // Ajouter les champs custom marqués encrypted
+        try {
+            global $pdo;
+            if ($pdo) {
+                $stmt = $pdo->query("SELECT bdd_column FROM forms WHERE encrypted = 1 AND bdd_column IS NOT NULL");
+                $extra = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                $allEncrypted = array_unique(array_merge($allEncrypted, $extra));
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+    }
+    foreach ($allEncrypted as $f) {
         if (array_key_exists($f, $row)) {
             $row[$f] = decrypt($row[$f]);
         }
@@ -249,6 +300,15 @@ function decryptRow(array $row): array {
 
 function decryptRows(array $rows): array {
     return array_map('decryptRow', $rows);
+}
+
+/**
+ * Ajoute un toast à afficher au prochain chargement de page.
+ */
+function addToast(string $type, string $msg, int $delay = 4000): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) return;
+    $_SESSION['toasts'][] = ['msg' => $msg, 'type' => $type, 'delay' => $delay];
 }
 
 // 🔒 [SEC-01] URL de base fiable — empêche le Host header injection (CWE-644)

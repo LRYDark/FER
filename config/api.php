@@ -98,7 +98,7 @@ function send2faCode($pdo, $user) {
             $user['email'],
             'Code de verification – Forbach en Rose',
             'Code de verification',
-            '<p>Votre code de verification est :</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;color:#ec4899;margin:20px 0">' . $code . '</p><p>Ce code est valable 15 minutes.</p><p>Si vous n\'avez pas demande cette connexion, ignorez ce message.</p>',
+            '<p>Votre code de verification est :</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;color:#F42182;margin:20px 0">' . $code . '</p><p>Ce code est valable 15 minutes.</p><p>Si vous n\'avez pas demande cette connexion, ignorez ce message.</p>',
             null, null, 'info'
         );
         return true;
@@ -803,20 +803,30 @@ if ($route==='registrations'){
         }
         $origine = $myOrg ?: ($d['origine'] ?? 'en ligne');
 
-        $st=$pdo->prepare('INSERT INTO registrations
-          (inscription_no,nom,prenom,tel,email,naissance,sexe,tshirt_size,
-           ville,entreprise,origine,paiement_mode,created_by)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $st->execute([
-          $no, encrypt($d['nom']), encrypt($d['prenom']), encrypt($d['tel']), encrypt($d['email']),
-          encrypt($d['naissance'] ?: null),
-          $d['sexe'] ?? 'H',
-          $d['tshirt_size'] ?? '',
-          encrypt($d['ville']), encrypt($d['entreprise']),
-          $origine,
-          $d['paiement_mode'],
-          currentUserId()
-        ]);
+        // Construction dynamique de l'INSERT basé sur la table forms
+        require_once __DIR__ . '/form_fields.php';
+        $fieldCols = getAllActiveFieldColumns($pdo);
+
+        $cols = ['inscription_no'];
+        $phs  = ['?'];
+        $vals = [$no];
+
+        foreach ($fieldCols as $col => $meta) {
+            $raw = $d[$col] ?? '';
+            $cols[] = "`{$col}`";
+            $phs[]  = '?';
+            $vals[] = $meta['encrypted'] ? encrypt($raw ?: null) : ($raw ?: null);
+        }
+
+        // Champs système
+        $cols[] = 'origine';      $phs[] = '?'; $vals[] = $origine;
+        $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $d['paiement_mode'] ?? null;
+        $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
+
+        $colStr = implode(',', $cols);
+        $phStr  = implode(',', $phs);
+        $st = $pdo->prepare("INSERT INTO registrations ({$colStr}) VALUES ({$phStr})");
+        $st->execute($vals);
         $pdo->commit();
 
         // Envoyer mail de confirmation si email renseigné
@@ -830,7 +840,7 @@ if ($route==='registrations'){
                         'Inscription enregistrée - Forbach en Rose',
                         null, null,
                         $d['nom'] ?? '', $d['prenom'] ?? '',
-                        'inscription'
+                        'inscription', $no
                     );
                 }
             } catch (\Throwable $e) {
@@ -871,27 +881,33 @@ if ($route==='registrations'){
             exit;
         }
 
-        /* 4. on garde seulement les champs autorisés ET réellement fournis */
-        $allowed = ['nom','prenom','tel','email','naissance','sexe','tshirt_size',
-                    'ville','entreprise','origine','paiement_mode'];
-        $params  = array_intersect_key($d, array_flip($allowed));
-        $params['id'] = $d['id'];          // on garde id séparément
+        /* 4. Champs autorisés dynamiques depuis la table forms + champs système */
+        require_once __DIR__ . '/form_fields.php';
+        $fieldCols = getAllActiveFieldColumns($pdo);
+        $systemCols = ['origine', 'paiement_mode'];
 
-        /* naissance vide -> NULL */
-        if (isset($params['naissance']) && $params['naissance'] === '') {
-            $params['naissance'] = null;
-        }
-
-        /* Chiffrer les champs sensibles avant mise à jour */
-        encryptFields($params);
-
-        /* SET : uniquement pour les clés présentes */
+        $params = ['id' => $d['id']];
         $setParts = [];
-        foreach ($params as $k => $v) {
-            if ($k !== 'id') $setParts[] = "$k = :$k";
-        }
-        $set = implode(',', $setParts);
 
+        foreach ($fieldCols as $col => $meta) {
+            if (!array_key_exists($col, $d)) continue;
+            $raw = $d[$col];
+            if ($raw === '') $raw = null;
+            $params[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
+            $setParts[] = "`{$col}` = :{$col}";
+        }
+
+        foreach ($systemCols as $sc) {
+            if (!array_key_exists($sc, $d)) continue;
+            $params[$sc] = $d[$sc];
+            $setParts[] = "`{$sc}` = :{$sc}";
+        }
+
+        if (empty($setParts)) {
+            echo json_encode(['ok' => true]); exit;
+        }
+
+        $set = implode(',', $setParts);
         $pdo->prepare("UPDATE registrations SET $set WHERE id = :id")->execute($params);
         echo json_encode(['ok'=>true]);
         exit;
@@ -987,7 +1003,7 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // 6. Traitement des lignes
         $pdo->beginTransaction();
         $added = $skipped = 0;
-        $duplicates = $errors = [];
+        $duplicates = $errors = $newRegistrants = [];
 
         foreach ($sheet as $idx => $row) {
             if ($idx === 1) continue;
@@ -1042,14 +1058,49 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $existingTickets[] = $values['inscription_no'];
             $added++;
+
+            // Collecter les nouveaux inscrits pour envoi mail après commit
+            if (!empty($values['email'])) {
+                $newRegistrants[] = [
+                    'email'          => $values['email'],
+                    'nom'            => $values['nom'],
+                    'prenom'         => $values['prenom'],
+                    'inscription_no' => $values['inscription_no'],
+                ];
+            }
         }
 
         $pdo->commit();
+
+        // Envoi des mails de confirmation aux nouveaux inscrits (hors transaction)
+        $mailsSent = 0;
+        if (!empty($newRegistrants)) {
+            require_once __DIR__ . '/googleMail.php';
+            $subject = 'Inscription enregistrée - Forbach en Rose';
+            foreach ($newRegistrants as $reg) {
+                try {
+                    sendMail(
+                        $reg['email'],
+                        $subject,
+                        null,
+                        null,
+                        $reg['nom'],
+                        $reg['prenom'],
+                        'inscription',
+                        $reg['inscription_no']
+                    );
+                    $mailsSent++;
+                } catch (\Throwable $mailErr) {
+                    writeLog("⚠️ Mail import échoué pour {$reg['email']} : " . $mailErr->getMessage());
+                }
+            }
+        }
 
         echo json_encode([
             'ok'            => true,
             'rows_added'    => $added,
             'rows_skipped'  => $skipped,
+            'mails_sent'    => $mailsSent,
             'duplicates'    => $duplicates,
             'errors'        => $errors
         ]);
@@ -1610,6 +1661,16 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     echo json_encode(['ok' => true, 'message' => 'Votre demande a bien été envoyée ! Nous vous recontacterons rapidement.']);
+    exit;
+}
+
+/* ---------- Toggle débogage ---------- */
+if ($route === 'toggle-debogage' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireRole(['admin']);
+    $d = json_decode(file_get_contents('php://input'), true);
+    $val = !empty($d['debogage']) ? 1 : 0;
+    $pdo->prepare('UPDATE setting SET debogage = ? WHERE id = 1')->execute([$val]);
+    echo json_encode(['ok' => true, 'debogage' => $val]);
     exit;
 }
 

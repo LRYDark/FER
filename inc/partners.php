@@ -419,7 +419,7 @@ if ($migrationDone) {
   }
   .filter-tabs a.active {
     color: #1e293b;
-    border-bottom-color: #ec4899;
+    border-bottom-color: #F42182;
     font-weight: 600;
   }
   .filter-tabs .badge {
@@ -464,7 +464,7 @@ if ($migrationDone) {
     border: 1px dashed #dc3545;
   }
   /* Drag-and-drop albums */
-  .drag-handle-album:hover { color: #ec4899 !important; }
+  .drag-handle-album:hover { color: #F42182 !important; }
   .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
 </style>
 </head>
@@ -475,16 +475,11 @@ if ($migrationDone) {
 
 <?php
   $reopenModalId = $_SESSION['reopen_modal'] ?? null;
-  $flashForModal = null;
-  if ($reopenModalId && isset($_SESSION['flash_message'])) {
-      $flashForModal = $_SESSION['flash_message'];
-      unset($_SESSION['flash_message']);
-  }
 ?>
 
 <!-- Spinner de chargement -->
 <div id="loadingSpinner" class="text-center py-5">
-  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#ec4899;"></div>
+  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#F42182;"></div>
   <p class="text-muted mt-2 small">Chargement des partenaires...</p>
 </div>
 
@@ -510,15 +505,6 @@ if ($migrationDone) {
 
             <h1 class="mb-3 fw-bold">Gestion des Partenaires par Année</h1>
 
-            <?php if (!$reopenModalId && isset($_SESSION['flash_message'])):
-                $flash = $_SESSION['flash_message'];
-                unset($_SESSION['flash_message']);
-            ?>
-                <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flash['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
-                  <?= htmlspecialchars($flash['message']) ?>
-                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            <?php endif; ?>
 
             <?php if (!$migrationDone): ?>
             <div class="alert alert-warning" role="alert">
@@ -648,12 +634,6 @@ if ($migrationDone) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                    <?php if ($flashForModal && $reopenModalId == $year['id']): ?>
-                    <div class="alert alert-<?= $flashForModal['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flashForModal['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
-                      <?= htmlspecialchars($flashForModal['message']) ?>
-                      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    <?php endif; ?>
                     <form method="post" enctype="multipart/form-data" class="mb-4">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">

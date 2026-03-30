@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+checkMaintenance();
 require '../inc/navbar-data.php';
 
 // Check if status column exists
@@ -107,7 +108,7 @@ if ($selectedYearId) {
       cursor: pointer;
       transition: all .35s cubic-bezier(.4,0,.2,1);
       overflow: hidden;
-      box-shadow: 0 4px 16px rgba(236,72,153,0.2);
+      box-shadow: 0 4px 16px rgba(244,33,130,0.2);
     }
 
     .info-card::before {
@@ -126,7 +127,7 @@ if ($selectedYearId) {
 
     .info-card:hover {
       transform: translateY(-4px);
-      box-shadow: 0 12px 32px rgba(236,72,153,0.3);
+      box-shadow: 0 12px 32px rgba(244,33,130,0.3);
     }
 
     .info-card-title {
@@ -268,18 +269,18 @@ if ($selectedYearId) {
       margin: 8px 0;
     }
     .pdf-link:hover {
-      border-color: #ec4899;
-      box-shadow: 0 4px 16px rgba(236,72,153,.12);
+      border-color: #F42182;
+      box-shadow: 0 4px 16px rgba(244,33,130,.12);
       transform: translateY(-1px);
     }
     .pdf-link-icon {
       display: flex; align-items: center; justify-content: center;
       width: 38px; height: 38px;
-      background: rgba(236,72,153,.08);
+      background: rgba(244,33,130,.08);
       border-radius: 10px; flex-shrink: 0;
     }
-    .pdf-link:hover .pdf-link-icon { background: rgba(236,72,153,.14); }
-    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #ec4899; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
+    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #F42182; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
     .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
     .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }

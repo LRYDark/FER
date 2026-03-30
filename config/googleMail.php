@@ -173,6 +173,56 @@ function getAccessToken(bool $autoRedirect = true) {
     }
 }
 
+/**
+ * Génère un QR Code en data URI (base64 PNG) pour un inscription_no donné.
+ * Retourne '' si la lib n'est pas disponible.
+ */
+function generateQrCodeDataUri(int $inscriptionNo): string
+{
+    try {
+        $qrCode = new \Endroid\QrCode\QrCode(
+            data: (string) $inscriptionNo,
+            size: 200,
+            margin: 8
+        );
+        $writer = new \Endroid\QrCode\Writer\PngWriter();
+        $result = $writer->write($qrCode);
+        return $result->getDataUri();
+    } catch (\Throwable $e) {
+        writeLog("⚠️ Erreur génération QR Code : " . $e->getMessage());
+        return '';
+    }
+}
+
+/**
+ * Détermine si le QR Code doit être inclus dans le mail pour cet inscrit.
+ * Se base sur le mode configuré et le rang de l'inscrit par date d'inscription.
+ */
+function shouldIncludeQrCode(int $inscriptionNo): bool
+{
+    global $data, $pdo;
+
+    $mode = $data['qrcode_mail_mode'] ?? 'none';
+
+    if ($mode === 'none') return false;
+    if ($mode === 'all') return true;
+
+    // mode 'first_x' : compter combien d'inscrits ont été créés AVANT celui-ci
+    $limit = (int) ($data['qrcode_mail_limit'] ?? 0);
+    if ($limit <= 0) return false;
+
+    try {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM registrations WHERE inscription_no != :no');
+        $stmt->execute(['no' => $inscriptionNo]);
+        $totalOthers = (int) $stmt->fetchColumn();
+        // Si le nombre total d'inscrits (hors celui-ci) est < limit, celui-ci fait partie des X premiers
+        return $totalOthers < $limit;
+    } catch (\Throwable $e) {
+        writeLog("⚠️ Erreur vérification QR Code limit : " . $e->getMessage());
+        return false;
+    }
+}
+
 function render(string $path, array $vars = []): string
 {
     extract($vars, EXTR_SKIP);  // 1) crée $logoUrl, $subject, etc.
@@ -184,7 +234,7 @@ function render(string $path, array $vars = []): string
 /** @var string|null $lastMailError Dernière erreur détaillée de sendMail() */
 $lastMailError = null;
 
-function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info') {
+function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', ?int $inscriptionNo = null) {
     global $data, $lastMailError;
     $lastMailError = null;
 
@@ -227,6 +277,12 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         }
     }
 
+    /* ---------- QR Code conditionnel ---------- */
+    $qrCodeDataUri = '';
+    if ($type === 'inscription' && $inscriptionNo !== null && shouldIncludeQrCode($inscriptionNo)) {
+        $qrCodeDataUri = generateQrCodeDataUri($inscriptionNo);
+    }
+
     $body = render('mail_template.php', [
         'type'        => $type,
         'mailTitle'   => $mailTitle,
@@ -236,8 +292,11 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         'date'        => $formattedDate,
         'instagram'   => $data['link_instagram'] ?? '',
         'facebook'    => $data['link_facebook'] ?? '',
+        'cancer'      => $data['link_cancer'] ?? '',
         'mail_email'  => $data['mail_email'] ?? '',
         'mail_phone'  => $data['mail_phone'] ?? '',
+        'qrcode'      => $qrCodeDataUri,
+        'inscription_no' => $inscriptionNo,
     ]);
 
     if (empty($body)) {

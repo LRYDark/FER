@@ -11,7 +11,7 @@
         <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);">
 
             <!-- Header: gradient rose → rose foncé -->
-            <tr><td style="background:linear-gradient(135deg,#ec4899 0%,#db2777 100%);padding:40px 40px 36px;text-align:center;">
+            <tr><td style="background:linear-gradient(135deg,#F42182 0%,#db2777 100%);padding:40px 40px 36px;text-align:center;">
                 <h1 style="color:#ffffff;font-size:24px;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;">Forbach en Rose</h1>
                 <p style="color:rgba(255,255,255,.75);font-size:14px;margin:0;font-weight:400;">Course caritative contre le cancer du sein</p>
             </td></tr>
@@ -42,22 +42,22 @@
                         <?php if ($type === 'inscription' && (!empty($lastname) || !empty($firstname))): ?>
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;overflow:hidden;margin-bottom:28px;border:1px solid #f1f5f9;">
                             <tr>
-                                <td style="padding:18px 24px;background:#f8fafc;border-left:3px solid #ec4899;border-bottom:1px solid #f1f5f9;">
-                                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#ec4899;">Participant</span><br>
+                                <td style="padding:18px 24px;background:#f8fafc;border-left:3px solid #F42182;border-bottom:1px solid #f1f5f9;">
+                                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#F42182;">Participant</span><br>
                                     <span style="font-size:16px;color:#0f172a;font-weight:600;margin-top:4px;display:inline-block;"><?= htmlspecialchars(mb_strtoupper($lastname ?? '', 'UTF-8') . ' ' . mb_convert_case($firstname ?? '', MB_CASE_TITLE, 'UTF-8')) ?></span>
                                 </td>
                             </tr>
                             <?php if (!empty($date)): ?>
                             <tr>
-                                <td style="padding:18px 24px;background:#f8fafc;border-left:3px solid #ec4899;border-bottom:1px solid #f1f5f9;">
-                                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#ec4899;">Date de l'événement</span><br>
+                                <td style="padding:18px 24px;background:#f8fafc;border-left:3px solid #F42182;border-bottom:1px solid #f1f5f9;">
+                                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#F42182;">Date de l'événement</span><br>
                                     <span style="font-size:16px;color:#0f172a;font-weight:600;margin-top:4px;display:inline-block;"><?= htmlspecialchars($date) ?></span>
                                 </td>
                             </tr>
                             <?php endif; ?>
                             <tr>
-                                <td style="padding:18px 24px;background:#f8fafc;border-left:3px solid #ec4899;">
-                                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#ec4899;">Lieu de départ</span><br>
+                                <td style="padding:18px 24px;background:#f8fafc;border-left:3px solid #F42182;">
+                                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#F42182;">Lieu de départ</span><br>
                                     <span style="font-size:16px;color:#0f172a;font-weight:600;margin-top:4px;display:inline-block;">Piscine de Forbach, Moselle</span>
                                 </td>
                             </tr>
@@ -69,15 +69,15 @@
                                 <p style="font-size:14px;font-weight:700;color:#ffffff;margin:0 0 14px;">Conseils pour le jour J</p>
                                 <table cellpadding="0" cellspacing="0"><tr>
                                     <td style="padding:0 0 8px;font-size:14px;color:rgba(255,255,255,.75);line-height:1.6;">
-                                        <span style="color:#ec4899;font-weight:700;margin-right:8px;">&#9656;</span>Arrivez 30 minutes avant le départ
+                                        <span style="color:#F42182;font-weight:700;margin-right:8px;">&#9656;</span>Arrivez 30 minutes avant le départ
                                     </td>
                                 </tr><tr>
                                     <td style="padding:0 0 8px;font-size:14px;color:rgba(255,255,255,.75);line-height:1.6;">
-                                        <span style="color:#ec4899;font-weight:700;margin-right:8px;">&#9656;</span>Portez des vêtements roses pour soutenir la cause
+                                        <span style="color:#F42182;font-weight:700;margin-right:8px;">&#9656;</span>Portez des vêtements roses pour soutenir la cause
                                     </td>
                                 </tr><tr>
                                     <td style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.6;">
-                                        <span style="color:#ec4899;font-weight:700;margin-right:8px;">&#9656;</span>Prenez des chaussures confortables
+                                        <span style="color:#F42182;font-weight:700;margin-right:8px;">&#9656;</span>Prenez des chaussures confortables
                                     </td>
                                 </tr></table>
                             </td></tr>
@@ -87,10 +87,21 @@
                         <!-- Description (info mails: HTML content) -->
                         <?php if (!empty($description)): ?>
                         <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                            <tr><td style="padding:24px;background:#f8fafc;border-radius:12px;border-left:3px solid #ec4899;">
+                            <tr><td style="padding:24px;background:#f8fafc;border-radius:12px;border-left:3px solid #F42182;">
                                 <div style="font-size:15px;line-height:1.7;color:#334155;">
                                     <?= $description ?>
                                 </div>
+                            </td></tr>
+                        </table>
+                        <?php endif; ?>
+
+                        <!-- QR Code -->
+                        <?php if (!empty($qrcode) && $type === 'inscription'): ?>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                            <tr><td style="padding:28px;background:#ffffff;border-radius:12px;border:2px dashed #F42182;text-align:center;">
+                                <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#F42182;margin:0 0 6px;">Votre QR Code</p>
+                                <p style="font-size:13px;color:#64748b;margin:0 0 16px;">Billet n° <?= htmlspecialchars((string)($inscription_no ?? '')) ?> — Pr&eacute;sentez-le le jour J</p>
+                                <img src="<?= $qrcode ?>" alt="QR Code" width="180" height="180" style="display:inline-block;border-radius:8px;">
                             </td></tr>
                         </table>
                         <?php endif; ?>
@@ -110,7 +121,7 @@
                                 <p style="font-size:14px;font-weight:700;color:#0f172a;margin:0 0 8px;">Une question ?</p>
                                 <p style="font-size:14px;color:#64748b;margin:0;line-height:1.8;">
                                     <?php if (!empty($mail_email)): ?>
-                                        <a href="mailto:<?= htmlspecialchars($mail_email) ?>" style="color:#ec4899;text-decoration:none;font-weight:500;"><?= htmlspecialchars($mail_email) ?></a>
+                                        <a href="mailto:<?= htmlspecialchars($mail_email) ?>" style="color:#F42182;text-decoration:none;font-weight:500;"><?= htmlspecialchars($mail_email) ?></a>
                                     <?php endif; ?>
                                     <?php if (!empty($mail_email) && !empty($mail_phone)): ?><br><?php endif; ?>
                                     <?php if (!empty($mail_phone)): ?>
@@ -128,13 +139,16 @@
 
             <!-- Footer -->
             <tr><td style="background:#0f172a;padding:32px 40px;text-align:center;">
-                <?php if (!empty($facebook) || !empty($instagram)): ?>
+                <?php if (!empty($facebook) || !empty($instagram) || !empty($cancer)): ?>
                 <p style="margin:0 0 16px;">
                     <?php if (!empty($facebook)): ?>
                         <a href="<?= htmlspecialchars($facebook) ?>" style="display:inline-block;margin:0 6px;padding:8px 16px;background:rgba(255,255,255,.08);border-radius:6px;color:rgba(255,255,255,.7);text-decoration:none;font-size:13px;font-weight:500;">Facebook</a>
                     <?php endif; ?>
                     <?php if (!empty($instagram)): ?>
                         <a href="<?= htmlspecialchars($instagram) ?>" style="display:inline-block;margin:0 6px;padding:8px 16px;background:rgba(255,255,255,.08);border-radius:6px;color:rgba(255,255,255,.7);text-decoration:none;font-size:13px;font-weight:500;">Instagram</a>
+                    <?php endif; ?>
+                    <?php if (!empty($cancer)): ?>
+                        <a href="<?= htmlspecialchars($cancer) ?>" style="display:inline-block;margin:0 6px;padding:8px 16px;background:rgba(255,255,255,.08);border-radius:6px;color:rgba(255,255,255,.7);text-decoration:none;font-size:13px;font-weight:500;">Ligue contre le cancer</a>
                     <?php endif; ?>
                 </p>
                 <?php endif; ?>
