@@ -342,7 +342,7 @@ if ($migrationDone) {
 }
 .filter-tabs a.active {
   color: #1e293b;
-  border-bottom-color: #ec4899;
+  border-bottom-color: #F42182;
   font-weight: 600;
 }
 .filter-tabs .badge {
@@ -364,8 +364,8 @@ if ($migrationDone) {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .news-search-bar .input-group:focus-within {
-  border-color: #ec4899;
-  box-shadow: 0 0 0 3px rgba(236,72,153,.1);
+  border-color: #F42182;
+  box-shadow: 0 0 0 3px rgba(244,33,130,.1);
 }
 .news-search-bar .input-group-text {
   border: none !important;
@@ -398,15 +398,6 @@ if ($migrationDone) {
 <div class="container py-4">
   <h1 class="mb-3 fw-bold">Actualités</h1>
 
-  <?php if (isset($_SESSION['flash_message']) && !isset($_SESSION['reopen_news_modal'])):
-    $flash = $_SESSION['flash_message'];
-    unset($_SESSION['flash_message']);
-  ?>
-    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flash['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
-      <?= htmlspecialchars($flash['message']) ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  <?php endif; ?>
 
   <?php if (!$migrationDone): ?>
   <div class="alert alert-warning" role="alert">
@@ -453,7 +444,7 @@ if ($migrationDone) {
 
   <!-- Spinner de chargement -->
   <div id="loadingSpinner" class="text-center py-5">
-    <div class="spinner-border text-pink" role="status" style="width:2.5rem;height:2.5rem;color:#ec4899;"></div>
+    <div class="spinner-border text-pink" role="status" style="width:2.5rem;height:2.5rem;color:#F42182;"></div>
     <p class="text-muted mt-2 small">Chargement des articles...</p>
   </div>
 
@@ -535,13 +526,6 @@ if ($migrationDone) {
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-              <?php if (isset($_SESSION['flash_message']) && isset($_SESSION['reopen_news_modal']) && $_SESSION['reopen_news_modal'] == $n['id']): ?>
-                <div class="alert alert-<?= $_SESSION['flash_message']['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $_SESSION['flash_message']['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
-                  <?= htmlspecialchars($_SESSION['flash_message']['message']) ?>
-                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                <?php unset($_SESSION['flash_message']); ?>
-              <?php endif; ?>
               <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabContent<?= $n['id'] ?>">Contenu</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabComments<?= $n['id'] ?>" data-action="load-comments" data-news-id="<?= $n['id'] ?>">Commentaires</a></li>
@@ -894,7 +878,7 @@ function loadAdminComments(newsId, page, perPage, search) {
     var pagination = document.getElementById('adminCommentsPagination' + newsId);
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="width:2rem;height:2rem;color:#ec4899;"></div><p class="text-muted mt-2 small">Chargement des commentaires...</p></div>';
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="width:2rem;height:2rem;color:#F42182;"></div><p class="text-muted mt-2 small">Chargement des commentaires...</p></div>';
     if (pagination) pagination.style.display = 'none';
 
     $.ajax({

@@ -15,26 +15,12 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$picture= $data['picture'] ?? '';  
-$titleColor = $data['title_color'] ?? '#ffffff'; 
+$picture= $data['picture'] ?? '';
+$title_mobile = $data['title_mobile'] ?? '';
 
-// Formulaire ---------------------------------------------------------------------------------
-$stmt = $pdo->prepare('SELECT * FROM forms');
-$stmt->execute();
-
-$required_fields = [];
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $required_fields[$row['fields']] = $row['required'] ? 1 : 0;
-}
-
-$required_name = $required_fields['required_name'] ?? 0;
-$required_firstname = $required_fields['required_firstname'] ?? 0;
-$required_phone = $required_fields['required_phone'] ?? 0;
-$required_email = $required_fields['required_email'] ?? 0;
-$required_date_of_birth = $required_fields['required_date_of_birth'] ?? 0;
-$required_sex = $required_fields['required_sex'] ?? 0;
-$required_city = $required_fields['required_city'] ?? 0;
-$required_company = $required_fields['required_company'] ?? 0;
+// Formulaire dynamique
+require_once '../config/form_fields.php';
+$formFields = getActiveFields($pdo, 'saisie');
 ?>
 
 <!doctype html>
@@ -74,11 +60,14 @@ $required_company = $required_fields['required_company'] ?? 0;
 
   <!-- HERO identique à register.php -->
 <header class="hero position-relative"><!-- position:relative indispensable -->
-  <?php if (!empty($picture)): ?>
-  <img src="../files/_pictures/<?= htmlspecialchars($picture) ?>"
-       alt="Logo Forbach en Rose"
-       class="logo-top">
-  <?php endif; ?>
+  <style>
+    .header-mobile{ display: none; }
+    .header-pc{ display: block; }
+    @media (max-width: 980px){
+      .header-pc{ display: none; }
+      .header-mobile{ display: block; }
+    }
+  </style>
 
   <!-- Actions en haut à droite -->
   <div class="top-actions">
@@ -86,7 +75,16 @@ $required_company = $required_fields['required_company'] ?? 0;
   </div>
 
   <div class="hero-inner text-center">
-    <h1 style="color: <?= htmlspecialchars($titleColor) ?>;"><?= htmlspecialchars($title) ?><small class="d-block fs-6 fw-light">(interface saisie)</small></h1>
+    <!-- PC -->
+    <div class="header-pc">
+      <div class="demo-kicker"><?= $title ?></div>
+      <small class="d-block fs-6 fw-light" style="color:rgba(255,255,255,.7);">(interface saisie)</small>
+    </div>
+    <!-- Mobile -->
+    <div class="header-mobile">
+      <div class="demo-kicker"><?= $title_mobile ?: $title ?></div>
+      <small class="d-block fs-6 fw-light" style="color:rgba(255,255,255,.7);">(interface saisie)</small>
+    </div>
     <p class="mb-3">Ajoutez manuellement une inscription</p>
     <span class="badge-donation">Interface réservée : <?= currentOrganisation();?></span>
   </div>
@@ -98,56 +96,15 @@ $required_company = $required_fields['required_company'] ?? 0;
       <div id="msg" class="alert alert-info d-none"></div>
 
       <form id="fAdd" class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label">Nom <?= $required_fields['required_name'] ? '*' : '' ?></label>
-          <input name="nom" class="form-control" <?= $required_fields['required_name'] ? 'required' : '' ?>>
-        </div>
+        <?php foreach ($formFields as $f): ?>
+          <?= renderFormField($f) ?>
+        <?php endforeach; ?>
 
-        <div class="col-md-6">
-          <label class="form-label">Prénom <?= $required_fields['required_firstname'] ? '*' : '' ?></label>
-          <input name="prenom" class="form-control" <?= $required_fields['required_firstname'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Téléphone <?= $required_fields['required_phone'] ? '*' : '' ?></label>
-          <input name="tel" class="form-control" <?= $required_fields['required_phone'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Email <?= $required_fields['required_email'] ? '*' : '' ?></label>
-          <input name="email" type="email" class="form-control" <?= $required_fields['required_email'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Date de naissance <?= $required_fields['required_date_of_birth'] ? '*' : '' ?></label>
-          <input name="naissance" type="date" class="form-control" <?= $required_fields['required_date_of_birth'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Sexe <?= $required_fields['required_sex'] ? '*' : '' ?></label>
-          <select name="sexe" class="form-select" <?= $required_fields['required_sex'] ? 'required' : '' ?>>
-            <option value="H">H</option>
-            <option value="F">F</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Ville <?= $required_fields['required_city'] ? '*' : '' ?></label>
-          <input name="ville" class="form-control" <?= $required_fields['required_city'] ? 'required' : '' ?>>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Entreprise <?= $required_fields['required_company'] ? '*' : '' ?></label>
-          <input name="entreprise" class="form-control" <?= $required_fields['required_company'] ? 'required' : '' ?>>
-        </div>
-
-        <input type="hidden" name="tshirt_size" value="-">
         <input type="hidden" name="origine" value="<?= currentOrganisation();?>">
 
         <!-- Paiement obligatoire -->
         <div class="col-md-6">
-          <label class="form-label">Paiement</label>
+          <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
           <select name="paiement_mode" class="form-select" required>
             <option value="" selected disabled hidden>Choisir…</option>
             <option value="CB">CB</option>

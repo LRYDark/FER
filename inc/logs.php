@@ -33,15 +33,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_log'])) {
     foreach ($logFiles as $lf) {
         if ($lf['key'] === $key && file_exists($lf['path'])) {
             file_put_contents($lf['path'], '');
-            $flash = ['type' => 'success', 'msg' => 'Le fichier « ' . $lf['name'] . ' » a été vidé.'];
+            addToast('success', 'Le fichier « ' . $lf['name'] . ' » a été vidé.');
             break;
         }
     }
 }
 
-$stmt = $pdo->prepare('SELECT footer FROM setting WHERE id = 1 LIMIT 1');
+$stmt = $pdo->prepare('SELECT footer, debogage FROM setting WHERE id = 1 LIMIT 1');
 $stmt->execute();
-$footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
+$settingRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+$footer = $settingRow['footer'] ?? '';
+$debogage = (int) ($settingRow['debogage'] ?? 0);
 ?>
 <!doctype html>
 <html lang="fr">
@@ -49,6 +51,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Logs</title>
+<meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
@@ -144,7 +147,7 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 }
 
 .badge-size {
-  background: rgba(236,72,153,0.1);
+  background: rgba(244,33,130,0.1);
   color: #db2777;
   padding: 0.3rem 0.6rem;
   border-radius: 8px;
@@ -193,16 +196,20 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 <body>
 <?php include 'navbar-admin.php'; ?>
 
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show" role="alert">
-      <i class="bi bi-check-circle"></i> <?= htmlspecialchars($flash['msg']) ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
   <?php endif; ?>
 
-  <div class="page-header">
-    <h2><i class="bi bi-file-earmark-text"></i> Journaux système</h2>
-    <p>Consultez et gérez les fichiers de logs du site.</p>
+  <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+      <h2><i class="bi bi-file-earmark-text"></i> Journaux système</h2>
+      <p>Consultez et gérez les fichiers de logs du site.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 fw-bold">Mode débogage</label>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="debogageToggle" <?= $debogage ? 'checked' : '' ?>>
+      </div>
+      <small id="debogageStatus" class="text-muted"></small>
+    </div>
   </div>
 
   <?php foreach ($logFiles as $lf): ?>
@@ -278,5 +285,23 @@ $footer = ($stmt->fetch(PDO::FETCH_ASSOC))['footer'] ?? '';
 <?php include 'admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+document.getElementById('debogageToggle').addEventListener('change', function(){
+  var val = this.checked ? 1 : 0;
+  var status = document.getElementById('debogageStatus');
+  status.textContent = 'Sauvegarde...';
+  fetch('../config/api.php?route=toggle-debogage', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content},
+    body: JSON.stringify({debogage: val})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(j){
+    status.textContent = j.ok ? (val ? 'Activé' : 'Désactivé') : 'Erreur';
+    setTimeout(function(){ status.textContent = ''; }, 2000);
+  })
+  .catch(function(){ status.textContent = 'Erreur réseau'; });
+});
+</script>
 </body>
 </html>

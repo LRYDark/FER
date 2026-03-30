@@ -34,7 +34,7 @@ require 'navbar-data.php';
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #ec4899; background: transparent;
+    border-bottom-color: #F42182; background: transparent;
   }
   .tab-section { display: none; }
   .tab-section.active { display: block; }
@@ -145,7 +145,7 @@ require 'navbar-data.php';
 
   /* ═══ Btn rose ═══ */
   .btn-rose{
-    background:linear-gradient(135deg,#ec4899,#db2777)!important;
+    background:linear-gradient(135deg,#F42182,#db2777)!important;
     color:#fff!important;
     border:none!important;
   }
@@ -162,15 +162,6 @@ require 'navbar-data.php';
 <div class="bg-white p-4 card-dashboard">
   <h2 class="mb-3">Utilisateurs & Envoi de mail</h2>
 
-  <?php if (isset($_SESSION['flash_message'])):
-    $flash = $_SESSION['flash_message'];
-    unset($_SESSION['flash_message']);
-  ?>
-    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" role="alert" data-dismiss-delay="5000">
-      <?= htmlspecialchars($flash['message']) ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  <?php endif; ?>
 
   <!-- Tabs -->
   <?php $activeTab = (isset($_GET['tab']) && $_GET['tab'] === 'mail') ? 'mail' : 'users'; ?>

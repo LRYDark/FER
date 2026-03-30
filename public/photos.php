@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+checkMaintenance();
 require '../inc/navbar-data.php';
 
 // Check if status column exists

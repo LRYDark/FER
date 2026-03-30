@@ -1,4 +1,6 @@
 
+<?php include __DIR__ . '/toast.php'; ?>
+
   </div><!-- /oc-content -->
 </div><!-- /oc-app-container -->
 

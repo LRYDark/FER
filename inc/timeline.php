@@ -223,14 +223,14 @@ foreach ($items as $item) {
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .tl-thumb{width:100%;height:160px;object-fit:cover;border-radius:.75rem .75rem 0 0}
-  .tl-kicker{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ec4899;font-weight:800;padding:4px 10px;background:linear-gradient(135deg,#fdf2f8,#fce7f3);border-radius:100px}
+  .tl-kicker{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#F42182;font-weight:800;padding:4px 10px;background:linear-gradient(135deg,#fdf2f8,#fce7f3);border-radius:100px}
   .tl-amount{font-size:1.15rem;font-weight:800;letter-spacing:-.02em;color:#0f172a;margin:4px 0 8px}
   .tl-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;background:#f8fafc;border:1px solid #f1f5f9;color:#64748b;font-weight:600;font-size:11px}
   .tl-order{font-size:12px;color:#94a3b8;font-weight:600}
   .tl-card{border:1px solid rgba(0,0,0,.06);border-radius:.75rem;overflow:hidden;transition:box-shadow .2s}
   .tl-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
   .sortable-ghost { opacity: 0.4; }
-  .drag-handle:hover { color: #ec4899; }
+  .drag-handle:hover { color: #F42182; }
 
   /* Image position dragger — same ratio as card (480×180) */
   .img-positioner{position:relative;width:100%;max-width:480px;aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed #e2e8f0;cursor:grab;background:#f1f5f9;user-select:none}
@@ -239,7 +239,7 @@ foreach ($items as $item) {
   .img-positioner .pos-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 12px;border-radius:20px;pointer-events:none;white-space:nowrap;z-index:2}
   .img-pos-controls{display:flex;align-items:center;gap:10px;margin-top:8px;max-width:480px}
   .img-pos-controls label{font-size:12px;color:#64748b;font-weight:600;white-space:nowrap}
-  .img-pos-controls input[type=range]{flex:1;accent-color:#ec4899}
+  .img-pos-controls input[type=range]{flex:1;accent-color:#F42182}
 </style>
 </head>
 
@@ -249,26 +249,12 @@ foreach ($items as $item) {
 
 <?php
   $reopenModalId = $_SESSION['reopen_modal'] ?? null;
-  $flashForModal = null;
-  if ($reopenModalId && isset($_SESSION['flash_message'])) {
-      $flashForModal = $_SESSION['flash_message'];
-      unset($_SESSION['flash_message']);
-  }
 ?>
 
-<?php if (!$reopenModalId && isset($_SESSION['flash_message'])):
-    $flash = $_SESSION['flash_message'];
-    unset($_SESSION['flash_message']);
-?>
-    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flash['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
-      <?= htmlspecialchars($flash['message']) ?>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-<?php endif; ?>
 
 <!-- Spinner de chargement -->
 <div id="loadingSpinner" class="text-center py-5">
-  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#ec4899;"></div>
+  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#F42182;"></div>
   <p class="text-muted mt-2 small">Chargement de la timeline...</p>
 </div>
 
@@ -377,13 +363,6 @@ foreach ($items as $item) {
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body row g-3">
-                      <?php if ($flashForModal && $reopenModalId == $item['id']): ?>
-                      <div class="col-12">
-                        <div class="alert alert-<?= $flashForModal['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show auto-dismiss" data-dismiss-delay="<?= $flashForModal['type'] === 'success' ? '5000' : '10000' ?>" role="alert">
-                          <?= htmlspecialchars($flashForModal['message']) ?>
-                          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                      </div>
                       <?php endif; ?>
                       <div class="col-md-6">
                         <label class="form-label">Titre (kicker rose)</label>

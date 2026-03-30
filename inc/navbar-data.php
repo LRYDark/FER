@@ -21,6 +21,7 @@ try {
     $link_twitter = $data['link_twitter'] ?? null;
     $link_youtube = $data['link_youtube'] ?? null;
     $link_cancer = $data['link_cancer'] ?? null;
+    $navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
 } catch (PDOException $e) {
     // Valeurs par défaut si erreur
     $link_instagram = null;
@@ -28,6 +29,7 @@ try {
     $link_twitter = null;
     $link_youtube = null;
     $link_cancer = null;
+    $navbar_logo = 'logo_fer_rose.png';
 }
 
 // Récupération des années photos pour le menu (uniquement publiées)

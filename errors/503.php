@@ -6,7 +6,7 @@
   <title>Maintenance</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    :root { --pink: #ec4899; --dark: #0f172a; }
+    :root { --pink: #F42182; --dark: #0f172a; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #fff;
@@ -89,7 +89,7 @@
     .error-btn:hover {
       background: var(--pink);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(236,72,153,0.25);
+      box-shadow: 0 8px 24px rgba(244,33,130,0.25);
     }
     .error-btn svg {
       width: 18px;

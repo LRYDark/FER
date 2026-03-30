@@ -21,14 +21,18 @@ $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
 $footer= $data['footer'] ?? '';  
-$titleColor = $data['title_color'] ?? '#ffffff';
+$qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
+$qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
+$highlightLimit = ($qrcode_mail_mode === 'first_x' && $qrcode_mail_limit > 0) ? $qrcode_mail_limit : 0;
 
-// Gestion des messages flash
-$flashMessage = null;
-if (isset($_SESSION['flash_message'])) {
-    $flashMessage = $_SESSION['flash_message'];
-    unset($_SESSION['flash_message']); // Supprimer après récupération
-}
+// Champs dynamiques
+require_once '../config/form_fields.php';
+$adminFields = getActiveFields($pdo, 'admin');
+// Tous les champs actifs (pour les colonnes DataTable)
+$stmtAllFields = $pdo->prepare('SELECT * FROM forms WHERE active = 1 ORDER BY sort_order ASC');
+$stmtAllFields->execute();
+$allActiveFields = $stmtAllFields->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 <!doctype html>
 <html lang="fr">
@@ -50,7 +54,7 @@ if (isset($_SESSION['flash_message'])) {
   .statCard{min-width:180px}
   .hide-stats #stats {display: none !important;}
   .dashboard-actions .btn-rose{
-    background:linear-gradient(135deg,#ec4899,#db2777)!important;
+    background:linear-gradient(135deg,#F42182,#db2777)!important;
     color:#fff!important;
     border:none!important;
   }
@@ -138,7 +142,7 @@ if (isset($_SESSION['flash_message'])) {
 
 #tbl tbody tr:hover td { background: #fdf8f9; }
 
-/* 750 premières lignes — fond rose pâle */
+/* X premières lignes (QR Code) — fond rose pâle */
 .first-750 td {
   background: #fdf2f6 !important;
   font-weight: 600;
@@ -160,7 +164,7 @@ tr.filters select, tr.filters input {
   cursor: col-resize; user-select: none; z-index: 1;
 }
 #tbl thead th .col-resize:hover,
-#tbl thead th .col-resize.active { background: #ec4899; }
+#tbl thead th .col-resize.active { background: #F42182; }
 
 /* Bouton colonnes */
 .col-toggle-wrap { position: relative; display: inline-block; }
@@ -223,28 +227,6 @@ tr.filters select{
 
 <!-- ═════════ MAIN ═════════ -->
   <div class="bg-white p-4 card-dashboard">
-    <!-- Message flash de confirmation -->
-    <?php if ($flashMessage): ?>
-    <div class="container-fluid">
-      <div class="alert alert-<?= $flashMessage['type'] === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show mt-3" role="alert">
-        <i class="bi bi-<?= $flashMessage['type'] === 'success' ? 'check-circle' : 'exclamation-triangle' ?>"></i>
-        <?= htmlspecialchars($flashMessage['message']) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>
-    </div>
-    <?php endif; ?>
-    <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
-      // Auto-masquage des messages flash au bout de 5 secondes
-      document.addEventListener('DOMContentLoaded', function() {
-        const flashAlert = document.querySelector('.alert');
-        if (flashAlert && flashAlert.classList.contains('alert-success')) {
-          setTimeout(function() {
-            const bsAlert = new bootstrap.Alert(flashAlert);
-            bsAlert.close();
-          }, 5000); // 5 secondes
-        }
-      });
-    </script>
 
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
       <h2 class="mb-0">Inscriptions</h2>
@@ -311,15 +293,9 @@ tr.filters select{
     <form id="fAdd">
       <div class="modal-body row g-2">
         <input type="hidden" name="origine" value="Admin">
-        <div class="col-md-6"><label class="form-label">Nom <span style="color:#ef4444">*</span></label><input name="nom" class="form-control" required></div>
-        <div class="col-md-6"><label class="form-label">Prénom <span style="color:#ef4444">*</span></label><input name="prenom" class="form-control" required></div>
-        <div class="col-md-6"><label class="form-label">Téléphone</label><input name="tel" class="form-control"></div>
-        <div class="col-md-6"><label class="form-label">Email</label><input name="email" type="email" class="form-control"></div>
-        <div class="col-md-6"><label class="form-label">Naissance</label><input name="naissance" type="text" class="form-control" placeholder="2000 ou 09/05/2000"></div>
-        <div class="col-md-6"><label class="form-label">Sexe</label><select name="sexe" class="form-select"><option>H</option><option>F</option><option>Autre</option></select></div>
-        <div class="col-md-4"><label class="form-label">T-shirt</label><select name="tshirt_size" class="form-select"><option>-</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
-        <div class="col-md-4"><label class="form-label">Ville</label><input name="ville" class="form-control"></div>
-        <div class="col-md-4"><label class="form-label">Entreprise</label><input name="entreprise" class="form-control"></div>
+        <?php foreach ($adminFields as $f): ?>
+          <?= renderFormField($f) ?>
+        <?php endforeach; ?>
         <div class="col-md-6"><label class="form-label">Paiement <span style="color:#ef4444">*</span></label><select name="paiement_mode" class="form-select" required><option value="" disabled selected hidden>Choisir…</option><option>CB</option><option>espece</option><option>cheque</option></select></div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
@@ -333,15 +309,9 @@ tr.filters select{
       <div class="modal-body row g-2">
         <input type="hidden" name="id">
         <input type="hidden" name="origine" value="Admin">
-        <div class="col-md-6"><label class="form-label">Nom <span style="color:#ef4444">*</span></label><input name="nom" class="form-control" required></div>
-        <div class="col-md-6"><label class="form-label">Prénom <span style="color:#ef4444">*</span></label><input name="prenom" class="form-control" required></div>
-        <div class="col-md-6"><label class="form-label">Téléphone</label><input name="tel" class="form-control"></div>
-        <div class="col-md-6"><label class="form-label">Email</label><input name="email" type="email" class="form-control"></div>
-        <div class="col-md-6"><label class="form-label">Naissance</label><input name="naissance" type="text" class="form-control" placeholder="2000 ou 09/05/2000"></div>
-        <div class="col-md-6"><label class="form-label">Sexe</label><select name="sexe" class="form-select"><option>H</option><option>F</option><option>Autre</option></select></div>
-        <div class="col-md-4"><label class="form-label">T-shirt</label><select name="tshirt_size" class="form-select"><option></option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
-        <div class="col-md-4"><label class="form-label">Ville</label><input name="ville" class="form-control"></div>
-        <div class="col-md-4"><label class="form-label">Entreprise</label><input name="entreprise" class="form-control"></div>
+        <?php foreach ($adminFields as $f): ?>
+          <?= renderFormField($f) ?>
+        <?php endforeach; ?>
         <div class="col-md-6"><label class="form-label">Paiement</label><select name="paiement_mode" class="form-select"><option>CB</option><option>espece</option><option>cheque</option></select></div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Sauvegarder</button></div>
@@ -411,49 +381,28 @@ const tbl=$('#tbl').DataTable({
   },
   columns:[
     {data:'id',visible:false},
-    {// colonne ID juste après « id de la bdd invisible »
-      data: null,
-      title: 'ID',
-      width: '60px',
-      className: 'text-center',
-      orderable: false,     // pas de tri sur cette colonne
-      defaultContent: ''    // on remplira la cellule dans rowCallback
-    },
+    {data: null, title: 'ID', width: '60px', className: 'text-center', orderable: false, defaultContent: ''},
     {data:'inscription_no',title:'N°'},
-    {data:'nom',title:'Nom'},
-    {data:'prenom',title:'Prénom'},
-    {data:'tshirt_size',title:'T-shirt',render:(v,t,r)=>{
+    <?php foreach ($allActiveFields as $af):
+      $col = $af['bdd_column'];
+      $lbl = htmlspecialchars($af['label'], ENT_QUOTES);
+      if ($col === 'tshirt_size'): ?>
+    {data:'tshirt_size',title:'<?= $lbl ?>',render:(v,t,r)=>{
       if(t!=='display') return v??''; if(!tshirtMode) return v??'';
-      // Si c'est un viewer, on affiche juste le texte grisé
-      if(userRole === 'viewer') {
-        return `<span class="text-muted" style="font-style: italic; opacity: 0.6;">${v || '-'}</span>`;
-      }
-      const sz=['-','XS','S','M','L','XL','XXL'];
-      return `<select class="form-select form-select-sm tshirt-dd" data-id="${r.id}">
-              ${sz.map(s=>`<option${s===v?' selected':''}>${s}</option>`).join('')}</select>`;
+      if(userRole === 'viewer') return `<span class="text-muted" style="font-style:italic;opacity:.6">${v||'-'}</span>`;
+      const sz=<?= json_encode(array_map('trim', explode(',', $af['options_list'] ?? '-,XS,S,M,L,XL,XXL'))) ?>;
+      return `<select class="form-select form-select-sm tshirt-dd" data-id="${r.id}">${sz.map(s=>`<option${s===v?' selected':''}>${s}</option>`).join('')}</select>`;
     }},
-    {data:'sexe',title:'Sexe',className:'text-center',width:'50px'},
-    {data:'tel',title:'Téléphone'},
-    {data:'email',title:'Email'},
-    {data:'naissance',title:'Naissance'},
-    {data:'paiement_mode',title:'Paiement'},
-    {data:'entreprise',title:'Entreprise'},
-    {data   : 'created_at',
-      title  : 'Date ajout',
-      render : function (val, type){
-        // le type "display" (cellule visible) et "filter" (recherche) → JJ/MM/AAAA
-        if(type === 'display' || type === 'filter'){
-          if(!val) return '';
-          const d = new Date(val);
-          return d.toLocaleDateString('fr-FR');      // 15/05/2025
-        }
-        // pour le tri ("sort") on renvoie la valeur brute ISO
-        return val;
-      },
-      width  : '110px',
-      className : 'text-nowrap text-center'
-    },
-    {data:'origine',title:'Origine'}
+      <?php else: ?>
+    {data:'<?= $col ?>',title:'<?= $lbl ?>',defaultContent:''},
+      <?php endif; ?>
+    <?php endforeach; ?>
+    {data:'paiement_mode',title:'Paiement',defaultContent:''},
+    {data:'created_at', title:'Date ajout', render:function(val,type){
+      if(type==='display'||type==='filter'){ if(!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
+      return val;
+    }, width:'110px', className:'text-nowrap text-center'},
+    {data:'origine',title:'Origine',defaultContent:''}
     <?php if($role !== 'viewer'): ?>,
     {
       data:null,
@@ -480,7 +429,8 @@ const tbl=$('#tbl').DataTable({
     // 1) numéro séquentiel : displayIndex (0-based) + 1
     $('td:eq(0)', row).text(displayIndex + 1);   // 2 = 3ᵉ colonne (0,1,2)
     // displayIndex = rang global après tri & recherche
-    $(row).toggleClass('first-750', displayIndex < 750);
+    var hlLimit = <?= (int) $highlightLimit ?>;
+    $(row).toggleClass('first-750', hlLimit > 0 && displayIndex < hlLimit);
   },
   initComplete:function(){
     buildFilters(this.api());
@@ -858,7 +808,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = tbl.column(colIdx).visible();
-      cb.style.accentColor = '#ec4899';
+      cb.style.accentColor = '#F42182';
       cb.addEventListener('change', function() {
         tbl.column(colIdx).visible(this.checked);
         saveVisibility();

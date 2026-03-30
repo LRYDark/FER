@@ -27,23 +27,31 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$picture= $data['picture'] ?? '';  
-$footer= $data['footer'] ?? '';  
-$titleColor = $data['title_color'] ?? '#ffffff'; 
+$footer= $data['footer'] ?? '';
+$navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
+$title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 
 // accueil
 $titleAccueil  = $data['titleAccueil']   ?? '';
-$edition = $data['edition'] ?? '';  
 $link_instagram  = $data['link_instagram']   ?? '';
 $link_facebook = $data['link_facebook'] ?? ''; 
-$accueil_active = $data['accueil_active'] ? 1 : 0;
+$accueil_active = !empty($data['accueil_active']) ? 1 : 0;
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
 $picture_partner= $data['picture_partner'] ?? ''; 
-$picture_accueil= $data['picture_accueil'] ?? '';
 $link_cancer = $data['link_cancer'] ?? null;
-$debogage = $data['debogage'] ? 1 : 0;
+$titleAccueil_mobile = $data['titleAccueil_mobile'] ?? '';
+$subtitle_accueil = $data['subtitle_accueil'] ?? '';
+$subtitle_accueil_mobile = $data['subtitle_accueil_mobile'] ?? '';
+$flash_info_text = $data['flash_info_text'] ?? '';
+$flash_info_active = !empty($data['flash_info_active']) ? 1 : 0;
+$qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
+$qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
+$debogage = !empty($data['debogage']) ? 1 : 0;
+$video_accueil = $data['video_accueil'] ?? 'FER.mp4';
+$maintenance_mode = !empty($data['maintenance_mode']) ? 1 : 0;
+$maintenance_message = $data['maintenance_message'] ?? '';
 
 // parcours
 $titleParcours  = $data['titleParcours']   ?? 'test';
@@ -149,6 +157,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
         }
     }
+
+    // Sauvegarde config QR Code (onglet Google/Mail)
+    if (isset($_POST['save_qrcode_config'])) {
+        $qrcode_mail_mode = $_POST['qrcode_mail_mode'] ?? 'none';
+        if (!in_array($qrcode_mail_mode, ['none', 'all', 'first_x'], true)) $qrcode_mail_mode = 'none';
+
+        $upd = $pdo->prepare('UPDATE setting SET qrcode_mail_mode = :mode WHERE id = 1');
+        $upd->execute(['mode' => $qrcode_mail_mode]);
+
+        addToast('success', 'Configuration QR Code enregistrée');
+        $data['qrcode_mail_mode'] = $qrcode_mail_mode;
+    }
 }
 
 // Vérifier l'état actuel de la connexion
@@ -162,18 +182,9 @@ try {
 }
 
 // Formulaire ---------------------------------------------------------------------------------
-$stmt = $pdo->prepare('SELECT * FROM forms');
-$stmt->execute();
-
-$required_fields = [];
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $required_fields[$row['fields']] = $row['required'] ? 1 : 0;
-}
-
-$fields = ['required_name','required_firstname','required_phone','required_email','required_date_of_birth','required_sex','required_city','required_company'];
-foreach ($fields as $field) {
-    $$field = $required_fields[$field] ?? 0;
-}
+$stmtForms = $pdo->prepare('SELECT * FROM forms ORDER BY sort_order ASC');
+$stmtForms->execute();
+$allFields = $stmtForms->fetchAll(PDO::FETCH_ASSOC);
 
 
 // Import excel ---------------------------------------------------------------------------------
@@ -196,109 +207,81 @@ foreach ($fields as $field) {
  *  $message : contenu HTML de l'alerte
  *  $delay   : délai ms avant fermeture auto (0 = pas d'auto-close)
  *****************************************************************/
-function makeAlert(string $type, string $message, int $delay = 3000): string
-{
-    $autoDismiss = $delay > 0 ? ' auto-dismiss' : '';
-    $dataDelay   = $delay > 0 ? ' data-dismiss-delay="' . $delay . '"' : '';
-    return '
-    <div class="alert alert-' . $type . ' alert-dismissible fade show' . $autoDismiss . '"
-         role="alert"' . $dataDelay . '>
-        ' . $message . '
-        <button type="button" class="btn-close"
-                data-bs-dismiss="alert"
-                aria-label="Fermer"></button>
-    </div>';
+/* --------------------------------------------------------------------------
+   En-tête du site
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_header'])) {
+    $newTitle = $_POST['title'] ?? '';
+    $newTitleMobile = $_POST['title_mobile'] ?? '';
+
+    $pdo->prepare('UPDATE setting SET title = :title, title_mobile = :title_mobile WHERE id = 1')
+        ->execute(['title' => $newTitle, 'title_mobile' => $newTitleMobile]);
+
+    addToast('success', 'En-tête enregistré !');
+    $title = $newTitle;
+    $title_mobile = $newTitleMobile;
 }
 
 /* --------------------------------------------------------------------------
-   Carte 2 : Configuration général
+   Logo de la navbar
 -------------------------------------------------------------------------- */
-$alert = '';                           // message à afficher dans la carte 1
-if (isset($_POST['config'])) {
+if (isset($_POST['save_navbar_logo'])) {
+    $uploadDir = '../files/_logos/';
+    $allowed = ['jpg','jpeg','png','gif','webp','svg'];
+    $allowedMime = ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml'];
 
-    $debogage = isset($_POST['debogage']) ? 1 : 0;
-    $footer = $_POST['footer'] ?? '';
-    $newColor = $_POST['title_color'] ?? '#ffffff';
-    $registration_fee = isset($_POST['registration_fee'])
-                    ? (int) $_POST['registration_fee']   // nouvelle valeur du formulaire
-                    : 0;                                 // (ou ton défaut)
-
-    /* validation rapide : hexa #RRGGBB */
-    if (!preg_match('/^#[0-9a-f]{6}$/i', $newColor)) {
-        $alert = makeAlert('danger', 'Couleur invalide.');
-    }
-
-    /* 1) Sécuriser / valider le titre */
-    $newTitle = trim($_POST['title'] ?? '');
-    if ($newTitle === '') {
-         $alert = makeAlert('danger', 'Le titre ne peut pas être vide.');
-    } else {
-
-        /* 2) Gérer l'upload d'image (optionnel) */
-        $newPicture = $picture;            // par défaut on garde l'ancienne
-
-        if (!empty($_FILES['picture']['name'])) {
-
-            $allowed      = ['jpg','jpeg','png','gif','webp'];
-            $allowedMime  = ['image/jpeg','image/png','image/gif','image/webp'];
-            $uploadDir    = '../files/_pictures/';
-            $ext          = strtolower(pathinfo($_FILES['picture']['name'], PATHINFO_EXTENSION));
-            $finfo        = new finfo(FILEINFO_MIME_TYPE);
-            $mimeType     = $finfo->file($_FILES['picture']['tmp_name']);
-
-            if (!in_array($ext, $allowed, true) || !in_array($mimeType, $allowedMime, true)) {
-                $alert = makeAlert('danger', 'Format d\'image non autorisé.');
-            } elseif ($_FILES['picture']['size'] > 5 * 1024 * 1024) {
-                $alert = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
-            } else {
-                $safeName = uniqid('img_', true) . '.' . $ext;
-                $tmp      = $_FILES['picture']['tmp_name'];
-
-                if (move_uploaded_file($tmp, $uploadDir . $safeName)) {
-                    $newPicture = $safeName;
-                } else {
-                    $alert = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+    if (!empty($_FILES['navbar_logo']['name'])) {
+        $ext = strtolower(pathinfo($_FILES['navbar_logo']['name'], PATHINFO_EXTENSION));
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['navbar_logo']['tmp_name']);
+        if (!in_array($ext, $allowed, true) || !in_array($mime, $allowedMime, true)) {
+            addToast('danger', 'Format d\'image non autorisé.');
+        } elseif ($_FILES['navbar_logo']['size'] > 5 * 1024 * 1024) {
+            addToast('danger', 'Image trop volumineuse (max 5 Mo).');
+        } else {
+            $safeName = uniqid('logo_', true) . '.' . $ext;
+            if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+            if (move_uploaded_file($_FILES['navbar_logo']['tmp_name'], $uploadDir . $safeName)) {
+                // Supprimer l'ancien logo si ce n'est pas celui par défaut
+                if ($navbar_logo && $navbar_logo !== 'logo_fer_rose.png' && file_exists($uploadDir . $navbar_logo)) {
+                    @unlink($uploadDir . $navbar_logo);
                 }
+                $pdo->prepare('UPDATE setting SET navbar_logo = :l WHERE id = 1')
+                    ->execute(['l' => $safeName]);
+                $navbar_logo = $safeName;
+                addToast('success', 'Logo de la navbar mis à jour !');
+            } else {
+                addToast('danger', 'Erreur lors de l\'upload.');
             }
         }
-
-        /* 3) Si pas d'erreur, mise à jour BD */
-        if ($alert === '') {
-            $upd = $pdo->prepare(
-                'UPDATE setting
-                    SET title               = :title,
-                        picture             = :picture,
-                        title_color         = :color,
-                        footer              = :footer,
-                        registration_fee    = :fee,
-                        debogage            = :debogage
-                WHERE id = :id'
-            );
-            $upd->execute([
-                'title'     => $newTitle,
-                'picture'   => $newPicture,
-                'color'     => $newColor,
-                'footer'    => $footer,
-                'fee'       => $registration_fee,
-                'debogage'  => $debogage,
-                'id'        => 1
-            ]);
-
-            $alert = makeAlert('success', 'Configuration enregistrée !');
-
-            /* 4) Mettre à jour les variables locales
-                  (sinon le formulaire afficherait l'ancien titre) */
-            $title   = $newTitle;
-            $picture = $newPicture;
-            $titleColor = $newColor;
-        }
+    } else {
+        addToast('warning', 'Aucune image sélectionnée.');
     }
+}
+
+/* --------------------------------------------------------------------------
+   Configuration générale
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_general'])) {
+    $footer = $_POST['footer'] ?? '';
+    $accueil_active = !empty($_POST['accueil_active']) ? 1 : 0;
+    $registration_fee = (int) ($_POST['registration_fee'] ?? 0);
+    $qrcode_mail_limit = max(0, (int) ($_POST['qrcode_mail_limit'] ?? 0));
+
+    $pdo->prepare(
+        'UPDATE setting SET footer = :footer, registration_fee = :fee,
+         accueil_active = :accueil_active, qrcode_mail_limit = :qrcode_mail_limit
+         WHERE id = 1'
+    )->execute([
+        'footer' => $footer, 'fee' => $registration_fee,
+        'accueil_active' => $accueil_active, 'qrcode_mail_limit' => $qrcode_mail_limit,
+    ]);
+
+    addToast('success', 'Configuration enregistrée !');
 }
 
 /* --------------------------------------------------------------------------
    Carte 1 : Liaison AssoConnect
 -------------------------------------------------------------------------- */
-$alertAsso = '';
 if (isset($_POST['LinkAssoConnect'])) {
 
     /* a) Lecture & validation (CWE-79) */
@@ -306,11 +289,11 @@ if (isset($_POST['LinkAssoConnect'])) {
     $script = trim($_POST['assoconnect_js']     ?? '');
 
     if ($iframe === '' || $script === '') {
-         $alertAsso = makeAlert('danger', 'Les deux champs sont obligatoires.');
+         addToast('danger', 'Les deux champs sont obligatoires.');
     } elseif (!preg_match('#^<(iframe[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/|div[^>]+class=["\'][^"\']*iframe-asc-container)#i', $iframe)) {
-         $alertAsso = makeAlert('danger', 'Le code DIV/iframe doit provenir d\'AssoConnect.');
+         addToast('danger', 'Le code DIV/iframe doit provenir d\'AssoConnect.');
     } elseif (!preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', $script)) {
-         $alertAsso = makeAlert('danger', 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).');
+         addToast('danger', 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).');
     } else {
 
         /* b) Requête préparée */
@@ -330,9 +313,9 @@ if (isset($_POST['LinkAssoConnect'])) {
         /* c) Gestion du résultat */
         if ($ok) {
             if ($upd->rowCount() > 0) {
-                $alertAsso = makeAlert('success', 'Liaison AssoConnect enregistrée !');
+                addToast('success', 'Liaison AssoConnect enregistrée !');
             } else {
-                 $alertAsso = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d'auto-close
+                 addToast('warning', 'Aucun changement détecté.', 10000);
             }
 
             /* Mettre à jour les variables pour le pré-remplissage */
@@ -341,130 +324,131 @@ if (isset($_POST['LinkAssoConnect'])) {
         } else {
             /* $execute a échoué : on affiche le message renvoyé par PDO */
             $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-            $alertAsso = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d'auto-close
+            addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
         }
     }
 }
 
 /* --------------------------------------------------------------------------
-   Carte 3 : Accueil
+   Accueil — Hero (titre/image sur la vidéo)
 -------------------------------------------------------------------------- */
-$alertAccueil = '';
-if (isset($_POST['accueil'])) {
+if (isset($_POST['save_hero'])) {
+    $newTitleAccueil = $_POST['titleAccueil'] ?? '';
+    $newTitleAccueilMobile = $_POST['titleAccueil_mobile'] ?? '';
+    $newSubtitleAccueil = trim($_POST['subtitle_accueil'] ?? '');
+    $newSubtitleAccueilMobile = trim($_POST['subtitle_accueil_mobile'] ?? '');
 
-$edition = $_POST['edition'] ?? '';  
-$link_instagram  = $_POST['link_instagram']   ?? '';
-$link_facebook = $_POST['link_facebook'] ?? ''; 
-$accueil_active = !empty($_POST['accueil_active']) ? 1 : 0;
-$date_course = $_POST['date_course'] ?? null;
-$link_cancer = $_POST['link_cancer'] ?? null;
+    $pdo->prepare(
+        'UPDATE setting SET titleAccueil = :t, titleAccueil_mobile = :tm,
+         subtitle_accueil = :st, subtitle_accueil_mobile = :stm WHERE id = 1'
+    )->execute([
+        't' => $newTitleAccueil, 'tm' => $newTitleAccueilMobile,
+        'st' => $newSubtitleAccueil, 'stm' => $newSubtitleAccueilMobile,
+    ]);
 
-if ($date_course) {
-    // Ajoute l'heure pour obtenir un format complet TIMESTAMP
-    $date_course = $date_course . ' 00:00:00';
-} else {
-    $date_course = null;
+    addToast('success', 'Contenu enregistré !');
+    $titleAccueil = $newTitleAccueil;
+    $titleAccueil_mobile = $newTitleAccueilMobile;
+    $subtitle_accueil = $newSubtitleAccueil;
+    $subtitle_accueil_mobile = $newSubtitleAccueilMobile;
 }
 
-/* 1) Sécuriser / valider le titre */
-    $newTitleAccueil = trim($_POST['titleAccueil'] ?? '');
-    if ($newTitleAccueil === '') {
-         $alertAccueil = makeAlert('danger', 'Le titre ne peut pas être vide.');
+/* --------------------------------------------------------------------------
+   Accueil — Paramètres (réseaux, date, bandeau...)
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_accueil_params'])) {
+    $link_instagram = $_POST['link_instagram'] ?? '';
+    $link_facebook = $_POST['link_facebook'] ?? '';
+    $link_cancer = $_POST['link_cancer'] ?? null;
+    $date_course = $_POST['date_course'] ?? null;
+    $flash_info_text = trim($_POST['flash_info_text'] ?? '');
+    $flash_info_active = !empty($_POST['flash_info_active']) ? 1 : 0;
+
+    if ($date_course) {
+        $date_course = $date_course . ' 00:00:00';
     } else {
-            $allowed   = ['jpg','jpeg','png','gif','webp'];
-            $uploadDir = '../files/_pictures/';
+        $date_course = null;
+    }
 
-        $newPictureAccueil = $picture_accueil;
-        if (!empty($_FILES['picture_accueil']['name'])) {
-            $extAccueil      = strtolower(pathinfo($_FILES['picture_accueil']['name'], PATHINFO_EXTENSION));
-            $finfoA          = new finfo(FILEINFO_MIME_TYPE);
-            $mimeAccueil     = $finfoA->file($_FILES['picture_accueil']['tmp_name']);
-            $allowedMimeImg  = ['image/jpeg','image/png','image/gif','image/webp'];
-
-            if (!in_array($extAccueil, $allowed, true) || !in_array($mimeAccueil, $allowedMimeImg, true)) {
-                $alertAccueil = makeAlert('danger', 'Format d\'image non autorisé.');
-            } elseif ($_FILES['picture_accueil']['size'] > 5 * 1024 * 1024) {
-                $alertAccueil = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
-            } else {
-                $safeNameAccueil = uniqid('img_', true) . '.' . $extAccueil;
-                $tmpAccueil      = $_FILES['picture_accueil']['tmp_name'];
-
-                if (move_uploaded_file($tmpAccueil, $uploadDir . $safeNameAccueil)) {
-                    $newPictureAccueil = $safeNameAccueil;
-                } else {
-                    $alertAccueil = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
-                }
-            }
-        }
-
-        $newPicturePartner = $picture_partner;
-        if (!empty($_FILES['picture_partner']['name'])) {
-            $extPartner      = strtolower(pathinfo($_FILES['picture_partner']['name'], PATHINFO_EXTENSION));
-            $finfoP          = new finfo(FILEINFO_MIME_TYPE);
-            $mimePartner     = $finfoP->file($_FILES['picture_partner']['tmp_name']);
-            $allowedMimeImg2 = ['image/jpeg','image/png','image/gif','image/webp'];
-
-            if (!in_array($extPartner, $allowed, true) || !in_array($mimePartner, $allowedMimeImg2, true)) {
-                $alertAccueil = makeAlert('danger', 'Format d\'image non autorisé.');
-            } elseif ($_FILES['picture_partner']['size'] > 5 * 1024 * 1024) {
-                $alertAccueil = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
-            } else {
-                $safeNamePartner = uniqid('img_', true) . '.' . $extPartner;
-                $tmpPartner      = $_FILES['picture_partner']['tmp_name'];
-
-                if (move_uploaded_file($tmpPartner, $uploadDir . $safeNamePartner)) {
-                    $newPicturePartner = $safeNamePartner;
-                } else {
-                    $alertAccueil = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
-                }
-            }
-        }
-
-        /* 3) Si pas d'erreur, mise à jour BD */
-        if ($alertAccueil === '') {
-            $upd = $pdo->prepare(
-                'UPDATE setting
-                    SET titleAccueil               = :titleAccueil,
-                        picture_partner             = :picture_partner,
-                        picture_accueil             = :picture_accueil,
-                        edition         = :edition,
-                        link_instagram              = :link_instagram,
-                        link_facebook              = :link_facebook,
-                        accueil_active              = :accueil_active,
-                        date_course              = :date_course,
-                        link_cancer              = :link_cancer
-                WHERE id = :id'
-            );
-            $upd->execute([
-                'titleAccueil'     => $newTitleAccueil,
-                'picture_partner'   => $newPicturePartner,
-                'picture_accueil'   => $newPictureAccueil,
-                'edition'     => $edition,
-                'link_instagram'    => $link_instagram,
-                'link_facebook'    => $link_facebook,
-                'accueil_active'    => $accueil_active,
-                'date_course'    => $date_course,
-                'link_cancer'    => $link_cancer,
-                'id'        => 1
-            ]);
-
-            $alertAccueil = makeAlert('success', 'Configuration enregistrée !');
-
-            /* 4) Mettre à jour les variables locales
-                  (sinon le formulaire afficherait l'ancien titre) */
-            $titleAccueil  = $newTitleAccueil;
-            $picture_partner= $newPicturePartner; 
-            $picture_accueil= $newPictureAccueil; 
-            $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
-
+    $uploadDir = '../files/_pictures/';
+    $allowed = ['jpg','jpeg','png','gif','webp'];
+    $allowedMime = ['image/jpeg','image/png','image/gif','image/webp'];
+    $newPicturePartner = $picture_partner;
+    if (!empty($_FILES['picture_partner']['name'])) {
+        $ext = strtolower(pathinfo($_FILES['picture_partner']['name'], PATHINFO_EXTENSION));
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['picture_partner']['tmp_name']);
+        if (in_array($ext, $allowed, true) && in_array($mime, $allowedMime, true) && $_FILES['picture_partner']['size'] <= 5*1024*1024) {
+            $safe = uniqid('img_', true) . '.' . $ext;
+            if (move_uploaded_file($_FILES['picture_partner']['tmp_name'], $uploadDir . $safe)) $newPicturePartner = $safe;
         }
     }
+
+    $pdo->prepare(
+        'UPDATE setting SET link_instagram = :li, link_facebook = :lf, link_cancer = :lc,
+         date_course = :dc, picture_partner = :pp,
+         flash_info_text = :ft, flash_info_active = :fa WHERE id = 1'
+    )->execute([
+        'li' => $link_instagram, 'lf' => $link_facebook, 'lc' => $link_cancer,
+        'dc' => $date_course, 'pp' => $newPicturePartner,
+        'ft' => $flash_info_text, 'fa' => $flash_info_active,
+    ]);
+
+    addToast('success', 'Paramètres enregistrés !');
+    $picture_partner = $newPicturePartner;
+    $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
+}
+
+/* --------------------------------------------------------------------------
+   Accueil — Vidéo d'accueil
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_video_accueil'])) {
+    $uploadDir = '../files/';
+    $allowedVideo = ['mp4', 'webm', 'ogg'];
+    $allowedMimeVideo = ['video/mp4', 'video/webm', 'video/ogg'];
+
+    if (!empty($_FILES['video_accueil']['name'])) {
+        $ext = strtolower(pathinfo($_FILES['video_accueil']['name'], PATHINFO_EXTENSION));
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['video_accueil']['tmp_name']);
+        if (!in_array($ext, $allowedVideo, true) || !in_array($mime, $allowedMimeVideo, true)) {
+            addToast('danger', 'Format vidéo non autorisé (mp4, webm, ogg uniquement).');
+        } elseif ($_FILES['video_accueil']['size'] > 50 * 1024 * 1024) {
+            addToast('danger', 'Vidéo trop volumineuse (max 50 Mo).');
+        } else {
+            $safeName = uniqid('vid_', true) . '.' . $ext;
+            if (move_uploaded_file($_FILES['video_accueil']['tmp_name'], $uploadDir . $safeName)) {
+                // Supprimer l'ancienne vidéo si ce n'est pas la vidéo par défaut
+                if ($video_accueil && $video_accueil !== 'FER.mp4' && file_exists($uploadDir . $video_accueil)) {
+                    @unlink($uploadDir . $video_accueil);
+                }
+                $pdo->prepare('UPDATE setting SET video_accueil = :v WHERE id = 1')
+                    ->execute(['v' => $safeName]);
+                $video_accueil = $safeName;
+                addToast('success', 'Vidéo d\'accueil mise à jour !');
+            } else {
+                addToast('danger', 'Erreur lors de l\'upload de la vidéo.');
+            }
+        }
+    } else {
+        addToast('warning', 'Aucune vidéo sélectionnée.');
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Configuration générale — Mode maintenance
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_maintenance'])) {
+    $maintenance_mode = !empty($_POST['maintenance_mode']) ? 1 : 0;
+    $maintenance_message = trim($_POST['maintenance_message'] ?? '');
+
+    $pdo->prepare('UPDATE setting SET maintenance_mode = :m, maintenance_message = :msg WHERE id = 1')
+        ->execute(['m' => $maintenance_mode, 'msg' => $maintenance_message]);
+
+    addToast('success', 'Mode maintenance mis à jour !');
 }
 
 /* --------------------------------------------------------------------------
    Carte 4 : PARCOURS
 -------------------------------------------------------------------------- */
-$alertParcours = '';
 if (isset($_POST['parcours'])) {
 
 $parcoursDesc = $_POST['parcoursDesc'] ?? '';  
@@ -472,7 +456,7 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
 /* 1) Sécuriser / valider le titre */
     $newTitleParcours = trim($_POST['titleParcours'] ?? '');
     if ($newTitleParcours === '') {
-         $alertParcours = makeAlert('danger', 'Le titre ne peut pas être vide.');
+         addToast('danger', 'Le titre ne peut pas être vide.');
     } else {
             $allowed   = ['jpg','jpeg','png','gif','webp'];
             $uploadDir = '../files/_pictures/';
@@ -485,9 +469,9 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
             $allowedMimeImg3 = ['image/jpeg','image/png','image/gif','image/webp'];
 
             if (!in_array($extGradient, $allowed, true) || !in_array($mimeGradient, $allowedMimeImg3, true)) {
-                $alertParcours = makeAlert('danger', 'Format d\'image non autorisé.');
+                addToast('danger', 'Format d\'image non autorisé.');
             } elseif ($_FILES['picture_gradient']['size'] > 5 * 1024 * 1024) {
-                $alertParcours = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
+                addToast('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeNameGradient = uniqid('img_', true) . '.' . $extGradient;
                 $tmpGradient      = $_FILES['picture_gradient']['tmp_name'];
@@ -495,7 +479,7 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
                 if (move_uploaded_file($tmpGradient, $uploadDir . $safeNameGradient)) {
                     $newPictureGradient = $safeNameGradient;
                 } else {
-                    $alertParcours = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                    addToast('danger', 'Erreur lors de l\'upload de l\'image.');
                 }
             }
         }
@@ -508,9 +492,9 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
             $allowedMimeImg4 = ['image/jpeg','image/png','image/gif','image/webp'];
 
             if (!in_array($extParcours, $allowed, true) || !in_array($mimeParcours, $allowedMimeImg4, true)) {
-                $alertParcours = makeAlert('danger', 'Format d\'image non autorisé.');
+                addToast('danger', 'Format d\'image non autorisé.');
             } elseif ($_FILES['picture_parcours']['size'] > 5 * 1024 * 1024) {
-                $alertParcours = makeAlert('danger', 'Image trop volumineuse (max 5 Mo).');
+                addToast('danger', 'Image trop volumineuse (max 5 Mo).');
             } else {
                 $safeNameParcours = uniqid('img_', true) . '.' . $extParcours;
                 $tmpParcours      = $_FILES['picture_parcours']['tmp_name'];
@@ -518,13 +502,14 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
                 if (move_uploaded_file($tmpParcours, $uploadDir . $safeNameParcours)) {
                     $newPictureParcours = $safeNameParcours;
                 } else {
-                    $alertParcours = makeAlert('danger', 'Erreur lors de l\'upload de l\'image.');
+                    addToast('danger', 'Erreur lors de l\'upload de l\'image.');
                 }
             }
         }
 
         /* 3) Si pas d'erreur, mise à jour BD */
-        if ($alertParcours === '') {
+        $hasError = !empty($_SESSION['toasts']) && array_filter($_SESSION['toasts'], fn($t) => $t['type'] === 'danger');
+        if (!$hasError) {
             $upd = $pdo->prepare(
                 'UPDATE setting
                     SET titleParcours             = :titleParcours,
@@ -541,7 +526,7 @@ $parcoursDesc = $_POST['parcoursDesc'] ?? '';
                 'id'        => 1
             ]);
 
-            $alertParcours = makeAlert('success', 'Configuration enregistrée !');
+            addToast('success', 'Configuration enregistrée !');
 
             /* 4) Mettre à jour les variables locales
                   (sinon le formulaire afficherait l'ancien titre) */
@@ -583,7 +568,7 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
             echo json_encode(['error' => "Limite: $remaining image(s) restantes", 'uploaded' => []]);
             exit;
         }
-        echo makeAlert('danger', "Vous ne pouvez importer que $remaining image(s) supplémentaires.");
+        addToast('danger', "Vous ne pouvez importer que $remaining image(s) supplémentaires.");
     } else {
         $allowedGalMime = ['image/jpeg','image/png','image/gif','image/webp'];
         for ($i = 0; $i < count($files['name']); $i++) {
@@ -617,7 +602,6 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
 /* --------------------------------------------------------------------------
    Carte 1 : Liaison AssoConnect
 -------------------------------------------------------------------------- */
-$alertReglementation = '';
 if (isset($_POST['reglementation'])) {
 
     /* a) Lecture & sanitisation HTML (CWE-79) */
@@ -638,59 +622,133 @@ if (isset($_POST['reglementation'])) {
     /* c) Gestion du résultat */
     if ($ok) {
         if ($upd->rowCount() > 0) {
-            $alertReglementation = makeAlert('success', 'Réglementation enregistrée !');
+            addToast('success', 'Réglementation enregistrée !');
         } else {
-                $alertReglementation = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d'auto-close
+                addToast('warning', 'Aucun changement détecté.', 10000);
         }
     } else {
         /* $execute a échoué : on affiche le message renvoyé par PDO */
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-        $alertReglementation = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d'auto-close
+        addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
     }
 }
 
 /* --------------------------------------------------------------------------
    Carte : Formulaire
 -------------------------------------------------------------------------- */
-$alertRequired = '';
-if (isset($_POST['required'])) {
-    $field_keys = [
-        'required_name',
-        'required_firstname',
-        'required_phone',
-        'required_email',
-        'required_date_of_birth',
-        'required_sex',
-        'required_city',
-        'required_company',
-    ];
+// Sauvegarde des champs formulaire
+if (isset($_POST['save_fields'])) {
+    foreach ($allFields as $f) {
+        $id = $f['id'];
+        $isLocked = (int) $f['is_locked'];
 
-    $required_fields = [];
-    foreach ($field_keys as $field) {
-        $required_fields[$field] = isset($_POST[$field]) ? 1 : 0;
-    }
+        // Champs verrouillés : on ne touche ni active, ni required, ni visibilité
+        if ($isLocked) continue;
 
-    $upd = $pdo->prepare('UPDATE forms SET required = :required WHERE fields = :fields');
-
-    foreach ($required_fields as $field => $required) {
+        $upd = $pdo->prepare(
+            'UPDATE forms SET active = :active, required = :req,
+             visible_admin = :va, visible_saisie = :vs, visible_qr = :vq
+             WHERE id = :id'
+        );
         $upd->execute([
-            'required' => $required,
-            'fields' => $field
+            'active' => isset($_POST["active_{$id}"]) ? 1 : 0,
+            'req'    => isset($_POST["required_{$id}"]) ? 1 : 0,
+            'va'     => isset($_POST["va_{$id}"]) ? 1 : 0,
+            'vs'     => isset($_POST["vs_{$id}"]) ? 1 : 0,
+            'vq'     => isset($_POST["vq_{$id}"]) ? 1 : 0,
+            'id'     => $id,
         ]);
     }
+    addToast('success', 'Configuration des champs enregistrée !');
+    // Recharger
+    $stmtForms = $pdo->prepare('SELECT * FROM forms ORDER BY sort_order ASC');
+    $stmtForms->execute();
+    $allFields = $stmtForms->fetchAll(PDO::FETCH_ASSOC);
+}
 
-    $alertRequired = makeAlert('success', 'Configuration enregistrée !');
+// Ajouter un champ personnalisé
+if (isset($_POST['add_custom_field'])) {
+    $newLabel = trim($_POST['new_label'] ?? '');
+    $newType  = $_POST['new_type'] ?? 'text';
+    $newOpts  = trim($_POST['new_options'] ?? '');
 
-    // Création dynamique des variables
-    foreach ($field_keys as $field) {
-        $$field = $_POST[$field] ?? 0;
+    if ($newLabel === '') {
+        addToast('danger', 'Le libellé du champ ne peut pas être vide.');
+    } else {
+        // Générer un nom de colonne safe
+        $colName = 'custom_' . preg_replace('/[^a-z0-9_]/', '', strtolower(
+            str_replace([' ', '-', 'é', 'è', 'ê', 'à', 'ù', 'ô', 'î', 'ï', 'ë', 'ç'],
+                        ['_', '_', 'e', 'e', 'e', 'a', 'u', 'o', 'i', 'i', 'e', 'c'], $newLabel)
+        ));
+        $colName = substr($colName, 0, 50);
+
+        // Vérifier que la colonne n'existe pas déjà
+        $exists = $pdo->prepare('SELECT COUNT(*) FROM forms WHERE bdd_column = ?');
+        $exists->execute([$colName]);
+        if ($exists->fetchColumn() > 0) {
+            addToast('danger', 'Un champ avec ce nom existe déjà.');
+        } else {
+            try {
+                // ALTER TABLE pour ajouter la colonne
+                $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `{$colName}` VARCHAR(255) DEFAULT NULL");
+
+                // Trouver le prochain sort_order
+                $maxSort = (int) $pdo->query('SELECT MAX(sort_order) FROM forms')->fetchColumn();
+
+                $ins = $pdo->prepare(
+                    'INSERT INTO forms (fields, label, field_type, bdd_column, active, required,
+                     is_locked, is_default, visible_public, visible_admin, visible_saisie, visible_qr,
+                     sort_order, options_list, encrypted)
+                     VALUES (?, ?, ?, ?, 1, 0, 0, 0, 1, 1, 1, 1, ?, ?, 1)'
+                );
+                $ins->execute([
+                    'custom_' . uniqid(), $newLabel, $newType, $colName,
+                    $maxSort + 1, $newOpts ?: null
+                ]);
+
+                addToast('success', "Champ « {$newLabel} » ajouté avec succès !");
+                // Recharger
+                $stmtForms = $pdo->prepare('SELECT * FROM forms ORDER BY sort_order ASC');
+                $stmtForms->execute();
+                $allFields = $stmtForms->fetchAll(PDO::FETCH_ASSOC);
+            } catch (PDOException $e) {
+                addToast('danger', 'Erreur : ' . htmlspecialchars($e->getMessage()));
+            }
+        }
+    }
+}
+
+// Supprimer un champ personnalisé
+if (isset($_POST['delete_field_id'])) {
+    $delId = (int) $_POST['delete_field_id'];
+    $delField = $pdo->prepare('SELECT * FROM forms WHERE id = ? AND is_default = 0');
+    $delField->execute([$delId]);
+    $fieldToDelete = $delField->fetch(PDO::FETCH_ASSOC);
+
+    if ($fieldToDelete) {
+        try {
+            // DROP la colonne dans registrations
+            $col = $fieldToDelete['bdd_column'];
+            $pdo->exec("ALTER TABLE `registrations` DROP COLUMN `{$col}`");
+            // Supprimer de forms
+            $pdo->prepare('DELETE FROM forms WHERE id = ?')->execute([$delId]);
+
+            addToast('success', "Champ « {$fieldToDelete['label']} » supprimé (colonne et données supprimées).");
+            // Recharger
+            $stmtForms = $pdo->prepare('SELECT * FROM forms ORDER BY sort_order ASC');
+            $stmtForms->execute();
+            $allFields = $stmtForms->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            addToast('danger', 'Erreur suppression : ' . htmlspecialchars($e->getMessage()));
+        }
+    } else {
+        addToast('danger', 'Ce champ ne peut pas être supprimé (champ par défaut).');
     }
 }
 
 /* --------------------------------------------------------------------------
    Carte : Import excel
 -------------------------------------------------------------------------- */
-$alertImport = '';
 if (isset($_POST['importExcel'])) {
     $field_keys = [
         'inscription_no',
@@ -702,7 +760,7 @@ if (isset($_POST['importExcel'])) {
         'sexe',
         'ville',
         'paiement_mode',
-        'date',
+        'created_at',
         'entreprise',
     ];
 
@@ -720,7 +778,7 @@ if (isset($_POST['importExcel'])) {
         ]);
     }
 
-    $alertImport = makeAlert('success', 'Configuration enregistrée !');
+    addToast('success', 'Configuration enregistrée !');
 
     foreach ($field_keys as $key) {
         $$key = $_POST[$key] ?? '';
@@ -730,7 +788,6 @@ if (isset($_POST['importExcel'])) {
 /* --------------------------------------------------------------------------
    Carte : Google
 -------------------------------------------------------------------------- */
-$alertGoogle = '';
 if (isset($_POST['google'])) {
 
     /* a) Lecture & validation */
@@ -775,14 +832,14 @@ if (isset($_POST['google'])) {
     /* c) Gestion du résultat */
     if ($ok) {
         if ($upd->rowCount() > 0) {
-            $alertGoogle = makeAlert('success', 'Clés google enregistrées !');
+            addToast('success', 'Clés google enregistrées !');
         } else {
-                $alertGoogle = makeAlert('warning', 'Aucun changement détecté.', 0); // pas d'auto-close
+                addToast('warning', 'Aucun changement détecté.', 10000);
         }
     } else {
         /* $execute a échoué : on affiche le message renvoyé par PDO */
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-        $alertGoogle = makeAlert('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 0); // pas d'auto-close
+        addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
     }
 
     $client_id = decrypt($client_id);
@@ -803,7 +860,7 @@ if (isset($_POST['delete_picture_parcours']) && $picture_parcours) {
     $stmt->execute(['id' => 1]);
 
     $picture_parcours = ''; // Met à jour la variable locale
-    $alertParcours = makeAlert('success', 'Image supprimée avec succès.');
+    addToast('success', 'Image supprimée avec succès.');
 }
 if (isset($_POST['delete_picture_gradient']) && $picture_gradient) {
     $filePath = '../files/_pictures/' . $picture_gradient;
@@ -816,20 +873,7 @@ if (isset($_POST['delete_picture_gradient']) && $picture_gradient) {
     $stmt->execute(['id' => 1]);
 
     $picture_gradient = ''; // Met à jour la variable locale
-    $alertParcours = makeAlert('success', 'Image supprimée avec succès.');
-}
-if (isset($_POST['delete_picture_accueil']) && $picture_accueil) {
-    $filePath = '../files/_pictures/' . $picture_accueil;
-    if (file_exists($filePath)) {
-        unlink($filePath); // Supprime le fichier
-    }
-
-    // Supprime la référence dans la base de données
-    $stmt = $pdo->prepare('UPDATE setting SET picture_accueil = NULL WHERE id = :id');
-    $stmt->execute(['id' => 1]);
-
-    $picture_accueil = ''; // Met à jour la variable locale
-    $alertAccueil = makeAlert('success', 'Image supprimée avec succès.');
+    addToast('success', 'Image supprimée avec succès.');
 }
 if (isset($_POST['delete_picture_partner']) && $picture_partner) {
     $filePath = '../files/_pictures/' . $picture_partner;
@@ -841,23 +885,9 @@ if (isset($_POST['delete_picture_partner']) && $picture_partner) {
     $stmt = $pdo->prepare('UPDATE setting SET picture_partner = NULL WHERE id = :id');
     $stmt->execute(['id' => 1]);
 
-    $picture_partner = ''; // Met à jour la variable locale
-    $alertAccueil = makeAlert('success', 'Image supprimée avec succès.');
+    $picture_partner = '';
+    addToast('success', 'Image supprimée avec succès.');
 }
-if (isset($_POST['delete_picture']) && $picture) {
-    $filePath = '../files/_pictures/' . $picture;
-    if (file_exists($filePath)) {
-        unlink($filePath); // Supprime le fichier
-    }
-
-    // Supprime la référence dans la base de données
-    $stmt = $pdo->prepare('UPDATE setting SET picture = NULL WHERE id = :id');
-    $stmt->execute(['id' => 1]);
-
-    $picture = ''; // Met à jour la variable locale
-    $alert = makeAlert('success', 'Image supprimée avec succès.');
-}
-
 // Suppression image modal
 if (isset($_POST['deleteImage'])) {
     $fileToDelete = basename($_POST['deleteImage']);
@@ -931,7 +961,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #ec4899; background: transparent;
+    border-bottom-color: #F42182; background: transparent;
   }
   .settings-section { display: none; }
   .settings-section.active { display: block; }
@@ -949,12 +979,13 @@ document.addEventListener('DOMContentLoaded', function() {
 // Determine active tab based on which form was submitted
 $activeTab = 'general';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['config']) || isset($_POST['LinkAssoConnect'])) $activeTab = 'general';
-    elseif (isset($_POST['accueil'])) $activeTab = 'accueil';
-    elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie'])) $activeTab = 'parcours';
+    if (isset($_POST['save_header']) || isset($_POST['save_general']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_maintenance']) || isset($_POST['save_navbar_logo'])) $activeTab = 'general';
+    elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil'])) $activeTab = 'accueil';
+    elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
-    elseif (isset($_POST['required']) || isset($_POST['importExcel'])) $activeTab = 'formulaire';
+    elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id']) || isset($_POST['importExcel'])) $activeTab = 'formulaire';
     elseif (isset($_POST['google']) || isset($_POST['action'])) $activeTab = 'google';
+    elseif (isset($_POST['save_qrcode_config'])) $activeTab = 'google';
 }
 // Also check URL hash
 if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours','reglementation','formulaire','google'])) {
@@ -975,84 +1006,115 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 <!-- ═══ TAB: General ═══ -->
 <div class="settings-section <?= $activeTab === 'general' ? 'active' : '' ?>" id="tab-general">
   <div class="row g-4">
-    <div class="col-12 col-lg-6">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>En-tête du site d'inscription</h2>
+        <?php $headerSubTab = $_POST['header_subtab'] ?? 'headerPC'; ?>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <input type="hidden" name="header_subtab" id="header_subtab" value="<?= htmlspecialchars($headerSubTab) ?>">
+
+          <!-- Sous-onglets PC / Mobile -->
+          <div class="col-12">
+            <ul class="nav nav-tabs" role="tablist" id="headerTabs">
+              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerPC' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerPC" role="tab">PC</a></li>
+              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerMobile' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerMobile" role="tab">Mobile</a></li>
+            </ul>
+            <div class="tab-content pt-3">
+              <!-- PC -->
+              <div class="tab-pane fade <?= $headerSubTab === 'headerPC' ? 'show active' : '' ?>" id="headerPC" role="tabpanel">
+                <div class="col-12">
+                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
+                  <textarea class="form-control" id="headerTitleEditor" name="title" rows="3"><?= htmlspecialchars($title) ?></textarea>
+                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
+                </div>
+              </div>
+              <!-- Mobile -->
+              <div class="tab-pane fade <?= $headerSubTab === 'headerMobile' ? 'show active' : '' ?>" id="headerMobile" role="tabpanel">
+                <div class="col-12">
+                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
+                  <textarea class="form-control" id="headerTitleMobileEditor" name="title_mobile" rows="3"><?= htmlspecialchars($title_mobile) ?></textarea>
+                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_header" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
+    <!-- Carte : Logo de la navbar -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Logo de la navbar</h2>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-12">
+            <label class="form-label">Changer le logo</label>
+            <input type="file" class="form-control" name="navbar_logo" accept="image/*">
+            <small class="text-muted">Formats : JPG, PNG, GIF, WebP, SVG — Max 5 Mo</small>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Logo actuel</label>
+            <div>
+              <?php if ($navbar_logo && file_exists('../files/_logos/' . $navbar_logo)): ?>
+                <div class="mb-2"><img src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Logo actuel" class="img-thumbnail" style="max-height:60px;background:#f8f8f8;"></div>
+                <small class="text-muted"><?= htmlspecialchars($navbar_logo) ?></small>
+              <?php else: ?>
+                <span class="text-muted">Aucun logo</span>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_navbar_logo" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
+    <div class="col-12">
       <div class="setting-card">
         <h2>Configuration generale</h2>
-        <?php if ($alert) echo $alert; ?>
-                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                        <?= csrf_field() ?>
-                        <div class="col-md-6"><label class="form-label">Titre</label>
-                            <input type="text"
-                                class="form-control"
-                                name="title"
-                                placeholder="Titre"
-                                value="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
-                        </div>
-                        <div class="col-md-3"><label class="form-label">Couleur du titre</label>
-                            <input type="color"
-                                class="form-control form-control-color"
-                                id="titleColor"
-                                name="title_color"
-                                value="<?= htmlspecialchars($titleColor ?? '#000000'); ?>"
-                                title="Choisissez la couleur">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Activer le debogage</label>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="debogage" id="debogage" <?= isset($debogage) && $debogage ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="debogage">Oui / Non</label>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="picture" class="form-label">Image d'entete</label>
-                            <input type="file"
-                                class="form-control"
-                                id="picture"
-                                name="picture"
-                                accept="image/*">
-                            <?php if ($picture) : ?>
-                                <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture) ?></small>
-                                <div class="mb-2">
-                                    <img src="../files/_pictures/<?= rawurlencode($picture) ?>"
-                                        alt="Image actuelle"
-                                        class="img-thumbnail"
-                                        style="max-width:145px;">
-                                </div>
-                                <button type="submit" name="delete_picture" value="1" class="btn btn-danger btn-sm">
-                                    Supprimer l'image
-                                </button>
-                            <?php endif; ?>
-                        </div>
-                        <div class="col-md-6"><label class="form-label">Bas de page</label>
-                            <input type="text"
-                                class="form-control"
-                                id="footer"
-                                name="footer"
-                                placeholder="Bas de page"
-                                value="<?= htmlspecialchars($footer, ENT_QUOTES, 'UTF-8'); ?>">
-                        </div>
-                        <div class="col-md-6"><label class="form-label">Montant de l'inscription</label>
-                            <select id="registration_fee" name="registration_fee" class="form-select">
-                                <?php for ($i = 0; $i <= 100; $i++): ?>
-                                <option value="<?= $i ?>"
-                                        <?= ($i == (int)$registration_fee ? 'selected' : '') ?>>
-                                    <?= $i ?>
-                                </option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <div class="col-12 text-end">
-                            <button type="submit" name="config" class="btn btn-primary w-auto">Sauvegarder</button>
-                        </div>
-                    </form>
-      </div><!-- /setting-card config -->
-    </div><!-- /col-lg-6 -->
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <div class="col-md-6"><label class="form-label">Bas de page</label>
+            <input type="text" class="form-control" id="footer" name="footer" placeholder="Bas de page" value="<?= htmlspecialchars($footer, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <div class="col-md-6"><label class="form-label">Montant de l'inscription</label>
+            <select id="registration_fee" name="registration_fee" class="form-select">
+              <?php for ($i = 0; $i <= 100; $i++): ?>
+              <option value="<?= $i ?>" <?= ($i == (int)$registration_fee ? 'selected' : '') ?>><?= $i ?></option>
+              <?php endfor; ?>
+            </select>
+          </div>
+          <div class="col-md-6"><label class="form-label">Nombre de premiers inscrits</label>
+            <input type="number" class="form-control" name="qrcode_mail_limit" min="0" value="<?= $qrcode_mail_limit ?>" placeholder="Ex : 800">
+            <small class="text-muted">Utilisé pour la coloration rose dans le dashboard et le QR Code (si mode = X premiers).</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Activer les inscriptions</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active_gen" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
+              <label class="form-check-label" for="accueil_active_gen">Oui / Non</label>
+            </div>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_general" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
 
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Liaison AssoConnect</h2>
-        <?php if ($alertAsso) echo $alertAsso; ?>
                     <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                         <?= csrf_field() ?>
                         <div class="form-group mb-3">
@@ -1082,90 +1144,180 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                     </form>
       </div><!-- /setting-card asso -->
     </div><!-- /col-lg-6 -->
+
+    <!-- Carte : Mode maintenance -->
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Mode maintenance</h2>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-12">
+            <label class="form-label">Activer le mode maintenance</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="maintenance_mode" id="maintenance_mode" <?= $maintenance_mode ? 'checked' : '' ?>>
+              <label class="form-check-label" for="maintenance_mode">
+                <?= $maintenance_mode ? '<span class="badge bg-danger">Activé</span>' : '<span class="badge bg-secondary">Désactivé</span>' ?>
+              </label>
+            </div>
+            <small class="text-muted">Lorsque activé, toutes les pages publiques afficheront la page de maintenance.</small>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Message de maintenance</label>
+            <textarea class="form-control" name="maintenance_message" rows="3" maxlength="500" placeholder="Ex : Le site est en cours de mise à jour. Nous serons de retour très bientôt !"><?= htmlspecialchars($maintenance_message, ENT_QUOTES, 'UTF-8') ?></textarea>
+            <small class="text-muted">Ce message sera affiché aux visiteurs. Laissez vide pour le message par défaut.</small>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_maintenance" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-lg-6 -->
+
   </div><!-- /row -->
 </div><!-- /tab-general -->
 
 <!-- ═══ TAB: Accueil ═══ -->
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
   <div class="row g-4">
+
+    <!-- Carte 1 : Titre / Image sur la vidéo -->
     <div class="col-12">
       <div class="setting-card">
-        <h2>Reglage page accueil</h2>
-                <?php if ($alertAccueil) echo $alertAccueil; ?>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <?= csrf_field() ?>
+        <h2>Titre / Image sur la vidéo</h2>
+        <?php $heroSubTab = $_POST['hero_subtab'] ?? 'heroPC'; ?>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <input type="hidden" name="hero_subtab" id="hero_subtab" value="<?= htmlspecialchars($heroSubTab) ?>">
 
-                    <div class="col-md-6"><label class="form-label">Titre de l'accueil</label>
-                        <input type="text" class="form-control" name="titleAccueil" placeholder="Titre de l'accueil" value="<?= htmlspecialchars($titleAccueil, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Edition</label>
-                        <input type="text" class="form-control" name="edition" placeholder="Edition" value="<?= htmlspecialchars($edition, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Lien Facebook</label>
-                        <input type="text" class="form-control" name="link_facebook" placeholder="Lien Facebook" value="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Lien Instagram</label>
-                        <input type="text" class="form-control" name="link_instagram" placeholder="Lien Instagram" value="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
+          <!-- Sous-onglets PC / Mobile -->
+          <div class="col-12">
+            <ul class="nav nav-tabs" role="tablist" id="heroTabs">
+              <li class="nav-item"><a class="nav-link <?= $heroSubTab === 'heroPC' ? 'active' : '' ?>" data-bs-toggle="tab" href="#heroPC" role="tab">PC</a></li>
+              <li class="nav-item"><a class="nav-link <?= $heroSubTab === 'heroMobile' ? 'active' : '' ?>" data-bs-toggle="tab" href="#heroMobile" role="tab">Mobile</a></li>
+            </ul>
+            <div class="tab-content pt-3">
+              <!-- PC -->
+              <div class="tab-pane fade <?= $heroSubTab === 'heroPC' ? 'show active' : '' ?>" id="heroPC" role="tabpanel">
+                <div class="col-12">
+                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
+                  <textarea class="form-control" id="titleAccueilEditor" name="titleAccueil" rows="3"><?= htmlspecialchars($titleAccueil) ?></textarea>
+                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
+                </div>
+                <div class="col-12 mt-3">
+                  <label class="form-label">Sous-titre</label>
+                  <input type="text" class="form-control" name="subtitle_accueil" maxlength="255" placeholder="Ex : Course et marche solidaires contre le cancer." value="<?= htmlspecialchars($subtitle_accueil, ENT_QUOTES, 'UTF-8') ?>">
+                  <small class="text-muted">Texte affiché sous le contenu principal. Laissez vide pour ne rien afficher.</small>
+                </div>
+              </div>
+              <!-- Mobile -->
+              <div class="tab-pane fade <?= $heroSubTab === 'heroMobile' ? 'show active' : '' ?>" id="heroMobile" role="tabpanel">
+                <div class="col-12">
+                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
+                  <textarea class="form-control" id="titleAccueilMobileEditor" name="titleAccueil_mobile" rows="3"><?= htmlspecialchars($titleAccueil_mobile) ?></textarea>
+                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
+                </div>
+                <div class="col-12 mt-3">
+                  <label class="form-label">Sous-titre</label>
+                  <input type="text" class="form-control" name="subtitle_accueil_mobile" maxlength="255" placeholder="Ex : Course et marche solidaires contre le cancer." value="<?= htmlspecialchars($subtitle_accueil_mobile, ENT_QUOTES, 'UTF-8') ?>">
+                  <small class="text-muted">Texte affiché sous le contenu principal sur mobile. Laissez vide pour ne rien afficher.</small>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label">Date de publication</label>
-                        <input type="date" class="form-control" name="date_course" value="<?= htmlspecialchars($date_formatted, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Activer les inscriptions</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="accueil_active">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Image d'accueil</label>
-                        <input type="file"
-                            class="form-control"
-                            id="picture_accueil"
-                            name="picture_accueil"
-                            accept="image/*">
-                        <?php if ($picture_accueil) : ?>
-                            <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_accueil) ?></small>
-                            <div class="mb-2">
-                                <img src="../files/_pictures/<?= rawurlencode($picture_accueil) ?>"
-                                    alt="Image actuelle"
-                                    class="img-thumbnail"
-                                    style="max-width:145px;">
-                            </div>
-                            <button type="submit" name="delete_picture_accueil" value="1" class="btn btn-danger btn-sm">
-                                Supprimer l'image
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Image des partenaires</label>
-                        <input type="file"
-                            class="form-control"
-                            id="picture_partner"
-                            name="picture_partner"
-                            accept="image/*">
-                    <?php if ($picture_partner) : ?>
-                        <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_partner) ?></small>
-                        <div class="mb-2">
-                            <img src="../files/_pictures/<?= rawurlencode($picture_partner) ?>"
-                                alt="Image actuelle"
-                                class="img-thumbnail"
-                                style="max-width:145px;">
-                        </div>
-                        <button type="submit" name="delete_picture_partner" value="1" class="btn btn-danger btn-sm">
-                            Supprimer l'image
-                        </button>
-                    <?php endif; ?>
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Lien de la ligne contre le cancer</label>
-                        <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la ligne contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-12 text-end">
-                        <button type="submit" name="accueil" class="btn btn-primary w-auto">Sauvegarder</button>
-                    </div>
-                </form>
-      </div><!-- /setting-card accueil -->
+          <div class="col-12 text-end">
+            <button type="submit" name="save_hero" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
     </div><!-- /col-12 -->
+
+    <!-- Carte 2 : Paramètres page accueil -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Paramètres page accueil</h2>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-md-6"><label class="form-label">Lien Facebook</label>
+            <input type="text" class="form-control" name="link_facebook" placeholder="Lien Facebook" value="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <div class="col-md-6"><label class="form-label">Lien Instagram</label>
+            <input type="text" class="form-control" name="link_instagram" placeholder="Lien Instagram" value="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <div class="col-md-6"><label class="form-label">Lien de la Ligue contre le cancer</label>
+            <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la Ligue contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <div class="col-md-6"><label class="form-label">Image des partenaires</label>
+            <input type="file" class="form-control" id="picture_partner" name="picture_partner" accept="image/*">
+            <?php if ($picture_partner) : ?>
+              <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_partner) ?></small>
+              <div class="mb-2">
+                <img src="../files/_pictures/<?= rawurlencode($picture_partner) ?>" alt="Image actuelle" class="img-thumbnail" style="max-width:145px;">
+              </div>
+              <button type="submit" name="delete_picture_partner" value="1" class="btn btn-danger btn-sm">Supprimer l'image</button>
+            <?php endif; ?>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Date de la course</label>
+            <input type="date" class="form-control" name="date_course" value="<?= htmlspecialchars($date_formatted, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+
+          <div class="col-12"><hr class="my-2"><h6 class="text-muted mb-0">Bandeau Flash Info</h6></div>
+          <div class="col-md-8"><label class="form-label">Texte du bandeau défilant</label>
+            <input type="text" class="form-control" name="flash_info_text" placeholder="Ex : Inscriptions ouvertes ! Rendez-vous le 5 juillet..." value="<?= htmlspecialchars($flash_info_text, ENT_QUOTES, 'UTF-8'); ?>" maxlength="500">
+          </div>
+          <div class="col-md-4"><label class="form-label">Activer le bandeau</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="flash_info_active" id="flash_info_active" <?= $flash_info_active ? 'checked' : '' ?>>
+              <label class="form-check-label" for="flash_info_active">Oui / Non</label>
+            </div>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_accueil_params" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
+    <!-- Carte 3 : Vidéo d'accueil -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Vidéo d'accueil</h2>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-md-8">
+            <label class="form-label">Changer la vidéo</label>
+            <input type="file" class="form-control" name="video_accueil" accept="video/mp4,video/webm,video/ogg">
+            <small class="text-muted">Formats acceptés : MP4, WebM, OGG — Max 50 Mo. La vidéo actuelle sera remplacée.</small>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Vidéo actuelle</label>
+            <div>
+              <?php if ($video_accueil && file_exists('../files/' . $video_accueil)): ?>
+                <video style="max-width:100%;max-height:150px;border-radius:8px;border:1px solid #f0e8eb;" autoplay muted loop playsinline>
+                  <source src="../files/<?= rawurlencode($video_accueil) ?>" type="video/mp4">
+                </video>
+                <div class="mt-1"><small class="text-muted"><?= htmlspecialchars($video_accueil) ?></small></div>
+              <?php else: ?>
+                <span class="text-muted">Aucune vidéo</span>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_video_accueil" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
   </div><!-- /row -->
 </div><!-- /tab-accueil -->
 
@@ -1175,7 +1327,6 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
     <div class="col-12">
       <div class="setting-card">
         <h2>Parcours</h2>
-                <?php if ($alertParcours) echo $alertParcours; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div class="col-md-6"><label class="form-label">Titre de l'image principale</label>
@@ -1360,7 +1511,6 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
     <div class="col-12">
       <div class="setting-card">
         <h2>Reglement de la course</h2>
-                 <?php if ($alertReglementation) echo $alertReglementation; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div class="form-group mb-3">
@@ -1490,79 +1640,141 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 <!-- ═══ TAB: Formulaire ═══ -->
 <div class="settings-section <?= $activeTab === 'formulaire' ? 'active' : '' ?>" id="tab-formulaire">
   <div class="row g-4">
-    <div class="col-12 col-lg-6">
+    <div class="col-12">
       <div class="setting-card">
-        <h2>Formulaire : Champs requis</h2>
-                 <?php if ($alertRequired) echo $alertRequired; ?>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <?= csrf_field() ?>
-                    <div class="col-md-6">
-                        <label class="form-label">Nom</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_name" id="required_name" <?= isset($required_name) && $required_name ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_name">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Prenom</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_firstname" id="required_firstname" <?= isset($required_firstname) && $required_firstname ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_firstname">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Telephone</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_phone" id="required_phone" <?= isset($required_phone) && $required_phone ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_phone">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Email</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_email" id="required_email" <?= isset($required_email) && $required_email ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_email">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Date de naissance</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_date_of_birth" id="required_date_of_birth" <?= isset($required_date_of_birth) && $required_date_of_birth ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_date_of_birth">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Sexe</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_sex" id="required_sex" <?= isset($required_sex) && $required_sex ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_sex">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Ville</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_city" id="required_city" <?= isset($required_city) && $required_city ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_city">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Entreprise</label>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="required_company" id="required_company" <?= isset($required_company) && $required_company ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="required_company">Oui / Non</label>
-                        </div>
-                    </div>
-                    <div class="col-12 text-end">
-                        <button type="submit" name="required" class="btn btn-primary w-auto">Sauvegarder</button>
-                    </div>
-                </form>
-      </div><!-- /setting-card required -->
-    </div><!-- /col-lg-6 -->
+        <div class="d-flex justify-content-between align-items-center">
+          <h2 class="mb-0">Gestion des champs du formulaire</h2>
+          <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addFieldModal"><i class="bi bi-plus-lg"></i> Ajouter un champ</button>
+        </div>
 
-    <div class="col-12 col-lg-6">
+        <form action="" method="post" class="needs-validation">
+          <?= csrf_field() ?>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-3" style="font-size:13px;">
+              <thead class="table-light">
+                <tr>
+                  <th>Champ</th>
+                  <th class="text-center" style="width:70px">Actif</th>
+                  <th class="text-center" style="width:70px">Requis</th>
+                  <th class="text-center" style="width:70px" title="Modal admin (dashboard)">Admin</th>
+                  <th class="text-center" style="width:70px" title="Formulaire saisie">Saisie</th>
+                  <th class="text-center" style="width:70px" title="Formulaire d'inscription via QR Code (scan)">Inscr. QR</th>
+                  <th class="text-center" style="width:60px">Type</th>
+                  <th class="text-center" style="width:70px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($allFields as $f):
+                  $id = $f['id'];
+                  $locked = (int) ($f['is_locked'] ?? 0);
+                  $default = (int) ($f['is_default'] ?? 1);
+                  $active = (int) ($f['active'] ?? 0);
+                ?>
+                <tr<?= $locked ? ' class="table-light"' : '' ?>>
+                  <td>
+                    <strong><?= htmlspecialchars($f['label'] ?? $f['fields']) ?></strong>
+                    <?php if ($locked): ?><span class="badge bg-secondary ms-1" style="font-size:10px">verrouillé</span><?php endif; ?>
+                    <?php if (!$default): ?><span class="badge bg-info ms-1" style="font-size:10px">personnalisé</span><?php endif; ?>
+                    <br><small class="text-muted"><?= htmlspecialchars($f['bdd_column'] ?? '') ?></small>
+                  </td>
+                  <td class="text-center">
+                    <?php if ($locked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input">
+                    <?php else: ?>
+                      <input type="checkbox" name="active_<?= $id ?>" class="form-check-input" <?= $active ? 'checked' : '' ?>>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <?php if ($locked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input">
+                    <?php else: ?>
+                      <input type="checkbox" name="required_<?= $id ?>" class="form-check-input" <?= (int)($f['required'] ?? 0) ? 'checked' : '' ?>>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <?php if ($locked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input">
+                    <?php else: ?>
+                      <input type="checkbox" name="va_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_admin'] ?? 1) ? 'checked' : '' ?>>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <?php if ($locked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input">
+                    <?php else: ?>
+                      <input type="checkbox" name="vs_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_saisie'] ?? 1) ? 'checked' : '' ?>>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <?php if ($locked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input">
+                    <?php else: ?>
+                      <input type="checkbox" name="vq_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_qr'] ?? 1) ? 'checked' : '' ?>>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center"><small><?= htmlspecialchars($f['field_type'] ?? 'text') ?></small></td>
+                  <td class="text-center">
+                    <?php if (!$default): ?>
+                      <button type="submit" name="delete_field_id" value="<?= $id ?>" class="btn btn-outline-danger btn-sm"
+                        onclick="return confirm('ATTENTION : Cela supprimera la colonne « <?= htmlspecialchars($f['label']) ?> » et toutes ses données en base.\n\nSi vous voulez juste masquer le champ, décochez-le et cliquez Sauvegarder.\n\nSupprimer définitivement ?')">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-end">
+            <button type="submit" name="save_fields" class="btn btn-primary">Sauvegarder</button>
+          </div>
+        </form>
+      </div><!-- /setting-card fields -->
+    </div><!-- /col-12 -->
+
+    <!-- Modal ajout champ personnalisé -->
+    <div class="modal fade" id="addFieldModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form action="" method="post">
+            <?= csrf_field() ?>
+            <div class="modal-header">
+              <h5 class="modal-title">Ajouter un champ personnalisé</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body row g-3">
+              <div class="col-12">
+                <label class="form-label">Libellé du champ</label>
+                <input type="text" name="new_label" class="form-control" placeholder="Ex : Allergie, Distance..." required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Type</label>
+                <select name="new_type" class="form-select">
+                  <option value="text">Texte</option>
+                  <option value="number">Nombre</option>
+                  <option value="date">Date</option>
+                  <option value="select">Liste déroulante</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Options (si liste déroulante)</label>
+                <input type="text" name="new_options" class="form-control" placeholder="opt1,opt2,opt3">
+                <small class="text-muted">Séparées par des virgules</small>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+              <button type="submit" name="add_custom_field" class="btn btn-success">Ajouter</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12">
       <div class="setting-card">
         <h2>Informations d'import excel</h2>
-                 <?php if ($alertImport) echo $alertImport; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div class="col-md-4"><label class="form-label">N d'inscription =</label>
@@ -1618,7 +1830,6 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                     <p>Gestion de la connexion avec l'API Gmail de Google</p>
                 </div>
 
-                <?php if ($alertGoogle) echo $alertGoogle; ?>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div class="col-md-6"><label class="form-label">Client ID</label>
@@ -1729,9 +1940,113 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                     <?php endif; ?>
                 </div>
       </div><!-- /setting-card google -->
+
+      <div class="setting-card">
+        <h2>QR Code dans les mails d'inscription</h2>
+        <form action="" method="post" class="row g-3">
+            <?= csrf_field() ?>
+            <div class="col-md-6">
+                <label class="form-label">Mode d'envoi du QR Code</label>
+                <select class="form-select" name="qrcode_mail_mode" id="qrcode_mail_mode">
+                    <option value="none" <?= $qrcode_mail_mode === 'none' ? 'selected' : '' ?>>Aucun QR Code</option>
+                    <option value="all" <?= $qrcode_mail_mode === 'all' ? 'selected' : '' ?>>QR Code pour tous</option>
+                    <option value="first_x" <?= $qrcode_mail_mode === 'first_x' ? 'selected' : '' ?>>QR Code pour les X premiers inscrits</option>
+                </select>
+                <small class="text-muted">Le mail de confirmation est toujours envoyé. Ce paramètre contrôle uniquement la présence du QR Code. Le nombre de premiers inscrits se configure dans l'onglet Général.</small>
+            </div>
+            <div class="col-12 text-end">
+                <button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button>
+            </div>
+        </form>
+      </div><!-- /setting-card qrcode -->
+
     </div><!-- /col-12 -->
   </div><!-- /row -->
 </div><!-- /tab-google -->
+
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  // Config commune TinyMCE pour les titres
+  var tinyOpts = {
+    license_key: 'gpl',
+    language: 'fr_FR',
+    plugins: 'code image',
+    toolbar: 'fontfamily fontsize | bold italic underline | forecolor | alignleft aligncenter alignright | image | removeformat code',
+    height: 350,
+    resize: true,
+    menubar: false,
+    branding: false,
+    statusbar: true,
+    object_resizing: 'img',
+    image_advtab: true,
+    image_dimensions: true,
+    content_style: 'body { font-family: system-ui, sans-serif; font-size: 32px; color: #ffffff; background: #1e293b; text-align: center; padding: 16px; } p { margin: 0; } img { max-width: 100%; height: auto; }',
+    font_family_formats: "System=system-ui,sans-serif; Georgia=Georgia,serif; Playfair Display='Playfair Display',serif; Bebas Neue='Bebas Neue',sans-serif; Oswald=Oswald,sans-serif; Montserrat=Montserrat,sans-serif; Dancing Script='Dancing Script',cursive; Lobster=Lobster,cursive; Impact=Impact,sans-serif",
+    font_size_formats: '16px 20px 24px 28px 32px 40px 48px 56px 64px 72px 80px',
+    content_css: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Bebas+Neue&family=Oswald:wght@700&family=Montserrat:wght@700;900&family=Dancing+Script:wght@700&family=Lobster&display=swap',
+    images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', blobInfo.blob(), blobInfo.filename());
+      formData.append('csrf_token', '<?= csrf_token() ?>');
+      fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+        .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+        .then(data => { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+        .catch(e => reject(e.message));
+    }),
+    // Texte sur 1 ligne OU 1 image, pas les deux
+    setup: function(editor) {
+      // Bloquer Entrée (1 seule ligne)
+      editor.on('keydown', function(e) {
+        if (e.keyCode === 13) e.preventDefault();
+      });
+      // Quand du texte est tapé et qu'il y a une image, supprimer l'image
+      editor.on('input', function() {
+        var body = editor.getBody();
+        var imgs = body.querySelectorAll('img');
+        if (imgs.length > 0 && body.textContent.replace(/\u00a0/g,'').trim().length > 0) {
+          imgs.forEach(function(img) { img.remove(); });
+        }
+      });
+      // Après insertion d'image, supprimer le texte autour
+      editor.on('ExecCommand', function(e) {
+        if (e.command === 'mceInsertContent' || e.command === 'mceImage') {
+          var body = editor.getBody();
+          var imgs = body.querySelectorAll('img');
+          if (imgs.length > 0) {
+            var last = imgs[imgs.length - 1];
+            // Supprimer les images en trop
+            for (var i = 0; i < imgs.length - 1; i++) imgs[i].remove();
+            // Vider le texte, garder juste l'image
+            var p = last.parentNode;
+            if (p && p.childNodes.length > 1) {
+              while (p.firstChild) p.removeChild(p.firstChild);
+              p.appendChild(last);
+            }
+          }
+        }
+      });
+    }
+  };
+
+  // Mémoriser les sous-onglets actifs (PC/Mobile) dans les champs cachés
+  ['heroTabs', 'headerTabs'].forEach(function(tabsId){
+    var hiddenId = tabsId.replace('Tabs','_subtab');
+    document.querySelectorAll('#'+tabsId+' .nav-link').forEach(function(t){
+      t.addEventListener('click', function(){
+        var h = document.getElementById(hiddenId);
+        if(h) h.value = this.getAttribute('href').replace('#','');
+      });
+    });
+  });
+
+  // Init TinyMCE pour les 4 éditeurs
+  if(typeof tinymce !== 'undefined'){
+    ['#titleAccueilEditor', '#titleAccueilMobileEditor', '#headerTitleEditor', '#headerTitleMobileEditor'].forEach(function(sel){
+      tinymce.init(Object.assign({}, tinyOpts, { selector: sel }));
+    });
+  }
+})();
+</script>
 
 <?php include '../inc/admin-footer.php'; ?>
 

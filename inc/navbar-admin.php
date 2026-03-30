@@ -70,8 +70,8 @@ if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
   --oc-on-surface-variant: #475569;
   --oc-border:       #e2e8f0;
   --oc-outline:      #64748b;
-  --oc-accent:       #ec4899;
-  --oc-accent-soft:  rgba(236,72,153,.08);
+  --oc-accent:       #F42182;
+  --oc-accent-soft:  rgba(244,33,130,.08);
   --oc-error:        #BA1A1A;
   --oc-error-container: #FFDAD6;
   --oc-radius:       12px;
@@ -134,18 +134,18 @@ html, body {
 .oc-user-wrapper { position: relative; }
 .oc-avatar-btn {
   width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3);
-  background: linear-gradient(135deg, #ec4899, #db2777); color: #fff;
+  background: linear-gradient(135deg, #F42182, #db2777); color: #fff;
   font-size: 14px; font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .oc-avatar-btn:hover {
   border-color: rgba(255,255,255,.6);
-  box-shadow: 0 0 0 3px rgba(236,72,153,.3);
+  box-shadow: 0 0 0 3px rgba(244,33,130,.3);
 }
 .oc-avatar-lg {
   width: 40px; height: 40px; border-radius: 50%;
-  background: linear-gradient(135deg, #ec4899, #db2777); color: #fff;
+  background: linear-gradient(135deg, #F42182, #db2777); color: #fff;
   font-size: 16px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -311,12 +311,12 @@ html, body {
   box-shadow: none; transition: all 0.15s;
   text-decoration: none; line-height: 1.4;
 }
-#oc-content .btn:focus { box-shadow: 0 0 0 3px rgba(236,72,153,.2); }
+#oc-content .btn:focus { box-shadow: 0 0 0 3px rgba(244,33,130,.2); }
 
 /* Primary = blue filled */
 #oc-content .btn-primary,
 #oc-content .btn-rose {
-  background: #ec4899; color: #fff; border: none;
+  background: #F42182; color: #fff; border: none;
 }
 #oc-content .btn-primary:hover,
 #oc-content .btn-rose:hover { background: #db2777; color: #fff; }
@@ -353,9 +353,9 @@ html, body {
 
 /* Outline variants */
 #oc-content .btn-outline-primary {
-  background: transparent; color: #ec4899; border: 1px solid #ec4899;
+  background: transparent; color: #F42182; border: 1px solid #F42182;
 }
-#oc-content .btn-outline-primary:hover { background: rgba(236,72,153,.08); }
+#oc-content .btn-outline-primary:hover { background: rgba(244,33,130,.08); }
 
 #oc-content .btn-outline-secondary {
   background: transparent; color: #475569; border: 1px solid #cbd5e1;
@@ -444,19 +444,19 @@ html, body {
 }
 #oc-content .form-control:focus,
 #oc-content .form-select:focus {
-  border-color: #ec4899;
-  box-shadow: 0 0 0 3px rgba(236,72,153,.12);
+  border-color: #F42182;
+  box-shadow: 0 0 0 3px rgba(244,33,130,.12);
 }
 #oc-content .form-label {
   font-size: 13px; font-weight: 600; color: #475569;
   margin-bottom: 4px;
 }
 #oc-content .form-check-input:checked {
-  background-color: #ec4899; border-color: #ec4899;
+  background-color: #F42182; border-color: #F42182;
 }
 #oc-content .form-check-input:focus {
-  box-shadow: 0 0 0 3px rgba(236,72,153,.15);
-  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(244,33,130,.15);
+  border-color: #F42182;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -484,7 +484,7 @@ html, body {
   border-radius: 6px; padding: 7px 14px;
   display: inline-flex; align-items: center; gap: 6px;
 }
-.modal .btn-primary, .modal .btn-rose { background: #ec4899; color: #fff; border: none; }
+.modal .btn-primary, .modal .btn-rose { background: #F42182; color: #fff; border: none; }
 .modal .btn-primary:hover, .modal .btn-rose:hover { background: #db2777; color: #fff; }
 .modal .btn-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .modal .btn-success:hover { background: #d1fae5; }
@@ -496,8 +496,8 @@ html, body {
 .modal .btn-info:hover { background: #dbeafe; }
 .modal .btn-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
 .modal .btn-warning:hover { background: #fef3c7; }
-.modal .btn-outline-primary { background: transparent; color: #ec4899; border: 1px solid #ec4899; }
-.modal .btn-outline-primary:hover { background: rgba(236,72,153,.08); }
+.modal .btn-outline-primary { background: transparent; color: #F42182; border: 1px solid #F42182; }
+.modal .btn-outline-primary:hover { background: rgba(244,33,130,.08); }
 .modal .btn-outline-secondary { background: transparent; color: #64748b; border: 1px solid #94a3b8; }
 .modal .btn-outline-secondary:hover { background: #e2e8f0; color: #475569; }
 .modal .btn-outline-danger { background: transparent; color: #991b1b; border: 1px solid #fecaca; }
@@ -515,10 +515,10 @@ html, body {
   border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #1e293b;
 }
 .modal .form-control:focus, .modal .form-select:focus {
-  border-color: #ec4899; box-shadow: 0 0 0 3px rgba(236,72,153,.12);
+  border-color: #F42182; box-shadow: 0 0 0 3px rgba(244,33,130,.12);
 }
 .modal .form-label { font-size: 13px; font-weight: 600; color: #475569; }
-.modal .form-check-input:checked { background-color: #ec4899; border-color: #ec4899; }
+.modal .form-check-input:checked { background-color: #F42182; border-color: #F42182; }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Tables
@@ -565,7 +565,7 @@ html, body {
   padding: 5px 10px; font-size: 13px; color: #1e293b;
 }
 #oc-content .dataTables_wrapper .dataTables_filter input:focus {
-  border-color: #ec4899; box-shadow: 0 0 0 3px rgba(236,72,153,.12); outline: none;
+  border-color: #F42182; box-shadow: 0 0 0 3px rgba(244,33,130,.12); outline: none;
 }
 /* Pagination — Bootstrap style, rose instead of blue */
 #oc-content .dataTables_wrapper .dataTables_paginate .paginate_button,
@@ -586,8 +586,8 @@ html, body {
 .modal .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
 #oc-content .page-item.active .page-link,
 .modal .page-item.active .page-link {
-  background-color: #ec4899 !important; color: #fff !important;
-  border-color: #ec4899 !important;
+  background-color: #F42182 !important; color: #fff !important;
+  border-color: #F42182 !important;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -634,7 +634,7 @@ html, body {
 #oc-content .filter-tabs .nav-link.active,
 #oc-content .filter-tabs a.active {
   color: #1e293b !important; font-weight: 600;
-  border-bottom-color: #ec4899; background: transparent;
+  border-bottom-color: #F42182; background: transparent;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -652,7 +652,7 @@ html, body {
 #oc-content h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
 #oc-content h3 { font-size: 16px; font-weight: 700; color: #0f172a; }
 #oc-content h5 { font-size: 15px; font-weight: 700; color: #0f172a; }
-#oc-content a { color: #ec4899; }
+#oc-content a { color: #F42182; }
 #oc-content a:hover { color: #db2777; }
 
 /* ══════════════════════════════════════════════════════════════

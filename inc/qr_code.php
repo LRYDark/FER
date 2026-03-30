@@ -21,7 +21,6 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
 $footer = $data['footer']  ?? '';
-$titleColor = $data['title_color'] ?? '#ffffff';
 
 // Correction : Construction de l'URL de base correcte
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';

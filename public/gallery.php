@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+checkMaintenance();
 require '../inc/navbar-data.php';
 
 $albumId = isset($_GET['album_id']) ? (int)$_GET['album_id'] : 0;
