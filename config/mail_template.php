@@ -27,6 +27,8 @@ $font = $mtc['font'] ?? 'system';
 $sectionOrder = $mtc['section_order'] ?? ['details','tips','description','qrcode','banner','contact'];
 $headerImage = $mtc['header_image'] ?? '';
 $r = ($mtc['radius'] ?? []) + ['card'=>16,'section'=>12,'badge'=>20];
+$visibility = $mtc['visibility'] ?? [];
+$mailSubtype = $mail_subtype ?? ($type === 'inscription' ? 'inscription' : 'info');
 
 // Convert relative header image path to absolute URL for emails
 if (!empty($headerImage) && !preg_match('#^https?://#', $headerImage)) {
@@ -157,6 +159,27 @@ $sections['contact'] = function() use ($mail_email, $mail_phone, $c, $t) {
     $html .= '</p></td></tr></table>';
     return $html;
 };
+
+// Custom sections — create renderer for each custom_* section
+foreach ($sectionOrder as $_secKey) {
+    if (strpos($_secKey, 'custom') === 0 && !isset($sections[$_secKey])) {
+        $sections[$_secKey] = function() use ($_secKey, $t, $r) {
+            $rs = (int)$r['section'];
+            $texts = [];
+            foreach ($t as $k => $v) {
+                if (strpos($k, $_secKey.'_') === 0) $texts[] = $v;
+            }
+            if (empty($texts)) return '';
+            $html = '<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">';
+            $html .= '<tr><td style="padding:24px;background:#f8fafc;border-radius:'.$rs.'px;text-align:center;">';
+            foreach ($texts as $txt) {
+                $html .= '<div style="font-size:15px;line-height:1.7;color:#334155;margin-bottom:8px;">'.htmlspecialchars($txt).'</div>';
+            }
+            $html .= '</td></tr></table>';
+            return $html;
+        };
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -202,6 +225,11 @@ $sections['contact'] = function() use ($mail_email, $mail_phone, $c, $t) {
                 <table width="100%" cellpadding="0" cellspacing="0">
                     <tr><td style="padding:32px 40px 36px;">
                         <?php foreach ($sectionOrder as $sec):
+                            // Check visibility config
+                            if (!empty($visibility)) {
+                                $secVis = $visibility[$sec] ?? null;
+                                if ($secVis !== null && !in_array($mailSubtype, $secVis)) continue;
+                            }
                             if (isset($sections[$sec])) echo $sections[$sec]();
                         endforeach; ?>
                     </td></tr>

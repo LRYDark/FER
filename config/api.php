@@ -99,7 +99,7 @@ function send2faCode($pdo, $user) {
             'Code de verification – Forbach en Rose',
             'Code de verification',
             '<p>Votre code de verification est :</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;color:#F42182;margin:20px 0">' . $code . '</p><p>Ce code est valable 15 minutes.</p><p>Si vous n\'avez pas demande cette connexion, ignorez ce message.</p>',
-            null, null, 'info'
+            null, null, 'info', null, 'code'
         );
         return true;
     } catch (\Throwable $e) {
@@ -541,7 +541,7 @@ if ($route === 'users') {
                         '<p>Votre mot de passe a été réinitialisé.</p>'
                           . '<p><strong>Nouveau mot de passe temporaire :</strong> ' . htmlspecialchars($tempPassword) . '</p>'
                           . '<p>Vous devrez changer votre mot de passe lors de votre prochaine connexion.</p>',
-                        null, null, 'info'
+                        null, null, 'info', null, 'new_user'
                     );
                 }
             } catch (Exception $e) {
@@ -669,7 +669,7 @@ if ($route === 'users') {
                       . '<p><strong>Email :</strong> ' . htmlspecialchars($d['email']) . '</p>'
                       . '<p><strong>Mot de passe temporaire :</strong> ' . htmlspecialchars($tempPassword) . '</p>'
                       . '<p>Vous devrez changer votre mot de passe lors de votre première connexion.</p>',
-                    null, null, 'info'
+                    null, null, 'info', null, 'new_user'
                 );
             }
         } catch (Exception $e) {
