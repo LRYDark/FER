@@ -42,18 +42,101 @@ $formFields = getActiveFields($pdo, 'saisie');
 
 <body>
   <style>
+    :root{
+      --rose-500:#F42182;
+      --rose-600:#db2777;
+    }
+    body{
+      background:#fff;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+    .hero{
+      background:var(--rose-500);
+      color:#fff;
+      padding:1.55rem 1rem calc(1.95rem + 16px);
+      min-height:120px;
+      position:relative;
+      text-align:center;
+    }
+    .badge-donation{
+      background:#fff;
+      color:var(--rose-600);
+      border-radius:1rem;
+      padding:.4rem .9rem;
+      font-weight:600;
+    }
+    .hero-inner{max-width:800px;margin:.15rem auto 0;}
+    .demo-kicker img{
+      max-width:100% !important;
+      height:auto !important;
+      object-fit:contain;
+      display:block;
+      margin:0 auto;
+    }
+    .card-form{
+      max-width:1100px;
+      margin:calc(-.75rem - 20px) auto 12px;
+      border:0;
+      box-shadow:0 0 25px rgba(0,0,0,.1);
+    }
+    .register-page-title img{
+      max-width:100% !important;
+      height:auto !important;
+      object-fit:contain;
+    }
+    .btn-rose{
+      background:var(--rose-600);
+      color:#fff;
+      border:0;
+    }
+    .btn-rose:hover{background:#c13778;color:#fff;}
+    .form-control,
+    .form-select{border-radius:1rem;}
+
     .hero .top-actions {
       position: absolute;
       top: .6rem;
       right: .6rem;
       display: flex;
       gap: .5rem;
-      /* pas de margin-top ici ⇒ mobile = 0 */
     }
 
-    @media (min-width: 992px) {   /* ≥ 992 px  ≈ Bootstrap lg */
-      .hero .top-actions {
-        margin-top: 6%;
+    @media (max-width:767.98px){
+      .hero{
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:flex-start;
+        padding:1rem .75rem calc(1.15rem + 10px);
+        min-height:108px;
+      }
+      .hero .top-actions{
+        position:relative;
+        top:auto;
+        right:auto;
+        align-self:flex-end;
+        margin:0 0 .5rem;
+      }
+      .hero-inner{
+        width:100%;
+        margin:0;
+        padding:0 4px;
+      }
+      .badge-donation{
+        font-size:.94rem;
+        padding:.32rem .72rem;
+      }
+      .hero p{font-size:.9rem;}
+      .card-form{
+        max-width:100%;
+        margin-top:0;
+        margin-bottom:4px;
+      }
+      .btn-rose.btn-lg{
+        font-size:1rem;
+        padding:.65rem 1rem;
       }
     }
   </style>
@@ -75,16 +158,6 @@ $formFields = getActiveFields($pdo, 'saisie');
   </div>
 
   <div class="hero-inner text-center">
-    <!-- PC -->
-    <div class="header-pc">
-      <div class="demo-kicker"><?= $title ?></div>
-      <small class="d-block fs-6 fw-light" style="color:rgba(255,255,255,.7);">(interface saisie)</small>
-    </div>
-    <!-- Mobile -->
-    <div class="header-mobile">
-      <div class="demo-kicker"><?= $title_mobile ?: $title ?></div>
-      <small class="d-block fs-6 fw-light" style="color:rgba(255,255,255,.7);">(interface saisie)</small>
-    </div>
     <p class="mb-3">Ajoutez manuellement une inscription</p>
     <span class="badge-donation">Interface réservée : <?= currentOrganisation();?></span>
   </div>
@@ -92,6 +165,14 @@ $formFields = getActiveFields($pdo, 'saisie');
 
   <!-- Bloc formulaire -->
     <div class="card card-form p-4 bg-white">
+      <!-- Titre TinyMCE (PC / Mobile) -->
+      <div class="header-pc">
+        <div class="register-page-title text-center mb-3" style="font-size:clamp(24px,4vw,42px);font-weight:900;"><?= $title ?></div>
+      </div>
+      <div class="header-mobile">
+        <div class="register-page-title text-center mb-3" style="font-size:clamp(24px,4vw,42px);font-weight:900;"><?= $title_mobile ?: $title ?></div>
+      </div>
+      <small class="d-block text-center text-muted mb-2" style="font-size:.85rem;">(interface saisie)</small>
       <h2 class="text-center mb-4">Ajouter une inscription</h2>
       <div id="msg" class="alert alert-info d-none"></div>
 
