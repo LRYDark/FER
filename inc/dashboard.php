@@ -254,18 +254,31 @@ tr.filters select{
             document.getElementById('btnArchiveNow').addEventListener('click', async () => {
               if (!confirm('Tout archiver et réinitialiser les inscriptions ?')) return;
 
-              const _ct = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-              const res  = await fetch('../config/api.php?route=archive-current', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {'X-CSRF-TOKEN': _ct}
-              });
-              const json = await res.json();
-              if (json.ok) {
-                alert(`✅ ${json.archived} inscription(s) archivées (${json.year}).`);
-                location.reload();                 // tableau vide prêt pour la nouvelle année
-              } else {
-                alert('Erreur archivage : ' + JSON.stringify(json));
+              const btn = document.getElementById('btnArchiveNow');
+              const originalText = btn.innerHTML;
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Archivage en cours…';
+
+              try {
+                const _ct = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                const res  = await fetch('../config/api.php?route=archive-current', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: {'X-CSRF-TOKEN': _ct}
+                });
+                const json = await res.json();
+                if (json.ok) {
+                  alert(`${json.archived} inscription(s) archivées (${json.year}).`);
+                  location.reload();
+                } else {
+                  alert('Erreur archivage : ' + JSON.stringify(json));
+                  btn.disabled = false;
+                  btn.innerHTML = originalText;
+                }
+              } catch (e) {
+                alert('Erreur réseau : ' + e.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
               }
             });
             </script>
@@ -322,18 +335,104 @@ tr.filters select{
  <div class="modal-content"><div class="modal-header">
    <h5 class="modal-title">Import Excel</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <form id="fImport" enctype="multipart/form-data"><div class="modal-body">
-    <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
+    <input type="file" name="file" id="importFileInput" accept=".xlsx,.xls" class="form-control" required>
+    <div id="importPreview" class="mt-3" style="display:none">
+      <div id="importPreviewLoading" class="text-center text-muted py-2" style="display:none">
+        <span class="spinner-border spinner-border-sm me-1"></span>Analyse du fichier…
+      </div>
+      <div id="importPreviewResult" style="display:none"></div>
+    </div>
   </div><div class="modal-footer">
     <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-    <button type="submit" class="btn btn-rose">Importer</button>
+    <button type="submit" id="btnImportSubmit" class="btn btn-rose" disabled>Importer</button>
   </div></form></div></div></div>
 
 
+<!-- QR Scanner Modal -->
+<style>
+  #qrScanModal .modal-dialog { max-width: 600px; }
+  #qrScanModal .qr-size-btn {
+    min-width: 60px; min-height: 52px;
+    font-size: 1.1rem; font-weight: 700;
+    border-radius: 12px; border-width: 2px;
+  }
+  #qrScanModal .qr-size-btn.active.btn-primary { transform: scale(1.08); box-shadow: 0 4px 12px rgba(13,110,253,.35); }
+  @media (max-width: 576px) {
+    #qrScanModal .modal-dialog { margin: 0; max-width: 100%; height: 100%; }
+    #qrScanModal .modal-content { border-radius: 0; min-height: 100dvh; }
+    #qrScanModal .modal-body { padding: 1rem; }
+    #qrScanModal .qr-size-btn { min-width: 52px; min-height: 56px; font-size: 1.15rem; flex: 1 1 0; }
+    #qrScanModal #qrManualInput { font-size: 1.1rem; height: 48px; }
+    #qrScanModal #qrManualBtn { font-size: 1.1rem; height: 48px; padding: 0 1.2rem; }
+    #qrScanModal #qrPersonName { font-size: 1.2rem; }
+  }
+  @media (min-width: 577px) and (max-width: 992px) {
+    #qrScanModal .modal-dialog { max-width: 90%; }
+    #qrScanModal .qr-size-btn { min-width: 70px; min-height: 54px; flex: 1 1 0; }
+  }
+</style>
+<div class="modal fade" id="qrScanModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-qr-code-scan me-2"></i>Remise T-shirt</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Scanner zone -->
+        <div id="qrReader" style="width:100%"></div>
+
+        <!-- Manual input -->
+        <div class="text-center mt-3" id="qrManualZone">
+          <p class="text-muted mb-1" style="font-size:13px">Ou saisir le N° d'inscription :</p>
+          <div class="input-group" style="max-width:320px;margin:0 auto">
+            <input type="number" id="qrManualInput" class="form-control" placeholder="N° inscription" inputmode="numeric">
+            <button id="qrManualBtn" class="btn btn-primary">OK</button>
+          </div>
+        </div>
+
+        <!-- Result card (hidden by default) -->
+        <div id="qrPersonCard" class="mt-3" style="display:none">
+          <hr>
+          <!-- Eligibility badge -->
+          <div id="qrEligibility" class="text-center mb-3"></div>
+
+          <!-- Person info -->
+          <div class="text-center mb-3">
+            <div class="fw-bold fs-4" id="qrPersonName"></div>
+            <span class="text-muted" id="qrPersonNo"></span>
+            <span id="qrPersonVille" class="badge bg-secondary ms-2"></span>
+          </div>
+
+          <!-- T-shirt selector -->
+          <div id="qrTshirtZone">
+            <label class="form-label fw-semibold text-center d-block mb-2">Taille T-shirt :</label>
+            <div class="d-flex flex-wrap gap-2 justify-content-center" id="qrTshirtBtns">
+              <button class="btn btn-outline-dark qr-size-btn" data-size="XS">XS</button>
+              <button class="btn btn-outline-dark qr-size-btn" data-size="S">S</button>
+              <button class="btn btn-outline-dark qr-size-btn" data-size="M">M</button>
+              <button class="btn btn-outline-dark qr-size-btn" data-size="L">L</button>
+              <button class="btn btn-outline-dark qr-size-btn" data-size="XL">XL</button>
+              <button class="btn btn-outline-dark qr-size-btn" data-size="XXL">XXL</button>
+            </div>
+            <div id="qrSaveStatus" class="mt-2 text-center" style="display:none"></div>
+          </div>
+          <hr>
+          <div class="text-center">
+            <button id="qrNextScan" class="btn btn-primary"><i class="bi bi-qr-code-scan me-2"></i>Scanner suivant</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -543,8 +642,12 @@ function applyTshirtMode() {
   $('.filters').toggle(!tshirtMode);
   if (tshirtMode) {
     $('body').addClass('hide-stats');
+    $('#btnExport, #btnArchiveNow').hide();
+    $('#colToggleWrap').hide();
   } else {
     $('body').removeClass('hide-stats');
+    $('#btnExport, #btnArchiveNow').show();
+    $('#colToggleWrap').show();
     updateStats(tbl.data().toArray());
   }
   tbl.rows().invalidate().draw(false);
@@ -639,23 +742,147 @@ $('#fEdit').on('submit',e=>{
   .then(()=>{tbl.ajax.reload(null,false); bootstrap.Modal.getInstance('#editModal').hide();});
 });
 
-/* ══ IMPORT EXCEL ════ */
+/* ══ IMPORT EXCEL — Preview on file select ════ */
+document.getElementById('importFileInput').addEventListener('change', async function() {
+  const file = this.files[0];
+  const preview = document.getElementById('importPreview');
+  const loading = document.getElementById('importPreviewLoading');
+  const result  = document.getElementById('importPreviewResult');
+  const btnImport = document.getElementById('btnImportSubmit');
+
+  btnImport.disabled = true;
+  result.style.display = 'none';
+  result.innerHTML = '';
+
+  if (!file) { preview.style.display = 'none'; return; }
+
+  preview.style.display = 'block';
+  loading.style.display = 'block';
+
+  try {
+    const data = await file.arrayBuffer();
+    const wb   = XLSX.read(data, {type:'array'});
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+
+    if (rows.length < 2) {
+      loading.style.display = 'none';
+      result.style.display = 'block';
+      result.innerHTML = '<div class="alert alert-warning mb-0 py-2"><i class="bi bi-exclamation-triangle me-1"></i>Le fichier semble vide.</div>';
+      return;
+    }
+
+    const header = rows[0].map(function(h){ return (h||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,'').trim(); });
+
+    // Filter out empty rows (rows where all cells are empty/null/undefined)
+    var dataRows = [];
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      if (!row || !row.length) continue;
+      var hasData = false;
+      for (var c = 0; c < row.length; c++) {
+        if (row[c] !== null && row[c] !== undefined && row[c].toString().trim() !== '') { hasData = true; break; }
+      }
+      if (hasData) dataRows.push(row);
+    }
+    const totalRows = dataRows.length;
+
+    // Find ticket column (numero billet)
+    var ticketCol = -1;
+    for (var i = 0; i < header.length; i++) {
+      if (header[i].indexOf('numero') !== -1 && header[i].indexOf('billet') !== -1) { ticketCol = i; break; }
+    }
+
+    var tickets = [];
+    if (ticketCol >= 0) {
+      for (var r = 0; r < dataRows.length; r++) {
+        var v = dataRows[r][ticketCol];
+        if (v && !isNaN(v)) tickets.push(parseInt(v));
+      }
+    }
+
+    // Check duplicates server-side
+    var dupCount = 0;
+    var dupTickets = [];
+    if (tickets.length > 0) {
+      try {
+        var res = await fetch('../config/api.php?route=check-duplicates', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': _csrfToken},
+          body: JSON.stringify({tickets: tickets}),
+          credentials: 'same-origin'
+        });
+        var json = await res.json();
+        dupTickets = json.duplicates || [];
+        dupCount = dupTickets.length;
+      } catch(e) { /* ignore, non-blocking */ }
+    }
+
+    loading.style.display = 'none';
+    result.style.display = 'block';
+
+    var html = '<div class="d-flex gap-3 flex-wrap">';
+    html += '<div class="border rounded px-3 py-2 text-center flex-fill" style="min-width:120px">';
+    html += '<div class="text-muted" style="font-size:12px">Inscrits</div>';
+    html += '<div class="fw-bold fs-5 text-primary">' + totalRows + '</div></div>';
+
+    if (dupCount > 0) {
+      html += '<div class="border rounded px-3 py-2 text-center flex-fill border-warning" style="min-width:120px">';
+      html += '<div class="text-muted" style="font-size:12px">Doublons</div>';
+      html += '<div class="fw-bold fs-5 text-warning">' + dupCount + '</div></div>';
+    } else {
+      html += '<div class="border rounded px-3 py-2 text-center flex-fill border-success" style="min-width:120px">';
+      html += '<div class="text-muted" style="font-size:12px">Doublons</div>';
+      html += '<div class="fw-bold fs-5 text-success">0</div></div>';
+    }
+
+    var newRows = totalRows - dupCount;
+    html += '<div class="border rounded px-3 py-2 text-center flex-fill" style="min-width:120px">';
+    html += '<div class="text-muted" style="font-size:12px">Nouveaux</div>';
+    html += '<div class="fw-bold fs-5 text-success">' + newRows + '</div></div>';
+    html += '</div>';
+
+    if (dupCount > 0) {
+      html += '<div class="alert alert-warning mt-2 mb-0 py-2" style="font-size:13px">';
+      html += '<i class="bi bi-info-circle me-1"></i>' + dupCount + ' doublon(s) seront ignorés lors de l\'import.';
+      html += '</div>';
+    }
+
+    result.innerHTML = html;
+    btnImport.disabled = false;
+
+  } catch(err) {
+    loading.style.display = 'none';
+    result.style.display = 'block';
+    result.innerHTML = '<div class="alert alert-danger mb-0 py-2">Impossible de lire le fichier : ' + err.message + '</div>';
+  }
+});
+
+// Reset preview when modal closes
+document.getElementById('importModal').addEventListener('hidden.bs.modal', function() {
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importPreviewResult').innerHTML = '';
+  document.getElementById('btnImportSubmit').disabled = true;
+});
+
+/* ══ IMPORT EXCEL — Submit ════ */
 document.getElementById('fImport').addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const form   = e.target;
-  const button = form.querySelector('.btn-rose');
+  const button = document.getElementById('btnImportSubmit');
   const data   = new FormData(form);
+  const originalText = button.innerHTML;
 
-  button.disabled   = true;
-  button.textContent = 'Import...';
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Import en cours…';
 
   try {
     const res = await fetch('../config/api.php?route=import-excel', {
       method:      'POST',
       headers:     {'X-CSRF-TOKEN': _csrfToken},
       body:        data,
-      credentials: 'same-origin'   // garde la session PHP
+      credentials: 'same-origin'
     });
 
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -663,18 +890,22 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     const json = await res.json();
 
     if (json.ok) {
-      alert(`✅ ${json.rows_added} ligne(s) importée(s).`);
+      var msg = json.rows_added + ' ligne(s) importée(s).';
+      if (json.rows_skipped > 0) msg += '\n' + json.rows_skipped + ' ligne(s) ignorée(s).';
+      if (json.duplicates && json.duplicates.length > 0) msg += '\n' + json.duplicates.length + ' doublon(s) ignoré(s).';
+      if (json.mails_sent > 0) msg += '\n' + json.mails_sent + ' mail(s) envoyé(s).';
+      alert(msg);
       bootstrap.Modal.getOrCreateInstance('#importModal').hide();
-
-      /* ---- RAFRAÎCHIT LA PAGE ---- */
       location.reload();
+    } else {
+      alert('Erreur : ' + (json.error || JSON.stringify(json)));
+      button.disabled = false;
+      button.innerHTML = originalText;
     }
   } catch (err) {
     alert('Erreur réseau/serveur : ' + err.message);
-  } finally {
-    button.disabled   = false;
-    button.textContent = 'Importer';
-    form.reset();
+    button.disabled = false;
+    button.innerHTML = originalText;
   }
 });
 
@@ -687,8 +918,12 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   var storageKeyVis = 'fer_col_vis_' + uid;
   var storageKeyW = 'fer_col_w_' + uid;
 
-  // Column names for toggle (match DataTable columns order, skip hidden id col 0)
-  var colNames = ['ID', 'N°', 'Nom', 'Prénom', 'T-shirt', 'Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine'<?php if($role !== 'viewer'): ?>, 'Actions'<?php endif; ?>];
+  // Column names for toggle — built dynamically from actual DataTable headers (skip hidden col 0)
+  var colNames = [];
+  tbl.columns().every(function(idx) {
+    if (idx === 0) return; // skip hidden id column
+    colNames.push($(this.header()).text().trim() || 'Col ' + idx);
+  });
 
   // ── Restore column visibility ──
   function restoreVisibility() {
@@ -852,6 +1087,198 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     });
     $('#tbl').on('draw.dt', initResize);
   }
+})();
+
+/* ══ QR CODE SCANNER — Remise T-shirt ════ */
+(function(){
+  var html5QrCode = null;
+  var qrModal = document.getElementById('qrScanModal');
+  var highlightLimit = <?= (int)$highlightLimit ?>;
+  var scannerRunning = false;
+  var lastScannedNo = null;
+
+  function hideScanner() {
+    document.getElementById('qrReader').style.display = 'none';
+    document.getElementById('qrManualZone').style.display = 'none';
+  }
+
+  function showScanner() {
+    document.getElementById('qrReader').style.display = '';
+    document.getElementById('qrManualZone').style.display = '';
+  }
+
+  function resetPersonCard() {
+    document.getElementById('qrPersonCard').style.display = 'none';
+    document.getElementById('qrSaveStatus').style.display = 'none';
+    document.querySelectorAll('.qr-size-btn').forEach(function(b){ b.classList.remove('btn-primary','active'); b.classList.add('btn-outline-dark'); });
+    lastScannedNo = null;
+    showScanner();
+  }
+
+  function lookupPerson(no) {
+    no = parseInt(no);
+    if (!no || isNaN(no) || no === lastScannedNo) return;
+    lastScannedNo = no;
+
+    // Find in DataTable data
+    var allData = tbl.data().toArray();
+    var person = null;
+    var rank = -1;
+
+    // Sort by inscription_no ASC to determine rank
+    var sorted = allData.slice().sort(function(a,b){ return a.inscription_no - b.inscription_no; });
+    for (var i = 0; i < sorted.length; i++) {
+      if (sorted[i].inscription_no == no) {
+        person = sorted[i];
+        rank = i + 1; // 1-based
+        break;
+      }
+    }
+
+    if (!person) {
+      hideScanner();
+      document.getElementById('qrPersonCard').style.display = 'block';
+      document.getElementById('qrEligibility').innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle me-1"></i>Inscription N°' + no + ' introuvable</div>';
+      document.getElementById('qrPersonName').textContent = '';
+      document.getElementById('qrPersonNo').textContent = '';
+      document.getElementById('qrPersonVille').textContent = '';
+      document.getElementById('qrTshirtZone').style.display = 'none';
+      return;
+    }
+
+    // Hide scanner, show person card
+    hideScanner();
+    document.getElementById('qrPersonCard').style.display = 'block';
+    document.getElementById('qrTshirtZone').style.display = 'block';
+    document.getElementById('qrSaveStatus').style.display = 'none';
+    document.getElementById('qrPersonName').textContent = (person.prenom || '') + ' ' + (person.nom || '');
+    document.getElementById('qrPersonNo').textContent = 'N°' + person.inscription_no;
+    document.getElementById('qrPersonVille').textContent = person.ville || '';
+
+    // Eligibility
+    var eligible = (highlightLimit === 0) || (rank <= highlightLimit);
+    var eligDiv = document.getElementById('qrEligibility');
+    if (eligible) {
+      eligDiv.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle-fill me-2"></i><strong>Éligible T-shirt</strong>' + (highlightLimit > 0 ? ' — inscrit N°' + rank + ' / ' + highlightLimit : '') + '</div>';
+    } else {
+      eligDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — inscrit N°' + rank + ' (limite : ' + highlightLimit + ')</div>';
+    }
+
+    // Highlight current size
+    var currentSize = person.tshirt_size || '-';
+    document.querySelectorAll('.qr-size-btn').forEach(function(b){
+      b.classList.remove('btn-primary','active');
+      b.classList.add('btn-outline-dark');
+      if (b.dataset.size === currentSize) {
+        b.classList.remove('btn-outline-dark');
+        b.classList.add('btn-primary','active');
+      }
+    });
+
+    // Also highlight in main table
+    document.getElementById('quickSearch').value = String(no);
+    tbl.search(String(no)).draw();
+  }
+
+  // T-shirt size buttons
+  document.getElementById('qrTshirtBtns').addEventListener('click', function(e){
+    var btn = e.target.closest('.qr-size-btn');
+    if (!btn || !lastScannedNo) return;
+
+    var size = btn.dataset.size;
+
+    // Find the person's DB id
+    var allData = tbl.data().toArray();
+    var person = allData.find(function(p){ return p.inscription_no == lastScannedNo; });
+    if (!person) return;
+
+    // Highlight button
+    document.querySelectorAll('.qr-size-btn').forEach(function(b){ b.classList.remove('btn-primary','active'); b.classList.add('btn-outline-dark'); });
+    btn.classList.remove('btn-outline-dark');
+    btn.classList.add('btn-primary','active');
+
+    // Save to DB
+    var status = document.getElementById('qrSaveStatus');
+    status.style.display = 'block';
+    status.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
+
+    fetch('../config/api.php?route=registrations', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken},
+      body: new URLSearchParams({id: person.id, tshirt_size: size})
+    }).then(function(){
+      status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i><strong>' + size + '</strong> enregistré pour ' + (person.prenom||'') + ' ' + (person.nom||'') + '</span>';
+      tbl.ajax.reload(null, false);
+      // Auto-reset after 1s for next scan
+      setTimeout(function(){
+        resetPersonCard();
+        document.getElementById('qrManualInput').value = '';
+        document.getElementById('qrManualInput').focus();
+      }, 1000);
+    }).catch(function(){
+      status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Erreur de sauvegarde</span>';
+    });
+  });
+
+  // Open modal
+  document.getElementById('btnScanQR').addEventListener('click', function(e){
+    e.preventDefault();
+    var dd = document.getElementById('ocDropdown');
+    if (dd) dd.classList.remove('show');
+    new bootstrap.Modal(qrScanModal).show();
+  });
+
+  // Start scanner on modal open
+  qrModal.addEventListener('shown.bs.modal', function(){
+    resetPersonCard();
+    document.getElementById('qrManualInput').value = '';
+    html5QrCode = new Html5Qrcode('qrReader');
+    html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      function onScanSuccess(decodedText) {
+        var match = decodedText.match(/\d+/);
+        if (match) lookupPerson(match[0]);
+      },
+      function onScanFailure() {}
+    ).then(function(){ scannerRunning = true; })
+    .catch(function(){
+      scannerRunning = false;
+      document.getElementById('qrReader').innerHTML =
+        '<div class="alert alert-warning text-center py-3">' +
+        '<i class="bi bi-camera-video-off d-block mb-2" style="font-size:2rem"></i>' +
+        'Caméra non disponible. Utilisez la saisie manuelle.</div>';
+    });
+  });
+
+  // Stop scanner on modal close
+  qrModal.addEventListener('hidden.bs.modal', function(){
+    if (html5QrCode && scannerRunning) {
+      html5QrCode.stop().catch(function(){});
+      scannerRunning = false;
+    }
+    if (html5QrCode) { html5QrCode.clear(); html5QrCode = null; }
+    resetPersonCard();
+    // Clear search
+    document.getElementById('quickSearch').value = '';
+    tbl.search('').draw();
+  });
+
+  // Next scan button
+  document.getElementById('qrNextScan').addEventListener('click', function(){
+    resetPersonCard();
+    document.getElementById('qrManualInput').value = '';
+    document.getElementById('qrManualInput').focus();
+  });
+
+  // Manual input
+  document.getElementById('qrManualBtn').addEventListener('click', function(){
+    var val = document.getElementById('qrManualInput').value;
+    if (val) lookupPerson(val);
+  });
+  document.getElementById('qrManualInput').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('qrManualBtn').click(); }
+  });
 })();
 </script>
 </body>

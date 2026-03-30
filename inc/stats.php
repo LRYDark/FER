@@ -114,7 +114,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <?php include '../inc/navbar-admin.php'; ?>
 
-<div class="container py-4" style="max-width: 90%;">
+<div class="container-fluid py-4">
   <!-- ===== CARTES RÉCAP GÉNÉRAL ===== -->
   <div class="row row-cols-1 row-cols-md-3 g-4 mb-4 text-center">
     <div class="col">
@@ -186,6 +186,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 </div>
 <?php include '../inc/admin-footer.php'; ?>
 
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const stats = <?= json_encode($stats) ?>;
@@ -270,16 +271,12 @@ fillYearCards(<?= $currentYear ?>);
 let tbl = $('#tbl').DataTable({
   ajax:{
     url:'../config/api.php',
-    data:function(d){ 
-      d.route='registrations-archive'; 
-      const selectedYear = document.getElementById('selYear').value;
-      const selectedStat = stats.find(s => s.year == selectedYear);
-      d.table_name = selectedStat ? selectedStat.table_name : 'registrations_' + selectedYear;
+    data:function(){
+      return { route:'registrations-archive', year: document.getElementById('selYear').value };
     },
     dataSrc:'',
-    error:function(xhr, error, thrown){ 
-      console.error('Erreur DataTable:', error, thrown);
-      $('#tbl').hide(); 
+    error:function(xhr, error, thrown){
+      console.error('Erreur DataTable:', error, thrown, xhr.responseText);
     }
   },
   columns:[

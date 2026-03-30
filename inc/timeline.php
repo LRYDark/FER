@@ -363,7 +363,6 @@ foreach ($items as $item) {
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body row g-3">
-                      <?php endif; ?>
                       <div class="col-md-6">
                         <label class="form-label">Titre (kicker rose)</label>
                         <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($item['title']) ?>" required>

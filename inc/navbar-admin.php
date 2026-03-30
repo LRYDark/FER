@@ -770,6 +770,12 @@ html, body {
               <span>Mode standard</span>
             </a>
           </li>
+          <li>
+            <a href="#" id="btnScanQR">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="21" y2="21"/></svg>
+              <span>Scanner QR</span>
+            </a>
+          </li>
           <?php endif; ?>
           <li>
             <a href="#" id="ocLogoutLink" class="oc-dropdown-danger">
