@@ -158,17 +158,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Sauvegarde config QR Code (onglet Google/Mail)
-    if (isset($_POST['save_qrcode_config'])) {
-        $qrcode_mail_mode = $_POST['qrcode_mail_mode'] ?? 'none';
-        if (!in_array($qrcode_mail_mode, ['none', 'all', 'first_x'], true)) $qrcode_mail_mode = 'none';
-
-        $upd = $pdo->prepare('UPDATE setting SET qrcode_mail_mode = :mode WHERE id = 1');
-        $upd->execute(['mode' => $qrcode_mail_mode]);
-
-        addToast('success', 'Configuration QR Code enregistrée');
-        $data['qrcode_mail_mode'] = $qrcode_mail_mode;
-    }
 }
 
 // Vérifier l'état actuel de la connexion
@@ -786,67 +775,6 @@ if (isset($_POST['importExcel'])) {
 }
 
 /* --------------------------------------------------------------------------
-   Carte : Google
--------------------------------------------------------------------------- */
-if (isset($_POST['google'])) {
-
-    /* a) Lecture & validation */
-    $client_id = encrypt($_POST['client_id'] ?? '');
-    $client_secret = encrypt($_POST['client_secret'] ?? '');
-
-    /* b) Sauvegarder mail_email et mail_phone si colonnes existent */
-    $newMailEmail = trim($_POST['mail_email'] ?? '');
-    $newMailPhone = trim($_POST['mail_phone'] ?? '');
-    if ($hasMailFields) {
-        $upd = $pdo->prepare(
-            'UPDATE setting
-                SET client_id = :client_id,
-                    client_secret = :client_secret,
-                    mail_email = :mail_email,
-                    mail_phone = :mail_phone
-                WHERE id = :id'
-        );
-        $ok = $upd->execute([
-            'client_id' => $client_id,
-            'client_secret' => $client_secret,
-            'mail_email' => $newMailEmail ?: null,
-            'mail_phone' => $newMailPhone ?: null,
-            'id' => 1
-        ]);
-        $mail_email = $newMailEmail;
-        $mail_phone = $newMailPhone;
-    } else {
-        $upd = $pdo->prepare(
-            'UPDATE setting
-                SET client_id = :client_id,
-                    client_secret = :client_secret
-                WHERE id = :id'
-        );
-        $ok = $upd->execute([
-            'client_id' => $client_id,
-            'client_secret' => $client_secret,
-            'id' => 1
-        ]);
-    }
-
-    /* c) Gestion du résultat */
-    if ($ok) {
-        if ($upd->rowCount() > 0) {
-            addToast('success', 'Clés google enregistrées !');
-        } else {
-                addToast('warning', 'Aucun changement détecté.', 10000);
-        }
-    } else {
-        /* $execute a échoué : on affiche le message renvoyé par PDO */
-        $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
-        addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
-    }
-
-    $client_id = decrypt($client_id);
-    $client_secret = decrypt($client_secret);
-}
-
-/* --------------------------------------------------------------------------
    Suppression image
 -------------------------------------------------------------------------- */
 if (isset($_POST['delete_picture_parcours']) && $picture_parcours) {
@@ -984,11 +912,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
     elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id']) || isset($_POST['importExcel'])) $activeTab = 'formulaire';
-    elseif (isset($_POST['google']) || isset($_POST['action'])) $activeTab = 'google';
-    elseif (isset($_POST['save_qrcode_config'])) $activeTab = 'google';
 }
 // Also check URL hash
-if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours','reglementation','formulaire','google'])) {
+if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours','reglementation','formulaire'])) {
     $activeTab = $_GET['tab'];
 }
 ?>
@@ -1000,7 +926,6 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'google' ? 'active' : '' ?>" href="#" data-tab="google">Google / Email</a></li>
 </ul>
 
 <!-- ═══ TAB: General ═══ -->
@@ -1819,150 +1744,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
   </div><!-- /row -->
 </div><!-- /tab-formulaire -->
 
-<!-- ═══ TAB: Google ═══ -->
-<link href="../css/gmail-settings.css" rel="stylesheet">
-<div class="settings-section <?= $activeTab === 'google' ? 'active' : '' ?>" id="tab-google">
-  <div class="row g-4">
-    <div class="col-12">
-      <div class="setting-card">
-        <h2>Parametres Gmail</h2>
-                <div class="header">
-                    <p>Gestion de la connexion avec l'API Gmail de Google</p>
-                </div>
-
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <?= csrf_field() ?>
-                    <div class="col-md-6"><label class="form-label">Client ID</label>
-                        <input type="text" class="form-control" name="client_id" value="<?= htmlspecialchars($client_id, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Client secret</label>
-                        <input type="text" class="form-control" name="client_secret" value="<?= htmlspecialchars($client_secret, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <?php if ($hasMailFields): ?>
-                    <div class="col-12" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--oc-border,#e2e8f0)">
-                        <h3 style="margin-bottom:12px">Contact dans les emails</h3>
-                        <p style="font-size:13px;color:#64748b;margin-bottom:12px">Ces informations apparaissent dans le pied de page des emails envoyés. Laissez vide pour ne pas les afficher.</p>
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Email de contact</label>
-                        <input type="email" class="form-control" name="mail_email" value="<?= htmlspecialchars($mail_email) ?>" placeholder="contact@forbachenrose.fr">
-                    </div>
-                    <div class="col-md-6"><label class="form-label">Téléphone</label>
-                        <input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>" placeholder="03 XX XX XX XX">
-                    </div>
-                    <?php endif; ?>
-                    <div class="col-12 text-end">
-                        <button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button>
-                    </div>
-                </form>
-
-                <?php if (isset($message)): ?>
-                    <div class="message <?php echo $messageClass; ?>">
-                        <?php echo htmlspecialchars($message); ?>
-                    </div>
-                <?php endif; ?>
-
-                <div class="status <?php echo $isConnected ? 'connected' : 'disconnected'; ?>">
-                    <div>
-                        <strong>Statut de la connexion :</strong>
-                        <?php if ($isConnected): ?>
-                            Connecte a Gmail - Pret a envoyer des emails
-                        <?php else: ?>
-                            Non connecte - Configuration requise
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <?php if ($isConnected): ?>
-                        <form method="post" style="display: inline;">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="test_connection">
-                            <button type="submit" class="btn btn-success">
-                                Tester la connexion
-                            </button>
-                        </form>
-
-                        <form method="post" style="display: inline;">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="send_test_mail">
-                            <button type="submit" class="btn btn-primary">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                Envoyer un mail test
-                            </button>
-                        </form>
-
-                        <form method="post" style="display: inline;" data-confirm="Etes-vous sur de vouloir vous deconnecter de Gmail ?">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="disconnect">
-                            <button type="submit" class="btn btn-danger">
-                                Se deconnecter
-                            </button>
-                        </form>
-
-                    <?php else: ?>
-                        <form method="post" style="display: inline;">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="test_connection">
-                            <button type="submit" class="btn btn-warning">
-                                Verifier la connexion
-                            </button>
-                        </form>
-
-                        <a href="<?php echo htmlspecialchars($authUrl); ?>" class="btn btn-primary">
-                            <svg class="google-icon" viewBox="0 0 24 24">
-                                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                            </svg>
-                            Se connecter avec Google
-                        </a>
-                    <?php endif; ?>
-                </div>
-
-                <div class="info">
-                    <h3>Informations</h3>
-                    <ul>
-                        <li><strong>Fichier token :</strong> <?php echo file_exists(__DIR__ . '/../config/token.json') ? 'Present' : 'Absent'; ?></li>
-                        <li><strong>Derniere verification :</strong> <?php echo date('d/m/Y H:i:s'); ?></li>
-                        <li><strong>Scopes requis :</strong> Gmail Send (envoi d'emails)</li>
-                    </ul>
-
-                    <?php if (!$isConnected): ?>
-                        <hr>
-                        <p><strong>Actions requises :</strong></p>
-                        <ol>
-                            <li>API Google : ajoute dans "URI de redirection autorises" -> <?= oauth2_callback_url() ?></li>
-                            <li>Cliquez sur "Se connecter avec Google"</li>
-                            <li>Autorisez l'acces a votre compte Gmail</li>
-                            <li>Vous serez redirige automatiquement</li>
-                        </ol>
-                    <?php endif; ?>
-                </div>
-      </div><!-- /setting-card google -->
-
-      <div class="setting-card">
-        <h2>QR Code dans les mails d'inscription</h2>
-        <form action="" method="post" class="row g-3">
-            <?= csrf_field() ?>
-            <div class="col-md-6">
-                <label class="form-label">Mode d'envoi du QR Code</label>
-                <select class="form-select" name="qrcode_mail_mode" id="qrcode_mail_mode">
-                    <option value="none" <?= $qrcode_mail_mode === 'none' ? 'selected' : '' ?>>Aucun QR Code</option>
-                    <option value="all" <?= $qrcode_mail_mode === 'all' ? 'selected' : '' ?>>QR Code pour tous</option>
-                    <option value="first_x" <?= $qrcode_mail_mode === 'first_x' ? 'selected' : '' ?>>QR Code pour les X premiers inscrits</option>
-                </select>
-                <small class="text-muted">Le mail de confirmation est toujours envoyé. Ce paramètre contrôle uniquement la présence du QR Code. Le nombre de premiers inscrits se configure dans l'onglet Général.</small>
-            </div>
-            <div class="col-12 text-end">
-                <button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button>
-            </div>
-        </form>
-      </div><!-- /setting-card qrcode -->
-
-    </div><!-- /col-12 -->
-  </div><!-- /row -->
-</div><!-- /tab-google -->
+<!-- Paramètres mail déplacé vers mail-settings.php -->
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
@@ -2045,6 +1827,65 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
       tinymce.init(Object.assign({}, tinyOpts, { selector: sel }));
     });
   }
+})();
+</script>
+
+<!-- Drag & drop pour l'ordre des sections mail -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var list = document.getElementById('mtcSortable');
+  if (!list) return;
+  var hidden = document.getElementById('mtcSectionOrder');
+  var dragged = null;
+
+  function updateOrder(){
+    var items = list.querySelectorAll('li[data-section]');
+    var order = [];
+    items.forEach(function(li){ order.push(li.getAttribute('data-section')); });
+    hidden.value = order.join(',');
+  }
+
+  list.querySelectorAll('li').forEach(function(li){
+    li.setAttribute('draggable','true');
+    li.addEventListener('dragstart', function(e){
+      dragged = this;
+      this.style.opacity = '.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    li.addEventListener('dragend', function(){
+      this.style.opacity = '1';
+      list.querySelectorAll('li').forEach(function(l){ l.classList.remove('border-primary'); });
+      dragged = null;
+    });
+    li.addEventListener('dragover', function(e){
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.classList.add('border-primary');
+    });
+    li.addEventListener('dragleave', function(){
+      this.classList.remove('border-primary');
+    });
+    li.addEventListener('drop', function(e){
+      e.preventDefault();
+      this.classList.remove('border-primary');
+      if (dragged !== this) {
+        var allItems = Array.from(list.children);
+        var fromIdx = allItems.indexOf(dragged);
+        var toIdx = allItems.indexOf(this);
+        if (fromIdx < toIdx) { list.insertBefore(dragged, this.nextSibling); }
+        else { list.insertBefore(dragged, this); }
+        updateOrder();
+      }
+    });
+  });
+
+  // Sync color hex codes when color pickers change
+  document.querySelectorAll('input[type="color"]').forEach(function(picker){
+    picker.addEventListener('input', function(){
+      var code = this.parentElement.querySelector('code');
+      if (code) code.textContent = this.value;
+    });
+  });
 })();
 </script>
 

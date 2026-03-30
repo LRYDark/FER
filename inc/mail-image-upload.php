@@ -1,0 +1,68 @@
+<?php
+/**
+ * Upload handler for mail template header image.
+ * Stores in files/_imagemail/ and returns JSON with the path.
+ */
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../config/csrf.php';
+
+header('Content-Type: application/json');
+requireRole(['admin']);
+
+if (!csrf_verify()) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Token CSRF invalide']);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Aucun fichier envoyé']);
+    exit;
+}
+
+$file = $_FILES['file'];
+
+$allowedTypes = [
+    'jpg'  => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'png'  => 'image/png',
+    'gif'  => 'image/gif',
+    'webp' => 'image/webp',
+    'svg'  => 'image/svg+xml',
+];
+
+$maxSize = 5 * 1024 * 1024; // 5 MB
+
+$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+$finfo    = new finfo(FILEINFO_MIME_TYPE);
+$mimeType = $finfo->file($file['tmp_name']);
+
+if ($file['size'] > $maxSize) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Fichier trop volumineux (max 5 Mo)']);
+    exit;
+}
+
+if (!isset($allowedTypes[$ext]) || $allowedTypes[$ext] !== $mimeType) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Type non autorisé (images uniquement)']);
+    exit;
+}
+
+$uploadDir = __DIR__ . '/../files/_imagemail/';
+if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+$safeName = 'header_' . uniqid() . '.' . $ext;
+
+if (!move_uploaded_file($file['tmp_name'], $uploadDir . $safeName)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Échec de l\'upload']);
+    exit;
+}
+
+echo json_encode([
+    'ok'       => true,
+    'path'     => '../files/_imagemail/' . $safeName,
+    'filename' => $safeName,
+]);

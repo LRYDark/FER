@@ -283,6 +283,10 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         $qrCodeDataUri = generateQrCodeDataUri($inscriptionNo);
     }
 
+    // Load mail template config
+    $mtcJson = $data['mail_template_config'] ?? null;
+    $mtc = $mtcJson ? json_decode($mtcJson, true) : [];
+
     $body = render('mail_template.php', [
         'type'        => $type,
         'mailTitle'   => $mailTitle,
@@ -297,6 +301,7 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         'mail_phone'  => $data['mail_phone'] ?? '',
         'qrcode'      => $qrCodeDataUri,
         'inscription_no' => $inscriptionNo,
+        'mtc'         => $mtc,
     ]);
 
     if (empty($body)) {
