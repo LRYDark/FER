@@ -54,6 +54,13 @@ $mtcHeaderImg = $mtc['header_image'] ?? '';
 $mtcRadius    = ($mtc['radius'] ?? []) + ['card'=>16,'section'=>12,'badge'=>20];
 $mtcCardWidth = $mtc['card_width'] ?? 600;
 $mtcHeaderImgSize = $mtc['header_image_size'] ?? 80;
+$mtcVisibility = ($mtc['visibility'] ?? []) + [
+    'details'=>['inscription'],'tips'=>['inscription'],
+    'description'=>['inscription','code','new_user','bulk','test'],
+    'qrcode'=>['inscription'],
+    'banner'=>['inscription','code','new_user','bulk','test'],
+    'contact'=>['inscription','code','new_user','bulk','test'],
+];
 
 // ── POST handlers ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
@@ -120,7 +127,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
             ],
             'card_width' => (int)($_POST['mtc_card_width'] ?? 600),
             'header_image_size' => (int)($_POST['mtc_header_image_size'] ?? 80),
+            'visibility' => json_decode($_POST['mtc_visibility'] ?? '{}', true) ?: [],
         ];
+
+        // Capture ALL dynamic texts not already in the explicit list
+        $knownKeys = array_keys($tplConfig['texts']);
+        foreach ($_POST as $k => $v) {
+            if (strpos($k, 'mtc_') === 0) {
+                $key = substr($k, 4); // remove 'mtc_'
+                // Skip known config keys (colors, radius, font, etc.)
+                if (in_array($key, $knownKeys)) continue;
+                if (in_array($key, ['font','section_order','radius_card','radius_section','radius_badge','card_width','header_image_size'])) continue;
+                if (strpos($key, 'font_') === 0 || strpos($key, 'size_') === 0 || strpos($key, 'align_') === 0 || strpos($key, 'color_') === 0) continue;
+                if (isset($tplConfig['colors'][$key])) continue;
+                // It's a dynamic text
+                $tplConfig['texts'][$key] = $v;
+            }
+        }
 
         $json = json_encode($tplConfig, JSON_UNESCAPED_UNICODE);
         $pdo->prepare('UPDATE setting SET mail_template_config = :cfg WHERE id = 1')->execute(['cfg' => $json]);
@@ -133,6 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         $mtcHeaderImg = $mtc['header_image']; $mtcRadius = $mtc['radius'];
         $mtcCardWidth = $mtc['card_width'];
         $mtcHeaderImgSize = $mtc['header_image_size'];
+        $mtcVisibility = $mtc['visibility'];
 
         addToast('success', 'Template email enregistré !');
     }
@@ -176,7 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
             try {
                 $email = $_SESSION['email'] ?? '';
                 if ($email && isGoogleConnectionValid()) {
-                    $result = sendMail($email, 'Mail de test - Forbach en Rose', 'Test réussi !', 'Ce mail de test confirme que la configuration email fonctionne correctement.', null, null, 'info');
+                    $result = sendMail($email, 'Mail de test - Forbach en Rose', 'Test réussi !', 'Ce mail de test confirme que la configuration email fonctionne correctement.', null, null, 'info', null, 'test');
                     if ($result) addToast('success', 'Mail test envoyé à ' . htmlspecialchars($email));
                     else addToast('danger', 'Échec envoi mail test');
                 } else { addToast('danger', 'Email introuvable ou connexion invalide'); }
@@ -219,6 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
         'mail_email'     => $testEmail,
         'mail_phone'     => $testPhone,
         'mtc'            => $mtcPreview,
+        'mail_subtype'   => $previewType,
     ];
 
     switch ($previewType) {
@@ -292,6 +317,7 @@ $jsConfig = json_encode([
     'radius' => $mtcRadius,
     'cardWidth' => $mtcCardWidth,
     'headerImageSize' => $mtcHeaderImgSize,
+    'visibility' => $mtcVisibility,
 ], JSON_UNESCAPED_UNICODE);
 ?>
 <!doctype html>
@@ -687,10 +713,22 @@ $jsConfig = json_encode([
                     <p data-dyn="email de contact" style="font-size:14px;color:#64748b;margin:0">contact@forbachenrose.fr</p>
                   </td></tr>
                 </table>
-<?php elseif($sec==='custom'): ?>
+<?php elseif(strpos($sec,'custom')===0): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
                   <tr><td class="sec-r" style="padding:24px;background:#f8fafc;text-align:center">
-                    <div data-ed="custom_text" style="font-size:15px;line-height:1.7;color:#334155">Texte personnalisé...</div>
+<?php
+  // Render all texts for this custom section (key starts with section id)
+  $rendered = false;
+  foreach ($mtcTexts as $tKey => $tVal) {
+      if (strpos($tKey, $sec.'_') === 0) {
+          echo '<div data-ed="'.htmlspecialchars($tKey).'" style="font-size:15px;line-height:1.7;color:#334155;margin-bottom:8px">'.htmlspecialchars($tVal).'</div>';
+          $rendered = true;
+      }
+  }
+  if (!$rendered) {
+      echo '<div data-ed="'.htmlspecialchars($sec).'_text" style="font-size:15px;line-height:1.7;color:#334155">Texte personnalisé...</div>';
+  }
+?>
                   </td></tr>
                 </table>
 <?php endif; ?>
@@ -1092,12 +1130,62 @@ $jsConfig = json_encode([
       cc.appendChild(addTxtRow);
       addTxtRow.querySelector('button').addEventListener('click', function(){
         var target=el.querySelector('td')||el;
-        var newEl=document.createElement('div');
-        newEl.setAttribute('data-ed','txt_'+Date.now());
-        newEl.style.cssText='font-size:15px;line-height:1.7;color:#334155;margin-top:12px';
-        newEl.textContent='Nouveau texte...';
-        target.appendChild(newEl);
-        bindTextEl(newEl);
+        var isTips=(zone==='tips');
+        if(isTips){
+          // Add with bullet
+          var wrap=document.createElement('div');
+          wrap.style.cssText='display:flex;align-items:baseline;gap:0;margin:0 0 4px';
+          var bullet=document.createElement('span');
+          bullet.setAttribute('data-acc','txt');
+          bullet.style.cssText='font-weight:700;margin-right:8px;color:'+CFG.colors.accent+';flex-shrink:0';
+          bullet.innerHTML='&#9656;';
+          var txt=document.createElement('span');
+          txt.setAttribute('data-ed','txt_'+Date.now());
+          txt.style.cssText='font-size:14px;color:rgba(255,255,255,.75);line-height:1.8';
+          txt.textContent='Nouveau conseil...';
+          wrap.appendChild(bullet);
+          wrap.appendChild(txt);
+          target.appendChild(wrap);
+          bindTextEl(txt);
+        } else {
+          // Use section ID as prefix so PHP can restore it
+          var secId=el.dataset.section||'txt';
+          var newEl=document.createElement('div');
+          newEl.setAttribute('data-ed',secId+'_'+Date.now());
+          newEl.style.cssText='font-size:15px;line-height:1.7;color:#334155;margin-top:12px';
+          newEl.textContent='Nouveau texte...';
+          target.appendChild(newEl);
+          bindTextEl(newEl);
+        }
+      });
+    }
+
+    // Visibility checkboxes (not for header/title/footer)
+    if(zone!=='header'&&zone!=='title'&&zone!=='footer'){
+      var secKey=el.dataset.section||zone;
+      var visTitle=document.createElement('p'); visTitle.className='sb-title'; visTitle.textContent='Visible dans';
+      cc.appendChild(visTitle);
+      var mailTypes=[
+        ['inscription','Inscription'],['code','Code connexion'],
+        ['new_user','Nouveau compte'],['bulk','Envoi groupé'],['test','Mail test']
+      ];
+      var curVis=CFG.visibility[secKey]||[];
+      if(!CFG.visibility[secKey]){ CFG.visibility[secKey]=[]; }
+      mailTypes.forEach(function(mt){
+        var lbl=document.createElement('label');
+        lbl.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;margin-bottom:4px;cursor:pointer';
+        var cb=document.createElement('input');
+        cb.type='checkbox'; cb.checked=curVis.indexOf(mt[0])!==-1;
+        cb.style.cssText='accent-color:#F42182';
+        cb.addEventListener('change', function(){
+          var arr=CFG.visibility[secKey]||[];
+          if(this.checked){ if(arr.indexOf(mt[0])===-1) arr.push(mt[0]); }
+          else { arr=arr.filter(function(v){return v!==mt[0]}); }
+          CFG.visibility[secKey]=arr;
+        });
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(mt[1]));
+        cc.appendChild(lbl);
       });
     }
 
@@ -1257,9 +1345,11 @@ $jsConfig = json_encode([
 
     if(action==='add-section'){
       var parent=btn.closest('.prev-add');
-      var tpl='<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px"><tr><td class="sec-r" style="padding:24px;background:#f8fafc;text-align:center"><div data-ed="custom_text" style="font-size:15px;line-height:1.7;color:#334155">Texte personnalisé...</div></td></tr></table>';
+      var cid='custom_'+Date.now();
+      var tpl='<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px"><tr><td class="sec-r" style="padding:24px;background:#f8fafc;text-align:center"><div data-ed="'+cid+'_text" style="font-size:15px;line-height:1.7;color:#334155">Texte personnalisé...</div></td></tr></table>';
       var wrap=document.createElement('div');
-      wrap.className='prev-sec'; wrap.dataset.zone='custom'; wrap.dataset.section='custom'; wrap.draggable=true;
+      wrap.className='prev-sec'; wrap.dataset.zone='custom'; wrap.dataset.section=cid; wrap.draggable=true;
+      CFG.visibility[cid]=[];
       wrap.innerHTML='<div class="drag-bar"></div><div class="sec-actions"><button type="button" class="sec-act" data-action="move-up" title="Monter">&#8593;</button><button type="button" class="sec-act" data-action="move-down" title="Descendre">&#8595;</button><button type="button" class="sec-act del" data-action="remove-section" title="Supprimer">&#10005;</button></div>'+tpl;
       var addBtn=document.createElement('div');
       addBtn.className='prev-add';
@@ -1323,6 +1413,7 @@ $jsConfig = json_encode([
     var hdrImg=$('#prevHeader').querySelector('img');
     add('mtc_header_image_size',hdrImg?parseInt(hdrImg.style.maxWidth)||80:80);
     add('mtc_font',CFG.font);
+    add('mtc_visibility',JSON.stringify(CFG.visibility));
     $$('[data-ed]').forEach(function(el){
       var clone=el.cloneNode(true);
       clone.querySelectorAll('.el-actions').forEach(function(a){a.remove();});

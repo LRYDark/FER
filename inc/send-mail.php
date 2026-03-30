@@ -27,7 +27,7 @@ if (!csrf_verify()) {
         $emailList = array_keys($adresses);
 
     // Send as array → sendMail uses BCC automatically
-    $mailSent = sendMail($emailList, $subject, $mailTitle, $description, null, null, 'info');
+    $mailSent = sendMail($emailList, $subject, $mailTitle, $description, null, null, 'info', null, 'bulk');
 
     // Définir le message flash selon le résultat
     if ($mailSent) {

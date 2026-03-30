@@ -234,7 +234,7 @@ function render(string $path, array $vars = []): string
 /** @var string|null $lastMailError Dernière erreur détaillée de sendMail() */
 $lastMailError = null;
 
-function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', ?int $inscriptionNo = null) {
+function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', ?int $inscriptionNo = null, ?string $mailSubtype = null) {
     global $data, $lastMailError;
     $lastMailError = null;
 
@@ -302,6 +302,7 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
         'qrcode'      => $qrCodeDataUri,
         'inscription_no' => $inscriptionNo,
         'mtc'         => $mtc,
+        'mail_subtype' => $mailSubtype ?? ($type === 'inscription' ? 'inscription' : 'info'),
     ]);
 
     if (empty($body)) {
