@@ -270,6 +270,7 @@ function getCreateTableStatements(): array
           `video_accueil` VARCHAR(255) DEFAULT 'FER.mp4',
           `maintenance_mode` TINYINT(1) NOT NULL DEFAULT 0,
           `maintenance_message` VARCHAR(500) DEFAULT NULL,
+          `mail_template_config` TEXT DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
