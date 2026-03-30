@@ -187,6 +187,12 @@ $formFields = getActiveFields($pdo, 'qr');
     font-weight:600;
   }
   .hero-inner{max-width:800px;margin:.15rem auto 0;}
+  /* Guard-rail: TinyMCE images can be resized smaller freely,
+     but never exceed container bounds */
+  .register-page-title img{
+    max-width: 100% !important;
+    object-fit: contain;
+  }
   .hero-lead{
     margin:0 0 .45rem;
     font-size:1rem;

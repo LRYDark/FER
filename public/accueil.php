@@ -2705,7 +2705,7 @@ function generateTimelineSVG(int $count): array {
 
 .demo-panel.video-float{
   width: auto;
-  max-width: none;
+  max-width: calc(100% - 160px);
   padding: 0;
   background: transparent;
   box-shadow: none;
@@ -2745,6 +2745,14 @@ function generateTimelineSVG(int $count): array {
 }
 .demo-panel.video-float .demo-kicker p{
   margin: 0;
+}
+/* Guard-rail: TinyMCE images can be resized smaller freely,
+   but never exceed container bounds */
+.demo-panel.video-float .demo-kicker img{
+  display: block;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: 50vh;
 }
 
 .demo-panel.video-float .demo-desc{
@@ -2794,6 +2802,7 @@ function generateTimelineSVG(int $count): array {
     position: relative;
     height: 100%;
     width: 100%;
+    max-width: 100%;
     align-self: stretch;
     align-items:center;
     text-align:center;
@@ -2803,8 +2812,15 @@ function generateTimelineSVG(int $count): array {
     padding: 0;
     padding-bottom: 0;
   }
+  .demo-panel.video-float .demo-kicker img{
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 35vh;
+  }
   .demo-panel.video-float .hero-text{
-    display: block;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     position: absolute;
     top: 50%;
     left: 50%;
