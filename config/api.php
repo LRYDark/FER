@@ -744,7 +744,9 @@ if ($route==='registrations'){
 
     /* POST : public OU user/admin */
     if($_SERVER['REQUEST_METHOD']==='POST'){
+      try {
         $d = json_decode(file_get_contents('php://input'), true);
+        if (!$d) { $d = $_POST; } // fallback form-data
 
         // 🔒 [FIX-08] Rate limiting sur les inscriptions publiques non authentifiées (CWE-770)
         if (!currentUserId()) {
@@ -815,7 +817,7 @@ if ($route==='registrations'){
             $raw = $d[$col] ?? '';
             $cols[] = "`{$col}`";
             $phs[]  = '?';
-            $vals[] = $meta['encrypted'] ? encrypt($raw ?: null) : ($raw ?: null);
+            $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
         }
 
         // Champs système
@@ -849,6 +851,12 @@ if ($route==='registrations'){
         }
 
         echo json_encode(['ok'=>true,'inscription_no'=>$no]); exit;
+      } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['ok'=>false, 'error'=>$e->getMessage(), 'line'=>$e->getLine(), 'file'=>basename($e->getFile())]);
+        exit;
+      }
     }
 
     /* DELETE (admin) */
@@ -1124,6 +1132,35 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ═══ Vérification doublons avant import ═══
+if ($route === 'check-duplicates' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireRole(['admin']);
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $tickets = $input['tickets'] ?? [];
+
+    if (!is_array($tickets) || empty($tickets)) {
+        echo json_encode(['duplicates' => []]);
+        exit;
+    }
+
+    // Nettoyer et convertir en entiers
+    $tickets = array_map('intval', array_filter($tickets, 'is_numeric'));
+
+    if (empty($tickets)) {
+        echo json_encode(['duplicates' => []]);
+        exit;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($tickets), '?'));
+    $stmt = $pdo->prepare("SELECT inscription_no FROM registrations WHERE inscription_no IN ($placeholders)");
+    $stmt->execute($tickets);
+    $existing = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+
+    echo json_encode(['duplicates' => array_map('intval', $existing)]);
+    exit;
+}
+
 /* ---------- Petites fonctions utilitaires ---------- */
 function normaliseLabel(string $label): string {
     $label = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $label);
@@ -1333,18 +1370,19 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Dans votre api.php, section registrations-archive
 if ($route === 'registrations-archive') {
-    requireRole(['admin', 'viewer']);
+    requireRole(['admin', 'viewer', 'user']);
 
     $year = (int) ($_GET['year'] ?? date('Y'));
-    // Sécurité : on construit le nom de table uniquement à partir de l'année (entier)
-    // pour empêcher toute injection SQL via le paramètre table_name
     $tableArchive = "registrations_$year";
 
     try {
-        // Vérifie si la table existe (requête préparée)
-        $checkStmt = $pdo->prepare("SHOW TABLES LIKE ?");
-        $checkStmt->execute([$tableArchive]);
-        if (!$checkStmt->rowCount()) {
+        // Vérifier l'existence via INFORMATION_SCHEMA (plus fiable que SHOW TABLES LIKE avec PDO)
+        $dbName = $pdo->query("SELECT DATABASE()")->fetchColumn();
+        $checkStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
+        );
+        $checkStmt->execute([$dbName, $tableArchive]);
+        if ((int)$checkStmt->fetchColumn() === 0) {
             echo json_encode([]);
             exit;
         }
@@ -1357,7 +1395,7 @@ if ($route === 'registrations-archive') {
 
         echo json_encode(decryptRows($registrations));
     } catch (Exception $e) {
-        echo json_encode([]);
+        echo json_encode(['error' => $e->getMessage()]);
     }
     exit;
 }

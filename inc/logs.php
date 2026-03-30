@@ -196,8 +196,6 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 <body>
 <?php include 'navbar-admin.php'; ?>
 
-  <?php endif; ?>
-
   <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-3">
     <div>
       <h2><i class="bi bi-file-earmark-text"></i> Journaux système</h2>
