@@ -653,9 +653,9 @@ $jsConfig = json_encode([
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
                   <tr><td id="prevTips" class="sec-r" style="padding:24px">
                     <p data-ed="tips_title" style="font-size:14px;font-weight:700;color:#fff;margin:0 0 14px"><?= htmlspecialchars($mtcTexts['tips_title']) ?></p>
-                    <p data-ed="tips_1" style="font-size:14px;color:rgba(255,255,255,.75);margin:0 0 4px;line-height:1.8"><span data-acc="txt" style="font-weight:700;margin-right:8px;color:<?= $mtcColors['accent'] ?>">&#9656;</span><?= htmlspecialchars($mtcTexts['tips_1']) ?></p>
-                    <p data-ed="tips_2" style="font-size:14px;color:rgba(255,255,255,.75);margin:0 0 4px;line-height:1.8"><span data-acc="txt" style="font-weight:700;margin-right:8px;color:<?= $mtcColors['accent'] ?>">&#9656;</span><?= htmlspecialchars($mtcTexts['tips_2']) ?></p>
-                    <p data-ed="tips_3" style="font-size:14px;color:rgba(255,255,255,.75);margin:0;line-height:1.8"><span data-acc="txt" style="font-weight:700;margin-right:8px;color:<?= $mtcColors['accent'] ?>">&#9656;</span><?= htmlspecialchars($mtcTexts['tips_3']) ?></p>
+                    <div style="display:flex;align-items:baseline;gap:0;margin:0 0 4px"><span data-acc="txt" style="font-weight:700;margin-right:8px;color:<?= $mtcColors['accent'] ?>;flex-shrink:0">&#9656;</span><span data-ed="tips_1" style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.8"><?= htmlspecialchars($mtcTexts['tips_1']) ?></span></div>
+                    <div style="display:flex;align-items:baseline;gap:0;margin:0 0 4px"><span data-acc="txt" style="font-weight:700;margin-right:8px;color:<?= $mtcColors['accent'] ?>;flex-shrink:0">&#9656;</span><span data-ed="tips_2" style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.8"><?= htmlspecialchars($mtcTexts['tips_2']) ?></span></div>
+                    <div style="display:flex;align-items:baseline;gap:0"><span data-acc="txt" style="font-weight:700;margin-right:8px;color:<?= $mtcColors['accent'] ?>;flex-shrink:0">&#9656;</span><span data-ed="tips_3" style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.8"><?= htmlspecialchars($mtcTexts['tips_3']) ?></span></div>
                   </td></tr>
                 </table>
 <?php elseif($sec==='description'): ?>
