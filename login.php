@@ -14,7 +14,6 @@ $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';
-$footer= $data['footer'] ?? '';
 $picture= $data['picture'] ?? '';
 ?>
 <!doctype html>
@@ -450,10 +449,6 @@ $picture= $data['picture'] ?? '';
 
       </div>
 
-      <!-- Footer -->
-      <div class="oc-footer">
-        <?= htmlspecialchars($footer) ?>
-      </div>
 
     </div>
   </div>

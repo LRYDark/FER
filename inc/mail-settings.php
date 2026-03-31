@@ -305,7 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
     exit;
 }
 
-$activeSubTab = $_POST['active_subtab'] ?? ($_GET['tab'] ?? 'template');
+$activeSubTab = $_POST['active_subtab'] ?? ($_GET['tab'] ?? 'envoi');
 
 // Build full config JSON for JS
 $jsConfig = json_encode([
@@ -327,9 +327,11 @@ $jsConfig = json_encode([
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Paramètres mail</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Lato:wght@400;700&family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet">
 <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
+<script src="../js/tinymce/tinymce.min.js"></script>
 </head>
 <body>
 <?php require 'navbar-admin.php'; ?>
@@ -339,6 +341,19 @@ $jsConfig = json_encode([
 /* ── Setting card (same as setting.php) ── */
 .setting-card{background:#fff;border:1px solid #f0e8eb;border-radius:12px;padding:24px}
 .setting-card h2{font-size:18px;font-weight:700;color:#1e293b;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0e8eb}
+
+/* ═══ Mail send styles ═══ */
+.recipients-counter { font-size: 0.875rem; color: #6c757d; margin-top: 0.25rem; }
+.select-all-btn { font-size: 0.8rem; padding: 0.2rem 0.5rem; }
+#mailDescription { min-height: 300px; }
+#selectedRecipients .badge { font-size: 0.8rem !important; }
+#selectedRecipients .btn-close { padding: 0.2rem; font-size: 0.6rem; }
+#selectedRecipients:empty::after { content: "Aucun destinataire sélectionné"; color: #6c757d; font-size: 0.875rem; font-style: italic; }
+.email-search-container { position: relative; }
+.email-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; z-index: 1050; display: none; }
+.suggestion-item { padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid #eee; }
+.suggestion-item:hover { background-color: #f8f9fa; }
+.suggestion-item:last-child { border-bottom: none; }
 
 /* ── Kill oc-content padding for editor pane only ── */
 #oc-content{overflow:hidden !important;border-radius:0 !important;width:100% !important;max-width:100% !important}
@@ -388,6 +403,7 @@ $jsConfig = json_encode([
 .preview-btn.loading{opacity:.6;pointer-events:none}
 
 .ed-pane{display:none}.ed-pane.active{display:flex}
+#paneEnvoi.active{display:block}
 .ed-pane-google{display:none;padding:28px 32px;overflow-y:auto;height:calc(100vh - var(--oc-topbar-h,52px) - 42px)}.ed-pane-google.active{display:block}
 
 /* ── Sidebar controls ── */
@@ -506,11 +522,98 @@ $jsConfig = json_encode([
 }
 </style>
 
+<h1 class="mb-3 fw-bold"><i class="bi bi-envelope me-2"></i>Paramètres mail</h1>
+
 <!-- ═══ TABS ═══ -->
 <ul class="nav settings-tabs" id="mailSettingsTabs">
+  <li class="nav-item"><a class="nav-link <?= $activeSubTab==='envoi'?'active':'' ?>" href="#" data-pane="paneEnvoi">Envoi de mail</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='template'?'active':'' ?>" href="#" data-pane="paneTemplate">Template email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='google'?'active':'' ?>" href="#" data-pane="paneGoogle">Google / Email</a></li>
 </ul>
+
+<!-- ═══ ENVOI DE MAIL PANE ═══ -->
+<div class="ed-pane <?= $activeSubTab==='envoi'?'active':'' ?>" id="paneEnvoi">
+<div class="bg-white p-4" style="border-radius:12px;">
+  <form id="fMail">
+    <div class="row g-3">
+      <!-- Destinataires -->
+      <div class="col-12">
+        <label for="mailRecipients" class="form-label">
+          <i class="bi bi-people"></i> Destinataires
+        </label>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <button type="button" class="btn btn-outline-primary select-all-btn" id="selectAllBtn">
+              Tout sélectionner
+            </button>
+            <button type="button" class="btn btn-outline-secondary select-all-btn" id="clearAllBtn">
+              Tout désélectionner
+            </button>
+          </div>
+        </div>
+
+        <!-- Zone de recherche unique -->
+        <div class="email-search-container">
+            <input type="text" id="emailSearchInput" class="form-control" placeholder="Tapez un nom, prénom ou email (ou plusieurs emails séparés par des virgules) puis appuyez sur Entrée">
+          <div id="emailSuggestions" class="email-suggestions"></div>
+        </div>
+
+        <!-- Zone d'affichage des destinataires sélectionnés -->
+        <div id="selectedRecipients" class="border rounded p-2 bg-light mt-3" style="min-height: 120px; max-height: 200px; overflow-y: auto;">
+          <small class="text-muted">Aucun destinataire sélectionné</small>
+        </div>
+
+        <div class="recipients-counter mt-2" id="recipientsCounter">
+          0 destinataire(s) sélectionné(s)
+        </div>
+
+        <!-- Input caché pour stocker les emails sélectionnés -->
+        <input type="hidden" name="recipients" id="hiddenRecipients">
+      </div>
+
+      <!-- Objet du mail -->
+      <div class="col-12">
+        <label for="mailSubject" class="form-label">
+          <i class="bi bi-tag"></i> Objet du mail
+        </label>
+        <input type="text" name="subject" id="mailSubject" class="form-control"
+               placeholder="Objet de votre mail" required maxlength="255">
+      </div>
+
+      <!-- Titre du contenu -->
+      <div class="col-12">
+        <label for="mailTitle" class="form-label">
+          <i class="bi bi-type-h1"></i> Titre du contenu
+        </label>
+        <input type="text" name="mail_title" id="mailTitle" class="form-control"
+               placeholder="Titre qui apparaîtra dans le mail" maxlength="255">
+        <small class="form-text text-muted">
+          Ce titre sera affiché en tant que titre principal dans le contenu du mail
+        </small>
+      </div>
+
+      <!-- Description avec éditeur de texte enrichi -->
+      <div class="col-12">
+        <label for="mailDescription" class="form-label">
+          <i class="bi bi-file-text"></i> Contenu du mail
+        </label>
+
+        <textarea name="description" id="mailDescription" class="form-control">
+        </textarea>
+        <small class="form-text text-muted">
+          Utilisez l'éditeur pour formater votre message avec du texte en gras, des couleurs, des listes, etc.
+        </small>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-send"></i> Envoyer le mail
+      </button>
+    </div>
+  </form>
+</div>
+</div><!-- /paneEnvoi -->
 
 <!-- ═══ TEMPLATE PANE ═══ -->
 <div class="ed-pane <?= $activeSubTab==='template'?'active':'' ?>" id="paneTemplate">
@@ -853,8 +956,11 @@ $jsConfig = json_encode([
       $$('#mailSettingsTabs .nav-link').forEach(function(x){ x.classList.remove('active'); });
       this.classList.add('active');
       var id = this.dataset.pane;
+      $('#paneEnvoi').classList.toggle('active', id==='paneEnvoi');
       $('#paneTemplate').classList.toggle('active', id==='paneTemplate');
       $('#paneGoogle').classList.toggle('active', id==='paneGoogle');
+      // Initialize TinyMCE when envoi tab is shown
+      if (id === 'paneEnvoi') initMailTinyMCE();
     });
   });
 
@@ -1502,5 +1608,255 @@ $jsConfig = json_encode([
 
 <?php require 'admin-footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+
+<!-- ═══ Envoi de mail JS ═══ -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+  var availableEmails = [];
+  var selectedRecipients = [];
+  var mailTinymceInitialized = false;
+
+  /* ══ TinyMCE init (lazy) ════ */
+  window.initMailTinyMCE = function() {
+    if (mailTinymceInitialized) return;
+    tinymce.init({
+      selector: '#mailDescription',
+      license_key: 'gpl',
+      height: 400,
+      menubar: false,
+      plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'preview', 'help', 'wordcount'
+      ],
+      toolbar: 'undo redo | formatselect | ' +
+        'bold italic forecolor backcolor | alignleft aligncenter ' +
+        'alignright alignjustify | bullist numlist outdent indent | ' +
+        'removeformat | help',
+      content_style: 'body { font-family:Arial,sans-serif; font-size:14px }',
+      valid_styles: {
+          '*': 'text-align,line-height,color,background-color,font-size,font-weight,font-style,text-decoration,padding,padding-left,padding-right,padding-top,padding-bottom,margin,margin-left,margin-right,margin-top,margin-bottom',
+          'img': 'width,height,max-width,float,margin,margin-left,margin-right,margin-top,margin-bottom,display',
+          'table': 'width,height,border-collapse,border-spacing'
+      },
+      language: 'fr_FR',
+      images_upload_handler: function(blobInfo) {
+        return new Promise(function(resolve, reject) {
+          var formData = new FormData();
+          formData.append('file', blobInfo.blob(), blobInfo.filename());
+          formData.append('csrf_token', _csrfToken);
+          fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+            .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+            .then(function(data) { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+            .catch(function(e) { reject(e.message); });
+        });
+      },
+      automatic_uploads: true,
+      images_reuse_filename: true,
+      file_picker_types: 'file image',
+      file_picker_callback: function(callback, value, meta) {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+        input.addEventListener('change', function() {
+          var file = input.files[0];
+          if (!file) return;
+          var formData = new FormData();
+          formData.append('file', file);
+          formData.append('csrf_token', _csrfToken);
+          fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+            .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+            .then(function(data) { if (data.location) { var n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+            .catch(function(e) { alert('Erreur upload: ' + e.message); });
+        });
+        input.click();
+      }
+    });
+    mailTinymceInitialized = true;
+  };
+
+  // Init TinyMCE immediately if envoi tab is active
+  if (document.getElementById('paneEnvoi') && document.getElementById('paneEnvoi').classList.contains('active')) {
+    initMailTinyMCE();
+  }
+
+  /* ══ Load available emails from registrations API ════ */
+  fetch('../config/api.php?route=registrations')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var sorted = data.sort(function(a, b) { return new Date(a.created_at) - new Date(b.created_at); });
+      availableEmails = [];
+      sorted.forEach(function(person) {
+        if (person.email && person.email.trim() !== '') {
+          availableEmails.push({
+            email: person.email,
+            name: ((person.prenom || '') + ' ' + (person.nom || '')).trim(),
+            id: person.id
+          });
+        }
+      });
+    })
+    .catch(function(err) { console.error('Erreur chargement emails:', err); });
+
+  /* ══ Helpers ════ */
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function searchEmails(query) {
+    if (!query || query.length < 1) return [];
+    query = query.toLowerCase();
+    return availableEmails.filter(function(p) {
+      return p.name.toLowerCase().includes(query) || p.email.toLowerCase().includes(query);
+    });
+  }
+
+  function showEmailSuggestions(suggestions) {
+    var div = document.getElementById('emailSuggestions');
+    if (suggestions.length === 0) { div.style.display = 'none'; return; }
+    var html = '';
+    suggestions.forEach(function(p) {
+      html += '<div class="suggestion-item" data-email="' + p.email + '" data-name="' + p.name + '" data-id="' + p.id + '">'
+        + '<strong>' + p.name + '</strong><br><small class="text-muted">' + p.email + '</small></div>';
+    });
+    div.innerHTML = html;
+    div.style.display = 'block';
+  }
+
+  function hideEmailSuggestions() {
+    setTimeout(function() { document.getElementById('emailSuggestions').style.display = 'none'; }, 200);
+  }
+
+  function addRecipient(email, name, id) {
+    if (selectedRecipients.find(function(r) { return r.email === email; })) return;
+    selectedRecipients.push({ email: email, name: name || 'Email externe', id: id || null });
+    updateDisplay();
+  }
+
+  function removeRecipient(email) {
+    selectedRecipients = selectedRecipients.filter(function(r) { return r.email !== email; });
+    updateDisplay();
+  }
+
+  function updateDisplay() {
+    var container = document.getElementById('selectedRecipients');
+    if (!container) return;
+    if (selectedRecipients.length === 0) {
+      container.innerHTML = '<small class="text-muted">Aucun destinataire sélectionné</small>';
+    } else {
+      var html = '';
+      selectedRecipients.forEach(function(r) {
+        html += '<span class="badge bg-primary me-2 mb-2 d-inline-flex align-items-center" style="font-size:0.8rem;">'
+          + '<span class="me-2">' + r.name + ' (' + r.email + ')</span>'
+          + '<button type="button" class="btn-close" data-action="remove-recipient" data-email="' + r.email + '" style="font-size:0.6rem;" title="Supprimer"></button>'
+          + '</span>';
+      });
+      container.innerHTML = html;
+    }
+    var counter = document.getElementById('recipientsCounter');
+    if (counter) counter.textContent = selectedRecipients.length + ' destinataire(s) sélectionné(s)';
+    var hidden = document.getElementById('hiddenRecipients');
+    if (hidden) hidden.value = JSON.stringify(selectedRecipients);
+  }
+
+  /* ══ Event listeners ════ */
+  document.addEventListener('DOMContentLoaded', function() {
+    var emailSearchInput = document.getElementById('emailSearchInput');
+    if (emailSearchInput) {
+      emailSearchInput.addEventListener('input', function() {
+        var query = this.value.trim();
+        if (query.length === 0) { hideEmailSuggestions(); return; }
+        showEmailSuggestions(searchEmails(query));
+      });
+      emailSearchInput.addEventListener('blur', hideEmailSuggestions);
+      emailSearchInput.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var query = this.value.trim();
+        if (!query) return;
+
+        if (query.includes(',')) {
+          var emails = query.split(',');
+          var invalidEmails = [], duplicateEmails = [];
+          emails.forEach(function(em) {
+            var clean = em.trim();
+            if (!clean) return;
+            if (isValidEmail(clean)) {
+              if (selectedRecipients.find(function(r) { return r.email === clean; })) duplicateEmails.push(clean);
+              else addRecipient(clean, 'Email externe', null);
+            } else { invalidEmails.push(clean); }
+          });
+          var message = '';
+          if (invalidEmails.length > 0) message += '\n' + invalidEmails.length + ' email(s) invalide(s): ' + invalidEmails.join(', ');
+          if (duplicateEmails.length > 0) message += '\n' + duplicateEmails.length + ' email(s) déjà sélectionné(s): ' + duplicateEmails.join(', ');
+          if (message) alert(message);
+          this.value = '';
+          hideEmailSuggestions();
+        } else {
+          if (isValidEmail(query)) {
+            if (selectedRecipients.find(function(r) { return r.email === query; })) alert('Cet email est déjà sélectionné.');
+            else { addRecipient(query, 'Email externe', null); this.value = ''; hideEmailSuggestions(); }
+          } else {
+            var first = document.querySelector('.suggestion-item');
+            if (first) first.click();
+            else alert('Email invalide et aucune suggestion trouvée.');
+          }
+        }
+      });
+    }
+
+    // Suggestion clicks
+    document.addEventListener('click', function(e) {
+      var si = e.target.closest('.suggestion-item');
+      if (si) { addRecipient(si.dataset.email, si.dataset.name, si.dataset.id); document.getElementById('emailSearchInput').value = ''; hideEmailSuggestions(); }
+    });
+
+    // Select all / Clear all
+    var selectAllBtn = document.getElementById('selectAllBtn');
+    var clearAllBtn = document.getElementById('clearAllBtn');
+    if (selectAllBtn) selectAllBtn.addEventListener('click', function() { availableEmails.forEach(function(p) { addRecipient(p.email, p.name, p.id); }); });
+    if (clearAllBtn) clearAllBtn.addEventListener('click', function() { selectedRecipients = []; updateDisplay(); });
+
+    // Form submit
+    var mailForm = document.getElementById('fMail');
+    if (mailForm) {
+      mailForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (selectedRecipients.length === 0) { alert('Veuillez sélectionner au moins un destinataire.'); return; }
+        var description = tinymce.get('mailDescription') ? tinymce.get('mailDescription').getContent() : '';
+        var mailData = {
+          recipients: selectedRecipients,
+          subject: document.getElementById('mailSubject').value,
+          mail_title: document.getElementById('mailTitle').value,
+          description: description
+        };
+        var hiddenForm = document.createElement('form');
+        hiddenForm.method = 'POST';
+        hiddenForm.action = 'send-mail.php';
+        hiddenForm.style.display = 'none';
+        var csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = _csrfToken;
+        hiddenForm.appendChild(csrfInput);
+        var dataInput = document.createElement('input');
+        dataInput.type = 'hidden';
+        dataInput.name = 'mail_data';
+        dataInput.value = JSON.stringify(mailData);
+        hiddenForm.appendChild(dataInput);
+        document.body.appendChild(hiddenForm);
+        hiddenForm.submit();
+      });
+    }
+  });
+
+  // Event delegation for remove recipient
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action="remove-recipient"]');
+    if (el) removeRecipient(el.dataset.email);
+  });
+})();
+</script>
 </body>
 </html>

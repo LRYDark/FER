@@ -13,11 +13,11 @@ $stmt->execute(['id' => 1]);
 
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$footer= $data['footer'] ?? ''; 
+
 
 // 1. Récupère toutes les stats agrégées par année avec table_name ET les nouvelles colonnes
 $stats = $pdo->query(
-    'SELECT year, total_inscrits, tshirt_xs, tshirt_s, tshirt_m, tshirt_l, tshirt_xl, tshirt_xxl, 
+    'SELECT year, total_inscrits, tshirt_xs, tshirt_s, tshirt_m, tshirt_l, tshirt_xl, tshirt_xxl,
             age_moyen, table_name, ville_top, entreprise_top, plus_vieux_h, plus_vieille_f
        FROM registrations_stats
        ORDER BY year'
@@ -66,7 +66,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   padding:.9rem .75rem;
   border-top:2px solid var(--rose-500);
   border:0;
-  border-bottom:3px solid #dc267f;        /* fine barre d’accent */
+  border-bottom:3px solid #dc267f;        /* fine barre d'accent */
 }
 #tbl thead th.sorting_asc,
 #tbl thead th.sorting_desc{
@@ -114,7 +114,9 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <?php include '../inc/navbar-admin.php'; ?>
 
-<div class="container-fluid py-4">
+<div class="container-fluid pb-4">
+  <h1 class="mb-3 fw-bold"><i class="bi bi-bar-chart me-2"></i>Statistiques</h1>
+
   <!-- ===== CARTES RÉCAP GÉNÉRAL ===== -->
   <div class="row row-cols-1 row-cols-md-3 g-4 mb-4 text-center">
     <div class="col">

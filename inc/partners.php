@@ -14,7 +14,7 @@ $stmt->execute(['id' => 1]);
 
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$footer= $data['footer'] ?? '';
+
 
 $partners_desc = $data['partners_desc'] ?? '';
 $partners_title = $data['partners_title'] ?? '';
@@ -396,6 +396,21 @@ if ($migrationDone) {
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
 
+  /* ═══ Tab styles ═══ */
+  .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+  .settings-tabs .nav-link {
+    color: #1e293b; font-weight: 500; font-size: 14px;
+    padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; border-radius: 0; background: transparent;
+  }
+  .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+  .settings-tabs .nav-link.active {
+    color: #1e293b; font-weight: 600;
+    border-bottom-color: #F42182; background: transparent;
+  }
+  .partner-tab-section { display: none; }
+  .partner-tab-section.active { display: block; }
+
   /* Filter tabs */
   .filter-tabs {
     display: flex;
@@ -486,7 +501,7 @@ if ($migrationDone) {
 <!-- MAIN -->
     <div class="row g-4 align-items-stretch content-loaded" style="display:none;">
         <div class="col-12 col-lg-12 d-flex flex-column gap-4">
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+            <div>
             <!-- Reopen modal script -->
             <?php if ($reopenModalId):
                 unset($_SESSION['reopen_modal']);
@@ -503,15 +518,16 @@ if ($migrationDone) {
             </script>
             <?php endif; ?>
 
-            <h1 class="mb-3 fw-bold">Gestion des Partenaires par Année</h1>
+            <h1 class="mb-3 fw-bold"><i class="bi bi-award me-2"></i>Gestion des Partenaires par Année</h1>
 
+            <?php $activeTab = (isset($_POST['update_partners_desc']) || (isset($_GET['tab']) && $_GET['tab'] === 'description')) ? 'description' : 'partenaires'; ?>
+            <ul class="nav settings-tabs" id="partnerTabs">
+              <li class="nav-item"><a class="nav-link <?= $activeTab === 'description' ? 'active' : '' ?>" href="#" data-tab="description">Description</a></li>
+              <li class="nav-item"><a class="nav-link <?= $activeTab === 'partenaires' ? 'active' : '' ?>" href="#" data-tab="partenaires">Partenaires</a></li>
+            </ul>
 
-            <?php if (!$migrationDone): ?>
-            <div class="alert alert-warning" role="alert">
-              <i class="bi bi-exclamation-triangle"></i> Veuillez executer la mise a jour BDD pour activer toutes les fonctionnalites (corbeille, filtres).
-            </div>
-            <?php endif; ?>
-
+            <!-- ═══ Tab: Description ═══ -->
+            <div class="partner-tab-section <?= $activeTab === 'description' ? 'active' : '' ?>" id="tab-description">
             <!-- Zone générique : description et image affichées sur la page Partenaires -->
             <div class="card mb-4">
               <div class="card-header"><strong>Description generique de la page Partenaires</strong></div>
@@ -541,6 +557,16 @@ if ($migrationDone) {
                 </form>
               </div>
             </div>
+            </div><!-- /tab-description -->
+
+            <!-- ═══ Tab: Partenaires ═══ -->
+            <div class="partner-tab-section <?= $activeTab === 'partenaires' ? 'active' : '' ?>" id="tab-partenaires">
+
+            <?php if (!$migrationDone): ?>
+            <div class="alert alert-warning" role="alert">
+              <i class="bi bi-exclamation-triangle"></i> Veuillez executer la mise a jour BDD pour activer toutes les fonctionnalites (corbeille, filtres).
+            </div>
+            <?php endif; ?>
 
             <?php if ($migrationDone): ?>
             <div class="filter-tabs">
@@ -779,6 +805,8 @@ if ($migrationDone) {
             </div>
             <?php endif; ?>
 
+            </div><!-- /tab-partenaires -->
+
         </div>
     </div><!-- /row -->
 
@@ -916,6 +944,17 @@ if ($migrationDone) {
 var sp = document.getElementById('loadingSpinner');
 if (sp) sp.style.display = 'none';
 document.querySelectorAll('.content-loaded').forEach(function(el) { el.style.display = ''; });
+
+// Tab switching
+document.querySelectorAll('#partnerTabs .nav-link').forEach(function(tab) {
+  tab.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelectorAll('#partnerTabs .nav-link').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.partner-tab-section').forEach(function(s) { s.classList.remove('active'); });
+    this.classList.add('active');
+    document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+  });
+});
 
 // Auto-dismiss des alertes
 document.querySelectorAll('.auto-dismiss').forEach(function(alert) {

@@ -2405,6 +2405,24 @@ function generateTimelineSVG(int $count): array {
       box-shadow: 0 20px 60px rgba(0,0,0,.4);
     }
     
+    .community-container.no-partner-img{
+      grid-template-columns: 1fr;
+      max-width: 800px;
+    }
+    .community-container.no-partner-img .community-content{
+      text-align: center;
+    }
+    .community-container.no-partner-img .community-text{
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .community-container.no-partner-img .form-group{
+      justify-content: center;
+    }
+    .community-container.no-partner-img .partner-note{
+      text-align: center;
+    }
+
     .community-content{
       color: #ffffff;
     }
@@ -3576,7 +3594,7 @@ function generateTimelineSVG(int $count): array {
 
     <!-- COMMUNITY SECTION (style Vimeo) -->
     <section class="community-section" aria-label="Devenez partenaire">
-      <div class="community-container"<?php if (empty($picture_partner) || !is_file('../files/_pictures/' . $picture_partner)): ?> style="grid-template-columns:1fr;text-align:center;max-width:800px"<?php endif; ?>>
+      <div class="community-container<?php if (empty($picture_partner) || !is_file('../files/_pictures/' . $picture_partner)): ?> no-partner-img<?php endif; ?>">
         <?php if (!empty($picture_partner) && is_file('../files/_pictures/' . $picture_partner)): ?>
         <div class="community-image">
           <img src="../files/_pictures/<?= htmlspecialchars($picture_partner) ?>" alt="Nos partenaires - Forbach en Rose">

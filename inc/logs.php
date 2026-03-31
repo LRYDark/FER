@@ -42,7 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_log'])) {
 $stmt = $pdo->prepare('SELECT footer, debogage FROM setting WHERE id = 1 LIMIT 1');
 $stmt->execute();
 $settingRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-$footer = $settingRow['footer'] ?? '';
 $debogage = (int) ($settingRow['debogage'] ?? 0);
 ?>
 <!doctype html>
@@ -198,7 +197,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 
   <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-3">
     <div>
-      <h2><i class="bi bi-file-earmark-text"></i> Journaux système</h2>
+      <h1 class="mb-3 fw-bold"><i class="bi bi-file-earmark-text me-2"></i>Journaux système</h1>
       <p>Consultez et gérez les fichiers de logs du site.</p>
     </div>
     <div class="d-flex align-items-center gap-2">

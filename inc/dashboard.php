@@ -20,7 +20,7 @@ $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
-$footer= $data['footer'] ?? '';  
+
 $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $highlightLimit = ($qrcode_mail_mode === 'first_x' && $qrcode_mail_limit > 0) ? $qrcode_mail_limit : 0;
@@ -226,10 +226,10 @@ tr.filters select{
 <?php include 'navbar-admin.php'; ?>
 
 <!-- ═════════ MAIN ═════════ -->
-  <div class="bg-white p-4 card-dashboard">
+  <div>
 
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
-      <h2 class="mb-0">Inscriptions</h2>
+      <h1 class="mb-0 fw-bold"><i class="bi bi-house me-2"></i>Inscriptions</h1>
 
       <div class="dashboard-actions d-none d-lg-flex flex-wrap gap-2">
         <?php if($role!=='viewer'): ?>
