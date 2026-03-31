@@ -14,7 +14,7 @@ $stmt->execute(['id' => 1]);
 
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$footer= $data['footer'] ?? '';
+
 
 // Check if migration has been applied (deleted_at column on photo_years)
 $migrationDone = false;
@@ -513,7 +513,7 @@ if ($migrationDone) {
 <!-- MAIN -->
     <div class="row g-4 align-items-stretch content-loaded" style="display:none;">
         <div class="col-12 col-lg-12 d-flex flex-column gap-4">
-            <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white flex-grow-0">
+            <div>
             <!-- Reopen modal script -->
             <?php if ($reopenModalId):
                 unset($_SESSION['reopen_modal']);
@@ -530,7 +530,7 @@ if ($migrationDone) {
             </script>
             <?php endif; ?>
 
-            <h1 class="mb-3 fw-bold">Gestion des Albums par Année</h1>
+            <h1 class="mb-3 fw-bold"><i class="bi bi-images me-2"></i>Gestion des Albums par Année</h1>
 
             <?php if (!$migrationDone): ?>
             <div class="alert alert-warning" role="alert">

@@ -131,6 +131,8 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
   </div>
 <?php endif; ?>
 
+<h1 class="mb-3 fw-bold"><i class="bi bi-box-arrow-in-right me-2"></i>Connexions</h1>
+
 <!-- Navigation Tabs -->
 <ul class="nav settings-tabs" id="connexionsTabs">
   <li class="nav-item">

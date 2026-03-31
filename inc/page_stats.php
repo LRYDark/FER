@@ -147,6 +147,8 @@ if (!$hasCurrentMonth) {
 <body>
 <?php include 'navbar-admin.php'; ?>
 
+<h1 class="mb-3 fw-bold"><i class="bi bi-eye me-2"></i>Visites</h1>
+
 <!-- Period tabs + month dropdown -->
 <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
     <ul class="nav period-tabs mb-0">

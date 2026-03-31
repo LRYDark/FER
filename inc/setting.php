@@ -27,7 +27,6 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$footer= $data['footer'] ?? '';
 $navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
 $title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
@@ -250,22 +249,25 @@ if (isset($_POST['save_navbar_logo'])) {
 /* --------------------------------------------------------------------------
    Configuration générale
 -------------------------------------------------------------------------- */
-if (isset($_POST['save_general'])) {
-    $footer = $_POST['footer'] ?? '';
+
+/* --------------------------------------------------------------------------
+   Inscription — Paramètres (montant, nb premiers inscrits, activation)
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_inscription_params'])) {
     $accueil_active = !empty($_POST['accueil_active']) ? 1 : 0;
     $registration_fee = (int) ($_POST['registration_fee'] ?? 0);
     $qrcode_mail_limit = max(0, (int) ($_POST['qrcode_mail_limit'] ?? 0));
 
     $pdo->prepare(
-        'UPDATE setting SET footer = :footer, registration_fee = :fee,
+        'UPDATE setting SET registration_fee = :fee,
          accueil_active = :accueil_active, qrcode_mail_limit = :qrcode_mail_limit
          WHERE id = 1'
     )->execute([
-        'footer' => $footer, 'fee' => $registration_fee,
+        'fee' => $registration_fee,
         'accueil_active' => $accueil_active, 'qrcode_mail_limit' => $qrcode_mail_limit,
     ]);
 
-    addToast('success', 'Configuration enregistrée !');
+    addToast('success', 'Paramètres d\'inscription enregistrés !');
 }
 
 /* --------------------------------------------------------------------------
@@ -905,74 +907,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php
 // Determine active tab based on which form was submitted
-$activeTab = 'general';
+$activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['save_header']) || isset($_POST['save_general']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_maintenance']) || isset($_POST['save_navbar_logo'])) $activeTab = 'general';
+    if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
+    elseif (isset($_POST['save_navbar_logo'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil'])) $activeTab = 'accueil';
+    elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
-    elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id']) || isset($_POST['importExcel'])) $activeTab = 'formulaire';
+    elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
+    elseif (isset($_POST['importExcel'])) $activeTab = 'import';
 }
 // Also check URL hash
-if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours','reglementation','formulaire'])) {
+if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance'])) {
     $activeTab = $_GET['tab'];
 }
 ?>
 
+<h1 class="mb-3 fw-bold"><i class="bi bi-gear me-2"></i>Réglages</h1>
+
 <!-- Settings Navigation Tabs -->
 <ul class="nav settings-tabs" id="settingsTabs">
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'general' ? 'active' : '' ?>" href="#" data-tab="general">General</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" href="#" data-tab="personnalisation">Personnalisation</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'accueil' ? 'active' : '' ?>" href="#" data-tab="accueil">Accueil</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'inscription' ? 'active' : '' ?>" href="#" data-tab="inscription">Inscription</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeTab === 'maintenance' ? 'active' : '' ?>" href="#" data-tab="maintenance">Maintenance</a></li>
 </ul>
 
-<!-- ═══ TAB: General ═══ -->
-<div class="settings-section <?= $activeTab === 'general' ? 'active' : '' ?>" id="tab-general">
+<!-- ═══ TAB: Personnalisation ═══ -->
+<div class="settings-section <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" id="tab-personnalisation">
   <div class="row g-4">
-    <div class="col-12">
-      <div class="setting-card">
-        <h2>En-tête du site d'inscription</h2>
-        <?php $headerSubTab = $_POST['header_subtab'] ?? 'headerPC'; ?>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-          <?= csrf_field() ?>
-          <input type="hidden" name="header_subtab" id="header_subtab" value="<?= htmlspecialchars($headerSubTab) ?>">
-
-          <!-- Sous-onglets PC / Mobile -->
-          <div class="col-12">
-            <ul class="nav nav-tabs" role="tablist" id="headerTabs">
-              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerPC' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerPC" role="tab">PC</a></li>
-              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerMobile' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerMobile" role="tab">Mobile</a></li>
-            </ul>
-            <div class="tab-content pt-3">
-              <!-- PC -->
-              <div class="tab-pane fade <?= $headerSubTab === 'headerPC' ? 'show active' : '' ?>" id="headerPC" role="tabpanel">
-                <div class="col-12">
-                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
-                  <textarea class="form-control" id="headerTitleEditor" name="title" rows="3"><?= htmlspecialchars($title) ?></textarea>
-                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
-                </div>
-              </div>
-              <!-- Mobile -->
-              <div class="tab-pane fade <?= $headerSubTab === 'headerMobile' ? 'show active' : '' ?>" id="headerMobile" role="tabpanel">
-                <div class="col-12">
-                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
-                  <textarea class="form-control" id="headerTitleMobileEditor" name="title_mobile" rows="3"><?= htmlspecialchars($title_mobile) ?></textarea>
-                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-12 text-end">
-            <button type="submit" name="save_header" class="btn btn-primary w-auto">Sauvegarder</button>
-          </div>
-        </form>
-      </div>
-    </div><!-- /col-12 -->
-
-    <!-- Carte : Logo de la navbar -->
     <div class="col-12">
       <div class="setting-card">
         <h2>Logo de la navbar</h2>
@@ -1003,106 +971,8 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
         </form>
       </div>
     </div><!-- /col-12 -->
-
-    <div class="col-12">
-      <div class="setting-card">
-        <h2>Configuration generale</h2>
-        <form action="" method="post" class="row g-3 needs-validation">
-          <?= csrf_field() ?>
-          <div class="col-md-6"><label class="form-label">Bas de page</label>
-            <input type="text" class="form-control" id="footer" name="footer" placeholder="Bas de page" value="<?= htmlspecialchars($footer, ENT_QUOTES, 'UTF-8'); ?>">
-          </div>
-          <div class="col-md-6"><label class="form-label">Montant de l'inscription</label>
-            <select id="registration_fee" name="registration_fee" class="form-select">
-              <?php for ($i = 0; $i <= 100; $i++): ?>
-              <option value="<?= $i ?>" <?= ($i == (int)$registration_fee ? 'selected' : '') ?>><?= $i ?></option>
-              <?php endfor; ?>
-            </select>
-          </div>
-          <div class="col-md-6"><label class="form-label">Nombre de premiers inscrits</label>
-            <input type="number" class="form-control" name="qrcode_mail_limit" min="0" value="<?= $qrcode_mail_limit ?>" placeholder="Ex : 800">
-            <small class="text-muted">Utilisé pour la coloration rose dans le dashboard et le QR Code (si mode = X premiers).</small>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Activer les inscriptions</label>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active_gen" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
-              <label class="form-check-label" for="accueil_active_gen">Oui / Non</label>
-            </div>
-          </div>
-          <div class="col-12 text-end">
-            <button type="submit" name="save_general" class="btn btn-primary w-auto">Sauvegarder</button>
-          </div>
-        </form>
-      </div>
-    </div><!-- /col-12 -->
-
-    <div class="col-12 col-lg-6">
-      <div class="setting-card">
-        <h2>Liaison AssoConnect</h2>
-                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                        <?= csrf_field() ?>
-                        <div class="form-group mb-3">
-                            <label for="divCode">Code DIV Assoconnect</label>
-                            <input type="text"
-                                class="form-control"
-                                id="divCode"
-                                name="assoconnect_iframe"
-                                placeholder="&lt;div class=…&gt;"
-                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
-                        </div>
-
-                        <div class="form-group mb-3">
-                            <label for="scriptCode">Code Script Assoconnect</label>
-                            <input type="text"
-                                class="form-control"
-                                id="scriptCode"
-                                name="assoconnect_js"
-                                placeholder="&lt;script src=…&gt;"
-                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
-                        </div>
-                        <div class="col-12 text-end">
-                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
-                        </div>
-                    </form>
-      </div><!-- /setting-card asso -->
-    </div><!-- /col-lg-6 -->
-
-    <!-- Carte : Mode maintenance -->
-    <div class="col-12 col-lg-6">
-      <div class="setting-card">
-        <h2>Mode maintenance</h2>
-        <form action="" method="post" class="row g-3 needs-validation">
-          <?= csrf_field() ?>
-
-          <div class="col-12">
-            <label class="form-label">Activer le mode maintenance</label>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" name="maintenance_mode" id="maintenance_mode" <?= $maintenance_mode ? 'checked' : '' ?>>
-              <label class="form-check-label" for="maintenance_mode">
-                <?= $maintenance_mode ? '<span class="badge bg-danger">Activé</span>' : '<span class="badge bg-secondary">Désactivé</span>' ?>
-              </label>
-            </div>
-            <small class="text-muted">Lorsque activé, toutes les pages publiques afficheront la page de maintenance.</small>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Message de maintenance</label>
-            <textarea class="form-control" name="maintenance_message" rows="3" maxlength="500" placeholder="Ex : Le site est en cours de mise à jour. Nous serons de retour très bientôt !"><?= htmlspecialchars($maintenance_message, ENT_QUOTES, 'UTF-8') ?></textarea>
-            <small class="text-muted">Ce message sera affiché aux visiteurs. Laissez vide pour le message par défaut.</small>
-          </div>
-
-          <div class="col-12 text-end">
-            <button type="submit" name="save_maintenance" class="btn btn-primary w-auto">Sauvegarder</button>
-          </div>
-        </form>
-      </div>
-    </div><!-- /col-lg-6 -->
-
   </div><!-- /row -->
-</div><!-- /tab-general -->
+</div><!-- /tab-personnalisation -->
 
 <!-- ═══ TAB: Accueil ═══ -->
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
@@ -1245,6 +1115,116 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
 
   </div><!-- /row -->
 </div><!-- /tab-accueil -->
+
+<!-- ═══ TAB: Inscription ═══ -->
+<div class="settings-section <?= $activeTab === 'inscription' ? 'active' : '' ?>" id="tab-inscription">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>En-tête du site d'inscription</h2>
+        <?php $headerSubTab = $_POST['header_subtab'] ?? 'headerPC'; ?>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <input type="hidden" name="header_subtab" id="header_subtab" value="<?= htmlspecialchars($headerSubTab) ?>">
+
+          <!-- Sous-onglets PC / Mobile -->
+          <div class="col-12">
+            <ul class="nav nav-tabs" role="tablist" id="headerTabs">
+              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerPC' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerPC" role="tab">PC</a></li>
+              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerMobile' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerMobile" role="tab">Mobile</a></li>
+            </ul>
+            <div class="tab-content pt-3">
+              <!-- PC -->
+              <div class="tab-pane fade <?= $headerSubTab === 'headerPC' ? 'show active' : '' ?>" id="headerPC" role="tabpanel">
+                <div class="col-12">
+                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
+                  <textarea class="form-control" id="headerTitleEditor" name="title" rows="3"><?= htmlspecialchars($title) ?></textarea>
+                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
+                </div>
+              </div>
+              <!-- Mobile -->
+              <div class="tab-pane fade <?= $headerSubTab === 'headerMobile' ? 'show active' : '' ?>" id="headerMobile" role="tabpanel">
+                <div class="col-12">
+                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
+                  <textarea class="form-control" id="headerTitleMobileEditor" name="title_mobile" rows="3"><?= htmlspecialchars($title_mobile) ?></textarea>
+                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_header" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Paramètres d'inscription</h2>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <div class="col-12"><label class="form-label">Montant de l'inscription</label>
+            <select id="registration_fee" name="registration_fee" class="form-select">
+              <?php for ($i = 0; $i <= 100; $i++): ?>
+              <option value="<?= $i ?>" <?= ($i == (int)$registration_fee ? 'selected' : '') ?>><?= $i ?></option>
+              <?php endfor; ?>
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label">Nombre de premiers inscrits</label>
+            <input type="number" class="form-control" name="qrcode_mail_limit" min="0" value="<?= $qrcode_mail_limit ?>" placeholder="Ex : 800">
+            <small class="text-muted">Utilisé pour la coloration rose dans le dashboard et le QR Code (si mode = X premiers).</small>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Activer les inscriptions</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active_gen" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
+              <label class="form-check-label" for="accueil_active_gen">Oui / Non</label>
+            </div>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_inscription_params" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-lg-6 -->
+
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Liaison AssoConnect</h2>
+                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                        <?= csrf_field() ?>
+                        <div class="form-group mb-3">
+                            <label for="divCode">Code DIV Assoconnect</label>
+                            <input type="text"
+                                class="form-control"
+                                id="divCode"
+                                name="assoconnect_iframe"
+                                placeholder="&lt;div class=…&gt;"
+                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="scriptCode">Code Script Assoconnect</label>
+                            <input type="text"
+                                class="form-control"
+                                id="scriptCode"
+                                name="assoconnect_js"
+                                placeholder="&lt;script src=…&gt;"
+                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
+                                required>
+                        </div>
+                        <div class="col-12 text-end">
+                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
+                        </div>
+                    </form>
+      </div><!-- /setting-card asso -->
+    </div><!-- /col-lg-6 -->
+
+  </div><!-- /row -->
+</div><!-- /tab-inscription -->
 
 <!-- ═══ TAB: Parcours ═══ -->
 <div class="settings-section <?= $activeTab === 'parcours' ? 'active' : '' ?>" id="tab-parcours">
@@ -1697,6 +1677,12 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
       </div>
     </div>
 
+  </div><!-- /row -->
+</div><!-- /tab-formulaire -->
+
+<!-- ═══ TAB: Import Excel ═══ -->
+<div class="settings-section <?= $activeTab === 'import' ? 'active' : '' ?>" id="tab-import">
+  <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
         <h2>Informations d'import excel</h2>
@@ -1740,9 +1726,44 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['general','accueil','parcours
                     </div>
                 </form>
       </div><!-- /setting-card import -->
-    </div><!-- /col-lg-6 -->
+    </div><!-- /col-12 -->
   </div><!-- /row -->
-</div><!-- /tab-formulaire -->
+</div><!-- /tab-import -->
+
+<!-- ═══ TAB: Maintenance ═══ -->
+<div class="settings-section <?= $activeTab === 'maintenance' ? 'active' : '' ?>" id="tab-maintenance">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Mode maintenance</h2>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-12">
+            <label class="form-label">Activer le mode maintenance</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="maintenance_mode" id="maintenance_mode" <?= $maintenance_mode ? 'checked' : '' ?>>
+              <label class="form-check-label" for="maintenance_mode">
+                <?= $maintenance_mode ? '<span class="badge bg-danger">Activé</span>' : '<span class="badge bg-secondary">Désactivé</span>' ?>
+              </label>
+            </div>
+            <small class="text-muted">Lorsque activé, toutes les pages publiques afficheront la page de maintenance.</small>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Message de maintenance</label>
+            <textarea class="form-control" name="maintenance_message" rows="3" maxlength="500" placeholder="Ex : Le site est en cours de mise à jour. Nous serons de retour très bientôt !"><?= htmlspecialchars($maintenance_message, ENT_QUOTES, 'UTF-8') ?></textarea>
+            <small class="text-muted">Ce message sera affiché aux visiteurs. Laissez vide pour le message par défaut.</small>
+          </div>
+
+          <div class="col-12 text-end">
+            <button type="submit" name="save_maintenance" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+  </div><!-- /row -->
+</div><!-- /tab-maintenance -->
 
 <!-- Paramètres mail déplacé vers mail-settings.php -->
 

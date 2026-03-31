@@ -234,7 +234,6 @@ function getCreateTableStatements(): array
           `assoconnect_js` longtext DEFAULT NULL,
           `assoconnect_iframe` longtext DEFAULT NULL,
           `title` TEXT DEFAULT NULL,
-          `footer` varchar(50) DEFAULT NULL,
           `registration_fee` int(10) DEFAULT NULL,
           `titleAccueil` TEXT DEFAULT NULL,
           `link_facebook` varchar(255) DEFAULT NULL,
@@ -456,6 +455,7 @@ function getCreateTableStatements(): array
           `image_position` varchar(50) DEFAULT '50% 50% 1',
           `sort_order` int(11) NOT NULL DEFAULT 0,
           `status` varchar(20) NOT NULL DEFAULT 'published',
+          `deleted_at` datetime DEFAULT NULL,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
@@ -573,8 +573,8 @@ function getCreateTableStatements(): array
 function getDefaultInserts(): array
 {
     return [
-        "INSERT IGNORE INTO `setting` (`id`, `title`, `footer`, `registration_fee`, `accueil_active`, `debogage`)
-         VALUES (1, 'Forbach en Rose', '© Forbach en Rose', 12, 0, 0)",
+        "INSERT IGNORE INTO `setting` (`id`, `title`, `registration_fee`, `accueil_active`, `debogage`)
+         VALUES (1, 'Forbach en Rose', 12, 0, 0)",
 
         "INSERT IGNORE INTO `customize` (`id`, `assoconnect_js`, `assoconnect_iframe`)
          VALUES (1, NULL, NULL)",

@@ -15,9 +15,14 @@ if (!is_dir($timelineDir)) {
 }
 
 $hasStatusCol = false;
+$hasDeletedAt = false;
 try {
     $pdo->query("SELECT status FROM timeline_items LIMIT 0");
     $hasStatusCol = true;
+} catch (PDOException $e) {}
+try {
+    $pdo->query("SELECT deleted_at FROM timeline_items LIMIT 0");
+    $hasDeletedAt = true;
 } catch (PDOException $e) {}
 
 // ─── CSRF check for all POST actions ───
@@ -158,21 +163,49 @@ if (isset($_POST['update_item'])) {
     exit;
 }
 
-// Delete item
+// Delete item (soft delete if available, hard delete otherwise)
 if (isset($_POST['delete_item'])) {
     $itemId = (int)$_POST['item_id'];
 
+    if ($hasDeletedAt) {
+        $pdo->prepare("UPDATE timeline_items SET deleted_at = NOW() WHERE id = ?")->execute([$itemId]);
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement mis en corbeille.'];
+    } else {
+        $stmt = $pdo->prepare("SELECT image FROM timeline_items WHERE id = ?");
+        $stmt->execute([$itemId]);
+        $img = $stmt->fetchColumn();
+        if ($img && file_exists($timelineDir . $img)) {
+            unlink($timelineDir . $img);
+        }
+        $pdo->prepare("DELETE FROM timeline_items WHERE id = ?")->execute([$itemId]);
+        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement supprimé.'];
+    }
+    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+    exit;
+}
+
+// Restore item from trash
+if (isset($_POST['restore_item']) && $hasDeletedAt) {
+    $itemId = (int)$_POST['item_id'];
+    $pdo->prepare("UPDATE timeline_items SET deleted_at = NULL WHERE id = ?")->execute([$itemId]);
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement restauré.'];
+    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+    exit;
+}
+
+// Permanent delete item
+if (isset($_POST['permanent_delete_item']) && $hasDeletedAt) {
+    $itemId = (int)$_POST['item_id'];
     $stmt = $pdo->prepare("SELECT image FROM timeline_items WHERE id = ?");
     $stmt->execute([$itemId]);
     $img = $stmt->fetchColumn();
     if ($img && file_exists($timelineDir . $img)) {
         unlink($timelineDir . $img);
     }
-
+    $pdo->prepare("DELETE FROM timeline_elements WHERE item_id = ?")->execute([$itemId]);
     $pdo->prepare("DELETE FROM timeline_items WHERE id = ?")->execute([$itemId]);
-
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement supprimé.'];
-    header("Location: " . $_SERVER['PHP_SELF']);
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement supprimé définitivement.'];
+    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
 }
 
@@ -199,8 +232,32 @@ if (isset($_POST['move_item'])) {
     exit;
 }
 
-// ─── Fetch data ───
-$items = $pdo->query("SELECT * FROM timeline_items ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+// ─── Filter & Fetch data ───
+$filter = isset($_GET['filter']) ? $_GET['filter'] : '';
+$isTrashed = false;
+
+if ($hasDeletedAt) {
+    $isTrashed = ($filter === 'trashed');
+    if ($isTrashed) {
+        $items = $pdo->query("SELECT * FROM timeline_items WHERE deleted_at IS NOT NULL ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+    } elseif ($filter === 'published' && $hasStatusCol) {
+        $items = $pdo->query("SELECT * FROM timeline_items WHERE deleted_at IS NULL AND status = 'published' ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+    } elseif ($filter === 'draft' && $hasStatusCol) {
+        $items = $pdo->query("SELECT * FROM timeline_items WHERE deleted_at IS NULL AND status = 'draft' ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $items = $pdo->query("SELECT * FROM timeline_items WHERE deleted_at IS NULL ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $countAll     = $pdo->query("SELECT COUNT(*) FROM timeline_items WHERE deleted_at IS NULL")->fetchColumn();
+    $countTrashed = $pdo->query("SELECT COUNT(*) FROM timeline_items WHERE deleted_at IS NOT NULL")->fetchColumn();
+    if ($hasStatusCol) {
+        $countPublished = $pdo->query("SELECT COUNT(*) FROM timeline_items WHERE deleted_at IS NULL AND status = 'published'")->fetchColumn();
+        $countDraft     = $pdo->query("SELECT COUNT(*) FROM timeline_items WHERE deleted_at IS NULL AND status = 'draft'")->fetchColumn();
+    }
+} else {
+    $items = $pdo->query("SELECT * FROM timeline_items ORDER BY sort_order ASC")->fetchAll(PDO::FETCH_ASSOC);
+}
+
 $elementsByItem = [];
 foreach ($items as $item) {
     $stmt = $pdo->prepare("SELECT * FROM timeline_elements WHERE item_id = ? ORDER BY sort_order ASC");
@@ -240,6 +297,12 @@ foreach ($items as $item) {
   .img-pos-controls{display:flex;align-items:center;gap:10px;margin-top:8px;max-width:480px}
   .img-pos-controls label{font-size:12px;color:#64748b;font-weight:600;white-space:nowrap}
   .img-pos-controls input[type=range]{flex:1;accent-color:#F42182}
+
+  /* Filter tabs */
+  .filter-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:2px solid #f0e8eb; margin-bottom:1rem; }
+  .filter-tabs a { padding:0.5rem 1.25rem; text-decoration:none; color:#1e293b; font-weight:500; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s, border-color .15s; }
+  .filter-tabs a:hover { color:#1e293b; border-bottom-color:#d4c4cb; }
+  .filter-tabs a.active { color:#1e293b; border-bottom-color:#F42182; font-weight:600; }
 </style>
 </head>
 
@@ -260,7 +323,7 @@ foreach ($items as $item) {
 
   <div class="row g-4 content-loaded" style="display:none;">
     <div class="col-12">
-      <div class="card-dashboard p-4 shadow-sm rounded-4 bg-white">
+      <div>
 
         <?php if ($reopenModalId):
             unset($_SESSION['reopen_modal']);
@@ -274,14 +337,38 @@ foreach ($items as $item) {
         <?php endif; ?>
 
         <div class="d-flex justify-content-between align-items-center mb-4">
-          <h1 class="h3 mb-0">Gestion de la Timeline</h1>
+          <h1 class="mb-3 fw-bold"><i class="bi bi-clock-history me-2"></i>Gestion de la Timeline</h1>
+          <?php if (!$isTrashed): ?>
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddItem">
             <i class="bi bi-plus-lg me-1"></i>Ajouter un item
           </button>
+          <?php endif; ?>
         </div>
 
+        <?php if ($hasDeletedAt): ?>
+        <div class="filter-tabs">
+          <a href="?filter=" class="<?= $filter === '' ? 'active' : '' ?>">
+            Tous <span class="badge bg-secondary"><?= $countAll ?></span>
+          </a>
+          <?php if ($hasStatusCol): ?>
+          <a href="?filter=published" class="<?= $filter === 'published' ? 'active' : '' ?>">
+            Publiés <span class="badge bg-success"><?= $countPublished ?></span>
+          </a>
+          <a href="?filter=draft" class="<?= $filter === 'draft' ? 'active' : '' ?>">
+            Brouillons <span class="badge bg-warning text-dark"><?= $countDraft ?></span>
+          </a>
+          <?php endif; ?>
+          <a href="?filter=trashed" class="<?= $filter === 'trashed' ? 'active' : '' ?>">
+            <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
+          </a>
+        </div>
+        <?php endif; ?>
+
         <?php if (empty($items)): ?>
-          <p class="text-muted">Aucun item dans la timeline.</p>
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-clock-history" style="font-size:3rem;"></i>
+            <p class="mt-2"><?= $isTrashed ? 'La corbeille est vide.' : 'Aucun item dans la timeline.' ?></p>
+          </div>
         <?php else: ?>
           <div class="row g-3" id="sortableTimeline">
             <?php foreach ($items as $idx => $item):
@@ -338,13 +425,30 @@ foreach ($items as $item) {
                       <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
                         <i class="bi bi-pencil"></i>
                       </button>
-                      <form method="post" class="d-inline" data-confirm="Supprimer cet item et ses tags ?">
+                      <?php if ($isTrashed): ?>
+                      <form method="post" class="d-inline">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                        <button type="submit" name="restore_item" class="btn btn-sm btn-success" title="Restaurer">
+                          <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                      </form>
+                      <form method="post" class="d-inline" data-confirm="Supprimer définitivement cet item ?">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                        <button type="submit" name="permanent_delete_item" class="btn btn-sm btn-danger" title="Supprimer définitivement">
+                          <i class="bi bi-x-lg"></i>
+                        </button>
+                      </form>
+                      <?php else: ?>
+                      <form method="post" class="d-inline" data-confirm="<?= $hasDeletedAt ? 'Mettre cet item en corbeille ?' : 'Supprimer cet item et ses tags ?' ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                         <button type="submit" name="delete_item" class="btn btn-sm btn-danger">
                           <i class="bi bi-trash"></i>
                         </button>
                       </form>
+                      <?php endif; ?>
                     </div>
                   </div>
                 </div>

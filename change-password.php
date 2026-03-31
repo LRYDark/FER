@@ -12,7 +12,6 @@ $stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
 $stmt->execute(['id' => 1]);
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $picture = $data['picture'] ?? '';
-$footer  = $data['footer']  ?? '';
 ?>
 <!doctype html>
 <html lang="fr">
@@ -93,7 +92,6 @@ $footer  = $data['footer']  ?? '';
         </button>
       </form>
     </div>
-    <div class="oc-footer"><?= htmlspecialchars($footer) ?></div>
   </main>
 
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

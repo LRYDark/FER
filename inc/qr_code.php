@@ -20,7 +20,7 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
-$footer = $data['footer']  ?? '';
+
 
 // Correction : Construction de l'URL de base correcte
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
@@ -54,10 +54,10 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <body>
 
 <?php include 'navbar-admin.php'; ?>
-  <div class="bg-white p-4 card-dashboard">
+  <div>
     
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
-      <h2 class="mb-0">Gestion des QR Codes</h2>
+      <h1 class="mb-0 fw-bold"><i class="bi bi-qr-code me-2"></i>Gestion des QR Codes</h1>
       <div class="d-flex gap-2">
         <button class="btn btn-rose" data-bs-toggle="modal" data-bs-target="#createQrModal">
           <i class="bi bi-qr-code"></i> Nouveau QR Code

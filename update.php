@@ -6,7 +6,9 @@
 require __DIR__ . '/config/config.php';
 
 $migrations = [
-    "ALTER TABLE `setting` ADD COLUMN `mail_template_config` TEXT DEFAULT NULL" ,
+    "ALTER TABLE `setting` ADD COLUMN `mail_template_config` TEXT DEFAULT NULL",
+    "ALTER TABLE `timeline_items` ADD COLUMN `deleted_at` DATETIME DEFAULT NULL",
+    "ALTER TABLE `setting` DROP COLUMN `footer`",
 ];
 
 echo "<h2>Migration — mail_template_config</h2><ul>";

@@ -14,7 +14,6 @@ if ($token) {
 $stmt2 = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
 $stmt2->execute(['id' => 1]);
 $data = $stmt2->fetch(PDO::FETCH_ASSOC) ?: [];
-$footer  = $data['footer']  ?? '';
 ?>
 <!doctype html>
 <html lang="fr">
@@ -98,7 +97,6 @@ $footer  = $data['footer']  ?? '';
         </form>
       <?php endif; ?>
     </div>
-    <div class="oc-footer"><?= htmlspecialchars($footer) ?></div>
   </main>
 
   <?php if ($tokenValid): ?>

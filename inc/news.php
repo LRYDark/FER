@@ -13,7 +13,7 @@ $stmt->execute(['id' => 1]);
 
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$footer= $data['footer'] ?? '';
+
 
 // Charger les données pour la navbar
 require 'navbar-data.php';
@@ -395,8 +395,8 @@ if ($migrationDone) {
 
 <?php include 'navbar-admin.php'; ?>
 
-<div class="container py-4">
-  <h1 class="mb-3 fw-bold">Actualités</h1>
+<div class="container pb-4">
+  <h1 class="mb-3 fw-bold"><i class="bi bi-newspaper me-2"></i>Actualités</h1>
 
 
   <?php if (!$migrationDone): ?>

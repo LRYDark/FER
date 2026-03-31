@@ -42,6 +42,6 @@ if (!csrf_verify()) {
         ];
     }
 
-    header('Location: utilisateurs.php?tab=mail');
+    header('Location: mail-settings.php?tab=envoi');
     exit;
 ?>

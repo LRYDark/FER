@@ -17,7 +17,6 @@ try {
 
 $titleAccueil = $data['titleAccueil'] ?? '';
 $picture = $data['picture'] ?? '';
-$footer = $data['footer'] ?? null;
 $link_instagram = $data['link_instagram'] ?? null;
 $link_facebook = $data['link_facebook'] ?? null;
 $link_cancer = $data['link_cancer'] ?? null;

@@ -140,7 +140,6 @@ try {
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
-$footer= $data['footer'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 $accueil_active = $data['accueil_active'] ? 1 : 0;
 $div_reglementation = $data['div_reglementation'] ?? '';
@@ -567,7 +566,6 @@ $formFields = getActiveFields($pdo, 'qr');
   <img class="tiny-lightbox-img" id="tinyLightboxImg" alt="">
 </div>
 
-<footer class="text-center py-3 small text-muted"><?= htmlspecialchars($footer) ?></footer>
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
