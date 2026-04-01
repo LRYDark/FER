@@ -101,6 +101,8 @@ $date_formatted = $date_course ? date('Y-m-d\TH:i:s', strtotime($date_course)) :
 $picture_partner = $data['picture_partner'] ?? '';
 $flash_info_text = $data['flash_info_text'] ?? '';
 $flash_info_active = !empty($data['flash_info_active']) ? 1 : 0;
+$flash_bg_color = $data['flash_bg_color'] ?? '#db2777';
+$flash_text_color = $data['flash_text_color'] ?? '#ffffff';
 
 // Récupération des années photos pour le menu
 try {
@@ -234,16 +236,16 @@ function generateTimelineSVG(int $count): array {
       /* Hovers */
       --hover: rgba(2,6,23,.06);
 
-      /* Accents */
+      /* Accents — reliés au thème */
       --accent: #6d28d9; /* violet */
-      --pink: #F42182;
-      --pink-dark: #db2777;
+      --pink: var(--primary, #db2777);
+      --pink-dark: var(--primary-hover, #be185d);
       --mobile-header-bg: rgba(255, 255, 255, 0.82);
 
-      /* Radius */
-      --radius-pill: 14px;
-      --radius-btn: 14px;
-      --radius-panel: 18px;
+      /* Radius — reliés au thème */
+      --radius-pill: var(--radius, 14px);
+      --radius-btn: var(--radius, 14px);
+      --radius-panel: var(--radius-lg, 18px);
 
       /* widths */
       --nav-max: clamp(820px, 74vw, 1500px);
@@ -256,7 +258,7 @@ function generateTimelineSVG(int $count): array {
     body{
       margin:0;
       color: var(--page-text);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-family: var(--font-family, system-ui, sans-serif);
       background: var(--page-bg);
       padding-top: 0;
       transition: none;
@@ -278,13 +280,12 @@ function generateTimelineSVG(int $count): array {
       left: 0;
       right: 0;
       z-index: 10001;
-      background: linear-gradient(135deg, #db2777 0%, #F42182 50%, #db2777 100%);
-      background-size: 200% 100%;
-      animation: flash-gradient 6s ease infinite;
+      background: <?= htmlspecialchars($flash_bg_color) ?>;
+      color: <?= htmlspecialchars($flash_text_color) ?>;
       overflow: hidden;
       white-space: nowrap;
       padding: 10px 0;
-      box-shadow: 0 2px 12px rgba(219,39,119,.25);
+      box-shadow: 0 2px 12px rgba(0,0,0,.15);
     }
     body.has-flash-banner .floating-nav{
       top: 38px;
@@ -322,7 +323,7 @@ function generateTimelineSVG(int $count): array {
       padding: 0 48px;
       font-size: 14px;
       font-weight: 600;
-      color: #ffffff;
+      color: inherit;
       letter-spacing: 0.02em;
       text-transform: uppercase;
     }
@@ -473,7 +474,7 @@ function generateTimelineSVG(int $count): array {
       align-items:center;
       background: rgba(15,23,42,.04);
       border: none;
-      border-radius: 12px;
+      border-radius: var(--radius);
       padding: 6px 10px;
     }
     body.nav-scrolled .nav-card{
@@ -495,14 +496,17 @@ function generateTimelineSVG(int $count): array {
     }
     .menu.nav-secondary .link,
     .menu.nav-secondary .trigger{
-      font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: var(--font-family, system-ui, sans-serif);
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 1;
       letter-spacing: .01em;
       padding: 8px 12px;
     }
     .nav-icon{
       width: 28px;
       height: 28px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       display: grid;
       place-items: center;
       background: rgba(244,33,130,.12);
@@ -527,7 +531,10 @@ function generateTimelineSVG(int $count): array {
       border:0;
       background:transparent;
       color: var(--page-text);
-      font: 500 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: var(--font-family, system-ui, sans-serif);
+      font-weight: 500;
+      font-size: 16px;
+      line-height: 1.2;
       padding: 10px 12px;
       border-radius: var(--radius-btn);
       cursor:pointer;
@@ -561,7 +568,10 @@ function generateTimelineSVG(int $count): array {
       justify-content:center;
       padding: 10px 14px;
       border-radius: 999px;
-      font: 600 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: var(--font-family, system-ui, sans-serif);
+      font-weight: 600;
+      font-size: 16px;
+      line-height: 1;
       text-decoration:none;
       border:1px solid rgba(15,23,42,.12);
       color: var(--page-text);
@@ -573,17 +583,18 @@ function generateTimelineSVG(int $count): array {
       box-shadow: 0 10px 26px rgba(2,6,23,.10);
     }
     .btn.primary{
-      background: #0f172a;
-      color:#fff;
-      border-color:#0f172a;
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #fff);
+      border-color: var(--secondary, #0f172a);
     }
-    .btn.primary:hover{ background:#0b1220; }
+    .btn.primary:hover{ background: var(--secondary-hover, #0b1220); }
     .btn.pink{
       padding: 12px 24px;
       background: var(--pink);
-      color: #ffffff;
+      color: var(--primary-text, #ffffff);
       border: none;
-      border-radius: 12px;
+      border-radius: var(--radius-btn, 12px);
+      font-family: var(--font-family, system-ui, sans-serif);
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
@@ -596,17 +607,17 @@ function generateTimelineSVG(int $count): array {
       box-shadow: 0 4px 14px rgba(244,33,130,.25);
     }
     .btn.pink:hover{
-      background: var(--pink-dark);
+      background: var(--pink-dark) !important;
+      color: var(--primary-text, #ffffff) !important;
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(244,33,130,.35);
       gap: 12px;
     }
-    .nav-cta{
-      min-height: 56px;
-      padding: 0 18px;
-      border-radius: 12px;
-      font-weight: 800;
-      letter-spacing: .02em;
+    .btn.pink.nav-cta{
+      padding: 18px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0;
     }
     .nav-cta svg{
       width: 20px;
@@ -649,7 +660,7 @@ function generateTimelineSVG(int $count): array {
       top: 82px; /* Juste sous la navbar */
       background: #ffffff;
       border: 1px solid rgba(15,23,42,.10);
-      border-radius: 24px;
+      border-radius: var(--radius-lg);
       box-shadow: 0 24px 80px rgba(2,6,23,.12), 0 8px 32px rgba(2,6,23,.08);
       padding: 40px;
       z-index: 9998;
@@ -753,7 +764,7 @@ function generateTimelineSVG(int $count): array {
     .micon{
       width: 40px;
       height: 40px;
-      border-radius: 10px;
+      border-radius: var(--radius);
       display: grid;
       place-items: center;
       background: rgba(244,33,130,.08);
@@ -774,7 +785,7 @@ function generateTimelineSVG(int $count): array {
       font-weight: 600;
       font-size: 14px;
       margin: 0 0 2px;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       line-height: 1.3;
     }
 
@@ -788,7 +799,7 @@ function generateTimelineSVG(int $count): array {
     /* Colonne droite : image */
     .mega-featured{
       background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
-      border-radius: 20px;
+      border-radius: var(--radius-lg);
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -800,7 +811,7 @@ function generateTimelineSVG(int $count): array {
     .mega-featured-img{
       width: 100%;
       height: 200px;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       overflow: hidden;
       background: rgba(255,255,255,0.5);
       display: flex;
@@ -922,7 +933,7 @@ function generateTimelineSVG(int $count): array {
       display: flex;
       flex-direction: column;
       background: #ffffff;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       box-shadow: 0 8px 18px rgba(0,0,0,.18);
       overflow: hidden;
       flex: 1;
@@ -937,9 +948,9 @@ function generateTimelineSVG(int $count): array {
       align-items: center;
       justify-content: center;
       background: var(--pink);
-      color: #ffffff;
+      color: var(--primary-text, #ffffff);
       border: none;
-      border-radius: 16px;
+      border-radius: var(--radius-btn, 16px);
       font-size: 13px;
       font-weight: 600;
       text-decoration: none;
@@ -958,7 +969,10 @@ function generateTimelineSVG(int $count): array {
                   border-radius .3s ease;
     }
     .mobile-bottom-cta:hover{
-      background: var(--pink-dark);
+      background: var(--pink-dark) !important;
+      color: var(--primary-text, #ffffff) !important;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(244,33,130,.35);
     }
 
     /* ---- When menu is open or closing ---- */
@@ -969,7 +983,7 @@ function generateTimelineSVG(int $count): array {
 
     .mobile-bottom-bar.menu-open .mobile-bottom-unified,
     .mobile-bottom-bar.menu-closing .mobile-bottom-unified{
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       box-shadow: 0 20px 80px rgba(0,0,0,.28);
       flex: 1;
     }
@@ -1009,7 +1023,7 @@ function generateTimelineSVG(int $count): array {
       min-height: 48px;
     }
     .mobile-menu-title{
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       font-size: 15px;
       font-weight: 700;
       letter-spacing: -.01em;
@@ -1035,7 +1049,7 @@ function generateTimelineSVG(int $count): array {
     }
     .mobile-menu-back:hover{
       background: rgba(15,23,42,.12);
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
     }
     .mobile-menu-back.visible{
       display: flex;
@@ -1060,7 +1074,7 @@ function generateTimelineSVG(int $count): array {
     }
     .mobile-menu-close:hover{
       background: rgba(15,23,42,.12);
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
     }
 
     /* ---- Slide container (holds main view + sub views) ---- */
@@ -1130,7 +1144,7 @@ function generateTimelineSVG(int $count): array {
       padding: 14px 12px;
       background: transparent;
       border: none;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       font-size: 15px;
       font-weight: 500;
       cursor: pointer;
@@ -1149,20 +1163,20 @@ function generateTimelineSVG(int $count): array {
       height: 18px;
       opacity: .4;
       flex-shrink: 0;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
     }
     .mobile-menu-icon{
       width: 32px;
       height: 32px;
       background: rgba(244,33,130,.08);
-      border-radius: 10px;
+      border-radius: var(--radius);
       display: flex;
       align-items: center;
       justify-content: center;
       margin-right: 12px;
       font-size: 15px;
       flex-shrink: 0;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
     }
 
     .mobile-menu-icon svg{
@@ -1194,7 +1208,7 @@ function generateTimelineSVG(int $count): array {
     }
     .mobile-menu-sublink:hover{
       background: rgba(15,23,42,.05);
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
     }
 
     .mobile-menu-sublink .menu-bullet{
@@ -1216,8 +1230,8 @@ function generateTimelineSVG(int $count): array {
       margin: auto 12px 12px;
       padding: 14px 20px;
       background: rgba(15,23,42,.04);
-      border-radius: 14px;
-      color: #0f172a;
+      border-radius: var(--radius);
+      color: var(--page-text, #0f172a);
       font-size: 14px;
       font-weight: 600;
       text-decoration: none;
@@ -1259,7 +1273,7 @@ function generateTimelineSVG(int $count): array {
     }
     .mobile-menu-footer-btn:hover{
       background: rgba(15,23,42,.08);
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
     }
     .mobile-menu-footer-btn svg{
       width: 20px;
@@ -1271,7 +1285,7 @@ function generateTimelineSVG(int $count): array {
       display: flex;
       align-items: center;
       padding: 14px 12px;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       text-decoration: none;
       font-size: 15px;
       font-weight: 500;
@@ -1313,7 +1327,7 @@ function generateTimelineSVG(int $count): array {
       padding: 8px 14px;
       background: transparent;
       border: none;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       font-size: 9px;
       font-weight: 500;
       text-decoration: none;
@@ -1350,7 +1364,7 @@ function generateTimelineSVG(int $count): array {
       align-items: center;
       justify-content: center;
       background: transparent;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       border: none;
       border-left: 1px solid rgba(15,23,42,.08);
       font-size: 13px;
@@ -1479,14 +1493,14 @@ function generateTimelineSVG(int $count): array {
       display: grid;
       grid-template-columns: 1fr 1fr;
       min-height: 140px;
-      border-radius: 24px;
+      border-radius: var(--radius-lg);
       overflow: hidden;
       position: relative;
-      background: linear-gradient(135deg, #fdf2f8, #fce7f3);
+      background: var(--primary-light, #fdf2f8);
     }
 
     .reg-count {
-      background: var(--page-text);
+      background: var(--secondary, #0f172a);
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -1499,7 +1513,7 @@ function generateTimelineSVG(int $count): array {
 
     .reg-count .reg-kicker {
       font-size: 11px;
-      color: rgba(255,255,255,.5);
+      color: var(--secondary-text, #fff); opacity: .5;
       text-transform: uppercase;
       letter-spacing: .12em;
       margin-bottom: 8px;
@@ -1509,7 +1523,7 @@ function generateTimelineSVG(int $count): array {
     .reg-count .reg-value {
       font-size: 56px;
       font-weight: 900;
-      color: #fff;
+      color: var(--secondary-text, #fff);
       line-height: 1;
       letter-spacing: -.03em;
     }
@@ -1540,10 +1554,10 @@ function generateTimelineSVG(int $count): array {
     }
 
     .reg-input {
-      background: #fff;
+      background: var(--pill-bg, #fff);
       border: none;
       padding: 14px 18px;
-      border-radius: 12px;
+      border-radius: var(--radius);
       font-size: 14px;
       flex: 1 1 auto;
       outline: none;
@@ -1561,9 +1575,9 @@ function generateTimelineSVG(int $count): array {
     .reg-submit {
       background: var(--pink);
       border: none;
-      color: #fff;
+      color: var(--primary-text, #fff);
       padding: 14px 24px;
-      border-radius: 12px;
+      border-radius: var(--radius-btn, 12px);
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -1572,7 +1586,10 @@ function generateTimelineSVG(int $count): array {
     }
 
     .reg-submit:hover {
-      background: var(--pink-dark);
+      background: var(--pink-dark) !important;
+      color: var(--primary-text, #ffffff) !important;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(244,33,130,.35);
     }
 
     .reg-hint {
@@ -1585,7 +1602,7 @@ function generateTimelineSVG(int $count): array {
       margin: 12px 0 0;
       font-size: 13px;
       padding: 12px 16px;
-      border-radius: 10px;
+      border-radius: var(--radius);
       display: inline-block;
       font-weight: 500;
     }
@@ -1675,7 +1692,7 @@ function generateTimelineSVG(int $count): array {
       position: relative;
       width: 100%;
       height: clamp(680px, 70vh, 1040px);
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       overflow: hidden;
       border: none;
       box-shadow: 0 18px 60px rgba(2,6,23,.14);
@@ -1750,8 +1767,8 @@ function generateTimelineSVG(int $count): array {
       top: 50%;
       right: 24px;
       transform: translateY(-50%);
-      background: #ffffff;
-      border-radius: 16px;
+      background: var(--pill-bg, #ffffff);
+      border-radius: var(--radius-lg);
       padding: 8px;
       display:flex;
       flex-direction:column;
@@ -1781,11 +1798,11 @@ function generateTimelineSVG(int $count): array {
       height: auto;
       min-width: 0;
       padding: 6px 8px;
-      border-radius: 12px;
-      background: #ffffff;
+      border-radius: var(--radius);
+      background: var(--pill-bg, #ffffff);
       border: 1px solid rgba(15,23,42,.10);
       text-decoration:none;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       font-weight: 800;
       font-size: 12px;
     }
@@ -1873,8 +1890,8 @@ function generateTimelineSVG(int $count): array {
 
     .timebox{
       background:rgba(255,255,255,.95);
-      color:#0f172a;
-      border-radius:12px;
+      color: var(--page-text, #0f172a);
+      border-radius: var(--radius);
       padding:10px 14px;
       min-width:110px;
       text-align:center;
@@ -1913,8 +1930,8 @@ function generateTimelineSVG(int $count): array {
       padding: 16px 32px;
       background: var(--pink);
       border: none;
-      border-radius: 12px;
-      color: #ffffff;
+      border-radius: var(--radius-btn, 12px);
+      color: var(--primary-text, #ffffff);
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
@@ -1928,7 +1945,8 @@ function generateTimelineSVG(int $count): array {
       box-shadow: 0 4px 14px rgba(244,33,130,.25);
     }
     .cta-pink:hover{
-      background: var(--pink-dark);
+      background: var(--pink-dark) !important;
+      color: var(--primary-text, #ffffff) !important;
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(244,33,130,.35);
       gap: 12px;
@@ -2043,7 +2061,7 @@ function generateTimelineSVG(int $count): array {
         min-width: 0;
         height: 44px;
         padding: 6px 10px;
-        border-radius: 10px;
+        border-radius: var(--radius);
       }
       /*.social-btn{
         background: transparent;
@@ -2195,7 +2213,7 @@ function generateTimelineSVG(int $count): array {
       width: 100%;
       max-width: 480px;
       text-align: left;
-      border-radius: 24px;
+      border-radius: var(--radius-lg);
       background: #fff;
       overflow: hidden;
       box-shadow:
@@ -2217,7 +2235,7 @@ function generateTimelineSVG(int $count): array {
       width: 100%;
       height: 180px;
       overflow: visible;
-      border-radius: 0 0 16px 16px;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
       background: linear-gradient(135deg, #fdf2f8, #fce7f3);
     }
 
@@ -2225,7 +2243,7 @@ function generateTimelineSVG(int $count): array {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      border-radius: 0 0 16px 16px;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     }
 
     .t-media img {
@@ -2280,7 +2298,7 @@ function generateTimelineSVG(int $count): array {
       display: inline-flex;
       align-items: center;
       padding: 8px 14px;
-      border-radius: 10px;
+      border-radius: var(--radius);
       background: #f8fafc;
       border: 1px solid #f1f5f9;
       color: var(--page-muted);
@@ -2365,8 +2383,8 @@ function generateTimelineSVG(int $count): array {
       right: 50%;
       margin-left: -50vw;
       margin-right: -50vw;
-      background: #0f172a;
-      color: #ffffff;
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #ffffff);
       padding: 0;
       margin-top: 120px;
       margin-bottom: 0;
@@ -2424,7 +2442,6 @@ function generateTimelineSVG(int $count): array {
     }
 
     .community-content{
-      color: #ffffff;
     }
     
     .community-title{
@@ -2438,13 +2455,14 @@ function generateTimelineSVG(int $count): array {
     .community-text{
       font-size: 15px;
       line-height: 1.6;
-      color: rgba(255,255,255,.85);
+      opacity: .85;
       margin: 0 0 24px 0;
       max-width: 600px;
     }
     
     .partner-form{
-      margin-top: 0;\r\n      border-top: 1px solid rgba(255,255,255,.08);
+      margin-top: 0;
+      border-top: 1px solid rgba(128,128,128,.15);
     }
     
     .form-group{
@@ -2458,20 +2476,21 @@ function generateTimelineSVG(int $count): array {
       min-width: 280px;
       padding: 16px 20px;
       font-size: 16px;
-      background: rgba(255,255,255,.08);
-      border: 2px solid rgba(255,255,255,.15);
-      border-radius: 12px;
-      color: #ffffff;
+      background: rgba(128,128,128,.1);
+      border: 2px solid rgba(128,128,128,.2);
+      border-radius: var(--radius);
+      color: var(--secondary-text, #ffffff);
       outline: none;
       transition: all .2s ease;
     }
-    
+
     .partner-email-input::placeholder{
-      color: rgba(255,255,255,.5);
+      color: var(--secondary-text, #ffffff);
+      opacity: .5;
     }
-    
+
     .partner-email-input:focus{
-      background: rgba(255,255,255,.12);
+      background: rgba(128,128,128,.15);
       border-color: var(--pink);
       box-shadow: 0 0 0 3px rgba(244,33,130,.15);
     }
@@ -2480,8 +2499,8 @@ function generateTimelineSVG(int $count): array {
       padding: 16px 32px;
       background: var(--pink);
       border: none;
-      border-radius: 12px;
-      color: #ffffff;
+      border-radius: var(--radius-btn, 12px);
+      color: var(--primary-text, #ffffff);
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
@@ -2494,7 +2513,8 @@ function generateTimelineSVG(int $count): array {
     }
     
     .partner-submit:hover{
-      background: var(--pink-dark);
+      background: var(--pink-dark) !important;
+      color: var(--primary-text, #ffffff) !important;
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(244,33,130,.35);
       gap: 12px;
@@ -2510,7 +2530,7 @@ function generateTimelineSVG(int $count): array {
     
     .form-note{
       font-size: 14px;
-      color: rgba(255,255,255,.6);
+      opacity: .6;
       margin: 12px 0 0 0;
       font-style: italic;
     }
@@ -2524,8 +2544,8 @@ function generateTimelineSVG(int $count): array {
       right: 50%;
       margin-left: -50vw;
       margin-right: -50vw;
-      background: #0f172a;
-      color: #ffffff;
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #ffffff);
       padding: 0;
       margin-top: 0;
       margin-bottom: 0;
@@ -2559,7 +2579,6 @@ function generateTimelineSVG(int $count): array {
       margin: 0;
       font-size: 18px;
       font-weight: 700;
-      color: #ffffff;
     }
 
     .news-band-link{
@@ -2584,9 +2603,8 @@ function generateTimelineSVG(int $count): array {
     .news-card{
       display:flex;
       flex-direction: column;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       background: rgba(255,255,255,.08);
-      color: #ffffff;
       text-decoration: none;
       overflow: hidden;
       min-height: 140px;
@@ -2626,20 +2644,19 @@ function generateTimelineSVG(int $count): array {
       font-size: 10px;
       letter-spacing: .18em;
       text-transform: uppercase;
-      color: rgba(255,255,255,.6);
+      opacity: .6;
       font-weight: 700;
     }
 
     .news-title{
       font-size: 14px;
       font-weight: 700;
-      color: #ffffff;
       line-height: 1.35;
     }
 
     .news-date{
       font-size: 12px;
-      color: rgba(255,255,255,.65);
+      opacity: .65;
     }
 
     .news-cta{
@@ -2651,10 +2668,10 @@ function generateTimelineSVG(int $count): array {
 
     .news-empty{
       padding: 16px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.06);
-      border: 1px dashed rgba(255,255,255,.18);
-      color: rgba(255,255,255,.7);
+      border-radius: var(--radius-lg);
+      background: rgba(128,128,128,.08);
+      border: 1px dashed rgba(128,128,128,.25);
+      opacity: .7;
       font-size: 13px;
     }
 
@@ -2920,7 +2937,7 @@ function generateTimelineSVG(int $count): array {
       .mobile-socials .social-btn{
         height: 36px;
         padding: 6px 10px;
-        border-radius: 10px;
+        border-radius: var(--radius);
       }
       .mobile-socials .social-btn img{
         height: 24px;
@@ -2986,7 +3003,7 @@ function generateTimelineSVG(int $count): array {
       background: linear-gradient(135deg, #1a1025, #1e1230);
     }
     body.dark-theme .t-kicker{
-      background: #1a1025;
+      background: #2d1f3d;
       color: var(--pink);
       border-color: #1e1f28;
       box-shadow: 0 0 0 1px #1e1f28;
@@ -3015,6 +3032,7 @@ function generateTimelineSVG(int $count): array {
     }
 
 </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 
 <body<?php if ($flash_info_active && !empty($flash_info_text)): ?> class="has-flash-banner"<?php endif; ?>>
@@ -3901,7 +3919,7 @@ function generateTimelineSVG(int $count): array {
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
 
         overlay.innerHTML = `
-          <div style="background:#fff;border-radius:1rem;padding:2rem;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:center;">
+          <div style="background:#fff;border-radius: var(--radius-lg);padding:2rem;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:center;">
             <div style="font-size:2.5rem;margin-bottom:.75rem;">💌</div>
             <h3 style="margin:0 0 .75rem;color:#1e293b;font-size:1.15rem;font-weight:700;">Un email personnel détecté</h3>
             <p style="color:#475569;font-size:.92rem;line-height:1.6;margin:0 0 1.25rem;">

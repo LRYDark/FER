@@ -244,15 +244,15 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       justify-content: center;
       width: 40px;
       height: 40px;
-      border-radius: 10px;
-      background: #0f172a;
-      color: #fff;
+      border-radius: var(--radius);
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #fff);
       text-decoration: none;
       transition: all .25s ease;
       flex-shrink: 0;
     }
     .news-title-bar .back-btn:hover {
-      background: var(--pink);
+      background: var(--pink); color: var(--primary-text, #fff);
     }
     .news-title-bar-title {
       margin: 0;
@@ -273,7 +273,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       width: 100%;
       height: 48px;
       border: 1px solid rgba(15,23,42,.12);
-      border-radius: 12px;
+      border-radius: var(--radius);
       padding: 0 42px 0 16px;
       font-size: 15px;
       font-family: inherit;
@@ -290,7 +290,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .news-search-clear {
       position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       width: 28px; height: 28px;
-      border: none; background: rgba(15,23,42,.08); border-radius: 8px;
+      border: none; background: rgba(15,23,42,.08); border-radius: var(--radius-sm);
       color: rgba(15,23,42,.5); font-size: 14px; cursor: pointer;
       display: none; align-items: center; justify-content: center;
       transition: background .15s;
@@ -311,7 +311,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 8px 14px;
       background: rgba(15,23,42,.04); border: 1px solid rgba(15,23,42,.10);
-      border-radius: 10px; cursor: pointer;
+      border-radius: var(--radius); cursor: pointer;
       font-size: 15px; font-weight: 500; color: var(--page-text);
       transition: background .15s, transform .1s;
       user-select: none;
@@ -333,7 +333,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       gap: 14px;
       padding: 14px;
       background: #fff;
-      border-radius: 14px;
+      border-radius: var(--radius);
       text-decoration: none;
       color: var(--page-text);
       transition: background .18s ease;
@@ -344,7 +344,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .ncard-img {
       flex: 0 0 160px;
       height: 120px;
-      border-radius: 12px;
+      border-radius: var(--radius);
       overflow: hidden;
       background: rgba(15,23,42,.06);
     }
@@ -395,7 +395,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .nvote {
       display: inline-flex; align-items: center; gap: 3px;
       padding: 3px 8px;
-      background: rgba(15,23,42,.05); border: none; border-radius: 7px;
+      background: rgba(15,23,42,.05); border: none; border-radius: var(--radius-sm);
       cursor: pointer; font-size: 13px; font-weight: 500; color: var(--page-text);
       transition: background .15s, transform .1s;
     }
@@ -419,7 +419,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .pgbtn {
       min-width: 40px; height: 40px;
-      border: 1px solid rgba(15,23,42,.12); border-radius: 10px;
+      border: 1px solid rgba(15,23,42,.12); border-radius: var(--radius);
       background: #fff; color: var(--page-text);
       font-size: 14px; font-weight: 600; cursor: pointer;
       transition: all .15s;
@@ -452,7 +452,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .article-img {
       width: 100%;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       margin-bottom: 28px;
     }
     .article-title {
@@ -486,7 +486,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .article-content img {
       max-width: 100%;
       height: auto;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       transition: transform .2s ease, box-shadow .2s ease;
     }
@@ -504,7 +504,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       background: #fff;
       border: 1px solid rgba(15,23,42,.12);
       border-radius: 12px;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       font-size: 14px;
       text-decoration: none;
       box-shadow: 0 1px 3px rgba(0,0,0,.04);
@@ -512,7 +512,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       margin: 8px 0;
     }
     .pdf-link:hover {
-      border-color: #F42182;
+      border-color: var(--primary, #db2777);
       box-shadow: 0 4px 16px rgba(244,33,130,.12);
       transform: translateY(-1px);
     }
@@ -520,12 +520,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: flex; align-items: center; justify-content: center;
       width: 38px; height: 38px;
       background: rgba(244,33,130,.08);
-      border-radius: 10px; flex-shrink: 0;
+      border-radius: var(--radius); flex-shrink: 0;
     }
     .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
-    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #F42182; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pdf-link-icon svg { width: 20px; height: 20px; stroke: var(--primary, #db2777); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
-    .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
+    .pdf-link-name { font-weight: 600; line-height: 1.3; color: var(--page-text, #0f172a); }
     .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
 
     /* Lightbox */
@@ -559,7 +559,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 7px 14px;
       border: 1px solid rgba(15,23,42,.10);
-      border-radius: 10px;
+      border-radius: var(--radius);
       background: rgba(15,23,42,.03);
       color: var(--page-text);
       font-size: 13px; font-weight: 600;
@@ -592,7 +592,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .comment-form {
       display: flex; flex-direction: column; gap: 10px;
       margin-bottom: 28px;
-      padding: 16px; border-radius: 14px;
+      padding: 16px; border-radius: var(--radius);
       background: rgba(15,23,42,.025);
       border: 1px solid rgba(15,23,42,.06);
     }
@@ -603,7 +603,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .comment-form textarea {
       width: 100%;
       border: 1px solid rgba(15,23,42,.10);
-      border-radius: 10px;
+      border-radius: var(--radius);
       padding: 10px 14px;
       font-size: 14px; font-family: inherit;
       color: var(--page-text);
@@ -626,7 +626,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 9px 20px;
       background: var(--page-text); color: #fff;
-      border: none; border-radius: 10px;
+      border: none; border-radius: var(--radius);
       font-size: 14px; font-weight: 600;
       cursor: pointer;
       transition: opacity .15s, transform .1s;
@@ -680,7 +680,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: inline-flex; align-items: center; gap: 4px;
       padding: 3px 8px;
       background: none; border: none;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 12.5px; font-weight: 600;
       color: rgba(15,23,42,.45);
       cursor: pointer;
@@ -695,7 +695,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 3px 10px;
       background: none; border: none;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       font-size: 12.5px; font-weight: 600;
       color: var(--pink);
       cursor: pointer;
@@ -736,7 +736,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .reply-form-inline textarea {
       width: 100%;
       border: 1px solid rgba(15,23,42,.10);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       padding: 8px 12px;
       font-size: 13px; font-family: inherit;
       color: var(--page-text);
@@ -752,7 +752,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .reply-cancel {
       padding: 6px 14px;
       background: none; border: 1px solid rgba(15,23,42,.12);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       font-size: 13px; font-weight: 600;
       color: rgba(15,23,42,.6);
       cursor: pointer;
@@ -762,7 +762,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .reply-submit {
       padding: 6px 14px;
       background: var(--page-text); color: #fff;
-      border: none; border-radius: 8px;
+      border: none; border-radius: var(--radius-sm);
       font-size: 13px; font-weight: 600;
       cursor: pointer;
       transition: opacity .15s;
@@ -773,7 +773,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     /* Comment error/info */
     .comment-msg {
       padding: 10px 14px;
-      border-radius: 10px;
+      border-radius: var(--radius);
       font-size: 13px; font-weight: 500;
       margin-bottom: 12px;
       display: none;
@@ -794,7 +794,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       z-index: 999;
       background: #fff;
       border: 1px solid rgba(15,23,42,.12);
-      border-radius: 10px;
+      border-radius: var(--radius);
       box-shadow: 0 4px 16px rgba(0,0,0,.10);
       max-height: 160px;
       overflow-y: auto;
@@ -810,9 +810,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       cursor: pointer;
       transition: background .12s;
     }
-    .mention-item:first-child { border-radius: 10px 10px 0 0; }
-    .mention-item:last-child { border-radius: 0 0 10px 10px; }
-    .mention-item:only-child { border-radius: 10px; }
+    .mention-item:first-child { border-radius: var(--radius) 10px 0 0; }
+    .mention-item:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+    .mention-item:only-child { border-radius: var(--radius); }
     .mention-item:hover,
     .mention-item.active {
       background: rgba(244,33,130,.08);
@@ -833,6 +833,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       .share-btn span { display: none; }
     }
   </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 <body>
 
@@ -851,7 +852,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
   <section class="news-hero">
     <div class="news-title-bar">
       <a href="news" title="Retour" class="back-btn">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
       </a>
       <h1 class="news-title-bar-title">Actualités</h1>
     </div>

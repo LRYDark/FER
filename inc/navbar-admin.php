@@ -48,20 +48,22 @@ $userInitial = strtoupper(substr($userEmail, 0, 1));
 if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
 ?>
 
+<?php include __DIR__ . '/../config/theme.php'; ?>
+
 <!-- ═══════ ADMIN LAYOUT CSS ═══════ -->
 <style>
 /* ══════════════════════════════════════════════════════════════
    BLUE OPENCLOUD THEME – Light only
    ══════════════════════════════════════════════════════════════ */
 :root {
-  --rose-500: #3b82f6;
-  --oc-frame:        #0f172a;
-  --oc-frame-text:   #ffffff;
+  --rose-500: var(--primary, #db2777);
+  --oc-frame:        var(--secondary, #0f172a);
+  --oc-frame-text:   var(--secondary-text, #ffffff);
   --oc-topbar-h:     52px;
   --oc-sidebar-w:    230px;
   --oc-sidebar-bg:   #f8fafc;
-  --oc-sidebar-active-bg:  #fce7f3;
-  --oc-sidebar-active-text:#9d174d;
+  --oc-sidebar-active-bg:  var(--primary-light, #fce7f3);
+  --oc-sidebar-active-text: var(--primary-hover, #9d174d);
   --oc-sidebar-hover-bg:   #eef2f7;
   --oc-sidebar-text:       #475569;
   --oc-sidebar-text-dim:   #94a3b8;
@@ -71,13 +73,13 @@ if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
   --oc-on-surface-variant: #475569;
   --oc-border:       #e2e8f0;
   --oc-outline:      #64748b;
-  --oc-accent:       #F42182;
-  --oc-accent-soft:  rgba(244,33,130,.08);
+  --oc-accent:       var(--primary, #db2777);
+  --oc-accent-soft:  var(--primary-light, rgba(244,33,130,.08));
   --oc-error:        #BA1A1A;
   --oc-error-container: #FFDAD6;
-  --oc-radius:       12px;
+  --oc-radius:       var(--radius, 12px);
   --oc-gap:          6px;
-  --font-main:       'Inter', system-ui, -apple-system, sans-serif;
+  --font-main:       var(--font-family, 'Inter', system-ui, -apple-system, sans-serif);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -135,7 +137,7 @@ html, body {
 .oc-user-wrapper { position: relative; }
 .oc-avatar-btn {
   width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3);
-  background: linear-gradient(135deg, #F42182, #db2777); color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: #fff;
   font-size: 14px; font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -146,7 +148,7 @@ html, body {
 }
 .oc-avatar-lg {
   width: 40px; height: 40px; border-radius: 50%;
-  background: linear-gradient(135deg, #F42182, #db2777); color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: #fff;
   font-size: 16px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
@@ -317,10 +319,10 @@ html, body {
 /* Primary = blue filled */
 #oc-content .btn-primary,
 #oc-content .btn-rose {
-  background: #F42182; color: #fff; border: none;
+  background: var(--primary); color: #fff; border: none;
 }
 #oc-content .btn-primary:hover,
-#oc-content .btn-rose:hover { background: #db2777; color: #fff; }
+#oc-content .btn-rose:hover { background: var(--primary-hover); color: #fff; }
 
 /* Success = soft green */
 #oc-content .btn-success {
@@ -354,7 +356,7 @@ html, body {
 
 /* Outline variants */
 #oc-content .btn-outline-primary {
-  background: transparent; color: #F42182; border: 1px solid #F42182;
+  background: transparent; color: var(--primary); border: 1px solid var(--primary);
 }
 #oc-content .btn-outline-primary:hover { background: rgba(244,33,130,.08); }
 
@@ -445,7 +447,7 @@ html, body {
 }
 #oc-content .form-control:focus,
 #oc-content .form-select:focus {
-  border-color: #F42182;
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(244,33,130,.12);
 }
 #oc-content .form-label {
@@ -453,11 +455,11 @@ html, body {
   margin-bottom: 4px;
 }
 #oc-content .form-check-input:checked {
-  background-color: #F42182; border-color: #F42182;
+  background-color: var(--primary); border-color: var(--primary);
 }
 #oc-content .form-check-input:focus {
   box-shadow: 0 0 0 3px rgba(244,33,130,.15);
-  border-color: #F42182;
+  border-color: var(--primary);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -485,8 +487,8 @@ html, body {
   border-radius: 6px; padding: 7px 14px;
   display: inline-flex; align-items: center; gap: 6px;
 }
-.modal .btn-primary, .modal .btn-rose { background: #F42182; color: #fff; border: none; }
-.modal .btn-primary:hover, .modal .btn-rose:hover { background: #db2777; color: #fff; }
+.modal .btn-primary, .modal .btn-rose { background: var(--primary); color: #fff; border: none; }
+.modal .btn-primary:hover, .modal .btn-rose:hover { background: var(--primary-hover); color: #fff; }
 .modal .btn-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .modal .btn-success:hover { background: #d1fae5; }
 .modal .btn-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
@@ -497,7 +499,7 @@ html, body {
 .modal .btn-info:hover { background: #dbeafe; }
 .modal .btn-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
 .modal .btn-warning:hover { background: #fef3c7; }
-.modal .btn-outline-primary { background: transparent; color: #F42182; border: 1px solid #F42182; }
+.modal .btn-outline-primary { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
 .modal .btn-outline-primary:hover { background: rgba(244,33,130,.08); }
 .modal .btn-outline-secondary { background: transparent; color: #64748b; border: 1px solid #94a3b8; }
 .modal .btn-outline-secondary:hover { background: #e2e8f0; color: #475569; }
@@ -516,10 +518,10 @@ html, body {
   border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #1e293b;
 }
 .modal .form-control:focus, .modal .form-select:focus {
-  border-color: #F42182; box-shadow: 0 0 0 3px rgba(244,33,130,.12);
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(244,33,130,.12);
 }
 .modal .form-label { font-size: 13px; font-weight: 600; color: #475569; }
-.modal .form-check-input:checked { background-color: #F42182; border-color: #F42182; }
+.modal .form-check-input:checked { background-color: var(--primary); border-color: var(--primary); }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Tables
@@ -566,7 +568,7 @@ html, body {
   padding: 5px 10px; font-size: 13px; color: #1e293b;
 }
 #oc-content .dataTables_wrapper .dataTables_filter input:focus {
-  border-color: #F42182; box-shadow: 0 0 0 3px rgba(244,33,130,.12); outline: none;
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(244,33,130,.12); outline: none;
 }
 /* Pagination — Bootstrap style, rose instead of blue */
 #oc-content .dataTables_wrapper .dataTables_paginate .paginate_button,
@@ -587,8 +589,8 @@ html, body {
 .modal .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
 #oc-content .page-item.active .page-link,
 .modal .page-item.active .page-link {
-  background-color: #F42182 !important; color: #fff !important;
-  border-color: #F42182 !important;
+  background-color: var(--primary) !important; color: #fff !important;
+  border-color: var(--primary) !important;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -635,7 +637,7 @@ html, body {
 #oc-content .filter-tabs .nav-link.active,
 #oc-content .filter-tabs a.active {
   color: #1e293b !important; font-weight: 600;
-  border-bottom-color: #F42182; background: transparent;
+  border-bottom-color: var(--primary); background: transparent;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -653,8 +655,8 @@ html, body {
 #oc-content h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
 #oc-content h3 { font-size: 16px; font-weight: 700; color: #0f172a; }
 #oc-content h5 { font-size: 15px; font-weight: 700; color: #0f172a; }
-#oc-content a { color: #F42182; }
-#oc-content a:hover { color: #db2777; }
+#oc-content a { color: var(--primary); }
+#oc-content a:hover { color: var(--primary-hover); }
 
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Scrollbar (content area)

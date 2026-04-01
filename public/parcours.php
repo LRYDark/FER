@@ -73,7 +73,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
     .parcours-image img {
       width: 100%;
       height: auto;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       box-shadow: 0 20px 60px rgba(2,6,23,.12);
       cursor: pointer;
       transition: transform .3s ease;
@@ -92,7 +92,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       width: 72%;
       max-width: 72%;
       height: auto;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       cursor: pointer;
       transition: transform .3s ease;
     }
@@ -193,7 +193,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       user-select: none;
       -webkit-user-drag: none;
     }
@@ -236,7 +236,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       flex-shrink: 0;
       width: 60px;
       height: 60px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
       cursor: pointer;
       opacity: 0.4;
@@ -307,6 +307,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       }
     }
   </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 <body>
 
