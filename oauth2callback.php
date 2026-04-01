@@ -32,7 +32,7 @@ if (!$clientID || !$clientSecret) {
 
 // Fonction pour enregistrer des logs
 function writeLog($message) {
-    $logFile = __DIR__ . '/config/logs/logs_google_mails.txt';
+    $logFile = __DIR__ . '/config/logs/logs_google_mails.log';
     $timestamp = date("Y-m-d H:i:s");
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }

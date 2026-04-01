@@ -751,6 +751,13 @@ html, body {
     </a>
     <a href="dashboard.php" id="oc-topbar-appname">Administration</a>
   </div>
+  <?php if (file_exists(__DIR__ . '/../update.php')): ?>
+  <div style="flex:1;display:flex;justify-content:center;">
+    <a href="../update.php" style="background:rgba(239,68,68,.15);color:#fca5a5;padding:4px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+      <i class="bi bi-exclamation-triangle-fill"></i> update.php doit être supprimé une fois la mise à jour effectuée
+    </a>
+  </div>
+  <?php endif; ?>
   <div class="oc-topbar-right">
     <div class="oc-user-wrapper">
       <button class="oc-avatar-btn" id="ocAvatarBtn" type="button" title="<?= htmlspecialchars($userEmail) ?>">

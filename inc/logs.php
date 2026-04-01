@@ -7,15 +7,26 @@ require 'navbar-data.php';
 
 // ── Fichiers de logs ────────────────────────────────────────
 $logFiles = [
-    [
+    'php_errors' => [
         'name'  => 'Erreurs PHP',
         'key'   => 'php_errors',
+        'tab'   => 'php',
+        'icon'  => 'bi-bug',
         'path'  => __DIR__ . '/../config/logs/php-error.log',
     ],
-    [
+    'google_mails' => [
         'name'  => 'Google Mails',
         'key'   => 'google_mails',
-        'path'  => __DIR__ . '/../config/logs/logs_google_mails.txt',
+        'tab'   => 'mail',
+        'icon'  => 'bi-envelope',
+        'path'  => __DIR__ . '/../config/logs/logs_google_mails.log',
+    ],
+    'import_errors' => [
+        'name'  => "Erreurs d'import",
+        'key'   => 'import_errors',
+        'tab'   => 'import',
+        'icon'  => 'bi-file-earmark-excel',
+        'path'  => __DIR__ . '/../config/logs/import_errors.log',
     ],
 ];
 
@@ -30,16 +41,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_log'])) {
     $key = $_POST['clear_log'];
+    $redirectTab = 'php';
     foreach ($logFiles as $lf) {
-        if ($lf['key'] === $key && file_exists($lf['path'])) {
-            file_put_contents($lf['path'], '');
-            addToast('success', 'Le fichier « ' . $lf['name'] . ' » a été vidé.');
+        if ($lf['key'] === $key) {
+            $redirectTab = $lf['tab'];
+            if (file_exists($lf['path'])) {
+                file_put_contents($lf['path'], '');
+                addToast('success', 'Le fichier « ' . $lf['name'] . ' » a été vidé.');
+            }
             break;
         }
     }
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?log=' . $redirectTab);
+    exit;
 }
 
-$stmt = $pdo->prepare('SELECT footer, debogage FROM setting WHERE id = 1 LIMIT 1');
+$stmt = $pdo->prepare('SELECT debogage FROM setting WHERE id = 1 LIMIT 1');
 $stmt->execute();
 $settingRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $debogage = (int) ($settingRow['debogage'] ?? 0);
@@ -86,6 +103,9 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   color: #64748b;
 }
 
+.log-tab-section.active { display: flex; flex-direction: column; }
+.log-tab-section.active .log-card { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
 .log-content {
   background: #16171d;
   color: #e2e4ed;
@@ -93,7 +113,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   font-size: 0.82rem;
   line-height: 1.6;
   padding: 1.25rem;
-  max-height: 500px;
+  flex: 1;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
@@ -119,6 +139,11 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   text-align: center;
   color: #94a3b8;
   background: #f8fafc;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .log-empty i {
@@ -189,6 +214,21 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   color: #64748b;
   margin: 0.25rem 0 0;
 }
+
+/* ═══ Tab styles ═══ */
+.settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+.settings-tabs .nav-link {
+  color: #1e293b; font-weight: 500; font-size: 14px;
+  padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; border-radius: 0; background: transparent;
+}
+.settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+.settings-tabs .nav-link.active {
+  color: #1e293b; font-weight: 600;
+  border-bottom-color: #F42182; background: transparent;
+}
+.log-tab-section { display: none; height: calc(90vh - 180px); }
+.log-tab-section.active { display: flex; flex-direction: column; }
 </style>
 </head>
 
@@ -209,15 +249,29 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
     </div>
   </div>
 
-  <?php foreach ($logFiles as $lf): ?>
-    <?php
+  <?php
+    $activeLogTab = $_GET['log'] ?? 'php';
+    if (!in_array($activeLogTab, ['php', 'mail', 'import'])) $activeLogTab = 'php';
+  ?>
+
+  <!-- Onglets -->
+  <ul class="nav settings-tabs" id="logTabs">
+    <?php foreach ($logFiles as $lf): ?>
+    <li class="nav-item">
+      <a class="nav-link <?= $activeLogTab === $lf['tab'] ? 'active' : '' ?>" href="#" data-tab="<?= $lf['tab'] ?>">
+        <i class="<?= $lf['icon'] ?> me-1"></i><?= htmlspecialchars($lf['name']) ?>
+      </a>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+
+  <?php foreach ($logFiles as $lf):
       $exists  = file_exists($lf['path']);
       $content = $exists ? file_get_contents($lf['path']) : '';
       $size    = $exists ? filesize($lf['path']) : 0;
       $lines   = ($content !== '') ? substr_count($content, "\n") + 1 : 0;
       $isEmpty = trim($content) === '';
 
-      // Formater la taille
       if ($size >= 1048576) {
           $sizeStr = round($size / 1048576, 2) . ' Mo';
       } elseif ($size >= 1024) {
@@ -225,11 +279,12 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
       } else {
           $sizeStr = $size . ' octets';
       }
-    ?>
+  ?>
+  <div class="log-tab-section <?= $activeLogTab === $lf['tab'] ? 'active' : '' ?>" id="tab-<?= $lf['tab'] ?>">
     <div class="log-card">
       <div class="log-card-header">
         <div>
-          <h5><i class="bi bi-journal-text me-2"></i><?= htmlspecialchars($lf['name']) ?></h5>
+          <h5><i class="<?= $lf['icon'] ?> me-2"></i><?= htmlspecialchars($lf['name']) ?></h5>
           <small class="text-muted"><?= htmlspecialchars(basename($lf['path'])) ?></small>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -259,7 +314,6 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
         </div>
       <?php else: ?>
         <pre class="log-content"><?php
-          // Coloration syntaxique simple
           $htmlLines = [];
           foreach (explode("\n", $content) as $line) {
               $escaped = htmlspecialchars($line);
@@ -277,12 +331,30 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
         ?></pre>
       <?php endif; ?>
     </div>
+  </div>
   <?php endforeach; ?>
 
 <?php include 'admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+// Tab switching
+document.querySelectorAll('#logTabs .nav-link').forEach(function(tab) {
+  tab.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelectorAll('#logTabs .nav-link').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.log-tab-section').forEach(function(s) { s.classList.remove('active'); });
+    this.classList.add('active');
+    document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+  });
+});
+
+// Confirm dialogs
+document.addEventListener('submit', function(e) {
+  var f = e.target.closest('form[data-confirm]');
+  if (f && !confirm(f.dataset.confirm)) e.preventDefault();
+});
+
 document.getElementById('debogageToggle').addEventListener('change', function(){
   var val = this.checked ? 1 : 0;
   var status = document.getElementById('debogageStatus');

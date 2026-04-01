@@ -22,7 +22,7 @@ $googleMailReady = ($clientID && $clientSecret);
 function writeLog($message) {
     $logDir = __DIR__ . '/logs';
     if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
-    $logFile = $logDir . '/logs_google_mails.txt';
+    $logFile = $logDir . '/logs_google_mails.log';
     $timestamp = date("Y-m-d H:i:s");
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }

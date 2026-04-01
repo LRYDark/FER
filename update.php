@@ -21,6 +21,18 @@ $migrations = [
 ];
 
 $results = [];
+
+// Renommer le fichier de logs Google Mails .txt -> .log
+$oldLog = __DIR__ . '/config/logs/logs_google_mails.txt';
+$newLog = __DIR__ . '/config/logs/logs_google_mails.log';
+if (file_exists($oldLog) && !file_exists($newLog)) {
+    rename($oldLog, $newLog);
+    $results[] = ['status' => 'success', 'sql' => 'RENAME logs_google_mails.txt → logs_google_mails.log', 'msg' => 'Fichier renommé'];
+} elseif (file_exists($newLog)) {
+    $results[] = ['status' => 'skip', 'sql' => 'RENAME logs_google_mails.txt → logs_google_mails.log', 'msg' => 'Déjà renommé'];
+} else {
+    $results[] = ['status' => 'skip', 'sql' => 'RENAME logs_google_mails.txt → logs_google_mails.log', 'msg' => 'Fichier source introuvable'];
+}
 foreach ($migrations as $sql) {
     try {
         $pdo->exec($sql);
