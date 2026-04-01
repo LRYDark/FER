@@ -310,10 +310,15 @@ function generateTimelineSVG(int $count): array {
     }
     .flash-banner-track{
       display: inline-flex;
-      animation: flash-scroll 40s linear infinite;
+      min-width: 200%;
+      animation: flash-scroll 60s linear infinite;
     }
     .flash-banner-track:hover{
       animation-play-state: paused;
+    }
+    .flash-banner-group{
+      display: inline-flex;
+      min-width: 100vw;
     }
     @keyframes flash-scroll{
       0%{ transform: translateX(0); }
@@ -3493,9 +3498,16 @@ function generateTimelineSVG(int $count): array {
   <?php if ($flash_info_active && !empty($flash_info_text)): ?>
   <div class="flash-banner" id="flashBanner">
     <div class="flash-banner-track">
-      <?php for ($i = 0; $i < 6; $i++): ?>
-        <span class="flash-banner-item"><?= htmlspecialchars($flash_info_text) ?></span>
-      <?php endfor; ?>
+      <div class="flash-banner-group">
+        <?php for ($i = 0; $i < 10; $i++): ?>
+          <span class="flash-banner-item"><?= htmlspecialchars($flash_info_text) ?></span>
+        <?php endfor; ?>
+      </div>
+      <div class="flash-banner-group">
+        <?php for ($i = 0; $i < 10; $i++): ?>
+          <span class="flash-banner-item"><?= htmlspecialchars($flash_info_text) ?></span>
+        <?php endfor; ?>
+      </div>
     </div>
   </div>
   <?php endif; ?>
