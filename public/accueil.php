@@ -287,6 +287,9 @@ function generateTimelineSVG(int $count): array {
       padding: 10px 0;
       box-shadow: 0 2px 12px rgba(0,0,0,.15);
     }
+    body.has-flash-banner{
+      padding-top: 38px;
+    }
     body.has-flash-banner .floating-nav{
       top: 38px;
     }
@@ -332,7 +335,8 @@ function generateTimelineSVG(int $count): array {
       display: inline-block;
       width: 6px;
       height: 6px;
-      background: rgba(255,255,255,.7);
+      background: currentColor;
+      opacity: .7;
       border-radius: 50%;
       flex-shrink: 0;
     }
