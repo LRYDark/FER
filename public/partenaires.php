@@ -102,7 +102,7 @@ if ($selectedYearId) {
       min-height: 160px;
       background: linear-gradient(135deg, var(--pink) 0%, #f472b6 100%);
       border: none;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       color: #fff;
       text-decoration: none;
       cursor: pointer;
@@ -184,7 +184,7 @@ if ($selectedYearId) {
 
     .info-modal {
       background: #fff;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       max-width: 1100px;
       width: 100%;
       max-height: 90vh;
@@ -208,7 +208,7 @@ if ($selectedYearId) {
       align-items: center;
       justify-content: center;
       font-size: 20px;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       transition: background .2s;
     }
 
@@ -234,7 +234,7 @@ if ($selectedYearId) {
       margin: 0 0 20px;
       font-size: clamp(24px, 3vw, 36px);
       font-weight: 900;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       letter-spacing: -0.02em;
     }
 
@@ -261,7 +261,7 @@ if ($selectedYearId) {
       background: #fff;
       border: 1px solid rgba(15,23,42,.12);
       border-radius: 12px;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       font-size: 14px;
       text-decoration: none;
       box-shadow: 0 1px 3px rgba(0,0,0,.04);
@@ -269,7 +269,7 @@ if ($selectedYearId) {
       margin: 8px 0;
     }
     .pdf-link:hover {
-      border-color: #F42182;
+      border-color: var(--primary, #db2777);
       box-shadow: 0 4px 16px rgba(244,33,130,.12);
       transform: translateY(-1px);
     }
@@ -277,18 +277,18 @@ if ($selectedYearId) {
       display: flex; align-items: center; justify-content: center;
       width: 38px; height: 38px;
       background: rgba(244,33,130,.08);
-      border-radius: 10px; flex-shrink: 0;
+      border-radius: var(--radius); flex-shrink: 0;
     }
     .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
-    .pdf-link-icon svg { width: 20px; height: 20px; stroke: #F42182; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pdf-link-icon svg { width: 20px; height: 20px; stroke: var(--primary, #db2777); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
-    .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
+    .pdf-link-name { font-weight: 600; line-height: 1.3; color: var(--page-text, #0f172a); }
     .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
 
     .info-modal-desc img {
       max-width: 100%;
       height: auto;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       transition: transform .2s ease, box-shadow .2s ease;
     }
@@ -328,9 +328,9 @@ if ($selectedYearId) {
       justify-content: center;
       width: 40px;
       height: 40px;
-      border-radius: 10px;
-      background: #0f172a;
-      color: #fff;
+      border-radius: var(--radius);
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #fff);
       text-decoration: none;
       transition: all .25s ease;
       flex-shrink: 0;
@@ -410,7 +410,7 @@ if ($selectedYearId) {
       margin: 0 0 16px;
       font-size: 24px;
       font-weight: 600;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       line-height: 1.3;
     }
 
@@ -436,9 +436,9 @@ if ($selectedYearId) {
       justify-content: flex-end;
       padding: 28px 24px;
       min-height: 160px;
-      background: #0f172a;
+      background: var(--secondary, #0f172a);
       border: none;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       color: #fff;
       font-size: 18px;
       font-weight: 600;
@@ -468,10 +468,10 @@ if ($selectedYearId) {
       left: 0;
       right: 0;
       bottom: 0;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      background: linear-gradient(135deg, var(--secondary, #0f172a) 0%, var(--secondary-hover, #1e293b) 100%);
       opacity: 0;
       transition: opacity .35s ease;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
     }
 
     .year-card:hover {
@@ -622,6 +622,7 @@ if ($selectedYearId) {
     }
 
   </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 <body>
   <?php include '../inc/navbar-modern.php'; ?>
@@ -631,7 +632,7 @@ if ($selectedYearId) {
       <!-- Titre -->
       <div class="partners-title-bar" style="margin-bottom: 30px;">
         <a href="partenaires" title="Retour" class="back-btn">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
         </a>
         <h1 class="partners-title-bar-title"><?= htmlspecialchars($selectedYear['title']) ?></h1>
       </div>

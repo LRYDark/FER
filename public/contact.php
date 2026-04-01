@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       width: 100%;
       padding: 12px 16px;
       border: 1px solid #ddd;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       font-size: 1rem;
       font-family: inherit;
       transition: border-color 0.2s;
@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       color: #fff;
       border: none;
       padding: 14px 32px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     .alert {
       padding: 14px 18px;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       margin-bottom: 1.5rem;
       font-weight: 500;
     }
@@ -172,6 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     body.dark-theme .alert-success { background: #1b5e20; color: #a5d6a7; border-color: #2e7d32; }
     body.dark-theme .alert-error { background: #b71c1c; color: #ef9a9a; border-color: #c62828; }
   </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 <body>
 

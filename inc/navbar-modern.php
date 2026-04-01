@@ -6,6 +6,7 @@
  * Requires: navbar-data.php doit être inclus AVANT ce fichier
  * Variables requises: $galeries, $actualites, $partenaires, $link_facebook, $link_instagram, $link_cancer
  */
+include_once __DIR__ . '/../config/theme.php';
 ?>
 
 <!-- Theme: apply saved preference immediately to avoid flash -->

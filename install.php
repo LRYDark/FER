@@ -270,6 +270,15 @@ function getCreateTableStatements(): array
           `maintenance_mode` TINYINT(1) NOT NULL DEFAULT 0,
           `maintenance_message` VARCHAR(500) DEFAULT NULL,
           `mail_template_config` TEXT DEFAULT NULL,
+          `theme_primary_color` VARCHAR(7) DEFAULT '#db2777',
+          `theme_secondary_color` VARCHAR(7) DEFAULT '#0f172a',
+          `theme_dark_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          `flash_bg_color` VARCHAR(7) DEFAULT '#db2777',
+          `flash_text_color` VARCHAR(7) DEFAULT '#ffffff',
+          `theme_dark_primary_color` VARCHAR(7) DEFAULT '#f472b6',
+          `theme_dark_secondary_color` VARCHAR(7) DEFAULT '#e2e8f0',
+          `theme_border_radius` INT DEFAULT 12,
+          `theme_font_family` VARCHAR(100) DEFAULT 'Inter',
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 

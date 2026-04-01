@@ -204,9 +204,9 @@ function resolveAlbumDateLabel(array $album): string
       justify-content: center;
       width: 40px;
       height: 40px;
-      border-radius: 10px;
-      background: #0f172a;
-      color: #fff;
+      border-radius: var(--radius);
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #fff);
       text-decoration: none;
       transition: all .25s ease;
       flex-shrink: 0;
@@ -245,7 +245,7 @@ function resolveAlbumDateLabel(array $album): string
     .album-card-media {
       position: relative;
       overflow: visible;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       background: transparent;
       height: 200px;
       margin: 0;
@@ -255,7 +255,7 @@ function resolveAlbumDateLabel(array $album): string
       width: 100%;
       height: 100%;
       overflow: hidden;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
     }
 
     .album-card-image {
@@ -301,7 +301,7 @@ function resolveAlbumDateLabel(array $album): string
       font-weight: 500;
       letter-spacing: -0.01em;
       line-height: 1.25;
-      color: #0f172a;
+      color: var(--page-text, #0f172a);
       margin-bottom: 8px;
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -341,11 +341,11 @@ function resolveAlbumDateLabel(array $album): string
       }
 
       .album-card-media {
-        border-radius: 16px;
+        border-radius: var(--radius-lg);
       }
 
       .album-card-media-inner {
-        border-radius: 16px;
+        border-radius: var(--radius-lg);
       }
 
       .album-card-title {
@@ -379,9 +379,9 @@ function resolveAlbumDateLabel(array $album): string
       justify-content: flex-end;
       padding: 28px 24px;
       min-height: 160px;
-      background: #0f172a;
+      background: var(--secondary, #0f172a);
       border: none;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
       color: #fff;
       font-size: 18px;
       font-weight: 600;
@@ -412,10 +412,10 @@ function resolveAlbumDateLabel(array $album): string
       left: 0;
       right: 0;
       bottom: 0;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      background: linear-gradient(135deg, var(--secondary, #0f172a) 0%, var(--secondary-hover, #1e293b) 100%);
       opacity: 0;
       transition: opacity .35s ease;
-      border-radius: 16px;
+      border-radius: var(--radius-lg);
     }
 
     .year-card:hover {
@@ -490,6 +490,7 @@ function resolveAlbumDateLabel(array $album): string
       }
     }
   </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 <body>
   <?php include '../inc/navbar-modern.php'; ?>
@@ -498,7 +499,7 @@ function resolveAlbumDateLabel(array $album): string
     <section class="photos-hero" aria-label="Titre de la page">
       <?php if ($selectedYear): ?>
         <a href="photos" title="Retour" class="back-btn">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
         </a>
       <?php endif; ?>
       <h1 class="photos-hero-title"><?= $selectedYear ? htmlspecialchars($selectedYear['title']) : 'Nos éditions' ?></h1>

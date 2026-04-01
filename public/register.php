@@ -160,8 +160,8 @@ $formFields = getActiveFields($pdo, 'qr');
       crossorigin="anonymous">
 <style>
   :root{
-    --rose-500:#F42182;
-    --rose-600:#db2777;
+    --rose-500: var(--primary, #db2777);
+    --rose-600: var(--primary-hover, #be185d);
   }
   body{
     background:#fff;
@@ -181,7 +181,7 @@ $formFields = getActiveFields($pdo, 'qr');
   .badge-donation{
     background:#fff;
     color:var(--rose-600);
-    border-radius:1rem;
+    border-radius: var(--radius-lg);
     padding:.4rem .9rem;
     font-weight:600;
   }
@@ -271,7 +271,7 @@ $formFields = getActiveFields($pdo, 'qr');
   }
   .btn-rose:hover{background:#c13778;}
   .form-control,
-  .form-select{border-radius:1rem;}
+  .form-select{border-radius: var(--radius-lg);}
 
   .iframe-asc-container,
   .iframe-asc-container iframe{
@@ -298,7 +298,7 @@ $formFields = getActiveFields($pdo, 'qr');
       padding:6px 10px;
       font-size:.84rem;
       gap:6px;
-      border-radius:10px;
+      border-radius: var(--radius);
     }
     .back-link svg{
       width:16px;
@@ -351,7 +351,7 @@ $formFields = getActiveFields($pdo, 'qr');
     background: #fff;
     border: 1px solid rgba(15,23,42,.12);
     border-radius: 12px;
-    color: #0f172a;
+    color: var(--page-text, #0f172a);
     font-size: 14px;
     text-decoration: none;
     box-shadow: 0 1px 3px rgba(0,0,0,.04);
@@ -359,7 +359,7 @@ $formFields = getActiveFields($pdo, 'qr');
     margin: 8px 0;
   }
   .pdf-link:hover {
-    border-color: #F42182;
+    border-color: var(--primary, #db2777);
     box-shadow: 0 4px 16px rgba(244,33,130,.12);
     transform: translateY(-1px);
   }
@@ -367,12 +367,12 @@ $formFields = getActiveFields($pdo, 'qr');
     display: flex; align-items: center; justify-content: center;
     width: 38px; height: 38px;
     background: rgba(244,33,130,.08);
-    border-radius: 10px; flex-shrink: 0;
+    border-radius: var(--radius); flex-shrink: 0;
   }
   .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
-  .pdf-link-icon svg { width: 20px; height: 20px; stroke: #F42182; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .pdf-link-icon svg { width: 20px; height: 20px; stroke: var(--primary, #db2777); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
-  .pdf-link-name { font-weight: 600; line-height: 1.3; color: #0f172a; }
+  .pdf-link-name { font-weight: 600; line-height: 1.3; color: var(--page-text, #0f172a); }
   .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
 
   /* Tableaux TinyMCE dans la réglementation */
@@ -390,7 +390,7 @@ $formFields = getActiveFields($pdo, 'qr');
   .modal-body img {
     max-width: 100%;
     height: auto;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: transform .2s ease, box-shadow .2s ease;
   }
@@ -417,6 +417,7 @@ $formFields = getActiveFields($pdo, 'qr');
     border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
   }
 </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 
 <body>
@@ -439,7 +440,7 @@ $formFields = getActiveFields($pdo, 'qr');
 <?php if ($accueil_active === 0): ?>
   <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
     <div class="card card-form p-4 bg-white">
-      <div class="p-4 w-100" role="alert" style="margin-top:5%; font-size: 1.2rem; background-color: #ffe1f0; color: #e03f8a; border-radius: 1rem;">
+      <div class="p-4 w-100" role="alert" style="margin-top:5%; font-size: 1.2rem; background-color: #ffe1f0; color: #e03f8a; border-radius: var(--radius-lg);">
         🚫 Les inscriptions sont actuellement fermées. Merci de votre compréhension.
       </div>
     </div>

@@ -31,6 +31,16 @@ $navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
 $title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 
+// theme
+$theme_primary        = $data['theme_primary_color']        ?? '#db2777';
+$theme_secondary      = $data['theme_secondary_color']      ?? '#0f172a';
+$theme_dark_primary   = $data['theme_dark_primary_color']   ?? '#f472b6';
+$theme_dark_secondary = $data['theme_dark_secondary_color'] ?? '#e2e8f0';
+$theme_radius         = (int)($data['theme_border_radius']  ?? 12);
+$theme_font           = $data['theme_font_family']          ?? 'Inter';
+$flash_bg_color       = $data['flash_bg_color']             ?? '#db2777';
+$flash_text_color     = $data['flash_text_color']           ?? '#ffffff';
+
 // accueil
 $titleAccueil  = $data['titleAccueil']   ?? '';
 $link_instagram  = $data['link_instagram']   ?? '';
@@ -247,8 +257,80 @@ if (isset($_POST['save_navbar_logo'])) {
 }
 
 /* --------------------------------------------------------------------------
-   Configuration générale
+   Personnalisation — Thème (couleurs, radius, police)
 -------------------------------------------------------------------------- */
+// Liste des polices autorisées
+$allowedFonts = ['system-ui','Inter','Poppins','Roboto','Open Sans','Montserrat','Lato','Nunito',
+    'Raleway','Source Sans 3','Work Sans','DM Sans','Outfit','Plus Jakarta Sans','Manrope','Figtree','Quicksand','Cabin','Rubik','Karla'];
+
+if (isset($_POST['save_theme'])) {
+    $theme_primary        = $_POST['theme_primary_color']        ?? '#db2777';
+    $theme_secondary      = $_POST['theme_secondary_color']      ?? '#0f172a';
+    $theme_dark_primary   = $_POST['theme_dark_primary_color']   ?? '#f472b6';
+    $theme_dark_secondary = $_POST['theme_dark_secondary_color'] ?? '#e2e8f0';
+    $theme_radius         = max(0, min(32, (int)($_POST['theme_border_radius'] ?? 12)));
+    $theme_font           = $_POST['theme_font_family']          ?? 'Inter';
+
+    // Valider les couleurs hex
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_primary))        $theme_primary = '#db2777';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_secondary))      $theme_secondary = '#0f172a';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_primary))   $theme_dark_primary = '#f472b6';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_secondary)) $theme_dark_secondary = '#e2e8f0';
+    if (!in_array($theme_font, $allowedFonts)) $theme_font = 'Inter';
+
+    $pdo->prepare(
+        'UPDATE setting SET theme_primary_color = :p, theme_secondary_color = :s,
+         theme_dark_primary_color = :dp, theme_dark_secondary_color = :ds,
+         theme_border_radius = :r, theme_font_family = :f WHERE id = 1'
+    )->execute([
+        'p' => $theme_primary, 's' => $theme_secondary,
+        'dp' => $theme_dark_primary, 'ds' => $theme_dark_secondary,
+        'r' => $theme_radius, 'f' => $theme_font,
+    ]);
+
+    addToast('success', 'Thème mis à jour !');
+}
+
+if (isset($_POST['save_flash_colors'])) {
+    $flash_bg_color   = $_POST['flash_bg_color']   ?? '#db2777';
+    $flash_text_color = $_POST['flash_text_color'] ?? '#ffffff';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $flash_bg_color)) $flash_bg_color = '#db2777';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $flash_text_color)) $flash_text_color = '#ffffff';
+
+    $pdo->prepare('UPDATE setting SET flash_bg_color = :bg, flash_text_color = :txt WHERE id = 1')
+        ->execute(['bg' => $flash_bg_color, 'txt' => $flash_text_color]);
+
+    addToast('success', 'Couleurs du bandeau mises à jour !');
+}
+
+if (isset($_POST['reset_flash_colors'])) {
+    $flash_bg_color = '#db2777'; $flash_text_color = '#ffffff';
+    $pdo->prepare('UPDATE setting SET flash_bg_color = :bg, flash_text_color = :txt WHERE id = 1')
+        ->execute(['bg' => $flash_bg_color, 'txt' => $flash_text_color]);
+
+    addToast('success', 'Couleurs du bandeau réinitialisées !');
+}
+
+if (isset($_POST['reset_theme'])) {
+    $theme_primary = '#db2777'; $theme_secondary = '#0f172a';
+    $theme_dark_primary = '#f472b6'; $theme_dark_secondary = '#e2e8f0';
+    $theme_radius = 12; $theme_font = 'Inter';
+    $flash_bg_color = '#db2777'; $flash_text_color = '#ffffff';
+
+    $pdo->prepare(
+        'UPDATE setting SET theme_primary_color = :p, theme_secondary_color = :s,
+         theme_dark_primary_color = :dp, theme_dark_secondary_color = :ds,
+         theme_border_radius = :r, theme_font_family = :f,
+         flash_bg_color = :fbg, flash_text_color = :ftxt WHERE id = 1'
+    )->execute([
+        'p' => $theme_primary, 's' => $theme_secondary,
+        'dp' => $theme_dark_primary, 'ds' => $theme_dark_secondary,
+        'r' => $theme_radius, 'f' => $theme_font,
+        'fbg' => $flash_bg_color, 'ftxt' => $flash_text_color,
+    ]);
+
+    addToast('success', 'Thème réinitialisé aux valeurs par défaut !');
+}
 
 /* --------------------------------------------------------------------------
    Inscription — Paramètres (montant, nb premiers inscrits, activation)
@@ -903,6 +985,13 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;
     padding-bottom: 12px; border-bottom: 1px solid #f0e8eb;
   }
+  .theme-mode-tab {
+    background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+    border-radius: 8px; cursor: pointer; transition: all .2s;
+  }
+  .theme-mode-tab:hover { background: #e2e8f0; color: #1e293b; }
+  .theme-mode-tab.active[data-mode="light"] { background: #ffffff; color: #1e293b; border-color: #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .theme-mode-tab.active[data-mode="dark"] { background: #0f172a; color: #e2e8f0; border-color: #334155; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 </style>
 
 <?php
@@ -910,7 +999,7 @@ document.addEventListener('DOMContentLoaded', function() {
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
-    elseif (isset($_POST['save_navbar_logo'])) $activeTab = 'personnalisation';
+    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil'])) $activeTab = 'accueil';
     elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
@@ -941,18 +1030,18 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
 <!-- ═══ TAB: Personnalisation ═══ -->
 <div class="settings-section <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" id="tab-personnalisation">
   <div class="row g-4">
+
+    <!-- Carte : Logo -->
     <div class="col-12">
       <div class="setting-card">
         <h2>Logo de la navbar</h2>
         <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
           <?= csrf_field() ?>
-
           <div class="col-12">
             <label class="form-label">Changer le logo</label>
             <input type="file" class="form-control" name="navbar_logo" accept="image/*">
             <small class="text-muted">Formats : JPG, PNG, GIF, WebP, SVG — Max 5 Mo</small>
           </div>
-
           <div class="col-12">
             <label class="form-label">Logo actuel</label>
             <div>
@@ -964,13 +1053,194 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
               <?php endif; ?>
             </div>
           </div>
-
           <div class="col-12 text-end">
             <button type="submit" name="save_navbar_logo" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
         </form>
       </div>
     </div><!-- /col-12 -->
+
+    <!-- Carte : Thème -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Thème du site</h2>
+        <form action="" method="post" class="needs-validation" id="themeForm">
+          <?= csrf_field() ?>
+
+          <!-- Sous-onglets Light / Dark -->
+          <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-sm theme-mode-tab active" data-mode="light" style="padding:6px 16px;font-weight:600;font-size:13px">
+              <i class="bi bi-sun me-1"></i>Light
+            </button>
+            <button type="button" class="btn btn-sm theme-mode-tab" data-mode="dark" style="padding:6px 16px;font-weight:600;font-size:13px">
+              <i class="bi bi-moon me-1"></i>Dark
+            </button>
+          </div>
+
+          <div class="row g-3">
+            <!-- Light mode colors -->
+            <div class="theme-mode-panel" id="themePanelLight">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Couleur primaire <span class="badge bg-light text-dark" style="font-size:10px">Light</span></label>
+                  <div class="d-flex align-items-center gap-2">
+                    <input type="color" class="form-control form-control-color" id="themePrimary" name="theme_primary_color" value="<?= htmlspecialchars($theme_primary) ?>" style="width:50px;height:38px">
+                    <code id="themePrimaryHex"><?= htmlspecialchars($theme_primary) ?></code>
+                  </div>
+                  <small class="text-muted">Boutons rose, accents, liens actifs</small>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Couleur secondaire <span class="badge bg-light text-dark" style="font-size:10px">Light</span></label>
+                  <div class="d-flex align-items-center gap-2">
+                    <input type="color" class="form-control form-control-color" id="themeSecondary" name="theme_secondary_color" value="<?= htmlspecialchars($theme_secondary) ?>" style="width:50px;height:38px">
+                    <code id="themeSecondaryHex"><?= htmlspecialchars($theme_secondary) ?></code>
+                  </div>
+                  <small class="text-muted">Topbar, footer, sections sombres</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dark mode colors -->
+            <div class="theme-mode-panel" id="themePanelDark" style="display:none">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Couleur primaire <span class="badge bg-dark text-light" style="font-size:10px">Dark</span></label>
+                  <div class="d-flex align-items-center gap-2">
+                    <input type="color" class="form-control form-control-color" id="themeDarkPrimary" name="theme_dark_primary_color" value="<?= htmlspecialchars($theme_dark_primary) ?>" style="width:50px;height:38px">
+                    <code id="themeDarkPrimaryHex"><?= htmlspecialchars($theme_dark_primary) ?></code>
+                  </div>
+                  <small class="text-muted">Version claire du rose pour fond sombre</small>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Couleur secondaire <span class="badge bg-dark text-light" style="font-size:10px">Dark</span></label>
+                  <div class="d-flex align-items-center gap-2">
+                    <input type="color" class="form-control form-control-color" id="themeDarkSecondary" name="theme_dark_secondary_color" value="<?= htmlspecialchars($theme_dark_secondary) ?>" style="width:50px;height:38px">
+                    <code id="themeDarkSecondaryHex"><?= htmlspecialchars($theme_dark_secondary) ?></code>
+                  </div>
+                  <small class="text-muted">Textes et accents sur fond sombre</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Arrondi + Police (communs aux deux modes) -->
+            <div class="col-md-6">
+              <label class="form-label">Arrondi des angles</label>
+              <div class="d-flex align-items-center gap-2">
+                <input type="range" class="form-range" id="themeRadius" name="theme_border_radius" min="0" max="32" step="2" value="<?= $theme_radius ?>">
+                <span class="fw-bold" id="themeRadiusValue" style="min-width:40px"><?= $theme_radius ?>px</span>
+              </div>
+              <small class="text-muted">Cards, boutons, champs de formulaire</small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Police d'écriture</label>
+              <select class="form-select" id="themeFont" name="theme_font_family">
+                <?php
+                $fontsUI = [
+                  'system-ui' => 'Système (par défaut)',
+                  'Inter' => 'Inter',
+                  'Poppins' => 'Poppins',
+                  'Roboto' => 'Roboto',
+                  'Open Sans' => 'Open Sans',
+                  'Montserrat' => 'Montserrat',
+                  'Lato' => 'Lato',
+                  'Nunito' => 'Nunito',
+                  'Raleway' => 'Raleway',
+                  'Source Sans 3' => 'Source Sans 3',
+                  'Work Sans' => 'Work Sans',
+                  'DM Sans' => 'DM Sans',
+                  'Outfit' => 'Outfit',
+                  'Plus Jakarta Sans' => 'Plus Jakarta Sans',
+                  'Manrope' => 'Manrope',
+                  'Figtree' => 'Figtree',
+                  'Quicksand' => 'Quicksand',
+                  'Cabin' => 'Cabin',
+                  'Rubik' => 'Rubik',
+                  'Karla' => 'Karla',
+                ];
+                foreach ($fontsUI as $val => $label):
+                ?>
+                <option value="<?= $val ?>" <?= $theme_font === $val ? 'selected' : '' ?>><?= $label ?></option>
+                <?php endforeach; ?>
+              </select>
+              <small class="text-muted">Appliqué sur tout le site</small>
+            </div>
+
+            <!-- Aperçu en direct -->
+            <div class="col-12 mt-3">
+              <label class="form-label fw-bold">Aperçu en direct</label>
+              <div id="themePreview" style="border:1px solid #e2e8f0;border-radius:12px;padding:24px;transition:background .3s,color .3s;">
+                <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+                  <button type="button" class="btn" id="prevBtnPrimary" style="border:none;padding:8px 20px;font-weight:600">Bouton primaire</button>
+                  <button type="button" class="btn" id="prevBtnSecondary" style="border:none;padding:8px 20px;font-weight:600">Bouton secondaire</button>
+                  <button type="button" class="btn" id="prevBtnOutline" style="background:transparent;border:2px solid;padding:8px 20px;font-weight:600">Bouton outline</button>
+                </div>
+                <div class="d-flex flex-wrap gap-3">
+                  <div id="prevCard" style="border:1px solid;padding:16px;width:200px;">
+                    <div style="font-weight:700;margin-bottom:8px" id="prevCardTitle">Exemple de carte</div>
+                    <div style="font-size:13px;opacity:.65" id="prevCardText">Contenu avec la police et les angles arrondis.</div>
+                  </div>
+                  <div id="prevCard2" style="border:1px solid;padding:16px;width:200px;">
+                    <input type="text" class="form-control mb-2" id="prevInput" placeholder="Champ texte" disabled>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" checked disabled id="prevSwitch">
+                      <label class="form-check-label" style="font-size:13px">Option activée</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 d-flex justify-content-between">
+              <button type="submit" name="reset_theme" class="btn btn-outline-secondary w-auto" onclick="return confirm('Réinitialiser le thème aux valeurs par défaut ?')">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Par défaut
+              </button>
+              <button type="submit" name="save_theme" class="btn btn-primary w-auto">Sauvegarder le thème</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
+    <!-- Carte : Flash Info -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Couleurs du bandeau Flash Info</h2>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-md-4">
+            <label class="form-label">Couleur de fond</label>
+            <div class="d-flex align-items-center gap-2">
+              <input type="color" class="form-control form-control-color" id="flashBgColor" name="flash_bg_color" value="<?= htmlspecialchars($flash_bg_color) ?>" style="width:50px;height:38px">
+              <code id="flashBgHex"><?= htmlspecialchars($flash_bg_color) ?></code>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Couleur du texte</label>
+            <div class="d-flex align-items-center gap-2">
+              <input type="color" class="form-control form-control-color" id="flashTextColor" name="flash_text_color" value="<?= htmlspecialchars($flash_text_color) ?>" style="width:50px;height:38px">
+              <code id="flashTextHex"><?= htmlspecialchars($flash_text_color) ?></code>
+            </div>
+          </div>
+
+          <div class="col-md-4 d-flex align-items-end">
+            <div id="flashPreview" style="width:100%;padding:10px 16px;border-radius:var(--radius);font-weight:600;font-size:13px;text-align:center;background:<?= htmlspecialchars($flash_bg_color) ?>;color:<?= htmlspecialchars($flash_text_color) ?>;">
+              Apercu du bandeau flash info
+            </div>
+          </div>
+
+          <div class="col-12 d-flex justify-content-between">
+            <button type="submit" name="reset_flash_colors" class="btn btn-outline-secondary w-auto" onclick="return confirm('Réinitialiser les couleurs du bandeau ?')">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Par défaut
+            </button>
+            <button type="submit" name="save_flash_colors" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
   </div><!-- /row -->
 </div><!-- /tab-personnalisation -->
 
@@ -1926,6 +2196,157 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
     document.getElementById('tab-' + this.dataset.tab).classList.add('active');
   });
 });
+
+// ─── Theme live preview ───
+(function(){
+  var primary = document.getElementById('themePrimary');
+  var secondary = document.getElementById('themeSecondary');
+  var darkPrimary = document.getElementById('themeDarkPrimary');
+  var darkSecondary = document.getElementById('themeDarkSecondary');
+  var radius = document.getElementById('themeRadius');
+  var font = document.getElementById('themeFont');
+  if (!primary) return;
+
+  var currentMode = 'light';
+
+  var fontMap = {
+    'system-ui': "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    'Inter': "'Inter', sans-serif", 'Poppins': "'Poppins', sans-serif",
+    'Roboto': "'Roboto', sans-serif", 'Open Sans': "'Open Sans', sans-serif",
+    'Montserrat': "'Montserrat', sans-serif", 'Lato': "'Lato', sans-serif",
+    'Nunito': "'Nunito', sans-serif", 'Raleway': "'Raleway', sans-serif",
+    'Source Sans 3': "'Source Sans 3', sans-serif", 'Work Sans': "'Work Sans', sans-serif",
+    'DM Sans': "'DM Sans', sans-serif", 'Outfit': "'Outfit', sans-serif",
+    'Plus Jakarta Sans': "'Plus Jakarta Sans', sans-serif", 'Manrope': "'Manrope', sans-serif",
+    'Figtree': "'Figtree', sans-serif", 'Quicksand': "'Quicksand', sans-serif",
+    'Cabin': "'Cabin', sans-serif", 'Rubik': "'Rubik', sans-serif",
+    'Karla': "'Karla', sans-serif"
+  };
+
+  function luminance(hex) {
+    hex = hex.replace('#','');
+    var r = parseInt(hex.substring(0,2),16)/255;
+    var g = parseInt(hex.substring(2,4),16)/255;
+    var b = parseInt(hex.substring(4,6),16)/255;
+    r = r <= 0.03928 ? r/12.92 : Math.pow((r+0.055)/1.055, 2.4);
+    g = g <= 0.03928 ? g/12.92 : Math.pow((g+0.055)/1.055, 2.4);
+    b = b <= 0.03928 ? b/12.92 : Math.pow((b+0.055)/1.055, 2.4);
+    return 0.2126*r + 0.7152*g + 0.0722*b;
+  }
+  function autoText(hex) { return luminance(hex) > 0.4 ? '#1e293b' : '#ffffff'; }
+  function darken(hex, f) {
+    hex = hex.replace('#','');
+    var r = Math.max(0, Math.round(parseInt(hex.substring(0,2),16)*(1-f)));
+    var g = Math.max(0, Math.round(parseInt(hex.substring(2,4),16)*(1-f)));
+    var b = Math.max(0, Math.round(parseInt(hex.substring(4,6),16)*(1-f)));
+    return '#'+r.toString(16).padStart(2,'0')+g.toString(16).padStart(2,'0')+b.toString(16).padStart(2,'0');
+  }
+  function lighten(hex, f) {
+    hex = hex.replace('#','');
+    var r = Math.min(255, Math.round(parseInt(hex.substring(0,2),16) + (255 - parseInt(hex.substring(0,2),16)) * f));
+    var g = Math.min(255, Math.round(parseInt(hex.substring(2,4),16) + (255 - parseInt(hex.substring(2,4),16)) * f));
+    var b = Math.min(255, Math.round(parseInt(hex.substring(4,6),16) + (255 - parseInt(hex.substring(4,6),16)) * f));
+    return '#'+r.toString(16).padStart(2,'0')+g.toString(16).padStart(2,'0')+b.toString(16).padStart(2,'0');
+  }
+
+  // Mode tabs
+  document.querySelectorAll('.theme-mode-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.theme-mode-tab').forEach(function(t) { t.classList.remove('active'); t.style.background=''; t.style.color=''; });
+      this.classList.add('active');
+      currentMode = this.dataset.mode;
+      document.getElementById('themePanelLight').style.display = currentMode === 'light' ? '' : 'none';
+      document.getElementById('themePanelDark').style.display = currentMode === 'dark' ? '' : 'none';
+      updatePreview();
+    });
+  });
+
+  function updatePreview() {
+    var isDark = currentMode === 'dark';
+    var p = isDark ? darkPrimary.value : primary.value;
+    var s = isDark ? darkSecondary.value : secondary.value;
+    var r = radius.value + 'px', rSm = Math.max(0, radius.value - 4) + 'px';
+    var pText = autoText(p), sText = autoText(s);
+    var ff = fontMap[font.value] || fontMap['system-ui'];
+    var bgColor = isDark ? '#0f172a' : '#f8f7f9';
+    var cardBg = isDark ? '#1e293b' : '#ffffff';
+    var borderColor = isDark ? '#334155' : '#e2e8f0';
+    var textColor = isDark ? '#e2e8f0' : '#1e293b';
+
+    // Hex labels
+    document.getElementById('themePrimaryHex').textContent = primary.value;
+    document.getElementById('themeSecondaryHex').textContent = secondary.value;
+    if (darkPrimary) document.getElementById('themeDarkPrimaryHex').textContent = darkPrimary.value;
+    if (darkSecondary) document.getElementById('themeDarkSecondaryHex').textContent = darkSecondary.value;
+    document.getElementById('themeRadiusValue').textContent = radius.value + 'px';
+
+    // Preview container
+    var prev = document.getElementById('themePreview');
+    prev.style.background = bgColor;
+    prev.style.borderColor = borderColor;
+    prev.style.color = textColor;
+    prev.style.borderRadius = r;
+
+    // Preview buttons
+    var bp = document.getElementById('prevBtnPrimary');
+    bp.style.background = p; bp.style.color = pText; bp.style.borderRadius = r; bp.style.fontFamily = ff;
+    var bs = document.getElementById('prevBtnSecondary');
+    bs.style.background = s; bs.style.color = sText; bs.style.borderRadius = r; bs.style.fontFamily = ff;
+    var bo = document.getElementById('prevBtnOutline');
+    bo.style.color = p; bo.style.borderColor = p; bo.style.borderRadius = r; bo.style.fontFamily = ff;
+
+    // Preview cards
+    ['prevCard','prevCard2'].forEach(function(id) {
+      var c = document.getElementById(id);
+      if(c) { c.style.borderRadius = r; c.style.background = cardBg; c.style.borderColor = borderColor; c.style.color = textColor; }
+    });
+    var pi = document.getElementById('prevInput');
+    if(pi) { pi.style.borderRadius = rSm; pi.style.background = isDark ? '#0f172a' : '#fff'; pi.style.borderColor = borderColor; pi.style.color = textColor; }
+    document.getElementById('prevCardTitle').style.fontFamily = ff;
+    document.getElementById('prevCardTitle').style.color = textColor;
+    document.getElementById('prevCardText').style.fontFamily = ff;
+
+    // Preview switch
+    var sw = document.getElementById('prevSwitch');
+    if (sw) { sw.style.backgroundColor = p; sw.style.borderColor = p; }
+
+    // Live update CSS variables on page (always light for the admin)
+    var root = document.documentElement.style;
+    root.setProperty('--primary', primary.value);
+    root.setProperty('--primary-hover', darken(primary.value, 0.15));
+    root.setProperty('--primary-text', autoText(primary.value));
+    root.setProperty('--primary-light', lighten(primary.value, 0.85));
+    root.setProperty('--secondary', secondary.value);
+    root.setProperty('--secondary-hover', darken(secondary.value, 0.15));
+    root.setProperty('--secondary-text', autoText(secondary.value));
+    root.setProperty('--secondary-light', lighten(secondary.value, 0.85));
+    root.setProperty('--radius', r);
+    root.setProperty('--radius-sm', rSm);
+    root.setProperty('--radius-lg', (parseInt(radius.value) > 0 ? parseInt(radius.value) + 4 : 0) + 'px');
+    root.setProperty('--font-family', ff);
+  }
+
+  [primary, secondary, darkPrimary, darkSecondary].forEach(function(el) { if(el) el.addEventListener('input', updatePreview); });
+  radius.addEventListener('input', updatePreview);
+  font.addEventListener('change', updatePreview);
+  updatePreview();
+})();
+
+// ─── Flash info color preview ───
+(function(){
+  var fbg = document.getElementById('flashBgColor');
+  var ftxt = document.getElementById('flashTextColor');
+  var prev = document.getElementById('flashPreview');
+  if (!fbg || !ftxt || !prev) return;
+  function up() {
+    prev.style.background = fbg.value;
+    prev.style.color = ftxt.value;
+    document.getElementById('flashBgHex').textContent = fbg.value;
+    document.getElementById('flashTextHex').textContent = ftxt.value;
+  }
+  fbg.addEventListener('input', up);
+  ftxt.addEventListener('input', up);
+})();
 
 // ─── Galerie parcours ───
 document.addEventListener('DOMContentLoaded', function() {

@@ -116,7 +116,7 @@ $photoCount = count($photos);
     .view-toggle {
       display: flex;
       gap: 0;
-      border-radius: 10px;
+      border-radius: var(--radius);
       overflow: hidden;
       border: 1px solid #e2e8f0;
       flex-shrink: 0;
@@ -135,8 +135,8 @@ $photoCount = count($photos);
       transition: all .2s;
     }
 
-    .view-toggle-btn:hover { color: #0f172a; background: #f8fafc; }
-    .view-toggle-btn.active { background: #0f172a; color: #fff; }
+    .view-toggle-btn:hover { color: var(--page-text, #0f172a); background: #f8fafc; }
+    .view-toggle-btn.active { background: var(--secondary, #0f172a); color: var(--secondary-text, #fff); }
     .view-toggle-btn svg { width: 18px; height: 18px; }
 
     .gallery-hero .back-btn {
@@ -145,14 +145,14 @@ $photoCount = count($photos);
       justify-content: center;
       width: 40px;
       height: 40px;
-      border-radius: 10px;
-      background: #0f172a;
-      color: #fff;
+      border-radius: var(--radius);
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #fff);
       text-decoration: none;
       transition: all .25s ease;
       flex-shrink: 0;
     }
-    .gallery-hero .back-btn:hover { background: var(--pink); }
+    .gallery-hero .back-btn:hover { background: var(--pink); color: var(--primary-text, #fff); }
 
     .gallery-hero-info {
       display: flex;
@@ -186,7 +186,7 @@ $photoCount = count($photos);
     .gallery-item {
       position: relative;
       overflow: hidden;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       aspect-ratio: 1;
       background: #f1f5f9;
@@ -225,7 +225,7 @@ $photoCount = count($photos);
     .mosaic-item {
       position: relative;
       overflow: hidden;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       flex-shrink: 0;
       background: #f1f5f9;
@@ -301,7 +301,7 @@ $photoCount = count($photos);
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       user-select: none;
       -webkit-user-drag: none;
     }
@@ -345,7 +345,7 @@ $photoCount = count($photos);
       flex-shrink: 0;
       width: 60px;
       height: 60px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
       cursor: pointer;
       opacity: 0.4;
@@ -382,7 +382,7 @@ $photoCount = count($photos);
         gap: 4px;
         padding: 0 8px;
       }
-      .gallery-item { border-radius: 4px; }
+      .gallery-item { border-radius: var(--radius-sm); }
       .mosaic-container { display: none !important; }
       .gallery-grid {
         display: grid !important;
@@ -395,6 +395,7 @@ $photoCount = count($photos);
       .lightbox-thumb { width: 48px; height: 48px; }
     }
   </style>
+<?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 <body>
   <?php include '../inc/navbar-modern.php'; ?>
@@ -403,7 +404,7 @@ $photoCount = count($photos);
     <section class="gallery-hero">
       <div class="gallery-hero-left">
         <a href="photos?year_id=<?= $yearId ?>" title="Retour" class="back-btn">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="#ffffff"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
         </a>
         <div class="gallery-hero-info">
           <h1 class="gallery-hero-title"><?= htmlspecialchars(!empty($album['album_desc']) ? $album['album_desc'] : $albumTitle) ?></h1>
