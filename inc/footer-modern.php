@@ -11,6 +11,17 @@
 <!-- FOOTER -->
 <footer class="site-footer">
   <div class="footer-container">
+    <?php
+      if (!isset($footer_logo) && isset($pdo)) {
+          try {
+              $stmtFL = $pdo->prepare('SELECT footer_logo FROM setting WHERE id = 1 LIMIT 1');
+              $stmtFL->execute();
+              $footer_logo = $stmtFL->fetchColumn() ?: null;
+          } catch (\Throwable $e) { $footer_logo = null; }
+      }
+      $footerLogoFile = $footer_logo ?: 'logo_blanc.png';
+    ?>
+    <style>.footer-content::after{background:url('../files/_logos/<?= rawurlencode($footerLogoFile) ?>') no-repeat center/contain;}</style>
     <div class="footer-content">
       <div class="footer-left">
         <div class="footer-brand">

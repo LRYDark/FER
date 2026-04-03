@@ -331,19 +331,28 @@ tr.filters select{
     </form>
   </div></div></div>
 
-<div class="modal fade" id="importModal" tabindex="-1"><div class="modal-dialog">
+<div class="modal fade" id="importModal" tabindex="-1"><div class="modal-dialog modal-lg">
  <div class="modal-content"><div class="modal-header">
    <h5 class="modal-title">Import Excel</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <form id="fImport" enctype="multipart/form-data"><div class="modal-body">
     <input type="file" name="file" id="importFileInput" accept=".xlsx,.xls" class="form-control" required>
+    <div class="form-check form-switch mt-3">
+      <input class="form-check-input" type="checkbox" name="send_mails" id="importSendMails" checked>
+      <label class="form-check-label" for="importSendMails">Envoyer les mails d'inscription</label>
+    </div>
     <div id="importPreview" class="mt-3" style="display:none">
       <div id="importPreviewLoading" class="text-center text-muted py-2" style="display:none">
         <span class="spinner-border spinner-border-sm me-1"></span>Analyse du fichier…
       </div>
       <div id="importPreviewResult" style="display:none"></div>
     </div>
+    <div id="importProgress" class="mt-3" style="display:none">
+      <div id="importProgressLog" style="max-height:300px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
+      <div id="importRecap" class="mt-3" style="display:none"></div>
+    </div>
   </div><div class="modal-footer">
-    <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+    <button type="button" id="btnImportClose" class="btn btn-primary" style="display:none">Fermer et actualiser</button>
     <button type="submit" id="btnImportSubmit" class="btn btn-rose" disabled>Importer</button>
   </div></form></div></div></div>
 
@@ -386,7 +395,7 @@ tr.filters select{
         <div class="text-center mt-3" id="qrManualZone">
           <p class="text-muted mb-1" style="font-size:13px">Ou saisir le N° d'inscription :</p>
           <div class="input-group" style="max-width:320px;margin:0 auto">
-            <input type="number" id="qrManualInput" class="form-control" placeholder="N° inscription" inputmode="numeric">
+            <input type="text" id="qrManualInput" class="form-control" placeholder="N° inscription (ex: E21800406)">
             <button id="qrManualBtn" class="btn btn-primary">OK</button>
           </div>
         </div>
@@ -860,9 +869,19 @@ document.getElementById('importFileInput').addEventListener('change', async func
 
 // Reset preview when modal closes
 document.getElementById('importModal').addEventListener('hidden.bs.modal', function() {
+  document.getElementById('fImport').reset();
   document.getElementById('importPreview').style.display = 'none';
   document.getElementById('importPreviewResult').innerHTML = '';
+  document.getElementById('importProgress').style.display = 'none';
+  document.getElementById('importProgressLog').innerHTML = '';
+  document.getElementById('importRecap').style.display = 'none';
   document.getElementById('btnImportSubmit').disabled = true;
+  document.getElementById('btnImportSubmit').style.display = 'inline-block';
+  document.getElementById('btnImportClose').style.display = 'none';
+});
+
+document.getElementById('btnImportClose').addEventListener('click', function() {
+  location.reload();
 });
 
 /* ══ IMPORT EXCEL — Submit ════ */
@@ -872,10 +891,26 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   const form   = e.target;
   const button = document.getElementById('btnImportSubmit');
   const data   = new FormData(form);
-  const originalText = button.innerHTML;
+  const progressDiv = document.getElementById('importProgress');
+  const logDiv = document.getElementById('importProgressLog');
+  const recapDiv = document.getElementById('importRecap');
+  const closeBtn = document.getElementById('btnImportClose');
 
   button.disabled = true;
   button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Import en cours…';
+  progressDiv.style.display = 'block';
+  logDiv.innerHTML = '';
+  recapDiv.style.display = 'none';
+
+  function addLog(icon, text, color) {
+    const line = document.createElement('div');
+    line.style.cssText = 'padding:3px 0;color:' + (color || '#333');
+    line.innerHTML = icon + ' ' + text;
+    logDiv.appendChild(line);
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  addLog('⏳', 'Import en cours…', '#666');
 
   try {
     const res = await fetch('../config/api.php?route=import-excel', {
@@ -887,25 +922,58 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 
-    const json = await res.json();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
 
-    if (json.ok) {
-      var msg = json.rows_added + ' ligne(s) importée(s).';
-      if (json.rows_skipped > 0) msg += '\n' + json.rows_skipped + ' ligne(s) ignorée(s).';
-      if (json.duplicates && json.duplicates.length > 0) msg += '\n' + json.duplicates.length + ' doublon(s) ignoré(s).';
-      if (json.mails_sent > 0) msg += '\n' + json.mails_sent + ' mail(s) envoyé(s).';
-      alert(msg);
-      bootstrap.Modal.getOrCreateInstance('#importModal').hide();
-      location.reload();
-    } else {
-      alert('Erreur : ' + (json.error || JSON.stringify(json)));
-      button.disabled = false;
-      button.innerHTML = originalText;
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const evt = JSON.parse(line);
+          if (evt.type === 'import_ok') {
+            addLog('✅', '<strong>' + evt.count + '</strong> inscription(s) importée(s) en BDD', '#198754');
+          } else if (evt.type === 'import_skip') {
+            addLog('⚠️', evt.count + ' ligne(s) ignorée(s) — ' + evt.duplicates + ' doublon(s)', '#e67e22');
+          } else if (evt.type === 'mail_sent') {
+            addLog('📧', 'Mail envoyé pour <strong>' + evt.inscription_no + '</strong>' + (evt.qrcode ? ' (avec QR code)' : ''), '#0d6efd');
+          } else if (evt.type === 'mail_error') {
+            addLog('❌', 'Échec mail pour ' + evt.inscription_no + ' : ' + evt.error, '#dc3545');
+          } else if (evt.type === 'mail_skip') {
+            addLog('⏭️', 'Mails non envoyés (désactivé)', '#666');
+          } else if (evt.type === 'done') {
+            finalResult = evt;
+          } else if (evt.type === 'error') {
+            addLog('❌', 'Erreur : ' + evt.message, '#dc3545');
+          }
+        } catch(e) {}
+      }
     }
+
+    if (finalResult) {
+      recapDiv.style.display = 'block';
+      recapDiv.innerHTML = '<div class="d-flex gap-3 flex-wrap">'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-success"><div class="text-muted" style="font-size:12px">Importées</div><div class="fw-bold fs-5 text-success">' + finalResult.rows_added + '</div></div>'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-warning"><div class="text-muted" style="font-size:12px">Ignorées</div><div class="fw-bold fs-5 text-warning">' + finalResult.rows_skipped + '</div></div>'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-primary"><div class="text-muted" style="font-size:12px">Mails envoyés</div><div class="fw-bold fs-5 text-primary">' + finalResult.mails_sent + '</div></div>'
+        + '</div>';
+    }
+
+    button.style.display = 'none';
+    closeBtn.style.display = 'inline-block';
+
   } catch (err) {
-    alert('Erreur réseau/serveur : ' + err.message);
+    addLog('❌', 'Erreur réseau/serveur : ' + err.message, '#dc3545');
+    button.style.display = 'inline-block';
     button.disabled = false;
-    button.innerHTML = originalText;
   }
 });
 
@@ -1116,8 +1184,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   }
 
   function lookupPerson(no) {
-    no = parseInt(no);
-    if (!no || isNaN(no) || no === lastScannedNo) return;
+    no = String(no).trim();
+    if (!no || no === lastScannedNo) return;
     lastScannedNo = no;
 
     // Find in DataTable data
@@ -1126,11 +1194,18 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     var rank = -1;
 
     // Sort by inscription_no ASC to determine rank
-    var sorted = allData.slice().sort(function(a,b){ return a.inscription_no - b.inscription_no; });
+    var sorted = allData.slice().sort(function(a,b){
+      var numA = parseInt(String(a.inscription_no).replace(/[ES]/g,'')) || 0;
+      var numB = parseInt(String(b.inscription_no).replace(/[ES]/g,'')) || 0;
+      return numA - numB;
+    });
     for (var i = 0; i < sorted.length; i++) {
-      if (sorted[i].inscription_no == no) {
+      var ino = String(sorted[i].inscription_no);
+      // Correspondance exacte ou sans préfixe (compatibilité anciens QR codes)
+      if (ino === no || ino === 'E' + no || ino === 'S' + no) {
         person = sorted[i];
-        rank = i + 1; // 1-based
+        rank = i + 1;
+        lastScannedNo = ino;
         break;
       }
     }
@@ -1164,8 +1239,15 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       eligDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — inscrit N°' + rank + ' (limite : ' + highlightLimit + ')</div>';
     }
 
-    // Highlight current size
+    // Avertissement si déjà scanné (taille déjà renseignée)
     var currentSize = person.tshirt_size || '-';
+    if (currentSize !== '-') {
+      var warnDiv = document.getElementById('qrSaveStatus');
+      warnDiv.style.display = 'block';
+      warnDiv.innerHTML = '<div class="alert alert-warning py-2 mb-0" style="font-size:15px;font-weight:600"><i class="bi bi-exclamation-triangle-fill me-2"></i>Attention : déjà scanné (taille ' + currentSize + ')</div>';
+    }
+
+    // Highlight current size
     document.querySelectorAll('.qr-size-btn').forEach(function(b){
       b.classList.remove('btn-primary','active');
       b.classList.add('btn-outline-dark');
@@ -1189,7 +1271,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 
     // Find the person's DB id
     var allData = tbl.data().toArray();
-    var person = allData.find(function(p){ return p.inscription_no == lastScannedNo; });
+    var person = allData.find(function(p){ return String(p.inscription_no) === String(lastScannedNo); });
     if (!person) return;
 
     // Highlight button
@@ -1237,8 +1319,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 250, height: 250 } },
       function onScanSuccess(decodedText) {
-        var match = decodedText.match(/\d+/);
-        if (match) lookupPerson(match[0]);
+        var val = decodedText.trim();
+        if (val) lookupPerson(val);
       },
       function onScanFailure() {}
     ).then(function(){ scannerRunning = true; })
@@ -1268,7 +1350,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   document.getElementById('qrNextScan').addEventListener('click', function(){
     resetPersonCard();
     document.getElementById('qrManualInput').value = '';
-    document.getElementById('qrManualInput').focus();
+    showScanner();
   });
 
   // Manual input

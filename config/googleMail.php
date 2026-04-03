@@ -177,7 +177,7 @@ function getAccessToken(bool $autoRedirect = true) {
  * Génère un QR Code en data URI (base64 PNG) pour un inscription_no donné.
  * Retourne '' si la lib n'est pas disponible.
  */
-function generateQrCodeDataUri(int $inscriptionNo): string
+function generateQrCodeDataUri(string|int $inscriptionNo): string
 {
     try {
         $qrCode = new \Endroid\QrCode\QrCode(
@@ -198,7 +198,7 @@ function generateQrCodeDataUri(int $inscriptionNo): string
  * Détermine si le QR Code doit être inclus dans le mail pour cet inscrit.
  * Se base sur le mode configuré et le rang de l'inscrit par date d'inscription.
  */
-function shouldIncludeQrCode(int $inscriptionNo): bool
+function shouldIncludeQrCode(string|int $inscriptionNo): bool
 {
     global $data, $pdo;
 
@@ -207,16 +207,32 @@ function shouldIncludeQrCode(int $inscriptionNo): bool
     if ($mode === 'none') return false;
     if ($mode === 'all') return true;
 
-    // mode 'first_x' : compter combien d'inscrits ont été créés AVANT celui-ci
+    // mode 'first_x' : vérifier le rang chronologique de cet inscrit
     $limit = (int) ($data['qrcode_mail_limit'] ?? 0);
     if ($limit <= 0) return false;
 
     try {
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM registrations WHERE inscription_no != :no');
-        $stmt->execute(['no' => $inscriptionNo]);
-        $totalOthers = (int) $stmt->fetchColumn();
-        // Si le nombre total d'inscrits (hors celui-ci) est < limit, celui-ci fait partie des X premiers
-        return $totalOthers < $limit;
+        // Récupérer la date d'inscription de cet inscrit
+        $stmtDate = $pdo->prepare('SELECT created_at FROM registrations WHERE inscription_no = :no LIMIT 1');
+        $stmtDate->execute(['no' => $inscriptionNo]);
+        $createdAt = $stmtDate->fetchColumn();
+
+        if (!$createdAt) return false;
+
+        // Compter combien d'inscrits ont été créés AVANT ou en même temps (rang chronologique)
+        $stmtRank = $pdo->prepare(
+            'SELECT COUNT(*) FROM registrations
+             WHERE created_at < :created_at
+                OR (created_at = :created_at2 AND inscription_no <= :no)'
+        );
+        $stmtRank->execute([
+            'created_at'  => $createdAt,
+            'created_at2' => $createdAt,
+            'no'          => $inscriptionNo,
+        ]);
+        $rank = (int) $stmtRank->fetchColumn();
+
+        return $rank <= $limit;
     } catch (\Throwable $e) {
         writeLog("⚠️ Erreur vérification QR Code limit : " . $e->getMessage());
         return false;
@@ -234,7 +250,7 @@ function render(string $path, array $vars = []): string
 /** @var string|null $lastMailError Dernière erreur détaillée de sendMail() */
 $lastMailError = null;
 
-function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', ?int $inscriptionNo = null, ?string $mailSubtype = null) {
+function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null) {
     global $data, $lastMailError;
     $lastMailError = null;
 

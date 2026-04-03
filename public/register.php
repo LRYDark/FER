@@ -71,12 +71,12 @@ if ($_POST) {
 
             if ($counterExists) {
                 $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
-                $nextInscriptionNo = (int)$pdo->lastInsertId();
+                $nextInscriptionNo = 'S' . (int)$pdo->lastInsertId();
             } else {
-                $stmt2 = $pdo->prepare('SELECT MAX(inscription_no) as max_no FROM registrations');
+                $stmt2 = $pdo->prepare("SELECT MAX(CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED)) as max_no FROM registrations");
                 $stmt2->execute();
                 $result2 = $stmt2->fetch(PDO::FETCH_ASSOC);
-                $nextInscriptionNo = ($result2['max_no'] ?? 0) + 1;
+                $nextInscriptionNo = 'S' . (($result2['max_no'] ?? 0) + 1);
             }
 
             // Construction dynamique des données à insérer
@@ -142,6 +142,19 @@ $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 $accueil_active = $data['accueil_active'] ? 1 : 0;
+
+// Ouverture / fermeture automatique des inscriptions
+$tz = new DateTimeZone('Europe/Paris');
+$now = new DateTime('now', $tz);
+$autoOpen  = !empty($data['registration_auto_open'])  ? new DateTime($data['registration_auto_open'], $tz)  : null;
+$autoClose = !empty($data['registration_auto_close']) ? new DateTime($data['registration_auto_close'], $tz) : null;
+
+if ($autoOpen && $now >= $autoOpen) {
+    $accueil_active = 1;
+}
+if ($autoClose && $now >= $autoClose) {
+    $accueil_active = 0;
+}
 $div_reglementation = $data['div_reglementation'] ?? '';
 
 // Formulaire dynamique
@@ -443,6 +456,11 @@ $formFields = getActiveFields($pdo, 'qr');
       <div class="p-4 w-100" role="alert" style="margin-top:5%; font-size: 1.2rem; background-color: #ffe1f0; color: #e03f8a; border-radius: var(--radius-lg);">
         🚫 Les inscriptions sont actuellement fermées. Merci de votre compréhension.
       </div>
+      <?php if ($autoOpen && $now < $autoOpen): ?>
+        <p style="text-align:center; margin-top:20px; font-size:1rem; color:#b5366b;">
+          📅 Les inscriptions ouvriront le <strong><?= $autoOpen->format('d/m/Y') ?></strong> à <strong><?= $autoOpen->format('H\hi') ?></strong>.
+        </p>
+      <?php endif; ?>
     </div>
   </main>
 <?php else: ?>

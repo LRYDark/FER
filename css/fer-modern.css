@@ -1226,7 +1226,6 @@ p.sub{
   bottom: 5px;
   width: clamp(175px, 16vw, 260px);
   aspect-ratio: 7680 / 3561;
-  background: url('../files/_logos/logo_blanc.png') no-repeat center / contain;
   opacity: .65;
   pointer-events: none;
   z-index: 0;
@@ -1518,7 +1517,6 @@ body.dark-theme{
 /* Navbar */
 body.dark-theme .floating-nav{
   background: #1e1f28;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 body.dark-theme .floating-nav .nav-pill{
   background: transparent;
@@ -1767,10 +1765,6 @@ body.dark-theme .site-footer .theme-toggle { border-color: rgba(255,255,255,.15)
 
 /* --- Page content dark overrides (shared elements) --- */
 
-/* Navbar border */
-body.dark-theme .floating-nav{
-  border-bottom-color: rgba(255,255,255,.06);
-}
 
 /* Reg bars (used on photos, news, parcours) */
 body.dark-theme .album-reg-card,
