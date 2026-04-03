@@ -1,6 +1,7 @@
 <?php
 require '../config/config.php';
 checkMaintenance();
+require '../inc/navbar-data.php';
 require_once '../config/tracker.php';
 trackPageVisit();
 
@@ -91,9 +92,9 @@ try {
 }
 
 $titleAccueil  = $data['titleAccueil'] ?? '';
-$picture = $data['picture'] ?? '';  
+$picture = $data['picture'] ?? '';
 $link_instagram = $data['link_instagram'] ?? null;
-$link_facebook = $data['link_facebook'] ?? null; 
+$link_facebook = $data['link_facebook'] ?? null;
 $link_twitter = $data['link_twitter'] ?? null;
 $link_youtube = $data['link_youtube'] ?? null;
 $date_course = $data['date_course'] ?? null;

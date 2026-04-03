@@ -279,6 +279,9 @@ function getCreateTableStatements(): array
           `theme_dark_secondary_color` VARCHAR(7) DEFAULT '#e2e8f0',
           `theme_border_radius` INT DEFAULT 12,
           `theme_font_family` VARCHAR(100) DEFAULT 'Inter',
+          `footer_logo` VARCHAR(255) DEFAULT 'logo_blanc.png',
+          `registration_auto_open` DATETIME DEFAULT NULL,
+          `registration_auto_close` DATETIME DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -371,7 +374,7 @@ function getCreateTableStatements(): array
 
         "CREATE TABLE IF NOT EXISTS `registrations` (
           `id` int(11) NOT NULL AUTO_INCREMENT,
-          `inscription_no` int(11) NOT NULL,
+          `inscription_no` VARCHAR(50) NOT NULL,
           `nom` varchar(255) NOT NULL,
           `prenom` varchar(255) NOT NULL,
           `tel` varchar(255) DEFAULT NULL,

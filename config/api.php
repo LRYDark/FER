@@ -738,7 +738,7 @@ if ($route==='registrations'){
     /* GET : tous rôles */
     if($_SERVER['REQUEST_METHOD']==='GET'){
         requireRole(['admin','user','viewer','saisie']);
-        $rows = $pdo->query('SELECT * FROM registrations ORDER BY inscription_no DESC')->fetchAll();
+        $rows = $pdo->query("SELECT * FROM registrations ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC")->fetchAll();
         echo json_encode(decryptRows($rows)); exit;
     }
 
@@ -790,10 +790,10 @@ if ($route==='registrations'){
         if ($counterExists) {
             // Atomique : incrémente et retourne la nouvelle valeur en une seule opération
             $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
-            $no = (int)$pdo->lastInsertId();
+            $no = 'S' . (int)$pdo->lastInsertId();
         } else {
             // Fallback si la migration n'a pas encore été jouée
-            $no = (int)($pdo->query('SELECT MAX(inscription_no) FROM registrations')->fetchColumn() ?: 0) + 1;
+            $no = 'S' . ((int)($pdo->query("SELECT MAX(CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED)) FROM registrations")->fetchColumn() ?: 0) + 1);
         }
 
         /* origine : orga de l'utilisateur connecté (si existe), sinon valeur front, sinon "en ligne"  */
@@ -940,6 +940,9 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
         'application/vnd.ms-excel',                                           // xls
         'application/zip',                                                    // xlsx détecté comme zip sur certains serveurs
+        'text/xml',                                                            // xls exporté en XML (AssoConnect)
+        'application/xml',                                                     // variante XML
+        'text/html',                                                           // xls exporté en HTML (certains exports)
     ];
     if (!in_array($xlsExt, $allowedXlsExts, true) || !in_array($xlsMime, $allowedXlsMimes, true)) {
         http_response_code(400);
@@ -1008,10 +1011,10 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
 
-        // 6. Traitement des lignes
-        $pdo->beginTransaction();
-        $added = $skipped = 0;
-        $duplicates = $errors = $newRegistrants = [];
+        // 6. Parsing de toutes les lignes
+        $parsedRows = [];
+        $skipped = 0;
+        $duplicates = $errors = [];
 
         foreach ($sheet as $idx => $row) {
             if ($idx === 1) continue;
@@ -1022,7 +1025,7 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $value = $col ? trim($row[$col]) : null;
 
                 if ($bddField === 'inscription_no') {
-                    $value = (int)$value;
+                    $value = 'E' . trim($value);
                 } elseif ($bddField === 'naissance') {
                     $value = (is_numeric($value) && $value >= 1900 && $value <= date('Y')) ? $value : null;
                 } elseif ($bddField === 'created_at') {
@@ -1057,6 +1060,25 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 continue;
             }
 
+            $existingTickets[] = $values['inscription_no'];
+            $parsedRows[] = ['ligne' => $idx, 'values' => $values];
+        }
+
+        // 7. Tri par date de création (du plus ancien au plus récent)
+        usort($parsedRows, function ($a, $b) {
+            $dateA = $a['values']['created_at'] ?? '9999-12-31';
+            $dateB = $b['values']['created_at'] ?? '9999-12-31';
+            return strcmp($dateA, $dateB);
+        });
+
+        // 8. Insertion en BDD dans l'ordre chronologique
+        $pdo->beginTransaction();
+        $added = 0;
+        $newRegistrants = [];
+
+        foreach ($parsedRows as $parsed) {
+            $values = $parsed['values'];
+
             $stmt->execute([
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
                 encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
@@ -1064,10 +1086,9 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'en ligne (CB)', $values['created_at'], currentUserId()
             ]);
 
-            $existingTickets[] = $values['inscription_no'];
             $added++;
 
-            // Collecter les nouveaux inscrits pour envoi mail après commit
+            // Collecter les nouveaux inscrits pour envoi mail après commit (ordre chronologique)
             if (!empty($values['email'])) {
                 $newRegistrants[] = [
                     'email'          => $values['email'],
@@ -1080,13 +1101,32 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pdo->commit();
 
+        // Streaming : passer en NDJSON pour le temps réel
+        header('Content-Type: application/x-ndjson; charset=utf-8');
+        header('X-Accel-Buffering: no');
+        if (ob_get_level()) ob_end_flush();
+
+        $sendEvent = function($data) {
+            echo json_encode($data, JSON_UNESCAPED_UNICODE) . "\n";
+            flush();
+        };
+
+        // Événement : import terminé
+        $sendEvent(['type' => 'import_ok', 'count' => $added]);
+        if ($skipped > 0) {
+            $sendEvent(['type' => 'import_skip', 'count' => $skipped, 'duplicates' => count($duplicates)]);
+        }
+
         // Envoi des mails de confirmation aux nouveaux inscrits (hors transaction)
         $mailsSent = 0;
-        if (!empty($newRegistrants)) {
+        $sendMails = isset($_POST['send_mails']);
+
+        if ($sendMails && !empty($newRegistrants)) {
             require_once __DIR__ . '/googleMail.php';
             $subject = 'Inscription enregistrée - Forbach en Rose';
             foreach ($newRegistrants as $reg) {
                 try {
+                    $hasQr = shouldIncludeQrCode($reg['inscription_no']);
                     sendMail(
                         $reg['email'],
                         $subject,
@@ -1098,19 +1138,23 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $reg['inscription_no']
                     );
                     $mailsSent++;
+                    $sendEvent(['type' => 'mail_sent', 'inscription_no' => $reg['inscription_no'], 'qrcode' => $hasQr]);
                 } catch (\Throwable $mailErr) {
                     writeLog("⚠️ Mail import échoué pour {$reg['email']} : " . $mailErr->getMessage());
+                    $sendEvent(['type' => 'mail_error', 'inscription_no' => $reg['inscription_no'], 'error' => $mailErr->getMessage()]);
                 }
             }
+        } elseif (!$sendMails) {
+            $sendEvent(['type' => 'mail_skip']);
         }
 
-        echo json_encode([
-            'ok'            => true,
+        // Récap final
+        $sendEvent([
+            'type'          => 'done',
             'rows_added'    => $added,
             'rows_skipped'  => $skipped,
             'mails_sent'    => $mailsSent,
-            'duplicates'    => $duplicates,
-            'errors'        => $errors
+            'duplicates'    => count($duplicates),
         ]);
         exit;
 
@@ -1144,8 +1188,8 @@ if ($route === 'check-duplicates' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Nettoyer et convertir en entiers
-    $tickets = array_map('intval', array_filter($tickets, 'is_numeric'));
+    // Ajouter le préfixe E pour comparer avec la BDD
+    $tickets = array_map(function($t) { return 'E' . trim($t); }, array_filter($tickets));
 
     if (empty($tickets)) {
         echo json_encode(['duplicates' => []]);
@@ -1157,7 +1201,8 @@ if ($route === 'check-duplicates' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute($tickets);
     $existing = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
 
-    echo json_encode(['duplicates' => array_map('intval', $existing)]);
+    // Retourner sans le préfixe E pour le front
+    echo json_encode(['duplicates' => array_map(function($e) { return ltrim($e, 'E'); }, $existing)]);
     exit;
 }
 
@@ -1210,16 +1255,17 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     /* 1. Entêtes */
     $headers = ['No', 'Nom', 'Prénom', 'Tel', 'Email', 'Naissance',
                 'Sexe', 'T-shirt', 'Ville', 'Entreprise', 'Origine',
-                'Paiement', 'Créé le', 'Par'];
+                'Paiement', 'Créé le', 'Créé par'];
     $sheet->fromArray($headers, null, 'A1');
 
     /* 2. Données (déchiffrer les PII) */
     $rows = $pdo->query(
-        'SELECT inscription_no, nom, prenom, tel, email, naissance,
-                sexe, tshirt_size, ville, entreprise, origine,
-                paiement_mode, created_at, created_by
-         FROM registrations
-         ORDER BY inscription_no'
+        "SELECT r.inscription_no, r.nom, r.prenom, r.tel, r.email, r.naissance,
+                r.sexe, r.tshirt_size, r.ville, r.entreprise, r.origine,
+                r.paiement_mode, r.created_at, COALESCE(u.email, r.created_by) AS created_by
+         FROM registrations r
+         LEFT JOIN users u ON r.created_by = u.id
+         ORDER BY CAST(REPLACE(REPLACE(r.inscription_no, 'S', ''), 'E', '') AS UNSIGNED)"
     )->fetchAll(PDO::FETCH_ASSOC);
     $rows = decryptRows($rows);
     $rows = array_map('array_values', $rows); // Convertir en tableau numérique pour fromArray
@@ -1390,7 +1436,7 @@ if ($route === 'registrations-archive') {
         $registrations = $pdo->query(
             "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size
              FROM `$tableArchive`
-             ORDER BY inscription_no DESC"
+             ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC"
         )->fetchAll(PDO::FETCH_ASSOC);
 
         echo json_encode(decryptRows($registrations));

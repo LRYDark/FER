@@ -28,6 +28,7 @@ $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
+$footer_logo = $data['footer_logo'] ?? 'logo_blanc.png';
 $title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 
@@ -46,6 +47,8 @@ $titleAccueil  = $data['titleAccueil']   ?? '';
 $link_instagram  = $data['link_instagram']   ?? '';
 $link_facebook = $data['link_facebook'] ?? ''; 
 $accueil_active = !empty($data['accueil_active']) ? 1 : 0;
+$registration_auto_open  = $data['registration_auto_open']  ?? null;
+$registration_auto_close = $data['registration_auto_close'] ?? null;
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
 $picture_partner= $data['picture_partner'] ?? ''; 
@@ -257,6 +260,41 @@ if (isset($_POST['save_navbar_logo'])) {
 }
 
 /* --------------------------------------------------------------------------
+   Logo du footer
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_footer_logo'])) {
+    $uploadDir = '../files/_logos/';
+    $allowed = ['jpg','jpeg','png','gif','webp','svg'];
+    $allowedMime = ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml'];
+
+    if (!empty($_FILES['footer_logo']['name'])) {
+        $ext = strtolower(pathinfo($_FILES['footer_logo']['name'], PATHINFO_EXTENSION));
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['footer_logo']['tmp_name']);
+        if (!in_array($ext, $allowed, true) || !in_array($mime, $allowedMime, true)) {
+            addToast('danger', 'Format d\'image non autorisé.');
+        } elseif ($_FILES['footer_logo']['size'] > 5 * 1024 * 1024) {
+            addToast('danger', 'Image trop volumineuse (max 5 Mo).');
+        } else {
+            $safeName = uniqid('footer_', true) . '.' . $ext;
+            if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+            if (move_uploaded_file($_FILES['footer_logo']['tmp_name'], $uploadDir . $safeName)) {
+                if ($footer_logo && $footer_logo !== 'logo_blanc.png' && file_exists($uploadDir . $footer_logo)) {
+                    @unlink($uploadDir . $footer_logo);
+                }
+                $pdo->prepare('UPDATE setting SET footer_logo = :l WHERE id = 1')
+                    ->execute(['l' => $safeName]);
+                $footer_logo = $safeName;
+                addToast('success', 'Logo du footer mis à jour !');
+            } else {
+                addToast('danger', 'Erreur lors de l\'upload.');
+            }
+        }
+    } else {
+        addToast('warning', 'Aucune image sélectionnée.');
+    }
+}
+
+/* --------------------------------------------------------------------------
    Personnalisation — Thème (couleurs, radius, police)
 -------------------------------------------------------------------------- */
 // Liste des polices autorisées
@@ -340,13 +378,20 @@ if (isset($_POST['save_inscription_params'])) {
     $registration_fee = (int) ($_POST['registration_fee'] ?? 0);
     $qrcode_mail_limit = max(0, (int) ($_POST['qrcode_mail_limit'] ?? 0));
 
+    $registration_auto_open  = !empty($_POST['registration_auto_open'])  ? date('Y-m-d H:i:s', strtotime($_POST['registration_auto_open']))  : null;
+    $registration_auto_close = !empty($_POST['registration_auto_close']) ? date('Y-m-d H:i:s', strtotime($_POST['registration_auto_close'])) : null;
+
     $pdo->prepare(
         'UPDATE setting SET registration_fee = :fee,
-         accueil_active = :accueil_active, qrcode_mail_limit = :qrcode_mail_limit
+         accueil_active = :accueil_active, qrcode_mail_limit = :qrcode_mail_limit,
+         registration_auto_open = :auto_open, registration_auto_close = :auto_close
          WHERE id = 1'
     )->execute([
         'fee' => $registration_fee,
-        'accueil_active' => $accueil_active, 'qrcode_mail_limit' => $qrcode_mail_limit,
+        'accueil_active' => $accueil_active,
+        'qrcode_mail_limit' => $qrcode_mail_limit,
+        'auto_open' => $registration_auto_open,
+        'auto_close' => $registration_auto_close,
     ]);
 
     addToast('success', 'Paramètres d\'inscription enregistrés !');
@@ -999,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', function() {
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
-    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
+    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil'])) $activeTab = 'accueil';
     elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
@@ -1032,7 +1077,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
   <div class="row g-4">
 
     <!-- Carte : Logo -->
-    <div class="col-12">
+    <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Logo de la navbar</h2>
         <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
@@ -1058,7 +1103,36 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
           </div>
         </form>
       </div>
-    </div><!-- /col-12 -->
+    </div><!-- /col-lg-6 -->
+
+    <!-- Carte : Logo du footer -->
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Logo du footer</h2>
+        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <div class="col-12">
+            <label class="form-label">Changer le logo</label>
+            <input type="file" class="form-control" name="footer_logo" accept="image/*">
+            <small class="text-muted">Formats : JPG, PNG, GIF, WebP, SVG — Max 5 Mo</small>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Logo actuel</label>
+            <div>
+              <?php if ($footer_logo && file_exists('../files/_logos/' . $footer_logo)): ?>
+                <div class="mb-2"><img src="../files/_logos/<?= rawurlencode($footer_logo) ?>" alt="Logo footer actuel" class="img-thumbnail" style="max-height:60px;background:#222;"></div>
+                <small class="text-muted"><?= htmlspecialchars($footer_logo) ?></small>
+              <?php else: ?>
+                <span class="text-muted">Aucun logo</span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_footer_logo" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-lg-6 -->
 
     <!-- Carte : Thème -->
     <div class="col-12">
@@ -1447,11 +1521,22 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
             <small class="text-muted">Utilisé pour la coloration rose dans le dashboard et le QR Code (si mode = X premiers).</small>
           </div>
           <div class="col-12">
-            <label class="form-label">Activer les inscriptions</label>
+            <label class="form-label">Activer les inscriptions (manuel)</label>
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active_gen" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
               <label class="form-check-label" for="accueil_active_gen">Oui / Non</label>
             </div>
+          </div>
+          <div class="col-12"><hr class="my-2"><h6 class="text-muted mb-0">Ouverture / Fermeture automatique</h6></div>
+          <div class="col-md-6">
+            <label class="form-label">Ouverture automatique</label>
+            <input type="datetime-local" class="form-control" name="registration_auto_open" value="<?= $registration_auto_open ? date('Y-m-d\TH:i', strtotime($registration_auto_open)) : '' ?>">
+            <small class="text-muted">Les inscriptions s'ouvriront automatiquement à cette date et heure.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Fermeture automatique</label>
+            <input type="datetime-local" class="form-control" name="registration_auto_close" value="<?= $registration_auto_close ? date('Y-m-d\TH:i', strtotime($registration_auto_close)) : '' ?>">
+            <small class="text-muted">Les inscriptions se fermeront automatiquement à cette date et heure.</small>
           </div>
           <div class="col-12 text-end">
             <button type="submit" name="save_inscription_params" class="btn btn-primary w-auto">Sauvegarder</button>
