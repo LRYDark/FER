@@ -31,4 +31,4 @@ migrate_*.php
 *.pdf
 
 # Dépendances
-vendor/
+# vendor/ — inclus dans git pour déploiement sans composer
