@@ -417,14 +417,11 @@ $jsConfig = json_encode([
 .suggestion-item:hover { background-color: #f8f9fa; }
 .suggestion-item:last-child { border-bottom: none; }
 
-/* ── Kill oc-content padding for editor pane only ── */
-#oc-content{overflow:hidden !important;border-radius:0 !important;width:100% !important;max-width:100% !important}
-#oc-app-container{border-radius:0 !important;margin:0 !important;height:calc(100vh - var(--oc-topbar-h,52px)) !important}
-.ed-pane,.ed-pane-google{width:100%}
+.ed-pane{width:100%}
 .ed-wrap{width:100%}
 
 /* ── Layout ── */
-.ed-wrap{position:relative;height:calc(100vh - var(--oc-topbar-h,52px) - 42px - 80px);margin:8px 12px 20px;border-radius:12px;overflow:hidden}
+.ed-wrap{position:relative;height:calc(100vh - var(--oc-topbar-h,52px) - 230px);margin:8px 0 0;border-radius:12px;overflow:hidden}
 .ed-sidebar{
   position:absolute;top:8px;left:8px;bottom:8px;z-index:20;
   width:300px;background:#fff;
@@ -447,6 +444,12 @@ $jsConfig = json_encode([
 .ed-sidebar #sidebar::-webkit-scrollbar-track{background:transparent}
 .ed-sidebar #sidebar::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:3px}
 .ed-sidebar #sidebar::-webkit-scrollbar-thumb:hover{background:#cbd5e1}
+/* Settings tabs (sous-onglets) */
+.settings-tabs{border-bottom:2px solid #f0e8eb;margin-bottom:24px;gap:0}
+.settings-tabs .nav-link{color:#1e293b;font-weight:500;font-size:14px;padding:10px 18px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:0;background:transparent;cursor:pointer;transition:.15s}
+.settings-tabs .nav-link:hover{color:#1e293b;border-bottom-color:#d4c4cb}
+.settings-tabs .nav-link.active{color:#1e293b;font-weight:600;border-bottom-color:#F42182;background:transparent}
+
 /* Sidebar tabs */
 .sb-tabs{display:flex;border-bottom:2px solid #f0e8eb;flex-shrink:0}
 .sb-tab{
@@ -466,7 +469,6 @@ $jsConfig = json_encode([
 
 .ed-pane{display:none}.ed-pane.active{display:flex}
 #paneEnvoi.active{display:block}
-.ed-pane-google{display:none;padding:28px 32px;overflow-y:auto;height:calc(100vh - var(--oc-topbar-h,52px) - 42px)}.ed-pane-google.active{display:block}
 
 /* ── Sidebar controls ── */
 .sb-title{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;font-weight:700;margin:16px 0 8px;padding-top:8px;border-top:1px solid #f1f5f9}
@@ -925,7 +927,7 @@ $jsConfig = json_encode([
 </div>
 
 <!-- ═══ GOOGLE / SMTP PANE ═══ -->
-<div class="ed-pane-google <?= $activeSubTab==='google'?'active':'' ?>" id="paneGoogle">
+<div class="ed-pane <?= $activeSubTab==='google'?'active':'' ?>" id="paneGoogle" style="display:<?= $activeSubTab==='google'?'block':'none' ?>">
   <div class="row g-4">
 
     <!-- ── Provider switch (affichage seulement, pas de submit) ── -->
@@ -1136,6 +1138,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       $('#paneEnvoi').classList.toggle('active', id==='paneEnvoi');
       $('#paneTemplate').classList.toggle('active', id==='paneTemplate');
       $('#paneGoogle').classList.toggle('active', id==='paneGoogle');
+      $('#paneGoogle').style.display = (id==='paneGoogle') ? 'block' : 'none';
       // Initialize TinyMCE when envoi tab is shown
       if (id === 'paneEnvoi') initMailTinyMCE();
     });

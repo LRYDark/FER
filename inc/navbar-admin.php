@@ -252,7 +252,7 @@ html, body {
   background: var(--oc-surface);
   border-radius: 0 var(--oc-radius) var(--oc-radius) 0;
   overflow: auto;
-  padding: 28px 32px;
+  padding: 28px 32px 60px;
   min-width: 0;
   color: #1e293b;
 }
