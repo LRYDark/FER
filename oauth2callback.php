@@ -1,13 +1,20 @@
 <?php
 require 'config/config.php';
 
+// Log helper (avant writeLog qui est définie plus bas)
+function _oauthLog($msg) {
+    $f = __DIR__ . '/config/logs/logs_google_mails.log';
+    file_put_contents($f, '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND);
+}
+
 // ── Vérifier que l'utilisateur est un admin authentifié ──────────────────────
+_oauthLog('DEBUG session_id=' . session_id() . ' uid=' . ($_SESSION['uid'] ?? 'NULL') . ' role=' . ($_SESSION['role'] ?? 'NULL') . ' oauth_state=' . ($_SESSION['oauth_state'] ?? 'NULL'));
 requireRole(['admin']);
 
 // ── Vérifier le paramètre state (protection CSRF OAuth — RFC 6749 §10.12) ───
 if (!isset($_GET['state']) || !isset($_SESSION['oauth_state'])
     || !hash_equals($_SESSION['oauth_state'], $_GET['state'])) {
-    error_log('OAuth2callback : état CSRF invalide ou absent. GET state=' . ($_GET['state'] ?? 'NULL') . ' SESSION state=' . ($_SESSION['oauth_state'] ?? 'NULL') . ' session_id=' . session_id());
+    _oauthLog('ERREUR CSRF : GET state=' . ($_GET['state'] ?? 'NULL') . ' SESSION state=' . ($_SESSION['oauth_state'] ?? 'NULL'));
     $csrfRedirect = $_SESSION['oauth_redirect'] ?? 'inc/setting.php';
     unset($_SESSION['oauth_state'], $_SESSION['oauth_redirect']);
     header('Location: ' . $csrfRedirect . '?auth=error&message=' . urlencode('État OAuth invalide. Veuillez relancer l\'autorisation.'));
