@@ -955,10 +955,6 @@ $jsConfig = json_encode([
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google">
           <div class="col-12"><label class="form-label">Client ID</label><input type="text" class="form-control" name="client_id" value="<?= htmlspecialchars($client_id) ?>"></div>
           <div class="col-12"><label class="form-label">Client Secret</label><input type="text" class="form-control" name="client_secret" value="<?= htmlspecialchars($client_secret) ?>"></div>
-          <?php if($hasMailFields): ?>
-          <div class="col-12"><label class="form-label">Email de contact</label><input type="email" class="form-control" name="mail_email" value="<?= htmlspecialchars($mail_email) ?>" placeholder="contact@forbachenrose.fr"></div>
-          <div class="col-12"><label class="form-label">T&eacute;l&eacute;phone</label><input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>"></div>
-          <?php endif; ?>
           <div class="col-12 text-end"><button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
@@ -1058,6 +1054,21 @@ $jsConfig = json_encode([
         </div>
       </div>
     </div>
+
+    <!-- Coordonnées (template mail) -->
+    <?php if($hasMailFields): ?>
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2><i class="bi bi-envelope-at me-2"></i>Coordonn&eacute;es</h2>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="<?= htmlspecialchars($activeMailView) ?>">
+          <div class="col-12"><label class="form-label">Email de contact</label><input type="email" class="form-control" name="mail_email" value="<?= htmlspecialchars($mail_email) ?>" placeholder="contact@forbachenrose.fr"></div>
+          <div class="col-12"><label class="form-label">T&eacute;l&eacute;phone</label><input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>"></div>
+          <div class="col-12 text-end"><button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button></div>
+        </form>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- QR Code -->
     <div class="col-12 col-lg-6">
