@@ -92,9 +92,21 @@ function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month 
         $stmt->execute($params);
         $topReferers = $stmt->fetchAll();
 
+        // Unique visitors by device type (mobile vs desktop)
+        $mobilePattern = 'Mobile|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|webOS|BlackBerry';
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT visitor_ip) AS cnt FROM page_visits WHERE $where AND user_agent REGEXP :pattern");
+        $stmt->execute($params + ['pattern' => $mobilePattern]);
+        $uniqueMobile = (int)$stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT visitor_ip) AS cnt FROM page_visits WHERE $where AND (user_agent IS NULL OR user_agent NOT REGEXP :pattern)");
+        $stmt->execute($params + ['pattern' => $mobilePattern]);
+        $uniqueDesktop = (int)$stmt->fetchColumn();
+
         return [
             'total_visits'    => (int)($row['total_visits'] ?? 0),
             'unique_visitors' => (int)($row['unique_visitors'] ?? 0),
+            'unique_mobile'   => $uniqueMobile,
+            'unique_desktop'  => $uniqueDesktop,
             'top_pages'       => $topPages,
             'top_referers'    => $topReferers,
         ];
@@ -103,6 +115,8 @@ function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month 
         return [
             'total_visits'    => 0,
             'unique_visitors' => 0,
+            'unique_mobile'   => 0,
+            'unique_desktop'  => 0,
             'top_pages'       => [],
             'top_referers'    => [],
         ];
@@ -165,5 +179,53 @@ function getDailyVisits(PDO $pdo, string $period, ?int $year = null, ?int $month
     } catch (PDOException $e) {
         error_log('Tracker getDailyVisits failed: ' . $e->getMessage());
         return [];
+    }
+}
+
+/**
+ * Get daily unique visitors split by device type.
+ */
+function getDailyUniqueByDevice(PDO $pdo, string $period, ?int $year = null, ?int $month = null): array
+{
+    try {
+        $params = [];
+        if ($year && $month) {
+            $where = "YEAR(visited_at) = :year AND MONTH(visited_at) = :month";
+            $params = ['year' => $year, 'month' => $month];
+        } elseif ($period === 'yesterday') {
+            $where = "DATE(visited_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+        } else {
+            switch ($period) {
+                case 'today':  $where = "DATE(visited_at) = CURDATE()"; break;
+                case 'month':  $where = "YEAR(visited_at) = YEAR(CURDATE()) AND MONTH(visited_at) = MONTH(CURDATE())"; break;
+                case 'year':   $where = "YEAR(visited_at) = YEAR(CURDATE())"; break;
+                default:       $where = "1=1";
+            }
+        }
+
+        $mobilePattern = 'Mobile|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|webOS|BlackBerry';
+
+        // All unique visitors per day
+        $stmt = $pdo->prepare("SELECT DATE(visited_at) AS day, COUNT(DISTINCT visitor_ip) AS cnt FROM page_visits WHERE $where GROUP BY day ORDER BY day");
+        $stmt->execute($params);
+        $all = [];
+        foreach ($stmt->fetchAll() as $r) $all[$r['day']] = (int)$r['cnt'];
+
+        // Mobile unique per day
+        $stmt = $pdo->prepare("SELECT DATE(visited_at) AS day, COUNT(DISTINCT visitor_ip) AS cnt FROM page_visits WHERE $where AND user_agent REGEXP :pattern GROUP BY day ORDER BY day");
+        $stmt->execute($params + ['pattern' => $mobilePattern]);
+        $mobile = [];
+        foreach ($stmt->fetchAll() as $r) $mobile[$r['day']] = (int)$r['cnt'];
+
+        // Desktop unique per day
+        $stmt = $pdo->prepare("SELECT DATE(visited_at) AS day, COUNT(DISTINCT visitor_ip) AS cnt FROM page_visits WHERE $where AND (user_agent IS NULL OR user_agent NOT REGEXP :pattern) GROUP BY day ORDER BY day");
+        $stmt->execute($params + ['pattern' => $mobilePattern]);
+        $desktop = [];
+        foreach ($stmt->fetchAll() as $r) $desktop[$r['day']] = (int)$r['cnt'];
+
+        return ['all' => $all, 'mobile' => $mobile, 'desktop' => $desktop];
+    } catch (PDOException $e) {
+        error_log('Tracker getDailyUniqueByDevice failed: ' . $e->getMessage());
+        return ['all' => [], 'mobile' => [], 'desktop' => []];
     }
 }
