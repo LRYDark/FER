@@ -18,6 +18,16 @@ $mail_email = $data['mail_email'] ?? '';
 $mail_phone = $data['mail_phone'] ?? '';
 $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 
+// SMTP / mail provider
+$mail_provider   = $data['mail_provider'] ?? 'google';
+$smtp_host       = $data['smtp_host'] ?? '';
+$smtp_port       = $data['smtp_port'] ?? 465;
+$smtp_user       = $data['smtp_user'] ?? '';
+$smtp_pass       = !empty($data['smtp_pass']) ? decrypt($data['smtp_pass']) : '';
+$smtp_encryption = $data['smtp_encryption'] ?? 'ssl';
+$smtp_from_email = $data['smtp_from_email'] ?? '';
+$smtp_from_name  = $data['smtp_from_name'] ?? 'Forbach en Rose';
+
 // OAuth — chargement lazy comme setting.php
 $isConnected = false;
 $authUrl = '#';
@@ -179,6 +189,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         addToast('success', 'Configuration Google enregistrée !');
     }
 
+    // Save SMTP config
+    if (isset($_POST['save_smtp'])) {
+        $newProvider     = in_array($_POST['mail_provider'] ?? '', ['google','smtp']) ? $_POST['mail_provider'] : 'google';
+        $newSmtpHost     = trim($_POST['smtp_host'] ?? '');
+        $newSmtpPort     = (int)($_POST['smtp_port'] ?? 465);
+        $newSmtpUser     = trim($_POST['smtp_user'] ?? '');
+        $newSmtpPass     = $_POST['smtp_pass'] ?? '';
+        $newSmtpEnc      = in_array($_POST['smtp_encryption'] ?? '', ['ssl','tls','none']) ? $_POST['smtp_encryption'] : 'ssl';
+        $newSmtpFromEmail = trim($_POST['smtp_from_email'] ?? '');
+        $newSmtpFromName  = trim($_POST['smtp_from_name'] ?? 'Forbach en Rose');
+
+        $encPass = $newSmtpPass !== '' ? encrypt($newSmtpPass) : ($data['smtp_pass'] ?? '');
+
+        $pdo->prepare('UPDATE setting SET mail_provider=:mp, smtp_host=:sh, smtp_port=:sp, smtp_user=:su, smtp_pass=:spw, smtp_encryption=:se, smtp_from_email=:sfe, smtp_from_name=:sfn WHERE id=1')
+            ->execute([
+                'mp'=>$newProvider, 'sh'=>$newSmtpHost, 'sp'=>$newSmtpPort,
+                'su'=>$newSmtpUser, 'spw'=>$encPass, 'se'=>$newSmtpEnc,
+                'sfe'=>$newSmtpFromEmail, 'sfn'=>$newSmtpFromName,
+            ]);
+        $mail_provider = $newProvider;
+        $smtp_host = $newSmtpHost; $smtp_port = $newSmtpPort;
+        $smtp_user = $newSmtpUser; $smtp_encryption = $newSmtpEnc;
+        $smtp_from_email = $newSmtpFromEmail; $smtp_from_name = $newSmtpFromName;
+        if ($newSmtpPass !== '') $smtp_pass = $newSmtpPass;
+        addToast('success', 'Configuration SMTP enregistrée !');
+    }
+
+    // Switch mail provider
+    if (isset($_POST['switch_provider'])) {
+        $newProvider = in_array($_POST['mail_provider'] ?? '', ['google','smtp']) ? $_POST['mail_provider'] : 'google';
+        $pdo->prepare('UPDATE setting SET mail_provider=:mp WHERE id=1')->execute(['mp'=>$newProvider]);
+        $mail_provider = $newProvider;
+        addToast('success', 'Fournisseur mail changé : ' . ($newProvider === 'google' ? 'Gmail' : 'SMTP'));
+    }
+
+    // SMTP test
+    if (isset($_POST['action']) && $_POST['action'] === 'send_test_smtp') {
+        try {
+            require_once __DIR__ . '/../config/googleMail.php';
+            $email = trim($_SESSION['email'] ?? '');
+            if ($email) {
+                writeSmtpLog("Test SMTP — destinataire exact : [$email]");
+                $result = sendMailSmtp($email, 'Mail de test SMTP - Forbach en Rose', 'Test SMTP réussi !', 'Ce mail de test confirme que la configuration SMTP fonctionne correctement.');
+                if ($result) addToast('success', 'Mail test SMTP envoyé à ' . htmlspecialchars($email));
+                else addToast('danger', 'Échec envoi mail test SMTP');
+            } else {
+                addToast('danger', 'Email introuvable');
+            }
+        } catch (\Throwable $e) { addToast('danger', 'Échec : ' . $e->getMessage()); }
+    }
+
     // QR Code config
     if (isset($_POST['save_qrcode_config'])) {
         $mode = $_POST['qrcode_mail_mode'] ?? 'none';
@@ -306,6 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
 }
 
 $activeSubTab = $_POST['active_subtab'] ?? ($_GET['tab'] ?? 'envoi');
+$activeMailView = $_POST['mail_view'] ?? ($mail_provider === 'google' ? 'google' : 'smtp');
 
 // Build full config JSON for JS
 $jsConfig = json_encode([
@@ -862,41 +924,136 @@ $jsConfig = json_encode([
 </div>
 </div>
 
-<!-- ═══ GOOGLE PANE ═══ -->
+<!-- ═══ GOOGLE / SMTP PANE ═══ -->
 <div class="ed-pane-google <?= $activeSubTab==='google'?'active':'' ?>" id="paneGoogle">
   <div class="row g-4">
 
-    <!-- Gmail Config -->
-    <div class="col-12 col-lg-6">
+    <!-- ── Provider switch (affichage seulement, pas de submit) ── -->
+    <div class="col-12">
       <div class="setting-card">
-        <h2>Paramètres Gmail</h2>
+        <h2>
+          <i class="bi bi-envelope-gear me-2"></i>Fournisseur d'envoi
+          <span class="badge <?= $mail_provider==='google'?'bg-danger':'bg-primary' ?>" style="font-size:13px;vertical-align:middle;margin-left:8px">
+            <i class="bi <?= $mail_provider==='google'?'bi-google':'bi-server' ?> me-1"></i>
+            Actif : <?= $mail_provider==='google'?'Gmail':'SMTP' ?>
+          </span>
+        </h2>
+        <div class="btn-group" role="group">
+          <input type="radio" class="btn-check" name="prov_view" value="google" id="provViewGoogle" <?= $activeMailView==='google'?'checked':'' ?>>
+          <label class="btn btn-outline-danger" for="provViewGoogle"><i class="bi bi-google me-1"></i>Gmail (OAuth)</label>
+          <input type="radio" class="btn-check" name="prov_view" value="smtp" id="provViewSmtp" <?= $activeMailView==='smtp'?'checked':'' ?>>
+          <label class="btn btn-outline-primary" for="provViewSmtp"><i class="bi bi-server me-1"></i>Serveur SMTP</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ GMAIL CONFIG ══ -->
+    <div class="col-12 col-lg-6 panel-gmail" <?= $activeMailView!=='google'?'style="display:none"':'' ?>>
+      <div class="setting-card">
+        <h2><i class="bi bi-google me-2"></i>Param&egrave;tres Gmail</h2>
         <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google">
           <div class="col-12"><label class="form-label">Client ID</label><input type="text" class="form-control" name="client_id" value="<?= htmlspecialchars($client_id) ?>"></div>
           <div class="col-12"><label class="form-label">Client Secret</label><input type="text" class="form-control" name="client_secret" value="<?= htmlspecialchars($client_secret) ?>"></div>
           <?php if($hasMailFields): ?>
           <div class="col-12"><label class="form-label">Email de contact</label><input type="email" class="form-control" name="mail_email" value="<?= htmlspecialchars($mail_email) ?>" placeholder="contact@forbachenrose.fr"></div>
-          <div class="col-12"><label class="form-label">Téléphone</label><input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>"></div>
+          <div class="col-12"><label class="form-label">T&eacute;l&eacute;phone</label><input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>"></div>
           <?php endif; ?>
           <div class="col-12 text-end"><button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
 
-    <!-- Connexion Status -->
-    <div class="col-12 col-lg-6">
+    <!-- Connexion Google Status -->
+    <div class="col-12 col-lg-6 panel-gmail" <?= $activeMailView!=='google'?'style="display:none"':'' ?>>
       <div class="setting-card">
-        <h2>Connexion Google</h2>
+        <h2><i class="bi bi-plug me-2"></i>Connexion Google</h2>
         <div class="p-3 rounded mb-3 <?= $isConnected?'bg-success-subtle':'bg-danger-subtle' ?>">
-          <strong>Statut :</strong> <?= $isConnected?'Connecté à Gmail':'Non connecté' ?>
+          <strong>Statut :</strong> <?= $isConnected?'Connect&eacute; &agrave; Gmail':'Non connect&eacute;' ?>
         </div>
         <div class="d-flex gap-2 flex-wrap">
           <?php if($isConnected): ?>
-            <form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="action" value="test_connection"><button type="submit" class="btn btn-success w-auto">Tester</button></form>
-            <form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="action" value="send_test_mail"><button type="submit" class="btn btn-primary w-auto">Mail test</button></form>
-            <form method="post" style="display:inline" data-confirm="Déconnecter ?"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="action" value="disconnect"><button type="submit" class="btn btn-danger w-auto">Déconnecter</button></form>
+            <form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google"><input type="hidden" name="action" value="test_connection"><button type="submit" class="btn btn-success w-auto">Tester</button></form>
+            <form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google"><input type="hidden" name="action" value="send_test_mail"><button type="submit" class="btn btn-primary w-auto">Mail test</button></form>
+            <form method="post" style="display:inline" data-confirm="D&eacute;connecter ?"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google"><input type="hidden" name="action" value="disconnect"><button type="submit" class="btn btn-danger w-auto">D&eacute;connecter</button></form>
+            <?php if($mail_provider !== 'google'): ?>
+            <form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google"><input type="hidden" name="mail_provider" value="google"><input type="hidden" name="switch_provider" value="1"><button type="submit" class="btn btn-warning w-auto"><i class="bi bi-check-circle me-1"></i>Passer Gmail en actif</button></form>
+            <?php endif; ?>
           <?php else: ?>
             <a href="<?= htmlspecialchars($authUrl) ?>" class="btn btn-primary w-auto">Se connecter avec Google</a>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SMTP CONFIG ══ -->
+    <div class="col-12 col-lg-6 panel-smtp" <?= $activeMailView!=='smtp'?'style="display:none"':'' ?>>
+      <div class="setting-card">
+        <h2><i class="bi bi-server me-2"></i>Param&egrave;tres SMTP</h2>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="smtp">
+          <input type="hidden" name="mail_provider" value="<?= htmlspecialchars($mail_provider) ?>">
+          <div class="col-12">
+            <label class="form-label">Serveur SMTP</label>
+            <input type="text" class="form-control" name="smtp_host" value="<?= htmlspecialchars($smtp_host) ?>" placeholder="node141-eu.n0c.com">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Port sortant (SMTP)</label>
+            <input type="number" class="form-control" name="smtp_port" value="<?= (int)$smtp_port ?>" placeholder="465">
+            <div class="form-text">465 (SSL) ou 587 (TLS). Ne pas utiliser les ports entrants (993/995).</div>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Chiffrement</label>
+            <select class="form-select" name="smtp_encryption">
+              <option value="ssl" <?= $smtp_encryption==='ssl'?'selected':'' ?>>SSL (port 465)</option>
+              <option value="tls" <?= $smtp_encryption==='tls'?'selected':'' ?>>TLS / STARTTLS (port 587)</option>
+              <option value="none" <?= $smtp_encryption==='none'?'selected':'' ?>>Aucun</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nom d'utilisateur</label>
+            <input type="text" class="form-control" name="smtp_user" value="<?= htmlspecialchars($smtp_user) ?>" placeholder="no_reply@forbachenrose.com">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Mot de passe</label>
+            <input type="password" class="form-control" name="smtp_pass" value="" placeholder="<?= $smtp_pass ? '********' : 'Mot de passe du compte' ?>">
+            <?php if($smtp_pass): ?><div class="form-text text-success"><i class="bi bi-check-circle"></i> Mot de passe enregistr&eacute; (laisser vide pour ne pas changer)</div><?php endif; ?>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Email exp&eacute;diteur (From)</label>
+            <input type="email" class="form-control" name="smtp_from_email" value="<?= htmlspecialchars($smtp_from_email) ?>" placeholder="no_reply@forbachenrose.com">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Nom exp&eacute;diteur</label>
+            <input type="text" class="form-control" name="smtp_from_name" value="<?= htmlspecialchars($smtp_from_name) ?>" placeholder="Forbach en Rose">
+          </div>
+          <div class="col-12 text-end"><button type="submit" name="save_smtp" class="btn btn-primary w-auto">Sauvegarder</button></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- SMTP Test + Activation -->
+    <div class="col-12 col-lg-6 panel-smtp" <?= $activeMailView!=='smtp'?'style="display:none"':'' ?>>
+      <div class="setting-card">
+        <h2><i class="bi bi-lightning me-2"></i>Connexion SMTP</h2>
+        <?php $smtpConfigured = !empty($smtp_host) && !empty($smtp_user) && !empty($smtp_pass); ?>
+        <div class="p-3 rounded mb-3 <?= $smtpConfigured?'bg-success-subtle':'bg-warning-subtle' ?>">
+          <strong>Statut :</strong> <?= $smtpConfigured ? 'Connect&eacute; &agrave; <strong>' . htmlspecialchars($smtp_host) . ':' . (int)$smtp_port . '</strong> (' . htmlspecialchars($smtp_encryption) . ') &mdash; ' . htmlspecialchars($smtp_from_email) : 'Non configur&eacute; (remplissez les champs SMTP)' ?>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <?php if($smtpConfigured): ?>
+          <form method="post" style="display:inline">
+            <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="smtp">
+            <input type="hidden" name="action" value="send_test_smtp">
+            <button type="submit" class="btn btn-primary w-auto"><i class="bi bi-send me-1"></i>Envoyer un mail test</button>
+          </form>
+          <?php if($mail_provider !== 'smtp'): ?>
+          <form method="post" style="display:inline">
+            <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="smtp">
+            <input type="hidden" name="mail_provider" value="smtp"><input type="hidden" name="switch_provider" value="1">
+            <button type="submit" class="btn btn-warning w-auto"><i class="bi bi-check-circle me-1"></i>Passer SMTP en actif</button>
+          </form>
+          <?php endif; ?>
           <?php endif; ?>
         </div>
       </div>
@@ -905,7 +1062,7 @@ $jsConfig = json_encode([
     <!-- QR Code -->
     <div class="col-12 col-lg-6">
       <div class="setting-card">
-        <h2>QR Code</h2>
+        <h2><i class="bi bi-qr-code me-2"></i>QR Code</h2>
         <form action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google">
           <div class="col-12">
@@ -925,6 +1082,15 @@ $jsConfig = json_encode([
 
 <!-- ═══ JAVASCRIPT ═══ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+// Provider view toggle (affichage seulement, pas de sauvegarde)
+document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var isGoogle = this.value === 'google';
+    document.querySelectorAll('.panel-gmail').forEach(function(el) { el.style.display = isGoogle ? '' : 'none'; });
+    document.querySelectorAll('.panel-smtp').forEach(function(el) { el.style.display = isGoogle ? 'none' : ''; });
+  });
+});
+
 (function(){
   // ── Helpers ──
   var $ = function(s){ return document.querySelector(s); };
