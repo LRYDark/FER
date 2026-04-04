@@ -351,7 +351,7 @@ $picture= $data['picture'] ?? '';
     <div class="oc-login-wrapper">
 
       <!-- Back link -->
-      <a href="public/accueil" class="oc-back">
+      <a href="public/accueil" class="oc-back" id="backToAccueil">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>
@@ -408,6 +408,14 @@ $picture= $data['picture'] ?? '';
 
       <!-- 2FA verification section (hidden by default) -->
       <div id="twofa-section" style="display:none;">
+
+        <!-- Back to login -->
+        <a href="#" class="oc-back" id="backToLogin">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+          </svg>
+          Retour &agrave; la connexion
+        </a>
 
         <!-- Icon area -->
         <div class="oc-icon-area">
@@ -485,14 +493,14 @@ $picture= $data['picture'] ?? '';
       // Show login icon area, card, forgot link
       document.querySelector('.oc-icon-area').style.display = '';
       document.querySelector('.oc-card').style.display = '';
-      document.querySelector('.oc-back').style.display = '';
+      document.getElementById('backToAccueil').style.display = '';
     }
 
     function showTwofaSection() {
       // Hide login icon area, login card, and back link
       document.querySelector('.oc-icon-area').style.display = 'none';
       document.querySelector('.oc-card').style.display = 'none';
-      document.querySelector('.oc-back').style.display = 'none';
+      document.getElementById('backToAccueil').style.display = 'none';
       // Show 2FA section
       document.getElementById('twofa-section').style.display = '';
       // Focus the code input
@@ -503,6 +511,10 @@ $picture= $data['picture'] ?? '';
     $('#fLogin').on('submit', e => {
       e.preventDefault();
       document.getElementById('err').classList.remove('visible');
+
+      // Disable button to prevent double submit
+      var loginBtn = e.target.querySelector('button[type="submit"]');
+      loginBtn.disabled = true;
 
       var formData = Object.fromEntries(new FormData(e.target));
 
@@ -522,6 +534,7 @@ $picture= $data['picture'] ?? '';
             var msg = j.err || 'Identifiants incorrects';
             document.getElementById('errText').textContent = msg;
             document.getElementById('err').classList.add('visible');
+            loginBtn.disabled = false;
             return;
           }
           // Check if 2FA is required (some APIs return ok:true with requires_2fa)
@@ -534,6 +547,7 @@ $picture= $data['picture'] ?? '';
       .catch(() => {
         document.getElementById('errText').textContent = 'Identifiants incorrects';
         document.getElementById('err').classList.add('visible');
+        loginBtn.disabled = false;
       });
     });
 
@@ -570,6 +584,8 @@ $picture= $data['picture'] ?? '';
           btn.textContent = 'V\u00e9rifier le code';
           return;
         }
+        // Update CSRF token after session_regenerate_id
+        if (j.csrf_token) _csrfToken = j.csrf_token;
         redirectAfterLogin(j);
       })
       .catch(function() {
@@ -578,6 +594,15 @@ $picture= $data['picture'] ?? '';
         btn.disabled = false;
         btn.textContent = 'V\u00e9rifier le code';
       });
+    });
+
+    // Back to login from 2FA
+    document.getElementById('backToLogin').addEventListener('click', function(e) {
+      e.preventDefault();
+      showLoginSection();
+      // Re-enable login button
+      var loginBtn = document.querySelector('#fLogin button[type="submit"]');
+      if (loginBtn) loginBtn.disabled = false;
     });
 
     // Resend 2FA code (route dédiée, sans mot de passe)
