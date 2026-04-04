@@ -32,8 +32,10 @@ $activeStats = ${$period . 'Stats'} ?? $todayStats;
 // Daily visits for chart
 if ($period === 'month') {
     $dailyVisits = getDailyVisits($pdo, 'custom', $selYear, $selMonth);
+    $dailyUnique = getDailyUniqueByDevice($pdo, 'custom', $selYear, $selMonth);
 } else {
     $dailyVisits = getDailyVisits($pdo, $period);
+    $dailyUnique = getDailyUniqueByDevice($pdo, $period);
 }
 
 // Period labels
@@ -170,11 +172,34 @@ if (!$hasCurrentMonth) {
 </div>
 
 <!-- Summary cards -->
+<?php
+$ratio = $activeStats['unique_visitors'] > 0
+    ? round($activeStats['total_visits'] / $activeStats['unique_visitors'], 1)
+    : 0;
+$mobilePct = $activeStats['unique_visitors'] > 0
+    ? round($activeStats['unique_mobile'] / $activeStats['unique_visitors'] * 100)
+    : 0;
+$desktopPct = $activeStats['unique_visitors'] > 0
+    ? round($activeStats['unique_desktop'] / $activeStats['unique_visitors'] * 100)
+    : 0;
+?>
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="stat-card">
-            <div class="stat-value"><?= number_format($activeStats['unique_visitors']) ?></div>
-            <div class="stat-label"><i class="bi bi-people me-1"></i>Visiteurs uniques</div>
+        <div class="stat-card d-flex align-items-center justify-content-center">
+            <div class="text-center flex-shrink-0 pe-5">
+                <div class="stat-value"><?= number_format($activeStats['unique_visitors']) ?></div>
+                <div class="stat-label"><i class="bi bi-people me-1"></i>Visiteurs uniques</div>
+            </div>
+            <div class="d-flex flex-column gap-2 ps-5" style="border-left:2px solid #f0e8eb">
+                <div class="d-flex align-items-center gap-2">
+                    <span style="font-size:1.1rem;font-weight:700;color:#16a34a"><?= number_format($activeStats['unique_mobile']) ?></span>
+                    <span class="small text-muted"><i class="bi bi-phone"></i> Mobile (<?= $mobilePct ?>%)</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span style="font-size:1.1rem;font-weight:700;color:#f59e0b"><?= number_format($activeStats['unique_desktop']) ?></span>
+                    <span class="small text-muted"><i class="bi bi-pc-display"></i> PC (<?= $desktopPct ?>%)</span>
+                </div>
+            </div>
         </div>
     </div>
     <div class="col-md-4">
@@ -185,11 +210,6 @@ if (!$hasCurrentMonth) {
     </div>
     <div class="col-md-4">
         <div class="stat-card">
-            <?php
-            $ratio = $activeStats['unique_visitors'] > 0
-                ? round($activeStats['total_visits'] / $activeStats['unique_visitors'], 1)
-                : 0;
-            ?>
             <div class="stat-value"><?= $ratio ?></div>
             <div class="stat-label"><i class="bi bi-bar-chart me-1"></i>Vues / Visiteur</div>
         </div>
@@ -199,9 +219,29 @@ if (!$hasCurrentMonth) {
 <!-- Chart -->
 <div class="card mb-4" style="border:1px solid #f0e8eb; border-radius:12px;">
     <div class="card-body">
-        <h6 class="mb-3" style="color:#5f4b52; font-weight:600;">
-            <i class="bi bi-graph-up me-1"></i>Visites par jour – <?= $period === 'month' ? $monthNames[$selMonth] . ' ' . $selYear : $periodLabels[$period] ?>
-        </h6>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h6 class="mb-0" style="color:#5f4b52; font-weight:600;">
+                <i class="bi bi-graph-up me-1"></i>Visites par jour – <?= $period === 'month' ? $monthNames[$selMonth] . ' ' . $selYear : $periodLabels[$period] ?>
+            </h6>
+            <div class="d-flex gap-3 flex-wrap" id="chartToggles">
+                <label class="form-check form-check-inline mb-0" style="cursor:pointer">
+                    <input class="form-check-input" type="checkbox" id="tglPageViews" checked style="border-color:#c4577a">
+                    <span class="form-check-label small fw-semibold" style="color:#c4577a"><i class="bi bi-eye me-1"></i>Pages vues</span>
+                </label>
+                <label class="form-check form-check-inline mb-0" style="cursor:pointer">
+                    <input class="form-check-input" type="checkbox" id="tglUniqAll" checked style="border-color:#2563eb">
+                    <span class="form-check-label small fw-semibold" style="color:#2563eb"><i class="bi bi-people me-1"></i>Visiteurs uniques</span>
+                </label>
+                <label class="form-check form-check-inline mb-0" style="cursor:pointer">
+                    <input class="form-check-input" type="checkbox" id="tglUniqMobile" style="border-color:#16a34a">
+                    <span class="form-check-label small fw-semibold" style="color:#16a34a"><i class="bi bi-phone me-1"></i>Mobile</span>
+                </label>
+                <label class="form-check form-check-inline mb-0" style="cursor:pointer">
+                    <input class="form-check-input" type="checkbox" id="tglUniqDesktop" style="border-color:#f59e0b">
+                    <span class="form-check-label small fw-semibold" style="color:#f59e0b"><i class="bi bi-pc-display me-1"></i>PC</span>
+                </label>
+            </div>
+        </div>
         <div class="chart-container">
             <canvas id="visitsChart"></canvas>
         </div>
@@ -289,9 +329,17 @@ if (!$hasCurrentMonth) {
 <!-- Chart.js initialization -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
-    const dailyData = <?= json_encode($dailyVisits, JSON_FORCE_OBJECT) ?>;
-    const labels = Object.keys(dailyData);
-    const values = Object.values(dailyData);
+    var dailyPageViews = <?= json_encode($dailyVisits, JSON_FORCE_OBJECT) ?>;
+    var dailyUniqAll   = <?= json_encode($dailyUnique['all'], JSON_FORCE_OBJECT) ?>;
+    var dailyUniqMob   = <?= json_encode($dailyUnique['mobile'], JSON_FORCE_OBJECT) ?>;
+    var dailyUniqDesk  = <?= json_encode($dailyUnique['desktop'], JSON_FORCE_OBJECT) ?>;
+
+    // Merge all dates
+    var allDates = {};
+    [dailyPageViews, dailyUniqAll, dailyUniqMob, dailyUniqDesk].forEach(function(obj) {
+        Object.keys(obj).forEach(function(d) { allDates[d] = true; });
+    });
+    var labels = Object.keys(allDates).sort();
 
     if (labels.length === 0) {
         document.getElementById('visitsChart').parentNode.innerHTML =
@@ -299,26 +347,55 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Format labels for display
-    const displayLabels = labels.map(function(d) {
-        const parts = d.split('-');
-        return parts[2] + '/' + parts[1];
+    var displayLabels = labels.map(function(d) {
+        var p = d.split('-');
+        return p[2] + '/' + p[1];
     });
 
-    new Chart(document.getElementById('visitsChart'), {
-        type: 'bar',
-        data: {
-            labels: displayLabels,
-            datasets: [{
-                label: 'Visites',
-                data: values,
-                backgroundColor: 'rgba(196, 87, 122, 0.6)',
-                borderColor: 'rgba(196, 87, 122, 1)',
-                borderWidth: 1,
-                borderRadius: 4,
-                maxBarThickness: 40,
-            }]
+    function mapData(obj) {
+        return labels.map(function(d) { return obj[d] || 0; });
+    }
+
+    var datasets = [
+        {
+            label: 'Pages vues',
+            data: mapData(dailyPageViews),
+            backgroundColor: 'rgba(196, 87, 122, 0.6)',
+            borderColor: 'rgba(196, 87, 122, 1)',
+            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            _toggle: 'tglPageViews'
         },
+        {
+            label: 'Visiteurs uniques',
+            data: mapData(dailyUniqAll),
+            backgroundColor: 'rgba(37, 99, 235, 0.6)',
+            borderColor: 'rgba(37, 99, 235, 1)',
+            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            _toggle: 'tglUniqAll'
+        },
+        {
+            label: 'Mobile',
+            data: mapData(dailyUniqMob),
+            backgroundColor: 'rgba(22, 163, 74, 0.6)',
+            borderColor: 'rgba(22, 163, 74, 1)',
+            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            hidden: true,
+            _toggle: 'tglUniqMobile'
+        },
+        {
+            label: 'PC',
+            data: mapData(dailyUniqDesk),
+            backgroundColor: 'rgba(245, 158, 11, 0.6)',
+            borderColor: 'rgba(245, 158, 11, 1)',
+            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            hidden: true,
+            _toggle: 'tglUniqDesktop'
+        }
+    ];
+
+    var chart = new Chart(document.getElementById('visitsChart'), {
+        type: 'bar',
+        data: { labels: displayLabels, datasets: datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -335,24 +412,33 @@ document.addEventListener('DOMContentLoaded', function() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        precision: 0,
-                        color: '#9e8a92',
-                        font: { size: 12 }
-                    },
+                    ticks: { precision: 0, color: '#9e8a92', font: { size: 12 } },
                     grid: { color: '#f0e8eb' }
                 },
                 x: {
-                    ticks: {
-                        color: '#9e8a92',
-                        font: { size: 11 },
-                        maxRotation: 45,
-                    },
+                    ticks: { color: '#9e8a92', font: { size: 11 }, maxRotation: 45 },
                     grid: { display: false }
                 }
             }
         }
     });
+
+    // Toggle checkboxes
+    ['tglPageViews', 'tglUniqAll', 'tglUniqMobile', 'tglUniqDesktop'].forEach(function(id, idx) {
+        document.getElementById(id).addEventListener('change', function() {
+            chart.data.datasets[idx].hidden = !this.checked;
+            chart.update();
+        });
+    });
+
+    // Month dropdown navigation
+    var monthSel = document.querySelector('[data-action="month-navigate"]');
+    if (monthSel) {
+        monthSel.addEventListener('change', function() {
+            var parts = this.value.split('-');
+            window.location = '?period=month&y=' + parts[0] + '&m=' + parts[1];
+        });
+    }
 });
 </script>
 
