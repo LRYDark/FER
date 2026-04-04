@@ -3,6 +3,7 @@
  * Assistant d'installation — Forbach en Rose
  * Accessible uniquement si config/.env est absent ou incomplet.
  */
+ob_start();
 
 // ── SECURITE : bloquer si déjà installé ─────────────────────
 // 🔒 [SEC-13] Double verrou .env + .install.lock (CWE-749)
@@ -31,7 +32,28 @@ if (file_exists($envPath)) {
     }
 }
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    // Forcer un save_path accessible en écriture
+    $candidates = [
+        __DIR__ . '/config/sessions',
+        sys_get_temp_dir() . '/php_sessions',
+        sys_get_temp_dir(),
+    ];
+    foreach ($candidates as $dir) {
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+        if (is_dir($dir) && is_writable($dir)) {
+            session_save_path($dir);
+            break;
+        }
+    }
+    if (!@session_start()) {
+        die('Erreur : impossible de démarrer la session PHP. save_path='
+            . htmlspecialchars(session_save_path())
+            . ' — Vérifiez que le dossier existe et est accessible en écriture.');
+    }
+}
 
 // ── CSP nonce ────────────────────────────────────────────────
 $csp_nonce = base64_encode(random_bytes(16));
@@ -69,159 +91,434 @@ if (file_exists($envPath)) {
     }
 }
 
+// ── DEBUG TEMPORAIRE — à supprimer après diagnostic ────────
+// install.php?phpinfo → phpinfo() complet
+if (isset($_GET['phpinfo'])) {
+    phpinfo();
+    exit;
+}
+// install.php?phpdiag → diagnostic texte
+if (isset($_GET['phpdiag'])) {
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "=== DIAGNOSTIC PHP ===\n\n";
+    echo "PHP version  : " . PHP_VERSION . "\n";
+    echo "PHP SAPI     : " . PHP_SAPI . "\n";
+    echo "PHP binary   : " . PHP_BINARY . "\n";
+    echo "php.ini      : " . php_ini_loaded_file() . "\n";
+    echo "Scan dir     : " . (php_ini_scanned_files() ?: 'aucun') . "\n";
+    echo "OPcache      : " . (function_exists('opcache_get_status') ? 'actif' : 'inactif') . "\n\n";
+
+    echo "--- Tests fonctionnels ---\n";
+    echo "class PDO             : " . (class_exists('PDO') ? 'OUI' : 'NON') . "\n";
+    echo "PDO drivers           : " . (class_exists('PDO') ? implode(', ', PDO::getAvailableDrivers()) : 'N/A') . "\n";
+    echo "mb_strlen             : " . (function_exists('mb_strlen') ? 'OUI' : 'NON') . "\n";
+    echo "json_encode           : " . (function_exists('json_encode') ? 'OUI' : 'NON') . "\n";
+    echo "DOMDocument           : " . (class_exists('DOMDocument') ? 'OUI' : 'NON') . "\n";
+    echo "finfo_open            : " . (function_exists('finfo_open') ? 'OUI' : 'NON') . "\n";
+    echo "mime_content_type     : " . (function_exists('mime_content_type') ? 'OUI' : 'NON') . "\n";
+    echo "imagecreatetruecolor  : " . (function_exists('imagecreatetruecolor') ? 'OUI' : 'NON') . "\n";
+    echo "iconv                 : " . (function_exists('iconv') ? 'OUI' : 'NON') . "\n";
+    echo "XMLReader             : " . (class_exists('XMLReader') ? 'OUI' : 'NON') . "\n";
+    echo "XMLWriter             : " . (class_exists('XMLWriter') ? 'OUI' : 'NON') . "\n";
+    echo "ZipArchive            : " . (class_exists('ZipArchive') ? 'OUI' : 'NON') . "\n";
+    echo "gzopen                : " . (function_exists('gzopen') ? 'OUI' : 'NON') . "\n";
+    echo "openssl_encrypt       : " . (function_exists('openssl_encrypt') ? 'OUI' : 'NON') . "\n";
+    echo "curl_init             : " . (function_exists('curl_init') ? 'OUI' : 'NON') . "\n";
+
+    echo "\n--- extension_loaded() ---\n";
+    foreach (['pdo','pdo_mysql','nd_pdo_mysql','PDO','PDO_MYSQL','ND_PDO_MYSQL',
+              'mbstring','dom','fileinfo','gd','xmlreader','xmlwriter','zip'] as $e) {
+        echo str_pad($e, 20) . ": " . (extension_loaded($e) ? 'OUI' : 'NON') . "\n";
+    }
+
+    echo "\n--- get_loaded_extensions() (toutes) ---\n";
+    $exts = get_loaded_extensions();
+    sort($exts);
+    echo implode(', ', $exts) . "\n";
+
+    echo "\n--- Fichiers .ini additionnels ---\n";
+    $scanned = php_ini_scanned_files();
+    if ($scanned) {
+        echo $scanned . "\n";
+    } else {
+        echo "(aucun fichier .ini additionnel détecté)\n";
+    }
+
+    echo "\n--- Fichier install.php ---\n";
+    echo "Dernière modif : " . date('Y-m-d H:i:s', filemtime(__FILE__)) . "\n";
+    echo "Taille         : " . filesize(__FILE__) . " octets\n";
+    exit;
+}
+
+// ── Vérification des prérequis PHP ─────────────────────────
+function checkPhpPrerequisites(): array
+{
+    $checks = [];
+
+    // Version PHP minimale
+    $checks[] = [
+        'label'    => 'PHP 8.1 ou supérieur',
+        'detail'   => 'Version actuelle : ' . PHP_VERSION . ' — SAPI : ' . PHP_SAPI,
+        'ok'       => version_compare(PHP_VERSION, '8.1.0', '>='),
+        'required' => true,
+    ];
+
+    // ── Détection double : extension_loaded() + test fonctionnel ──
+    // Règle : JAMAIS utiliser "ext-xxx", toujours le vrai nom PHP.
+    // On fait extension_loaded('nom') || fallback fonctionnel pour
+    // couvrir les cas où l'extension est compilée dans le core.
+    $extChecks = [
+        // [nom extension_loaded, label, fallback fonctionnel, requis]
+        ['pdo',        'PDO — couche d\'accès base de données',
+            fn() => class_exists('PDO'), true],
+        ['pdo_mysql',  'PDO MySQL — driver MySQL',
+            fn() => class_exists('PDO') && in_array('mysql', \PDO::getAvailableDrivers(), true), true],
+        ['mbstring',   'Mbstring — chaînes multi-octets',
+            fn() => function_exists('mb_strlen'), true],
+        ['json',       'JSON — encodage/décodage',
+            fn() => function_exists('json_encode'), true],
+        ['dom',        'DOM — manipulation XML/HTML',
+            fn() => class_exists('DOMDocument'), true],
+        ['fileinfo',   'Fileinfo — détection MIME des fichiers',
+            fn() => function_exists('finfo_open') || function_exists('mime_content_type'), true],
+        ['gd',         'GD — traitement d\'images (QR codes, exports)',
+            fn() => function_exists('imagecreatetruecolor'), true],
+        ['iconv',      'Iconv — conversion d\'encodage',
+            fn() => function_exists('iconv'), true],
+        ['libxml',     'Libxml — support XML de base',
+            fn() => function_exists('libxml_use_internal_errors'), true],
+        ['simplexml',  'SimpleXML — lecture XML simplifiée',
+            fn() => class_exists('SimpleXMLElement'), true],
+        ['xml',        'XML — parseur XML',
+            fn() => function_exists('xml_parser_create'), true],
+        ['xmlreader',  'XMLReader — lecture XML en flux',
+            fn() => class_exists('XMLReader'), true],
+        ['xmlwriter',  'XMLWriter — écriture XML en flux',
+            fn() => class_exists('XMLWriter'), true],
+        ['zip',        'Zip — archives ZIP (imports Excel)',
+            fn() => class_exists('ZipArchive'), true],
+        ['zlib',       'Zlib — compression de données',
+            fn() => function_exists('gzopen'), true],
+        ['ctype',      'Ctype — vérification de types de caractères',
+            fn() => function_exists('ctype_alpha'), true],
+        ['openssl',    'OpenSSL — chiffrement et sécurité',
+            fn() => function_exists('openssl_encrypt'), true],
+        // Recommandées
+        ['curl',       'cURL — requêtes HTTP (Google API, mails)',
+            fn() => function_exists('curl_init'), false],
+        ['intl',       'Intl — internationalisation (dates, nombres)',
+            fn() => class_exists('NumberFormatter') || class_exists('IntlDateFormatter'), false],
+    ];
+
+    foreach ($extChecks as [$ext, $label, $fallback, $required]) {
+        $byExtLoaded = extension_loaded($ext);
+        $byFallback  = $fallback();
+        $ok          = $byExtLoaded || $byFallback;
+
+        // Détail : montrer quelle méthode a détecté l'extension
+        if ($ok) {
+            $method = $byExtLoaded ? 'extension_loaded' : 'fallback fonctionnel';
+            $detail = $ext . ' — détecté via ' . $method;
+        } else {
+            $detail = $ext . ' — non détecté (extension_loaded=non, fallback=non)';
+        }
+
+        $checks[] = [
+            'label'    => $label,
+            'detail'   => $detail,
+            'ok'       => $ok,
+            'required' => $required,
+        ];
+    }
+
+    // Vérifications fonctionnelles
+    $checks[] = [
+        'label'    => 'config/ accessible en écriture',
+        'detail'   => __DIR__ . '/config/',
+        'ok'       => is_writable(__DIR__ . '/config'),
+        'required' => true,
+    ];
+
+    $checks[] = [
+        'label'    => 'Session PHP fonctionnelle',
+        'detail'   => 'save_path : ' . session_save_path(),
+        'ok'       => session_status() === PHP_SESSION_ACTIVE,
+        'required' => true,
+    ];
+
+    return $checks;
+}
+
+$phpChecks    = checkPhpPrerequisites();
+$allRequired  = true;
+foreach ($phpChecks as $c) {
+    if ($c['required'] && !$c['ok']) {
+        $allRequired = false;
+        break;
+    }
+}
+
 // ── Traitement des étapes ───────────────────────────────────
 $step   = (int) ($_POST['step'] ?? 1);
 $errors = [];
 $dbSuccess = false;
 
-// --- Étape 1 → 2 : tester connexion, créer BDD + tables ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
+// --- AJAX : lister les bases de données existantes ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'list_databases') {
+    checkCsrf();
+    $ajaxHost = trim($_POST['db_host'] ?? '');
+    $ajaxUser = trim($_POST['db_user'] ?? '');
+    $ajaxPass = $_POST['db_pass'] ?? '';
+    header('Content-Type: application/json');
+    try {
+        $ajaxPdo = new PDO(
+            "mysql:host=$ajaxHost;charset=utf8mb4",
+            $ajaxUser,
+            $ajaxPass,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        $systemDbs = ['information_schema', 'mysql', 'performance_schema', 'sys', 'phpmyadmin'];
+        $dbs = $ajaxPdo->query("SHOW DATABASES")->fetchAll(PDO::FETCH_COLUMN);
+        $dbs = array_values(array_filter($dbs, fn($d) => !in_array($d, $systemDbs)));
+        echo json_encode(['ok' => true, 'databases' => $dbs]);
+    } catch (PDOException $e) {
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// --- Étape 2 → 3 : tester connexion BDD ---
+$dbMode = $_POST['db_mode'] ?? 'new';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
     checkCsrf();
 
     $dbHost = trim($_POST['db_host'] ?? '');
-    $dbName = trim($_POST['db_name'] ?? '');
     $dbUser = trim($_POST['db_user'] ?? '');
     $dbPass = $_POST['db_pass'] ?? '';
 
     if ($dbHost === '') $errors[] = "L'hôte de la base de données est requis.";
-    if ($dbName === '') $errors[] = "Le nom de la base de données est requis.";
-    if (!preg_match('/^[a-zA-Z0-9_]+$/', $dbName) && $dbName !== '') {
-        $errors[] = "Le nom de la base ne doit contenir que des lettres, chiffres et underscores.";
-    }
     if ($dbUser === '') $errors[] = "L'utilisateur de la base de données est requis.";
 
-    if (empty($errors)) {
-        try {
-            // Connexion sans base
-            $testPdo = new PDO(
-                "mysql:host=$dbHost;charset=utf8mb4",
-                $dbUser,
-                $dbPass,
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
-
-            // Créer la base si nécessaire
-            $testPdo->exec(
-                "CREATE DATABASE IF NOT EXISTS `$dbName`
-                 DEFAULT CHARACTER SET utf8mb4
-                 COLLATE utf8mb4_general_ci"
-            );
-            $testPdo->exec("USE `$dbName`");
-
-            // Vérifier si des tables existent déjà
-            $existingTables = $testPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-            $dbExisted = count($existingTables) > 0;
-
-            // Créer les tables
-            foreach (getCreateTableStatements() as $sql) {
-                $testPdo->exec($sql);
-            }
-
-            // Insérer les données par défaut
-            foreach (getDefaultInserts() as $sql) {
-                $testPdo->exec($sql);
-            }
-
-            // Stocker en session pour l'étape suivante
-            $_SESSION['install'] = [
-                'db_host' => $dbHost,
-                'db_name' => $dbName,
-                'db_user' => $dbUser,
-                'db_pass' => $dbPass,
-                'db_existed' => $dbExisted,
-                'db_existing_tables' => count($existingTables),
-            ];
-
-            $dbSuccess = true;
-            $step = 2; // afficher le formulaire admin
-
-        } catch (PDOException $e) {
-            $errors[] = "Erreur de connexion : " . htmlspecialchars($e->getMessage());
-            $step = 1;
+    if ($dbMode === 'new') {
+        // ── Mode nouvelle BDD ──
+        $dbName = trim($_POST['db_name'] ?? '');
+        if ($dbName === '') $errors[] = "Le nom de la base de données est requis.";
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $dbName) && $dbName !== '') {
+            $errors[] = "Le nom de la base ne doit contenir que des lettres, chiffres et underscores.";
         }
+
+        if (empty($errors)) {
+            try {
+                $testPdo = new PDO(
+                    "mysql:host=$dbHost;charset=utf8mb4",
+                    $dbUser,
+                    $dbPass,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+                $testPdo->exec(
+                    "CREATE DATABASE IF NOT EXISTS `$dbName`
+                     DEFAULT CHARACTER SET utf8mb4
+                     COLLATE utf8mb4_general_ci"
+                );
+                $testPdo->exec("USE `$dbName`");
+
+                $existingTables = $testPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+                $dbExisted = count($existingTables) > 0;
+
+                foreach (getCreateTableStatements() as $sql) {
+                    $testPdo->exec($sql);
+                }
+                foreach (getDefaultInserts() as $sql) {
+                    $testPdo->exec($sql);
+                }
+
+                $_SESSION['install'] = [
+                    'db_host' => $dbHost,
+                    'db_name' => $dbName,
+                    'db_user' => $dbUser,
+                    'db_pass' => $dbPass,
+                    'db_mode' => 'new',
+                    'db_existed' => $dbExisted,
+                    'db_existing_tables' => count($existingTables),
+                ];
+                $dbSuccess = true;
+                $step = 3;
+
+            } catch (PDOException $e) {
+                $errors[] = "Erreur de connexion : " . htmlspecialchars($e->getMessage());
+                $step = 2;
+            }
+        } else {
+            $step = 2;
+        }
+
     } else {
-        $step = 1;
+        // ── Mode BDD existante ──
+        $dbName       = trim($_POST['db_name_existing'] ?? '');
+        $encryptionKey = trim($_POST['encryption_key'] ?? '');
+
+        if ($dbName === '') $errors[] = "Veuillez sélectionner une base de données.";
+        if ($encryptionKey === '') $errors[] = "La clé de chiffrement (ENCRYPTION_KEY) est requise pour une BDD existante.";
+
+        if (empty($errors)) {
+            try {
+                $testPdo = new PDO(
+                    "mysql:host=$dbHost;dbname=$dbName;charset=utf8mb4",
+                    $dbUser,
+                    $dbPass,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+
+                // Vérifier que la table users existe (signe d'une BDD FER valide)
+                $tables = $testPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+                if (!in_array('users', $tables) || !in_array('setting', $tables)) {
+                    $errors[] = "Cette base ne semble pas être une base Forbach en Rose valide (tables 'users' et 'setting' introuvables).";
+                    $step = 2;
+                } else {
+                    // Vérifier qu'un admin existe
+                    $adminCheck = $testPdo->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+                    if ((int)$adminCheck === 0) {
+                        $errors[] = "Aucun compte administrateur trouvé dans cette base. Utilisez le mode 'Nouvelle installation'.";
+                        $step = 2;
+                    } else {
+                        // Mode existant : écrire le .env directement (pas d'étape admin)
+                        $envContent = "DB_HOST=$dbHost\n"
+                                    . "DB_NAME=$dbName\n"
+                                    . "DB_USER=$dbUser\n"
+                                    . "DB_PASS=$dbPass\n"
+                                    . "\nENCRYPTION_KEY=$encryptionKey\n";
+
+                        $configDir = __DIR__ . '/config';
+                        if (!is_writable($configDir)) {
+                            $_SESSION['env_manual'] = $envContent;
+                        } else {
+                            file_put_contents($envPath, $envContent);
+                            @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed (existing db)');
+                        }
+                        $_SESSION['install_done'] = true;
+                        $_SESSION['install_admin'] = '(compte existant)';
+                        $_SESSION['install'] = [
+                            'db_host' => $dbHost,
+                            'db_name' => $dbName,
+                            'db_user' => $dbUser,
+                            'db_pass' => $dbPass,
+                            'db_mode' => 'existing',
+                        ];
+                        $dbSuccess = true;
+                        $step = 4;
+                    }
+                }
+
+            } catch (PDOException $e) {
+                $errors[] = "Erreur de connexion : " . htmlspecialchars($e->getMessage());
+                $step = 2;
+            }
+        } else {
+            $step = 2;
+        }
     }
 }
 
-// --- Étape 2 → 3 : créer admin + écrire .env ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 3) {
+// --- Étape 3 → 4 : créer admin + écrire .env ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 4) {
     checkCsrf();
-    $step = 3; // pour le rendu en cas d'erreur
+    $step = 4;
 
-    $adminUser  = trim($_POST['admin_email'] ?? '');
-    $adminPass  = $_POST['admin_password'] ?? '';
-    $adminPass2 = $_POST['admin_password_confirm'] ?? '';
-
-    if ($adminUser === '')          $errors[] = "L'adresse email est requise.";
-    if (!filter_var($adminUser, FILTER_VALIDATE_EMAIL)) $errors[] = "L'adresse email n'est pas valide.";
-    if (strlen($adminPass) < 14)    $errors[] = "Le mot de passe doit contenir au moins 14 caractères.";
-    if (!preg_match('/[A-Z]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins une majuscule.";
-    if (!preg_match('/[0-9]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins un chiffre.";
-    if (!preg_match('/[^a-zA-Z0-9]/', $adminPass)) $errors[] = "Le mot de passe doit contenir au moins un caractère spécial.";
-    if ($adminPass !== $adminPass2) $errors[] = "Les mots de passe ne correspondent pas.";
-
-    if (empty($errors) && isset($_SESSION['install'])) {
+    if (!isset($_SESSION['install'])) {
+        $errors[] = "Session expirée. Veuillez recommencer l'installation.";
+        $step = 2;
+    } else {
         $inst = $_SESSION['install'];
 
-        try {
-            $pdo = new PDO(
-                "mysql:host={$inst['db_host']};dbname={$inst['db_name']};charset=utf8mb4",
-                $inst['db_user'],
-                $inst['db_pass'],
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
+        if (($inst['db_mode'] ?? 'new') === 'existing') {
+            // ── Mode BDD existante : pas d'admin à créer, on écrit le .env ──
+            $encryptionKey = $inst['encryption_key'];
+            $envContent = "DB_HOST={$inst['db_host']}\n"
+                        . "DB_NAME={$inst['db_name']}\n"
+                        . "DB_USER={$inst['db_user']}\n"
+                        . "DB_PASS={$inst['db_pass']}\n"
+                        . "\nENCRYPTION_KEY=$encryptionKey\n";
 
-            // Vérifier si un admin existe déjà
-            $exists = $pdo->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
-            $exists->execute([$adminUser]);
-            if ($exists->fetchColumn() > 0) {
-                $errors[] = "Cette adresse email existe déjà.";
+            $configDir = __DIR__ . '/config';
+            if (!is_writable($configDir)) {
+                $_SESSION['env_manual'] = $envContent;
+                $step = 4;
             } else {
-                $hash = password_hash($adminPass, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)');
-                $stmt->execute([$adminUser, $hash, 'admin']);
+                file_put_contents($envPath, $envContent);
+                @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed (existing db)');
+                $_SESSION['install_done'] = true;
+                $_SESSION['install_admin'] = '(compte existant)';
+                unset($_SESSION['install']);
+                $step = 4;
+            }
 
-                // Générer clé d'encryption
-                $encryptionKey = base64_encode(random_bytes(48));
+        } else {
+            // ── Mode nouvelle BDD : créer l'admin ──
+            $adminUser  = trim($_POST['admin_email'] ?? '');
+            $adminPass  = $_POST['admin_password'] ?? '';
+            $adminPass2 = $_POST['admin_password_confirm'] ?? '';
 
-                // Contenu du .env
-                $envContent = "DB_HOST={$inst['db_host']}\n"
-                            . "DB_NAME={$inst['db_name']}\n"
-                            . "DB_USER={$inst['db_user']}\n"
-                            . "DB_PASS={$inst['db_pass']}\n"
-                            . "\nENCRYPTION_KEY=$encryptionKey\n";
+            if ($adminUser === '')          $errors[] = "L'adresse email est requise.";
+            if (!filter_var($adminUser, FILTER_VALIDATE_EMAIL)) $errors[] = "L'adresse email n'est pas valide.";
+            if (strlen($adminPass) < 14)    $errors[] = "Le mot de passe doit contenir au moins 14 caractères.";
+            if (!preg_match('/[A-Z]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins une majuscule.";
+            if (!preg_match('/[0-9]/', $adminPass))  $errors[] = "Le mot de passe doit contenir au moins un chiffre.";
+            if (!preg_match('/[^a-zA-Z0-9]/', $adminPass)) $errors[] = "Le mot de passe doit contenir au moins un caractère spécial.";
+            if ($adminPass !== $adminPass2) $errors[] = "Les mots de passe ne correspondent pas.";
 
-                // Écrire le fichier
-                $configDir = __DIR__ . '/config';
-                if (!is_writable($configDir)) {
-                    $_SESSION['env_manual'] = $envContent;
-                    $step = 3;
-                } else {
-                    file_put_contents($envPath, $envContent);
-                    @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
-                    $_SESSION['install_done'] = true;
-                    $_SESSION['install_admin'] = $adminUser;
-                    unset($_SESSION['install']);
+            if (empty($errors)) {
+                try {
+                    $pdo = new PDO(
+                        "mysql:host={$inst['db_host']};dbname={$inst['db_name']};charset=utf8mb4",
+                        $inst['db_user'],
+                        $inst['db_pass'],
+                        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                    );
+
+                    $exists = $pdo->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
+                    $exists->execute([$adminUser]);
+                    if ($exists->fetchColumn() > 0) {
+                        $errors[] = "Cette adresse email existe déjà.";
+                    } else {
+                        $hash = password_hash($adminPass, PASSWORD_DEFAULT);
+                        $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)');
+                        $stmt->execute([$adminUser, $hash, 'admin']);
+
+                        $encryptionKey = base64_encode(random_bytes(48));
+                        $envContent = "DB_HOST={$inst['db_host']}\n"
+                                    . "DB_NAME={$inst['db_name']}\n"
+                                    . "DB_USER={$inst['db_user']}\n"
+                                    . "DB_PASS={$inst['db_pass']}\n"
+                                    . "\nENCRYPTION_KEY=$encryptionKey\n";
+
+                        $configDir = __DIR__ . '/config';
+                        if (!is_writable($configDir)) {
+                            $_SESSION['env_manual'] = $envContent;
+                            $step = 4;
+                        } else {
+                            file_put_contents($envPath, $envContent);
+                            @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
+                            $_SESSION['install_done'] = true;
+                            $_SESSION['install_admin'] = $adminUser;
+                            unset($_SESSION['install']);
+                            $step = 4;
+                        }
+                    }
+                } catch (PDOException $e) {
+                    $errors[] = "Erreur base de données : " . htmlspecialchars($e->getMessage());
                     $step = 3;
                 }
+            } else {
+                $step = 3;
             }
-        } catch (PDOException $e) {
-            $errors[] = "Erreur base de données : " . htmlspecialchars($e->getMessage());
-            $step = 2;
         }
-    } elseif (!isset($_SESSION['install'])) {
-        $errors[] = "Session expirée. Veuillez recommencer l'installation.";
-        $step = 1;
-    } else {
-        $step = 2;
     }
 }
 
 // ── Déterminer l'étape d'affichage ──────────────────────────
 $displayStep = $step;
-if ($dbSuccess) $displayStep = 2;
-if (isset($_SESSION['install_done'])) $displayStep = 3;
+if ($dbSuccess && !isset($_SESSION['install_done'])) $displayStep = 3;
+if (isset($_SESSION['install_done'])) $displayStep = 4;
 
 // ── Fonctions SQL ───────────────────────────────────────────
 function getCreateTableStatements(): array
@@ -623,9 +920,10 @@ function getDefaultInserts(): array
 
 // ── Libellés des étapes ─────────────────────────────────────
 $stepLabels = [
-    1 => 'Base de données',
-    2 => 'Compte Admin',
-    3 => 'Terminé',
+    1 => 'Prérequis',
+    2 => 'Base de données',
+    3 => 'Compte Admin',
+    4 => 'Terminé',
 ];
 ?>
 <!DOCTYPE html>
@@ -762,7 +1060,7 @@ $stepLabels = [
       flex: 1;
       height: 2px;
       background: #f0e8eb;
-      max-width: 60px;
+      max-width: 40px;
     }
 
     .oc-step-line.done {
@@ -772,15 +1070,15 @@ $stepLabels = [
     .oc-step-labels {
       display: flex;
       justify-content: center;
-      gap: 32px;
+      gap: 16px;
       margin-bottom: 20px;
     }
 
     .oc-step-label {
-      font-size: 11px;
+      font-size: 10px;
       color: #a1a1aa;
       text-align: center;
-      min-width: 70px;
+      min-width: 60px;
     }
 
     .oc-step-label.active {
@@ -1024,6 +1322,169 @@ $stepLabels = [
       color: #a1a1aa;
     }
 
+    /* ── DB mode selector ── */
+    .oc-mode-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .oc-mode-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+      color: #71717a;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .oc-mode-btn:hover {
+      border-color: #d4c4cb;
+      color: #374151;
+    }
+
+    .oc-mode-btn.active {
+      border-color: #F42182;
+      background: #fdf2f8;
+      color: #F42182;
+    }
+
+    /* ── Prerequisites checklist ── */
+    .oc-check-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 20px 0;
+    }
+
+    .oc-check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0e8eb;
+      font-size: 13px;
+    }
+
+    .oc-check-item:last-child {
+      border-bottom: none;
+    }
+
+    .oc-check-badge {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .oc-check-badge svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .oc-check-badge.ok {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    .oc-check-badge.fail {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+
+    .oc-check-badge.warn {
+      background: #fffbeb;
+      color: #d97706;
+    }
+
+    .oc-check-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .oc-check-label {
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .oc-check-detail {
+      font-size: 11px;
+      color: #a1a1aa;
+      margin-top: 1px;
+    }
+
+    .oc-check-tag {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .oc-check-tag.required {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+
+    .oc-check-tag.recommended {
+      background: #fffbeb;
+      color: #d97706;
+    }
+
+    .oc-prereq-summary {
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .oc-prereq-summary.all-ok {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    .oc-prereq-summary.has-errors {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+
+    .oc-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 36px;
+      background: #fff;
+      color: #F42182;
+      border: 2px solid #F42182;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      text-decoration: none;
+    }
+
+    .oc-btn-secondary:hover {
+      background: #fdf2f8;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 480px) {
       .oc-topbar { padding: 0 12px; }
@@ -1058,7 +1519,7 @@ $stepLabels = [
 
       <!-- Step indicator -->
       <div class="oc-steps">
-        <?php foreach ([1, 2, 3] as $i): ?>
+        <?php foreach ([1, 2, 3, 4] as $i): ?>
           <?php if ($i > 1): ?>
             <div class="oc-step-line <?= $displayStep > $i - 1 ? 'done' : '' ?>"></div>
           <?php endif; ?>
@@ -1092,49 +1553,232 @@ $stepLabels = [
           </div>
         <?php endif; ?>
 
-        <?php // ─── ETAPE 1 : Base de donnees ───────────────── ?>
+        <?php // ─── ETAPE 1 : Prérequis PHP ────────────────── ?>
         <?php if ($displayStep === 1): ?>
 
-          <form method="post" novalidate>
-            <input type="hidden" name="step" value="2">
+          <?php
+            $reqOk   = 0;
+            $reqFail = 0;
+            $recWarn = 0;
+            foreach ($phpChecks as $c) {
+                if ($c['required'] && $c['ok'])  $reqOk++;
+                if ($c['required'] && !$c['ok']) $reqFail++;
+                if (!$c['required'] && !$c['ok']) $recWarn++;
+            }
+          ?>
+
+          <?php if ($allRequired): ?>
+            <div class="oc-prereq-summary all-ok">
+              Tous les pr&eacute;requis sont satisfaits (<?= $reqOk ?>/<?= $reqOk ?>)
+            </div>
+          <?php else: ?>
+            <div class="oc-prereq-summary has-errors">
+              <?= $reqFail ?> extension(s) requise(s) manquante(s)
+            </div>
+          <?php endif; ?>
+
+          <ul class="oc-check-list">
+            <?php foreach ($phpChecks as $c): ?>
+              <li class="oc-check-item">
+                <div class="oc-check-badge <?= $c['ok'] ? 'ok' : ($c['required'] ? 'fail' : 'warn') ?>">
+                  <?php if ($c['ok']): ?>
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                  <?php else: ?>
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <?php endif; ?>
+                </div>
+                <div class="oc-check-info">
+                  <div class="oc-check-label"><?= htmlspecialchars($c['label']) ?></div>
+                  <div class="oc-check-detail"><?= htmlspecialchars($c['detail']) ?></div>
+                </div>
+                <?php if (!$c['ok']): ?>
+                  <span class="oc-check-tag <?= $c['required'] ? 'required' : 'recommended' ?>">
+                    <?= $c['required'] ? 'Requis' : 'Recommand&eacute;' ?>
+                  </span>
+                <?php endif; ?>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+
+          <?php if ($allRequired): ?>
+            <form method="post">
+              <input type="hidden" name="step" value="2">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <button type="submit" class="oc-btn">Suivant</button>
+            </form>
+          <?php else: ?>
+            <a href="install.php" class="oc-btn-secondary">R&eacute;actualiser</a>
+          <?php endif; ?>
+
+        <?php // ─── ETAPE 2 : Base de donnees ───────────────── ?>
+        <?php elseif ($displayStep === 2): ?>
+
+          <!-- Sélecteur de mode -->
+          <div class="oc-mode-selector">
+            <button type="button" class="oc-mode-btn active" id="modeNewBtn">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Nouvelle installation
+            </button>
+            <button type="button" class="oc-mode-btn" id="modeExistingBtn">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+              BDD existante
+            </button>
+          </div>
+
+          <!-- Champs communs -->
+          <form method="post" novalidate id="dbForm">
+            <input type="hidden" name="step" value="3">
+            <input type="hidden" name="db_mode" value="new" id="dbModeInput">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
 
             <div class="oc-form-group">
               <label class="oc-label">H&ocirc;te MySQL</label>
-              <input name="db_host" class="oc-input"
+              <input name="db_host" id="dbHost" class="oc-input"
                      value="<?= htmlspecialchars($_POST['db_host'] ?? $existing['DB_HOST'] ?? 'localhost') ?>"
                      placeholder="localhost" required>
             </div>
 
             <div class="oc-form-group">
-              <label class="oc-label">Nom de la base de donn&eacute;es</label>
-              <input name="db_name" class="oc-input"
-                     value="<?= htmlspecialchars($_POST['db_name'] ?? $existing['DB_NAME'] ?? 'ForbachEnRose') ?>"
-                     placeholder="ForbachEnRose" required>
-              <div class="oc-form-hint">La base sera cr&eacute;&eacute;e si elle n'existe pas.</div>
-            </div>
-
-            <div class="oc-form-group">
               <label class="oc-label">Utilisateur MySQL</label>
-              <input name="db_user" class="oc-input"
+              <input name="db_user" id="dbUser" class="oc-input"
                      value="<?= htmlspecialchars($_POST['db_user'] ?? $existing['DB_USER'] ?? 'root') ?>"
                      placeholder="root" required>
             </div>
 
-            <div class="oc-form-group" style="margin-bottom:20px">
+            <div class="oc-form-group">
               <label class="oc-label">Mot de passe MySQL</label>
-              <input type="password" name="db_pass" class="oc-input"
+              <input type="password" name="db_pass" id="dbPassInput" class="oc-input"
                      value="<?= htmlspecialchars($_POST['db_pass'] ?? '') ?>"
                      placeholder="Mot de passe">
             </div>
 
-            <button type="submit" class="oc-btn">
-              Tester la connexion et installer
-            </button>
+            <!-- Mode NOUVELLE BDD -->
+            <div id="panelNew">
+              <div class="oc-form-group">
+                <label class="oc-label">Nom de la nouvelle base</label>
+                <input name="db_name" class="oc-input"
+                       value="<?= htmlspecialchars($_POST['db_name'] ?? 'ForbachEnRose') ?>"
+                       placeholder="ForbachEnRose" required>
+                <div class="oc-form-hint">La base sera cr&eacute;&eacute;e si elle n'existe pas.</div>
+              </div>
+            </div>
+
+            <!-- Mode BDD EXISTANTE -->
+            <div id="panelExisting" style="display:none">
+              <div class="oc-form-group">
+                <button type="button" class="oc-btn-secondary" id="btnLoadDbs">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:6px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg>
+                  Tester la connexion et charger les bases
+                </button>
+              </div>
+
+              <div id="dbListWrapper" style="display:none">
+                <div class="oc-form-group">
+                  <label class="oc-label">Base de donn&eacute;es</label>
+                  <select name="db_name_existing" id="dbNameExisting" class="oc-input">
+                    <option value="">-- Connexion requise --</option>
+                  </select>
+                </div>
+
+                <div class="oc-form-group">
+                  <label class="oc-label">Cl&eacute; de chiffrement (ENCRYPTION_KEY)</label>
+                  <input name="encryption_key" class="oc-input" id="encKeyInput"
+                         placeholder="Collez votre ENCRYPTION_KEY ici" required>
+                  <div class="oc-form-hint">
+                    Indispensable pour d&eacute;chiffrer les donn&eacute;es existantes. Consultez votre ancien fichier <code>config/.env</code>.
+                  </div>
+                </div>
+              </div>
+
+              <div id="dbConnError" style="display:none" class="oc-error-list">
+                <ul><li id="dbConnErrorMsg"></li></ul>
+              </div>
+
+              <div id="dbConnSuccess" style="display:none" class="oc-alert oc-alert-success"></div>
+            </div>
+
+            <div style="margin-top:20px">
+              <button type="submit" class="oc-btn" id="btnDbSubmit">
+                <span id="btnDbLabel">Cr&eacute;er la base et continuer</span>
+              </button>
+            </div>
           </form>
 
-        <?php // ─── ETAPE 2 : Compte administrateur ─────────── ?>
-        <?php elseif ($displayStep === 2): ?>
+          <script nonce="<?= $csp_nonce ?>">
+          var currentDbMode = 'new';
+
+          document.getElementById('modeNewBtn').addEventListener('click', function() { switchDbMode('new'); });
+          document.getElementById('modeExistingBtn').addEventListener('click', function() { switchDbMode('existing'); });
+          document.getElementById('btnLoadDbs').addEventListener('click', function() { loadDatabases(); });
+
+          function switchDbMode(mode) {
+              currentDbMode = mode;
+              document.getElementById('dbModeInput').value = mode;
+              document.getElementById('panelNew').style.display = mode === 'new' ? '' : 'none';
+              document.getElementById('panelExisting').style.display = mode === 'existing' ? '' : 'none';
+              document.getElementById('modeNewBtn').classList.toggle('active', mode === 'new');
+              document.getElementById('modeExistingBtn').classList.toggle('active', mode === 'existing');
+
+              if (mode === 'new') {
+                  document.getElementById('btnDbLabel').innerHTML = 'Cr&eacute;er la base et continuer';
+              } else {
+                  document.getElementById('btnDbLabel').innerHTML = 'Connecter et terminer';
+              }
+          }
+
+          function loadDatabases() {
+              var btn = document.getElementById('btnLoadDbs');
+              var host = document.getElementById('dbHost').value;
+              var user = document.getElementById('dbUser').value;
+              var pass = document.getElementById('dbPassInput').value;
+
+              btn.disabled = true;
+              btn.innerHTML = 'Connexion en cours...';
+              document.getElementById('dbConnError').style.display = 'none';
+              document.getElementById('dbConnSuccess').style.display = 'none';
+
+              var fd = new FormData();
+              fd.append('ajax_action', 'list_databases');
+              fd.append('step', '0');
+              fd.append('db_host', host);
+              fd.append('db_user', user);
+              fd.append('db_pass', pass);
+              fd.append('csrf_token', '<?= htmlspecialchars($csrf) ?>');
+
+              fetch('install.php', { method: 'POST', body: fd })
+                  .then(function(r) { return r.json(); })
+                  .then(function(data) {
+                      btn.disabled = false;
+                      btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:6px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg> Tester la connexion et charger les bases';
+                      if (data.ok) {
+                          var sel = document.getElementById('dbNameExisting');
+                          sel.innerHTML = '<option value="">-- S&eacute;lectionnez une base --</option>';
+                          data.databases.forEach(function(db) {
+                              var opt = document.createElement('option');
+                              opt.value = db;
+                              opt.textContent = db;
+                              sel.appendChild(opt);
+                          });
+                          document.getElementById('dbListWrapper').style.display = '';
+                          document.getElementById('dbConnSuccess').style.display = '';
+                          document.getElementById('dbConnSuccess').textContent = 'Connexion r\u00e9ussie — ' + data.databases.length + ' base(s) trouv\u00e9e(s)';
+                      } else {
+                          document.getElementById('dbListWrapper').style.display = 'none';
+                          document.getElementById('dbConnError').style.display = '';
+                          document.getElementById('dbConnErrorMsg').textContent = data.error;
+                      }
+                  })
+                  .catch(function(err) {
+                      btn.disabled = false;
+                      btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:6px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg> Tester la connexion et charger les bases';
+                      document.getElementById('dbConnError').style.display = '';
+                      document.getElementById('dbConnErrorMsg').textContent = 'Erreur r\u00e9seau : ' + err.message;
+                  });
+          }
+          </script>
+
+        <?php // ─── ETAPE 3 : Compte administrateur ─────────── ?>
+        <?php elseif ($displayStep === 3): ?>
 
           <?php if ($dbSuccess): ?>
             <?php if (!empty($_SESSION['install']['db_existed'])): ?>
@@ -1151,7 +1795,7 @@ $stepLabels = [
           <p class="oc-alert-info">Cr&eacute;ez le compte administrateur principal.</p>
 
           <form method="post" novalidate id="adminForm">
-            <input type="hidden" name="step" value="3">
+            <input type="hidden" name="step" value="4">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
 
             <div class="oc-form-group">
@@ -1225,8 +1869,8 @@ $stepLabels = [
           })();
           </script>
 
-        <?php // ─── ETAPE 3 : Termine ───────────────────────── ?>
-        <?php elseif ($displayStep === 3): ?>
+        <?php // ─── ETAPE 4 : Termine ───────────────────────── ?>
+        <?php elseif ($displayStep === 4): ?>
 
           <?php if (isset($_SESSION['env_manual'])): ?>
             <div class="oc-alert oc-alert-warning">
@@ -1246,7 +1890,12 @@ $stepLabels = [
               <p class="oc-success-subtitle">Votre site est pr&ecirc;t &agrave; &ecirc;tre utilis&eacute;.</p>
             </div>
 
+            <?php $wasExisting = ($_SESSION['install']['db_mode'] ?? '') === 'existing'; ?>
             <ul class="oc-summary">
+              <li>
+                <span class="oc-sum-label">Mode</span>
+                <span class="oc-sum-value"><?= $wasExisting ? 'BDD existante' : 'Nouvelle installation' ?></span>
+              </li>
               <li>
                 <span class="oc-sum-label">Administrateur</span>
                 <span class="oc-sum-value"><?= htmlspecialchars($_SESSION['install_admin'] ?? 'admin') ?></span>
@@ -1255,10 +1904,17 @@ $stepLabels = [
                 <span class="oc-sum-label">Fichier .env</span>
                 <span class="oc-sum-value oc-text-success">G&eacute;n&eacute;r&eacute;</span>
               </li>
+              <?php if (!$wasExisting): ?>
               <li>
                 <span class="oc-sum-label">Tables</span>
                 <span class="oc-sum-value oc-text-success">Cr&eacute;&eacute;es</span>
               </li>
+              <?php else: ?>
+              <li>
+                <span class="oc-sum-label">Base</span>
+                <span class="oc-sum-value oc-text-success">Connect&eacute;e</span>
+              </li>
+              <?php endif; ?>
             </ul>
 
             <a href="login.php" class="oc-btn">

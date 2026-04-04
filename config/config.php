@@ -55,6 +55,7 @@ $options = [
 
 $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec("SET time_zone = '+02:00'");
 
 try {
     $stmt = $pdo->prepare(
@@ -91,7 +92,7 @@ if($GLOBALS['debogage'] == 1){
 }
 
 ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', 1);
+ini_set('session.cookie_secure', 0); // TODO: remettre à 1 en production avec HTTPS
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_strict_mode', 1);
 session_start();

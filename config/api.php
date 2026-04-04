@@ -333,7 +333,7 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
         createTrustedDevice($pdo, $uid);
     }
 
-    echo json_encode(['ok'=>true, 'role'=>$_SESSION['role']]); exit;
+    echo json_encode(['ok'=>true, 'role'=>$_SESSION['role'], 'csrf_token'=>csrf_token()]); exit;
 }
 
 /* ───── RESEND 2FA (sans mot de passe) ──────────── */
