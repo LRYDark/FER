@@ -96,6 +96,7 @@ function getGoogleAuthUrl($redirectAfterAuth = 'setting.php') {
     if (session_status() === PHP_SESSION_NONE) session_start();
     $state = bin2hex(random_bytes(16));
     $_SESSION['oauth_state'] = $state;
+    $_SESSION['oauth_redirect'] = 'inc/' . $redirectAfterAuth;
 
     $client = new Google_Client();
     $client->setClientId($clientID);

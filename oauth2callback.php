@@ -7,9 +7,10 @@ requireRole(['admin']);
 // ── Vérifier le paramètre state (protection CSRF OAuth — RFC 6749 §10.12) ───
 if (!isset($_GET['state']) || !isset($_SESSION['oauth_state'])
     || !hash_equals($_SESSION['oauth_state'], $_GET['state'])) {
-    error_log('OAuth2callback : état CSRF invalide ou absent.');
-    unset($_SESSION['oauth_state']);
-    header('Location: inc/setting.php?auth=error&message=' . urlencode('État OAuth invalide. Veuillez relancer l\'autorisation.'));
+    error_log('OAuth2callback : état CSRF invalide ou absent. GET state=' . ($_GET['state'] ?? 'NULL') . ' SESSION state=' . ($_SESSION['oauth_state'] ?? 'NULL') . ' session_id=' . session_id());
+    $csrfRedirect = $_SESSION['oauth_redirect'] ?? 'inc/setting.php';
+    unset($_SESSION['oauth_state'], $_SESSION['oauth_redirect']);
+    header('Location: ' . $csrfRedirect . '?auth=error&message=' . urlencode('État OAuth invalide. Veuillez relancer l\'autorisation.'));
     exit;
 }
 unset($_SESSION['oauth_state']);
@@ -70,7 +71,8 @@ try {
     writeLog('✅ Token OAuth2 généré et sauvegardé avec succès dans : ' . $tokenFile);
 
     // Déterminer où rediriger l'utilisateur
-    $redirectUrl = $_GET['redirect'] ?? 'inc/setting.php';
+    $redirectUrl = $_SESSION['oauth_redirect'] ?? $_GET['redirect'] ?? 'inc/setting.php';
+    unset($_SESSION['oauth_redirect']);
 
     // S'assurer que l'URL de redirection est relative et sécurisée
     if (!preg_match('/^[a-zA-Z0-9\/_\-\.]+(\?[a-zA-Z0-9=&_\-]*)?$/', $redirectUrl)) {
@@ -87,7 +89,8 @@ try {
     writeLog('❌ Erreur lors de la génération du token : ' . $e->getMessage());
     
     // Rediriger vers la page de paramètres avec un message d'erreur
-    $redirectUrl = $_GET['redirect'] ?? 'inc/setting.php';
+    $redirectUrl = $_SESSION['oauth_redirect'] ?? $_GET['redirect'] ?? 'inc/setting.php';
+    unset($_SESSION['oauth_redirect']);
     if (!preg_match('/^[a-zA-Z0-9\/_\-\.]+(\?[a-zA-Z0-9=&_\-]*)?$/', $redirectUrl)) {
         $redirectUrl = 'inc/setting.php';
     }
