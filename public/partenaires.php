@@ -108,7 +108,7 @@ if ($selectedYearId) {
       cursor: pointer;
       transition: all .35s cubic-bezier(.4,0,.2,1);
       overflow: hidden;
-      box-shadow: 0 4px 16px rgba(244,33,130,0.2);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     }
 
     .info-card::before {
@@ -118,7 +118,7 @@ if ($selectedYearId) {
       right: -8px;
       font-size: 120px;
       font-weight: 900;
-      color: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.35);
       line-height: 1;
       pointer-events: none;
       letter-spacing: -6px;
@@ -127,7 +127,7 @@ if ($selectedYearId) {
 
     .info-card:hover {
       transform: translateY(-4px);
-      box-shadow: 0 12px 32px rgba(244,33,130,0.3);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.2);
     }
 
     .info-card-title {
@@ -429,6 +429,30 @@ if ($selectedYearId) {
       margin: 30px 0 0 0;
     }
 
+    .year-card-badge-new {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--pink, #f42182);
+      border-radius: 5px;
+      line-height: 1.6;
+      z-index: 2;
+      box-shadow: 0 2px 8px rgba(244,33,130,.4);
+      animation: badge-pulse 2s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%,100%{opacity:1}
+      50%{opacity:.7}
+    }
     .year-card {
       position: relative;
       display: flex;
@@ -436,15 +460,16 @@ if ($selectedYearId) {
       justify-content: flex-end;
       padding: 28px 24px;
       min-height: 160px;
-      background: var(--secondary, #0f172a);
+      background: #0f172a;
       border: none;
       border-radius: var(--radius-lg);
       color: #fff;
+      overflow: hidden;
       font-size: 18px;
       font-weight: 600;
       text-decoration: none;
       transition: all .35s cubic-bezier(.4,0,.2,1);
-      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     }
 
     .year-card::before {
@@ -468,7 +493,7 @@ if ($selectedYearId) {
       left: 0;
       right: 0;
       bottom: 0;
-      background: linear-gradient(135deg, var(--secondary, #0f172a) 0%, var(--secondary-hover, #1e293b) 100%);
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       opacity: 0;
       transition: opacity .35s ease;
       border-radius: var(--radius-lg);
@@ -476,7 +501,7 @@ if ($selectedYearId) {
 
     .year-card:hover {
       transform: translateY(-4px);
-      box-shadow: 0 12px 32px rgba(15,23,42,0.2);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.2);
     }
 
     .year-card:hover::after {
@@ -692,9 +717,15 @@ if ($selectedYearId) {
         <?php endif; ?>
 
         <?php if (!empty($years)): ?>
+          <?php
+            $sevenDaysAgo = date('Y-m-d H:i:s', strtotime('-7 days'));
+          ?>
           <?php foreach ($years as $year): ?>
             <?php if (empty($year['title']) && empty($year['year'])) continue; ?>
             <a href="?year_id=<?= $year['id'] ?>" class="year-card" data-year="<?= htmlspecialchars($year['year']) ?>">
+              <?php if (!empty($year['created_at']) && $year['created_at'] >= $sevenDaysAgo): ?>
+                <span class="year-card-badge-new" data-new-type="partners" data-new-id="<?= $year['id'] ?>">NEW</span>
+              <?php endif; ?>
               <span class="year-card-arrow"><svg viewBox="0 0 24 24"><path d="M5 12h14" stroke="#fff" stroke-width="2" fill="none"/><path d="M13 6l6 6-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="year-card-title"><?= htmlspecialchars($year['title']) ?></span>
             </a>

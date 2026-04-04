@@ -137,6 +137,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     header('Content-Type: application/json');
     ob_start();
 
+    $sevenDaysAgoAjax = date('Y-m-d H:i:s', strtotime('-7 days'));
     foreach ($articles as $article):
         if (empty($article['title_article'])) continue;
         $imgPath = '../files/_news/' . $article['img_article'];
@@ -147,8 +148,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         }
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         $nbComments = $commentCounts[$article['id']] ?? 0;
+        $isNewArticle = !empty($article['date_publication']) && $article['date_publication'] >= $sevenDaysAgoAjax;
         ?>
-        <a href="news?id=<?= $article['id'] ?>" class="ncard">
+        <a href="news?id=<?= $article['id'] ?>" class="ncard" data-news-id="<?= $article['id'] ?>">
+            <?php if ($isNewArticle): ?>
+                <span class="ncard-badge-new" data-new-type="news" data-new-id="<?= $article['id'] ?>">NEW</span>
+            <?php endif; ?>
             <div class="ncard-img">
                 <?php if ($hasImage): ?>
                     <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">
@@ -341,12 +346,39 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .ncard:hover {
       background: rgba(15,23,42,.04);
     }
+    .ncard {
+      position: relative;
+    }
     .ncard-img {
       flex: 0 0 160px;
       height: 120px;
       border-radius: var(--radius);
       overflow: hidden;
       background: rgba(15,23,42,.06);
+    }
+    .ncard-badge-new {
+      position: absolute;
+      top: 4px;
+      left: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 7px;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--pink, #f42182);
+      border-radius: 4px;
+      line-height: 1.6;
+      z-index: 2;
+      box-shadow: 0 2px 6px rgba(244,33,130,.35);
+      animation: badge-pulse 2s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%,100%{opacity:1}
+      50%{opacity:.7}
     }
     .ncard-img img {
       width: 100%; height: 100%;
@@ -968,6 +1000,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         <p>Aucune actualité pour le moment.</p>
       </div>
     <?php endif; ?>
+    <?php
+      $sevenDaysAgo = date('Y-m-d H:i:s', strtotime('-7 days'));
+    ?>
     <?php foreach ($articles as $article): ?>
       <?php
         if (empty($article['title_article'])) continue;
@@ -979,8 +1014,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         }
         $dateFormatted = date('d/m/Y à H\hi', strtotime($article['date_publication']));
         $nbComments = $commentCounts[$article['id']] ?? 0;
+        $isNewArticle = !empty($article['date_publication']) && $article['date_publication'] >= $sevenDaysAgo;
       ?>
-      <a href="news?id=<?= $article['id'] ?>" class="ncard">
+      <a href="news?id=<?= $article['id'] ?>" class="ncard" data-news-id="<?= $article['id'] ?>">
+        <?php if ($isNewArticle): ?>
+          <span class="ncard-badge-new" data-new-type="news" data-new-id="<?= $article['id'] ?>">NEW</span>
+        <?php endif; ?>
         <div class="ncard-img">
           <?php if ($hasImage): ?>
             <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($article['title_article']) ?>" loading="lazy">

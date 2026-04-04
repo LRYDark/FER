@@ -287,11 +287,15 @@ if ($migrationDone) {
     }
 
     // Delete year image if exists
-    $stmt = $pdo->prepare("SELECT img FROM partners_years WHERE id = ?");
-    $stmt->execute([$yearId]);
-    $yearImg = $stmt->fetchColumn();
-    if ($yearImg && file_exists("../files/_partners/" . $yearImg)) {
-      unlink("../files/_partners/" . $yearImg);
+    try {
+      $stmt = $pdo->prepare("SELECT img FROM partners_years WHERE id = ?");
+      $stmt->execute([$yearId]);
+      $yearImg = $stmt->fetchColumn();
+      if ($yearImg && file_exists("../files/_partners/" . $yearImg)) {
+        unlink("../files/_partners/" . $yearImg);
+      }
+    } catch (PDOException $e) {
+      // Column 'img' may not exist — skip image cleanup
     }
 
     // Delete albums and year permanently
