@@ -68,6 +68,9 @@ include_once __DIR__ . '/../config/theme.php';
               </svg>
             </span>
             <span class="nav-label">Actualités</span>
+            <?php if ($newActuCount > 0): ?>
+              <span class="nav-notif-badge"><?= $newActuCount ?></span>
+            <?php endif; ?>
             <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 9l6 6 6-6" stroke="rgba(15,23,42,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -81,12 +84,14 @@ include_once __DIR__ . '/../config/theme.php';
                   <div class="mega-title">Dernières actualités</div>
                   <ul class="mega-list<?= $actualites_cols2 ? ' mega-list--2col' : '' ?>">
                     <?php if (!empty($actualites)): ?>
-                      <?php foreach ($actualites as $actu): ?>
+                      <?php foreach ($actualites as $actu):
+                        $isNew = !empty($actu['date_publication']) && $actu['date_publication'] >= $sevenDaysAgo;
+                      ?>
                         <li>
                           <a class="mega-link" href="news?id=<?= $actu['id'] ?>">
                             <span class="micon">📰</span>
                             <div class="mega-link-content">
-                              <div class="mtitle"><?= htmlspecialchars($actu['title']) ?></div>
+                              <div class="mtitle"><?= htmlspecialchars($actu['title']) ?><?php if ($isNew): ?> <span class="badge-new">NEW</span><?php endif; ?></div>
                             </div>
                           </a>
                         </li>
@@ -129,6 +134,9 @@ include_once __DIR__ . '/../config/theme.php';
               </svg>
             </span>
             <span class="nav-label">Photos</span>
+            <?php if ($newPhotosCount > 0): ?>
+              <span class="nav-notif-badge"><?= $newPhotosCount ?></span>
+            <?php endif; ?>
             <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 9l6 6 6-6" stroke="rgba(15,23,42,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -141,12 +149,14 @@ include_once __DIR__ . '/../config/theme.php';
                   <div class="mega-title">Albums photos</div>
                   <ul class="mega-list<?= $galeries_cols2 ? ' mega-list--2col' : '' ?>">
                     <?php if (!empty($galeries)): ?>
-                      <?php foreach ($galeries as $galerie): ?>
+                      <?php foreach ($galeries as $galerie):
+                        $isNewGal = !empty($galerie['created_at']) && $galerie['created_at'] >= $sevenDaysAgo;
+                      ?>
                         <li>
                           <a class="mega-link" href="photos?year_id=<?= $galerie['id'] ?>">
                             <span class="micon">📸</span>
                             <div class="mega-link-content">
-                              <div class="mtitle"><?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)</div>
+                              <div class="mtitle"><?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)<?php if ($isNewGal): ?> <span class="badge-new">NEW</span><?php endif; ?></div>
                             </div>
                           </a>
                         </li>
@@ -190,6 +200,9 @@ include_once __DIR__ . '/../config/theme.php';
               </svg>
             </span>
             <span class="nav-label">Partenaires</span>
+            <?php if ($newPartenairesCount > 0): ?>
+              <span class="nav-notif-badge"><?= $newPartenairesCount ?></span>
+            <?php endif; ?>
             <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6 9l6 6 6-6" stroke="rgba(15,23,42,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -202,12 +215,14 @@ include_once __DIR__ . '/../config/theme.php';
                   <div class="mega-title">Nos partenaires</div>
                   <ul class="mega-list<?= $partenaires_cols2 ? ' mega-list--2col' : '' ?>">
                     <?php if (!empty($partenaires)): ?>
-                      <?php foreach ($partenaires as $part): ?>
+                      <?php foreach ($partenaires as $part):
+                        $isNewPart = !empty($part['created_at']) && $part['created_at'] >= $sevenDaysAgo;
+                      ?>
                         <li>
                           <a class="mega-link" href="partenaires?year_id=<?= $part['id'] ?>">
                             <span class="micon">🤝</span>
                             <div class="mega-link-content">
-                              <div class="mtitle"><?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)</div>
+                              <div class="mtitle"><?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)<?php if ($isNewPart): ?> <span class="badge-new">NEW</span><?php endif; ?></div>
                             </div>
                           </a>
                         </li>
@@ -291,6 +306,7 @@ include_once __DIR__ . '/../config/theme.php';
   <line x1="7" y1="12" x2="17" y2="12"></line>
   <line x1="7" y1="16" x2="14" y2="16"></line>
 </svg>
+<?php if ($newActuCount > 0): ?><span class="mobile-icon-badge"><?= $newActuCount ?></span><?php endif; ?>
 </span>
                       Actualités
                     </div>
@@ -305,6 +321,7 @@ include_once __DIR__ . '/../config/theme.php';
   <path d="M4 7h4l2-2h4l2 2h4v12H4z"></path>
   <circle cx="12" cy="13" r="3"></circle>
 </svg>
+<?php if ($newPhotosCount > 0): ?><span class="mobile-icon-badge"><?= $newPhotosCount ?></span><?php endif; ?>
 </span>
                       Photos
                     </div>
@@ -321,6 +338,7 @@ include_once __DIR__ . '/../config/theme.php';
   <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
   <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
 </svg>
+<?php if ($newPartenairesCount > 0): ?><span class="mobile-icon-badge"><?= $newPartenairesCount ?></span><?php endif; ?>
 </span>
                       Partenaires
                     </div>
@@ -363,10 +381,13 @@ include_once __DIR__ . '/../config/theme.php';
           <div class="mobile-menu-slide mobile-menu-slide-sub" id="slideSub-actualites" data-title="Actualités">
             <div class="mobile-menu-body">
               <?php if (!empty($actualites)): ?>
-                <?php foreach ($actualites as $actu): ?>
+                <?php foreach ($actualites as $actu):
+                  $isNew = !empty($actu['date_publication']) && $actu['date_publication'] >= $sevenDaysAgo;
+                ?>
                   <a class="mobile-menu-sublink" href="news?id=<?= $actu['id'] ?>">
                     <span class="menu-bullet" aria-hidden="true"></span>
                     <?= htmlspecialchars($actu['title']) ?>
+                    <?php if ($isNew): ?><span class="badge-new">NEW</span><?php endif; ?>
                   </a>
                 <?php endforeach; ?>
               <?php endif; ?>
@@ -381,10 +402,13 @@ include_once __DIR__ . '/../config/theme.php';
           <div class="mobile-menu-slide mobile-menu-slide-sub" id="slideSub-photos" data-title="Photos">
             <div class="mobile-menu-body">
               <?php if (!empty($galeries)): ?>
-                <?php foreach ($galeries as $galerie): ?>
+                <?php foreach ($galeries as $galerie):
+                  $isNewGal = !empty($galerie['created_at']) && $galerie['created_at'] >= $sevenDaysAgo;
+                ?>
                   <a class="mobile-menu-sublink" href="photos?year_id=<?= $galerie['id'] ?>">
                     <span class="menu-bullet" aria-hidden="true"></span>
                     <?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)
+                    <?php if ($isNewGal): ?><span class="badge-new">NEW</span><?php endif; ?>
                   </a>
                 <?php endforeach; ?>
               <?php endif; ?>
@@ -399,10 +423,13 @@ include_once __DIR__ . '/../config/theme.php';
           <div class="mobile-menu-slide mobile-menu-slide-sub" id="slideSub-partenaires" data-title="Partenaires">
             <div class="mobile-menu-body">
               <?php if (!empty($partenaires)): ?>
-                <?php foreach ($partenaires as $part): ?>
+                <?php foreach ($partenaires as $part):
+                  $isNewPart = !empty($part['created_at']) && $part['created_at'] >= $sevenDaysAgo;
+                ?>
                   <a class="mobile-menu-sublink" href="partenaires?year_id=<?= $part['id'] ?>">
                     <span class="menu-bullet" aria-hidden="true"></span>
                     <?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)
+                    <?php if ($isNewPart): ?><span class="badge-new">NEW</span><?php endif; ?>
                   </a>
                 <?php endforeach; ?>
               <?php endif; ?>
@@ -418,6 +445,12 @@ include_once __DIR__ . '/../config/theme.php';
       <!-- Bottom action buttons (always visible) -->
       <div class="mobile-bottom-actions">
         <button class="mobile-bottom-btn" id="mobileMenuBtn" aria-label="Menu">
+          <?php
+            $totalNewCount = $newActuCount + $newPhotosCount + $newPartenairesCount;
+          ?>
+          <?php if ($totalNewCount > 0): ?>
+            <span class="mobile-menu-total-badge"><?= $totalNewCount ?></span>
+          <?php endif; ?>
           <svg class="menu-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="6" x2="21" y2="6"></line>
             <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -455,3 +488,164 @@ include_once __DIR__ . '/../config/theme.php';
 
   <!-- ===== MOBILE MENU BACKDROP ===== -->
 <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
+
+<!-- ===== NEW BADGES: localStorage read tracking ===== -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var KEY = 'fer-read-items';
+  var newItems = {
+    news: <?= json_encode(array_map('intval', $newActuIds)) ?>,
+    photos: <?= json_encode(array_map('intval', $newPhotosIds)) ?>,
+    partners: <?= json_encode(array_map('intval', $newPartenairesIds)) ?>
+  };
+
+  // Lire les items déjà lus depuis localStorage
+  function getRead(){
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; }
+  }
+  function saveRead(data){ localStorage.setItem(KEY, JSON.stringify(data)); }
+
+  // Marquer un item comme lu
+  function markRead(type, id){
+    var data = getRead();
+    if(!data[type]) data[type] = {};
+    data[type][id] = Date.now();
+    saveRead(data);
+    updateBadges();
+  }
+
+  // Nettoyer les entrées > 8 jours
+  function cleanup(){
+    var data = getRead();
+    var limit = Date.now() - 8*24*60*60*1000;
+    var changed = false;
+    for(var t in data){
+      for(var id in data[t]){
+        if(data[t][id] < limit){ delete data[t][id]; changed = true; }
+      }
+    }
+    if(changed) saveRead(data);
+  }
+
+  // Compter les non-lus
+  function countUnread(type){
+    var read = getRead()[type] || {};
+    var count = 0;
+    for(var i=0; i<newItems[type].length; i++){
+      if(!read[newItems[type][i]]) count++;
+    }
+    return count;
+  }
+
+  // Mettre à jour tous les badges
+  function updateBadges(){
+    var counts = {
+      news: countUnread('news'),
+      photos: countUnread('photos'),
+      partners: countUnread('partners')
+    };
+    var total = counts.news + counts.photos + counts.partners;
+
+    // Desktop trigger badges
+    updateBadgeEls('.item[data-menu="actualites"] .trigger .nav-notif-badge', counts.news);
+    updateBadgeEls('.item[data-menu="photos"] .trigger .nav-notif-badge', counts.photos);
+    updateBadgeEls('.item[data-menu="partenaires"] .trigger .nav-notif-badge', counts.partners);
+
+    // Desktop mega menu: badge-new sur les liens
+    updateItemBadges('.item[data-menu="actualites"] .mega .badge-new', 'news');
+    updateItemBadges('.item[data-menu="photos"] .mega .badge-new', 'photos');
+    updateItemBadges('.item[data-menu="partenaires"] .mega .badge-new', 'partners');
+
+    // Mobile icon badges
+    updateBadgeEls('.mobile-menu-item[data-sub="actualites"] .mobile-icon-badge', counts.news);
+    updateBadgeEls('.mobile-menu-item[data-sub="photos"] .mobile-icon-badge', counts.photos);
+    updateBadgeEls('.mobile-menu-item[data-sub="partenaires"] .mobile-icon-badge', counts.partners);
+
+    // Mobile sub-menu badge-new
+    updateItemBadges('#slideSub-actualites .badge-new', 'news');
+    updateItemBadges('#slideSub-photos .badge-new', 'photos');
+    updateItemBadges('#slideSub-partenaires .badge-new', 'partners');
+
+    // Mobile total badge
+    updateBadgeEls('.mobile-menu-total-badge', total);
+
+    // Page content badges (news cards, year cards)
+    updatePageBadges();
+  }
+
+  function updateBadgeEls(sel, count){
+    var els = document.querySelectorAll(sel);
+    for(var i=0; i<els.length; i++){
+      if(count > 0){
+        els[i].textContent = count;
+        els[i].style.display = '';
+      } else {
+        els[i].style.display = 'none';
+      }
+    }
+  }
+
+  function updateItemBadges(sel, type){
+    var read = getRead()[type] || {};
+    var els = document.querySelectorAll(sel);
+    for(var i=0; i<els.length; i++){
+      // Trouver l'ID depuis le lien parent
+      var link = els[i].closest('a');
+      if(!link) continue;
+      var href = link.getAttribute('href') || '';
+      var m = href.match(/(?:id|year_id)=(\d+)/);
+      if(m && read[m[1]]){
+        els[i].style.display = 'none';
+      }
+    }
+  }
+
+  // Masquer les badges NEW sur les pages de contenu (cards) si déjà lus
+  function updatePageBadges(){
+    var read = getRead();
+    var badges = document.querySelectorAll('[data-new-type][data-new-id]');
+    for(var i=0; i<badges.length; i++){
+      var type = badges[i].getAttribute('data-new-type');
+      var id = badges[i].getAttribute('data-new-id');
+      if(read[type] && read[type][id]){
+        badges[i].style.display = 'none';
+      }
+    }
+  }
+
+  // Détecter la page actuelle et marquer comme lu
+  function detectCurrentPage(){
+    var params = new URLSearchParams(window.location.search);
+    var path = window.location.pathname;
+
+    // Page article news
+    if((path.match(/news/) || document.querySelector('.article-detail')) && params.get('id')){
+      markRead('news', parseInt(params.get('id')));
+    }
+    // Page album photos
+    if((path.match(/photos/) || document.querySelector('.albums-grid')) && params.get('year_id')){
+      markRead('photos', parseInt(params.get('year_id')));
+    }
+    // Page partenaires
+    if((path.match(/partenaires/) || document.querySelector('.partners-grid,.year-card')) && params.get('year_id')){
+      markRead('partners', parseInt(params.get('year_id')));
+    }
+  }
+
+  // Exposer pour usage externe
+  window.ferBadges = { markRead: markRead, update: updateBadges };
+
+  // Init
+  cleanup();
+  function init(){
+    detectCurrentPage();
+    updateBadges();
+    document.body.classList.add('fer-badges-ready');
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>

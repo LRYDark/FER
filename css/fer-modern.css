@@ -249,6 +249,7 @@ body.nav-scrolled .nav-card{
   user-select: none;
   outline: none;
   transition: background .16s ease;
+  position: relative;
 }
 .link:hover, .trigger:hover{ background: var(--hover); }
 
@@ -499,6 +500,58 @@ body.nav-scrolled .mega{
   font-size: 12px;
   color: rgba(15,23,42,.55);
   line-height: 1.35;
+}
+
+/* ─── Badge NEW (pastille) ─── */
+.badge-new{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--pink, #f42182);
+  border-radius: 4px;
+  line-height: 1.6;
+  vertical-align: middle;
+  margin-left: 6px;
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+@keyframes badge-pulse{
+  0%,100%{opacity:1}
+  50%{opacity:.7}
+}
+
+/* ─── Notification badge (compteur rond) ─── */
+.nav-notif-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: #ef4444;
+  border-radius: 99px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(239,68,68,.4);
+}
+/* Sur le trigger desktop : positionné sur l'icône */
+.trigger .nav-notif-badge{
+  position: absolute;
+  top: 0px;
+  left: 30px;
+  margin-left: 0;
+}
+/* Sur le mobile trigger : inline */
+.mobile-menu-trigger-content .nav-notif-badge{
+  position: relative;
+  margin-left: 6px;
 }
 
 /* Colonne droite : image */
@@ -875,9 +928,77 @@ body.nav-scrolled .mega{
   align-items: center;
   justify-content: center;
   margin-right: 12px;
+  position: relative;
   font-size: 15px;
   flex-shrink: 0;
   color: var(--page-text, #0f172a);
+}
+
+/* Cacher les badges par défaut, le JS les affiche avec le bon count */
+.nav-notif-badge,
+.mobile-icon-badge,
+.mobile-menu-total-badge,
+.badge-new,
+.ncard-badge-new,
+.year-card-badge-new{
+  visibility: hidden;
+}
+.fer-badges-ready .nav-notif-badge,
+.fer-badges-ready .mobile-icon-badge,
+.fer-badges-ready .mobile-menu-total-badge,
+.fer-badges-ready .badge-new,
+.fer-badges-ready .ncard-badge-new,
+.fer-badges-ready .year-card-badge-new{
+  visibility: visible;
+}
+
+/* Badge total sur bouton Menu (fermé uniquement) */
+#mobileMenuBtn{
+  position: relative;
+}
+.mobile-menu-total-badge{
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: #ef4444;
+  border-radius: 99px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(239,68,68,.4);
+  z-index: 2;
+}
+/* Cacher la pastille quand le menu est ouvert */
+.mobile-bottom-bar.menu-open .mobile-menu-total-badge,
+.mobile-bottom-bar.menu-closing .mobile-menu-total-badge{
+  display: none;
+}
+
+/* Badge notification sur l'icône mobile */
+.mobile-icon-badge{
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  background: #ef4444;
+  border-radius: 99px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(239,68,68,.4);
 }
 
 .mobile-menu-icon svg{
@@ -1804,12 +1925,13 @@ body.dark-theme .album-card-creator{
 
 /* Year cards (photos, parcours) */
 body.dark-theme .year-card{
-  border-color: rgba(255,255,255,.12);
+  background: #0f172a !important;
+  border-color: transparent !important;
   color: #ffffff;
 }
 body.dark-theme .year-card:hover{
-  background: rgba(255,255,255,.08);
-  border-color: rgba(255,255,255,.3);
+  background: #0f172a !important;
+  border-color: transparent !important;
 }
 
 /* News cards (news.php) */

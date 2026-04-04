@@ -34,9 +34,16 @@ try {
     $footer_logo = 'logo_blanc.png';
 }
 
+// Vérifier si la colonne created_at existe
+$hasCreatedAt_photos = false;
+$hasCreatedAt_partners = false;
+try { $pdo->query("SELECT created_at FROM photo_years LIMIT 0"); $hasCreatedAt_photos = true; } catch (PDOException $e) {}
+try { $pdo->query("SELECT created_at FROM partners_years LIMIT 0"); $hasCreatedAt_partners = true; } catch (PDOException $e) {}
+
 // Récupération des années photos pour le menu (uniquement publiées)
 try {
-    $stmtPhotos = $pdo->prepare("SELECT id, year, title FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC LIMIT 10");
+    $photosCols = "id, year, title" . ($hasCreatedAt_photos ? ", created_at" : "");
+    $stmtPhotos = $pdo->prepare("SELECT $photosCols FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC LIMIT 10");
     $stmtPhotos->execute();
     $galeries = $stmtPhotos->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -54,11 +61,42 @@ try {
 
 // Récupération des années partenaires pour le menu (uniquement publiées)
 try {
-    $stmtPartners = $pdo->prepare("SELECT id, year, title FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC LIMIT 10");
+    $partnersCols = "id, year, title" . ($hasCreatedAt_partners ? ", created_at" : "");
+    $stmtPartners = $pdo->prepare("SELECT $partnersCols FROM partners_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC LIMIT 10");
     $stmtPartners->execute();
     $partenaires = $stmtPartners->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $partenaires = [];
+}
+
+// Compter les éléments récents (moins de 7 jours)
+$sevenDaysAgo = date('Y-m-d H:i:s', strtotime('-7 days'));
+
+$newActuCount = 0;
+$newActuIds = [];
+foreach ($actualites as $actu) {
+    if (!empty($actu['date_publication']) && $actu['date_publication'] >= $sevenDaysAgo) {
+        $newActuCount++;
+        $newActuIds[] = $actu['id'];
+    }
+}
+
+$newPhotosCount = 0;
+$newPhotosIds = [];
+foreach ($galeries as $gal) {
+    if (!empty($gal['created_at']) && $gal['created_at'] >= $sevenDaysAgo) {
+        $newPhotosCount++;
+        $newPhotosIds[] = $gal['id'];
+    }
+}
+
+$newPartenairesCount = 0;
+$newPartenairesIds = [];
+foreach ($partenaires as $part) {
+    if (!empty($part['created_at']) && $part['created_at'] >= $sevenDaysAgo) {
+        $newPartenairesCount++;
+        $newPartenairesIds[] = $part['id'];
+    }
 }
 
 // Détecter si plus de 5 éléments pour afficher en 2 colonnes
