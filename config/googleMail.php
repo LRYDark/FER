@@ -27,6 +27,14 @@ function writeLog($message) {
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }
 
+function writeSmtpLog($message) {
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
+    $logFile = $logDir . '/logs_smtp_mails.log';
+    $timestamp = date("Y-m-d H:i:s");
+    file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
+}
+
 // Fonction pour vérifier si la connexion Google est OK
 function isGoogleConnectionValid() {
     global $clientID, $clientSecret, $googleMailReady;
@@ -250,9 +258,139 @@ function render(string $path, array $vars = []): string
 /** @var string|null $lastMailError Dernière erreur détaillée de sendMail() */
 $lastMailError = null;
 
+/**
+ * Envoie un mail via SMTP (PHPMailer).
+ */
+function sendMailSmtp($to, string $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null) {
+    global $data, $lastMailError, $pdo;
+    $lastMailError = null;
+
+    $smtpHost  = $data['smtp_host'] ?? '';
+    $smtpPort  = (int)($data['smtp_port'] ?? 465);
+    $smtpUser  = $data['smtp_user'] ?? '';
+    $smtpPass  = !empty($data['smtp_pass']) ? decrypt($data['smtp_pass']) : '';
+    $smtpEnc   = $data['smtp_encryption'] ?? 'ssl';
+    $fromEmail = $data['smtp_from_email'] ?? $smtpUser;
+    $fromName  = $data['smtp_from_name'] ?? 'Forbach en Rose';
+
+    if (!$smtpHost || !$smtpUser || !$smtpPass) {
+        $lastMailError = "Configuration SMTP incomplète.";
+        writeSmtpLog("❌ " . $lastMailError);
+        return false;
+    }
+
+    writeSmtpLog("Envoi SMTP vers : " . (is_array($to) ? implode(', ', $to) : $to) . " | Serveur : $smtpHost:$smtpPort ($smtpEnc)");
+
+    /* ---------- Corps (même template que Gmail) ---------- */
+    $body = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    if (empty($body)) {
+        $lastMailError = "Le template mail est vide ou introuvable (mail_template.php).";
+        writeSmtpLog("❌ " . $lastMailError);
+        return false;
+    }
+
+    try {
+        $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host       = $smtpHost;
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $smtpUser;
+        $mail->Password   = $smtpPass;
+        $mail->Port       = $smtpPort;
+        $mail->CharSet    = 'UTF-8';
+        $mail->Timeout    = 10;
+
+        if ($smtpEnc === 'ssl') {
+            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+        } elseif ($smtpEnc === 'tls') {
+            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        } else {
+            $mail->SMTPSecure = '';
+            $mail->SMTPAutoTLS = false;
+        }
+
+        $mail->setFrom($fromEmail, $fromName);
+
+        if (is_array($to)) {
+            foreach ($to as $addr) $mail->addBCC($addr);
+            $mail->addAddress($fromEmail); // To: self for BCC-only
+        } else {
+            $mail->addAddress($to);
+        }
+
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body    = $body;
+
+        $mail->send();
+        writeSmtpLog("✅ Mail SMTP envoyé à : " . (is_array($to) ? implode(', ', $to) : $to));
+        return true;
+    } catch (\Throwable $e) {
+        $lastMailError = "Erreur SMTP : " . $e->getMessage();
+        writeSmtpLog("❌ " . $lastMailError);
+        return false;
+    }
+}
+
+/**
+ * Construit le corps HTML du mail (partagé entre Gmail et SMTP).
+ */
+function buildMailBody($to, string $subject, $mailTitle, $description, $lastname, $firstname, string $type, string|int|null $inscriptionNo, ?string $mailSubtype): string {
+    global $data;
+
+    $formattedDate = '';
+    if ($type === 'inscription' && !empty($data['date_course'])) {
+        try {
+            $dateCourse = new DateTime($data['date_course']);
+            $formatter = new IntlDateFormatter(
+                'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
+                'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
+            );
+            $formattedDate = $formatter->format($dateCourse);
+        } catch (\Throwable $e) {
+            writeLog("⚠️ Erreur formatage date : " . $e->getMessage());
+        }
+    }
+
+    $qrCodeDataUri = '';
+    if ($type === 'inscription' && $inscriptionNo !== null && shouldIncludeQrCode($inscriptionNo)) {
+        $qrCodeDataUri = generateQrCodeDataUri($inscriptionNo);
+    }
+
+    $mtcJson = $data['mail_template_config'] ?? null;
+    $mtc = $mtcJson ? json_decode($mtcJson, true) : [];
+
+    return render('mail_template.php', [
+        'type'        => $type,
+        'mailTitle'   => $mailTitle,
+        'description' => $description,
+        'firstname'   => $firstname,
+        'lastname'    => $lastname,
+        'date'        => $formattedDate,
+        'instagram'   => $data['link_instagram'] ?? '',
+        'facebook'    => $data['link_facebook'] ?? '',
+        'cancer'      => $data['link_cancer'] ?? '',
+        'mail_email'  => $data['mail_email'] ?? '',
+        'mail_phone'  => $data['mail_phone'] ?? '',
+        'qrcode'      => $qrCodeDataUri,
+        'inscription_no' => $inscriptionNo,
+        'mtc'         => $mtc,
+        'mail_subtype' => $mailSubtype ?? ($type === 'inscription' ? 'inscription' : 'info'),
+    ]);
+}
+
+/**
+ * Envoie un mail via le fournisseur actif (Google ou SMTP).
+ */
 function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null) {
     global $data, $lastMailError;
     $lastMailError = null;
+
+    // Route vers SMTP si c'est le fournisseur actif
+    $provider = $data['mail_provider'] ?? 'google';
+    if ($provider === 'smtp') {
+        return sendMailSmtp($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    }
 
     /* ---------- Auth Gmail ---------- */
     $accessToken = getAccessToken(false);
@@ -278,48 +416,8 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     /* ---------- Sujet ---------- */
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
-    /* ---------- Corps (template unique) ---------- */
-    $formattedDate = '';
-    if ($type === 'inscription' && !empty($data['date_course'])) {
-        try {
-            $dateCourse = new DateTime($data['date_course']);
-            $formatter = new IntlDateFormatter(
-                'fr_FR', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
-                'Europe/Paris', IntlDateFormatter::GREGORIAN, 'd MMMM yyyy'
-            );
-            $formattedDate = $formatter->format($dateCourse);
-        } catch (\Throwable $e) {
-            writeLog("⚠️ Erreur formatage date : " . $e->getMessage());
-        }
-    }
-
-    /* ---------- QR Code conditionnel ---------- */
-    $qrCodeDataUri = '';
-    if ($type === 'inscription' && $inscriptionNo !== null && shouldIncludeQrCode($inscriptionNo)) {
-        $qrCodeDataUri = generateQrCodeDataUri($inscriptionNo);
-    }
-
-    // Load mail template config
-    $mtcJson = $data['mail_template_config'] ?? null;
-    $mtc = $mtcJson ? json_decode($mtcJson, true) : [];
-
-    $body = render('mail_template.php', [
-        'type'        => $type,
-        'mailTitle'   => $mailTitle,
-        'description' => $description,
-        'firstname'   => $firstname,
-        'lastname'    => $lastname,
-        'date'        => $formattedDate,
-        'instagram'   => $data['link_instagram'] ?? '',
-        'facebook'    => $data['link_facebook'] ?? '',
-        'cancer'      => $data['link_cancer'] ?? '',
-        'mail_email'  => $data['mail_email'] ?? '',
-        'mail_phone'  => $data['mail_phone'] ?? '',
-        'qrcode'      => $qrCodeDataUri,
-        'inscription_no' => $inscriptionNo,
-        'mtc'         => $mtc,
-        'mail_subtype' => $mailSubtype ?? ($type === 'inscription' ? 'inscription' : 'info'),
-    ]);
+    /* ---------- Corps (template partagé) ---------- */
+    $body = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
 
     if (empty($body)) {
         $lastMailError = "Le template mail est vide ou introuvable (mail_template.php).";

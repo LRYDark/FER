@@ -579,6 +579,14 @@ function getCreateTableStatements(): array
           `footer_logo` VARCHAR(255) DEFAULT 'logo_blanc.png',
           `registration_auto_open` DATETIME DEFAULT NULL,
           `registration_auto_close` DATETIME DEFAULT NULL,
+          `mail_provider` ENUM('google','smtp') NOT NULL DEFAULT 'google',
+          `smtp_host` VARCHAR(255) DEFAULT NULL,
+          `smtp_port` INT DEFAULT 465,
+          `smtp_user` VARCHAR(255) DEFAULT NULL,
+          `smtp_pass` TEXT DEFAULT NULL,
+          `smtp_encryption` ENUM('ssl','tls','none') NOT NULL DEFAULT 'ssl',
+          `smtp_from_email` VARCHAR(255) DEFAULT NULL,
+          `smtp_from_name` VARCHAR(255) DEFAULT 'Forbach en Rose',
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 

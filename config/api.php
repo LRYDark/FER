@@ -78,12 +78,18 @@ function createTrustedDevice($pdo, $userId) {
 
 function isMailConfigured(): bool {
     try {
-        if (!file_exists(__DIR__ . '/token.json')) return false;
         global $pdo;
-        $stmt = $pdo->prepare('SELECT client_id, client_secret FROM setting WHERE id = 1 LIMIT 1');
+        $stmt = $pdo->prepare('SELECT client_id, client_secret, mail_provider, smtp_host, smtp_user, smtp_pass FROM setting WHERE id = 1 LIMIT 1');
         $stmt->execute();
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return false;
+
+        $provider = $row['mail_provider'] ?? 'google';
+        if ($provider === 'smtp') {
+            return !empty($row['smtp_host']) && !empty($row['smtp_user']) && !empty($row['smtp_pass']);
+        }
+        // Google mode
+        if (!file_exists(__DIR__ . '/token.json')) return false;
         return !empty(decrypt($row['client_id'] ?? null)) && !empty(decrypt($row['client_secret'] ?? null));
     } catch (\Throwable $e) { return false; }
 }

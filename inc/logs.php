@@ -18,8 +18,15 @@ $logFiles = [
         'name'  => 'Google Mails',
         'key'   => 'google_mails',
         'tab'   => 'mail',
-        'icon'  => 'bi-envelope',
+        'icon'  => 'bi-google',
         'path'  => __DIR__ . '/../config/logs/logs_google_mails.log',
+    ],
+    'smtp_mails' => [
+        'name'  => 'SMTP Mails',
+        'key'   => 'smtp_mails',
+        'tab'   => 'smtp',
+        'icon'  => 'bi-server',
+        'path'  => __DIR__ . '/../config/logs/logs_smtp_mails.log',
     ],
     'import_errors' => [
         'name'  => "Erreurs d'import",
@@ -251,7 +258,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 
   <?php
     $activeLogTab = $_GET['log'] ?? 'php';
-    if (!in_array($activeLogTab, ['php', 'mail', 'import'])) $activeLogTab = 'php';
+    if (!in_array($activeLogTab, ['php', 'mail', 'smtp', 'import'])) $activeLogTab = 'php';
   ?>
 
   <!-- Onglets -->
