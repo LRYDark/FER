@@ -99,11 +99,22 @@ $link_twitter = $data['link_twitter'] ?? null;
 $link_youtube = $data['link_youtube'] ?? null;
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d\TH:i:s', strtotime($date_course)) : '2026-07-05T09:00:00';
+$registration_fee = $data['registration_fee'] ?? 0;
+$course_km = $data['course_km'] ?? 0;
 $picture_partner = $data['picture_partner'] ?? '';
 $flash_info_text = $data['flash_info_text'] ?? '';
 $flash_info_active = !empty($data['flash_info_active']) ? 1 : 0;
 $flash_bg_color = $data['flash_bg_color'] ?? '#db2777';
 $flash_text_color = $data['flash_text_color'] ?? '#ffffff';
+
+// Ouverture / fermeture automatique des inscriptions
+$accueil_active = $data['accueil_active'] ? 1 : 0;
+$tz = new DateTimeZone('Europe/Paris');
+$now = new DateTime('now', $tz);
+$autoOpen  = !empty($data['registration_auto_open'])  ? new DateTime($data['registration_auto_open'], $tz)  : null;
+$autoClose = !empty($data['registration_auto_close']) ? new DateTime($data['registration_auto_close'], $tz) : null;
+if ($autoOpen && $now >= $autoOpen) { $accueil_active = 1; }
+if ($autoClose && $now >= $autoClose) { $accueil_active = 0; }
 
 // navbar-data.php (ligne 4) charge déjà $galeries, $actualites, $partenaires, $actualites_cols2, etc.
 
@@ -1472,7 +1483,7 @@ function generateTimelineSVG(int $count): array {
 
     .reg-card {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 2fr 3fr;
       min-height: 140px;
       border-radius: var(--radius-lg);
       overflow: hidden;
@@ -1483,13 +1494,24 @@ function generateTimelineSVG(int $count): array {
     .reg-count {
       background: var(--secondary, #0f172a);
       padding: 24px;
+      padding-right: 48px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       position: relative;
-      clip-path: polygon(0 0, 100% 0, 85% 100%, 0 100%);
+      clip-path: none;
       margin-right: -40px;
       z-index: 2;
+    }
+    .reg-count::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: -100px;
+      width: 100px;
+      height: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L65,0 C40,15 60,35 25,50 C-10,65 20,85 0,100 L0,100 Z' fill='%230f172a'/%3E%3C/svg%3E");
+      background-size: 100% 100%;
     }
 
     .reg-count .reg-kicker {
@@ -1515,10 +1537,12 @@ function generateTimelineSVG(int $count): array {
 
     .reg-search {
       background: transparent;
-      padding: 24px 24px 24px 48px;
+      padding: 24px 24px 24px 110px;
       display: flex;
       flex-direction: column;
       justify-content: center;
+      position: relative;
+      z-index: 3;
     }
 
     .reg-title {
@@ -1613,25 +1637,38 @@ function generateTimelineSVG(int $count): array {
       .reg-count {
         clip-path: none;
         margin-right: 0;
-        padding: 24px;
+        padding: 16px 24px;
         flex-direction: row;
         align-items: center;
         gap: 16px;
       }
-      
-      .reg-count .reg-kicker { 
-        margin-bottom: 0; 
+      .reg-count::after {
+        top: auto;
+        bottom: -39px;
+        right: 0;
+        left: 0;
+        width: 100%;
+        height: 40px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L0,15 Q15,25 30,15 Q45,5 60,15 Q75,25 90,15 Q105,5 120,15 L120,0 Z' fill='%230f172a'/%3E%3C/svg%3E");
       }
       
-      .reg-count .reg-value { 
-        font-size: 40px; 
+      .reg-count .reg-kicker {
+        margin-bottom: 0;
+        margin-top: 6px;
       }
       
-      .reg-search { 
-        padding: 24px; 
+      .reg-count .reg-value {
+        font-size: 40px;
+        margin-top: 6px;
+      }
+      
+      .reg-search {
+        padding: 24px;
+        margin-top: 3px;
       }
       .reg-title{
         text-align: center;
+        margin-top: 8px;
       }
       
       .reg-form {
@@ -1655,6 +1692,74 @@ function generateTimelineSVG(int $count): array {
     }
 
     /* ===== VIDEO CARD + COUNTDOWN ===== */
+    /* ===== BADGES RONDS (prix + km) ===== */
+    .demo-badges{
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      z-index: 10;
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+    }
+    .demo-badge{
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      line-height: 1.1;
+      box-shadow: 0 4px 12px rgba(0,0,0,.25);
+      border: 2px solid #fff;
+    }
+    .demo-badge + .demo-badge{
+      margin-left: -20px;
+    }
+    .demo-badge-value{
+      font-size: 18px;
+      line-height: 1;
+    }
+    .demo-badge-label{
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      opacity: .85;
+      font-weight: 600;
+    }
+    .demo-badge--fee{
+      background: var(--primary, #db2777);
+      color: #fff;
+      z-index: 2;
+    }
+    .demo-badge--km{
+      background: #fff;
+      color: var(--secondary, #0f172a);
+      z-index: 1;
+      margin-top: 38px;
+    }
+    @media (max-width: 980px){
+      .demo-badges{
+        top: 12px;
+        left: 12px;
+      }
+      .demo-badge{
+        width: 52px;
+        height: 52px;
+      }
+      .demo-badge-value{
+        font-size: 15px;
+      }
+      .demo-badge-label{
+        font-size: 7px;
+      }
+      .demo-badge + .demo-badge{
+        margin-left: -24px;
+      }
+    }
+
     .demo-wrap{
       margin-left: 100px;
       width: 100%;
@@ -2702,7 +2807,7 @@ function generateTimelineSVG(int $count): array {
       }
 
       .reg-bar{
-        margin-top: 70px;
+        margin-top: 120px;
       }
     }
   margin-top: 36px !important;
@@ -3044,6 +3149,21 @@ function generateTimelineSVG(int $count): array {
 
     <div class="demo-wrap">
       <section class="demo-card" aria-label="Carte vidéo">
+        <?php if (!empty($registration_fee) || !empty($course_km)): ?>
+        <div class="demo-badges">
+          <?php if (!empty($course_km)): ?>
+          <div class="demo-badge demo-badge--km">
+            <span class="demo-badge-value"><?= (int)$course_km ?> km</span>
+            <span class="demo-badge-label">Parcours</span>
+          </div>
+          <?php endif; ?>
+          <?php if (!empty($registration_fee)): ?>
+          <div class="demo-badge demo-badge--fee">
+            <span class="demo-badge-value"><?= (int)$registration_fee ?>€</span>
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
         <?php $videoFile = $data['video_accueil'] ?? 'FER.mp4'; ?>
         <?php if ($videoFile && file_exists(__DIR__ . '/../files/' . $videoFile)): ?>
         <video class="demo-video" id="heroVideo" autoplay muted loop playsinline>
@@ -3129,6 +3249,58 @@ function generateTimelineSVG(int $count): array {
       </div>
     </div>
 
+    <section class="reg-bar" id="reg-bar" aria-label="Inscriptions">
+      <div class="reg-card">
+        <?php if ((int)$count === 0 && $accueil_active === 0): ?>
+        <div class="reg-count">
+          <div class="reg-kicker">Inscriptions</div>
+          <div class="reg-value" style="font-size:1.2rem;">Fermées</div>
+        </div>
+        <div class="reg-search">
+          <div class="reg-title" style="display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg><span>Inscriptions actuellement fermées</span></div>
+          <?php if ($autoOpen && $now < $autoOpen): ?>
+            <p style="margin-top:10px;font-size:.95rem;color:#b5366b;display:flex;align-items:center;justify-content:center;gap:5px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Ouverture le <strong><?= $autoOpen->format('d/m/Y') ?></strong> à <strong><?= $autoOpen->format('H\hi') ?></strong></span>
+            </p>
+          <?php else: ?>
+            <p style="margin-top:10px;font-size:.95rem;color:#64748b;">Merci de votre compréhension.</p>
+          <?php endif; ?>
+        </div>
+        <?php else: ?>
+        <div class="reg-count">
+          <div class="reg-kicker">Déjà inscrits</div>
+          <div class="reg-value"><?= number_format((int)$count, 0, ',', ' ') ?></div>
+        </div>
+
+        <div class="reg-search">
+          <div class="reg-title">Vérifier mon inscription</div>
+          <form class="reg-form" method="get" action="accueil#reg-bar">
+            <input type="hidden" name="check_registration" value="1">
+            <input class="reg-input" type="email" name="search_email" placeholder="Votre adresse email"
+                  value="<?= htmlspecialchars($searchEmail) ?>" autocomplete="email" required>
+            <button class="reg-submit" type="submit">Vérifier →</button>
+          </form>
+
+          <p
+            id="regResult"
+            class="reg-result <?= htmlspecialchars($searchStatus) ?>"
+            aria-live="polite"
+            style="<?= $searchMessage !== '' ? '' : 'display:none;' ?>"
+          >
+            <?= htmlspecialchars($searchMessage) ?>
+          </p>
+          <p
+            id="regHint"
+            class="reg-hint"
+            style="<?= $searchMessage !== '' ? 'display:none;' : '' ?>"
+          >
+            Saisissez l'email utilisé lors de votre inscription.
+          </p>
+        </div>
+        <?php endif; ?>
+      </div>
+    </section>
+
     <?php
       $partnerDir = __DIR__ . '/files/_partners';
       $partnerWebPath = 'files/_partners';
@@ -3195,41 +3367,7 @@ function generateTimelineSVG(int $count): array {
       </div>
     </section>
 
-<section class="reg-bar" id="reg-bar" aria-label="Inscriptions">
-      <div class="reg-card">
-        <div class="reg-count">
-          <div class="reg-kicker">Déjà inscrits</div>
-          <div class="reg-value"><?= number_format((int)$count, 0, ',', ' ') ?></div>
-        </div>
 
-        <div class="reg-search">
-          <div class="reg-title">Vérifier mon inscription</div>
-          <form class="reg-form" method="get" action="accueil#reg-bar">
-            <input type="hidden" name="check_registration" value="1">
-            <input class="reg-input" type="email" name="search_email" placeholder="Votre adresse email"
-                  value="<?= htmlspecialchars($searchEmail) ?>" autocomplete="email" required>
-            <button class="reg-submit" type="submit">Vérifier →</button>
-          </form>
-
-          <p
-            id="regResult"
-            class="reg-result <?= htmlspecialchars($searchStatus) ?>"
-            aria-live="polite"
-            style="<?= $searchMessage !== '' ? '' : 'display:none;' ?>"
-          >
-            <?= htmlspecialchars($searchMessage) ?>
-          </p>
-          <p
-            id="regHint"
-            class="reg-hint"
-            style="<?= $searchMessage !== '' ? 'display:none;' : '' ?>"
-          >
-            Saisissez l'email utilisé lors de votre inscription.
-          </p>
-        </div>
-      </div>
-    </section>
-    
 <!-- TIMELINE (below video) -->
     <?php if ($isTimelinePreview): ?>
     <div style="background:#fd7e14;color:#fff;text-align:center;padding:10px;font-weight:600;font-size:14px;margin:12px auto;border-radius:8px;max-width:1200px;">
@@ -3562,10 +3700,10 @@ function generateTimelineSVG(int $count): array {
     updatePath();
   })();
 
-    // ===== Keep partner band 30px below bottom bar (mobile, no scroll) =====
+    // ===== Keep reg-bar 30px below bottom bar (mobile, no scroll) =====
     (function(){
       const demoCard = document.querySelector('.demo-card');
-      const community = document.querySelector('.community-section');
+      const community = document.querySelector('.reg-bar') || document.querySelector('.community-section');
       const bottomBar = document.getElementById('mobileBottomBar');
 
       if (!demoCard || !community || !bottomBar) return;
@@ -3588,14 +3726,12 @@ function generateTimelineSVG(int $count): array {
         const bottomRect = bottomInner.getBoundingClientRect();
         if (!bottomRect.height) return;
 
-        const gapBelowBar = 30;
-        const targetTop = bottomRect.bottom + gapBelowBar;
+        const gapAboveBar = 15;
+        const targetBottom = bottomRect.top - gapAboveBar;
 
         const demoRect = demoCard.getBoundingClientRect();
-        const communityRect = community.getBoundingClientRect();
-        const gap = Math.max(communityRect.top - demoRect.bottom, 0);
 
-        let nextHeight = targetTop - demoRect.top - gap;
+        let nextHeight = targetBottom - demoRect.top;
         if (!Number.isFinite(nextHeight)) return;
 
         const minHeight = 260;

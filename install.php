@@ -532,6 +532,7 @@ function getCreateTableStatements(): array
           `assoconnect_iframe` longtext DEFAULT NULL,
           `title` TEXT DEFAULT NULL,
           `registration_fee` int(10) DEFAULT NULL,
+          `course_km` int(10) DEFAULT 7,
           `titleAccueil` TEXT DEFAULT NULL,
           `link_facebook` varchar(255) DEFAULT NULL,
           `link_instagram` varchar(255) DEFAULT NULL,
@@ -890,8 +891,8 @@ function getCreateTableStatements(): array
 function getDefaultInserts(): array
 {
     return [
-        "INSERT IGNORE INTO `setting` (`id`, `title`, `registration_fee`, `accueil_active`, `debogage`)
-         VALUES (1, 'Forbach en Rose', 12, 0, 0)",
+        "INSERT IGNORE INTO `setting` (`id`, `title`, `registration_fee`, `course_km`, `accueil_active`, `debogage`)
+         VALUES (1, 'Forbach en Rose', 12, 7, 0, 0)",
 
         "INSERT IGNORE INTO `customize` (`id`, `assoconnect_js`, `assoconnect_iframe`)
          VALUES (1, NULL, NULL)",

@@ -141,6 +141,7 @@ $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
+$course_km = $data['course_km'] ?? 7;
 $accueil_active = $data['accueil_active'] ? 1 : 0;
 
 // Ouverture / fermeture automatique des inscriptions
@@ -444,7 +445,7 @@ $formFields = getActiveFields($pdo, 'qr');
   </a>
 
   <div class="hero-inner">
-    <p class="hero-lead">7 km course et marche solidaire contre le cancer du sein</p>
+    <p class="hero-lead"><?= (int)$course_km ?> km course et marche solidaire contre le cancer du sein</p>
     <span class="badge-donation"><?= htmlspecialchars($registration_fee) ?> € intégralement reversés</span>
   </div>
 

@@ -31,6 +31,7 @@ $navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
 $footer_logo = $data['footer_logo'] ?? 'logo_blanc.png';
 $title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
+$course_km = $data['course_km'] ?? 7;
 
 // theme
 $theme_primary        = $data['theme_primary_color']        ?? '#db2777';
@@ -376,18 +377,20 @@ if (isset($_POST['reset_theme'])) {
 if (isset($_POST['save_inscription_params'])) {
     $accueil_active = !empty($_POST['accueil_active']) ? 1 : 0;
     $registration_fee = (int) ($_POST['registration_fee'] ?? 0);
+    $course_km = max(1, (int) ($_POST['course_km'] ?? 7));
     $qrcode_mail_limit = max(0, (int) ($_POST['qrcode_mail_limit'] ?? 0));
 
     $registration_auto_open  = !empty($_POST['registration_auto_open'])  ? date('Y-m-d H:i:s', strtotime($_POST['registration_auto_open']))  : null;
     $registration_auto_close = !empty($_POST['registration_auto_close']) ? date('Y-m-d H:i:s', strtotime($_POST['registration_auto_close'])) : null;
 
     $pdo->prepare(
-        'UPDATE setting SET registration_fee = :fee,
+        'UPDATE setting SET registration_fee = :fee, course_km = :course_km,
          accueil_active = :accueil_active, qrcode_mail_limit = :qrcode_mail_limit,
          registration_auto_open = :auto_open, registration_auto_close = :auto_close
          WHERE id = 1'
     )->execute([
         'fee' => $registration_fee,
+        'course_km' => $course_km,
         'accueil_active' => $accueil_active,
         'qrcode_mail_limit' => $qrcode_mail_limit,
         'auto_open' => $registration_auto_open,
@@ -1509,12 +1512,15 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         <h2>Paramètres d'inscription</h2>
         <form action="" method="post" class="row g-3 needs-validation">
           <?= csrf_field() ?>
-          <div class="col-12"><label class="form-label">Montant de l'inscription</label>
+          <div class="col-md-6"><label class="form-label">Montant de l'inscription</label>
             <select id="registration_fee" name="registration_fee" class="form-select">
               <?php for ($i = 0; $i <= 100; $i++): ?>
               <option value="<?= $i ?>" <?= ($i == (int)$registration_fee ? 'selected' : '') ?>><?= $i ?></option>
               <?php endfor; ?>
             </select>
+          </div>
+          <div class="col-md-6"><label class="form-label">Kilomètres de la course</label>
+            <input type="number" class="form-control" name="course_km" min="1" max="100" value="<?= (int)$course_km ?>" placeholder="Ex : 7">
           </div>
           <div class="col-12"><label class="form-label">Nombre de premiers inscrits</label>
             <input type="number" class="form-control" name="qrcode_mail_limit" min="0" value="<?= $qrcode_mail_limit ?>" placeholder="Ex : 800">
