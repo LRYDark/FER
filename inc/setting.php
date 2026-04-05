@@ -405,15 +405,25 @@ if (isset($_POST['save_inscription_params'])) {
 -------------------------------------------------------------------------- */
 if (isset($_POST['LinkAssoConnect'])) {
 
-    /* a) Lecture & validation (CWE-79) */
-    $iframe = trim($_POST['assoconnect_iframe'] ?? '');
-    $script = trim($_POST['assoconnect_js']     ?? '');
+    /* a) Lecture & nettoyage (CWE-79)
+       On ne stocke que les attributs du div (sans <div>) et l'URL du script
+       pour éviter le blocage WAF sur les balises HTML. */
+    $divAttrs  = trim($_POST['assoconnect_iframe'] ?? '');
+    $scriptUrl = trim($_POST['assoconnect_js']     ?? '');
 
-    if ($iframe === '' || $script === '') {
+    /* Extraction si l'utilisateur colle le tag complet */
+    if (preg_match('#<div\s+([^>]+?)\s*/?\s*>#i', $divAttrs, $m)) {
+        $divAttrs = $m[1];
+    }
+    if (preg_match('#<script[^>]+src=["\']([^"\']+)["\']#i', $scriptUrl, $m)) {
+        $scriptUrl = $m[1];
+    }
+
+    if ($divAttrs === '' || $scriptUrl === '') {
          addToast('danger', 'Les deux champs sont obligatoires.');
-    } elseif (!preg_match('#^<(iframe[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/|div[^>]+class=["\'][^"\']*iframe-asc-container)#i', $iframe)) {
-         addToast('danger', 'Le code DIV/iframe doit provenir d\'AssoConnect.');
-    } elseif (!preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', $script)) {
+    } elseif (!preg_match('#data-collect-id=["\'][A-Z0-9]{26}["\']#i', $divAttrs)) {
+         addToast('danger', 'Les attributs DIV doivent contenir un data-collect-id AssoConnect valide.');
+    } elseif (!preg_match('#^https://[a-z0-9.-]*\.assoconnect\.com/#i', $scriptUrl)) {
          addToast('danger', 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).');
     } else {
 
@@ -426,8 +436,8 @@ if (isset($_POST['LinkAssoConnect'])) {
         );
 
         $ok = $upd->execute([
-            'iframe' => $iframe,
-            'script' => $script,
+            'iframe' => $divAttrs,
+            'script' => $scriptUrl,
             'id'     => 1
         ]);
 
@@ -440,8 +450,8 @@ if (isset($_POST['LinkAssoConnect'])) {
             }
 
             /* Mettre à jour les variables pour le pré-remplissage */
-            $assoconnectIframe = $iframe;
-            $assoconnectJs     = $script;
+            $assoconnectIframe = $divAttrs;
+            $assoconnectJs     = $scriptUrl;
         } else {
             /* $execute a échoué : on affiche le message renvoyé par PDO */
             $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
@@ -1557,25 +1567,27 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
                     <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                         <?= csrf_field() ?>
                         <div class="form-group mb-3">
-                            <label for="divCode">Code DIV Assoconnect</label>
+                            <label for="divCode">Attributs DIV Assoconnect</label>
                             <input type="text"
                                 class="form-control"
                                 id="divCode"
                                 name="assoconnect_iframe"
-                                placeholder="&lt;div class=…&gt;"
+                                placeholder='class=&quot;iframe-asc-container&quot; data-type=&quot;collect&quot; data-collect-id=&quot;...&quot;'
                                 value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
                                 required>
+                            <small class="text-muted">Collez le tag &lt;div&gt; complet — les balises seront retirées automatiquement.</small>
                         </div>
 
                         <div class="form-group mb-3">
-                            <label for="scriptCode">Code Script Assoconnect</label>
+                            <label for="scriptCode">URL Script Assoconnect</label>
                             <input type="text"
                                 class="form-control"
                                 id="scriptCode"
                                 name="assoconnect_js"
-                                placeholder="&lt;script src=…&gt;"
+                                placeholder="https://xxx.assoconnect.com/public/build/js/iframe.js"
                                 value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
                                 required>
+                            <small class="text-muted">Collez le tag &lt;script&gt; complet ou juste l'URL.</small>
                         </div>
                         <div class="col-12 text-end">
                             <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
@@ -2668,3 +2680,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function () {
+    var fields = [
+        { id: 'divCode',    re: /<div\s+([^>]+?)\s*\/?>/i },
+        { id: 'scriptCode', re: /src=["']([^"']+)["']/i }
+    ];
+    fields.forEach(function (f) {
+        var el = document.getElementById(f.id);
+        if (el) el.addEventListener('input', function () {
+            var m = this.value.match(f.re);
+            if (m) this.value = m[1];
+        });
+    });
+})();
+</script>
