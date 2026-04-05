@@ -231,7 +231,7 @@ function generateTimelineSVG(int $count): array {
       --radius-panel: var(--radius-lg, 18px);
 
       /* widths */
-      --nav-max: clamp(820px, 74vw, 1500px);
+      --nav-max: clamp(820px, 86vw, 2000px);
       --side-pad: clamp(16px, 2.2vw, 28px);
       --content-width: min(var(--nav-max), calc(100% - (var(--side-pad) * 2)));
       --nav-space: 0px;
@@ -1761,7 +1761,6 @@ function generateTimelineSVG(int $count): array {
     }
 
     .demo-wrap{
-      margin-left: 100px;
       width: 100%;
       margin: 75px auto 0;
       position: relative;
