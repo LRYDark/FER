@@ -31,6 +31,7 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `smtp_from_name` VARCHAR(255) DEFAULT 'Forbach en Rose'",
     "ALTER TABLE `photo_years` ADD COLUMN `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP",
     "ALTER TABLE `partners_years` ADD COLUMN `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP",
+    "ALTER TABLE `setting` ADD COLUMN `course_km` INT(10) DEFAULT 7",
 ];
 
 $results = [];
