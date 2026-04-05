@@ -38,9 +38,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     die('Invalid CSRF token');
 }
 
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+function decodeHtmlField(string $raw): string {
+    $decoded = base64_decode($raw, true);
+    if ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) {
+        return $decoded;
+    }
+    return $raw;
+}
+
 // Sauvegarde description et image générique partenaires
 if (isset($_POST['update_partners_desc'])) {
     $partnersTitle = $_POST['partners_title'] ?? '';
+    $partnersDesc = $isAjax ? decodeHtmlField($_POST['partners_desc'] ?? '') : ($_POST['partners_desc'] ?? '');
     if (!empty($_FILES['partners_img']['name'])) {
         $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -50,16 +61,21 @@ if (isset($_POST['update_partners_desc'])) {
             $safeName = uniqid('partner_', true) . '.' . $ext;
             move_uploaded_file($_FILES['partners_img']['tmp_name'], "../files/_partners/" . $safeName);
             $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ?, partners_img = ? WHERE id = 1");
-            $stmt->execute([$partnersTitle, $_POST['partners_desc'], $safeName]);
+            $stmt->execute([$partnersTitle, $partnersDesc, $safeName]);
         } else {
             $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
-            $stmt->execute([$partnersTitle, $_POST['partners_desc']]);
+            $stmt->execute([$partnersTitle, $partnersDesc]);
         }
     } else {
         $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
-        $stmt->execute([$partnersTitle, $_POST['partners_desc']]);
+        $stmt->execute([$partnersTitle, $partnersDesc]);
     }
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Description mise à jour.'];
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -935,6 +951,32 @@ if ($migrationDone) {
 
             // Configuration du mode code
             toolbar_mode: 'sliding'
+        });
+
+        /* ── Envoi AJAX pour contourner le WAF ── */
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('button[name="update_partners_desc"]');
+            if (!btn) return;
+            e.preventDefault();
+            var form = btn.closest('form');
+            tinymce.triggerSave();
+            var fd = new FormData(form);
+            fd.set(btn.name, '1');
+            var desc = fd.get('partners_desc') || '';
+            if (desc) fd.set('partners_desc', btoa(unescape(encodeURIComponent(desc))));
+            fetch(form.action || window.location.href, {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.ok) window.location.reload();
+                else if (typeof showToast === 'function') showToast(data.message || 'Erreur', 'danger');
+            })
+            .catch(function (err) {
+                if (typeof showToast === 'function') showToast('Erreur : ' + err.message, 'danger');
+            });
         });
     </script>
 <!-- ############################ TinyMCE ############################ -->

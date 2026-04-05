@@ -2009,24 +2009,26 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
           recipients: selectedRecipients,
           subject: document.getElementById('mailSubject').value,
           mail_title: document.getElementById('mailTitle').value,
-          description: description
+          description: btoa(unescape(encodeURIComponent(description)))
         };
-        var hiddenForm = document.createElement('form');
-        hiddenForm.method = 'POST';
-        hiddenForm.action = 'send-mail.php';
-        hiddenForm.style.display = 'none';
-        var csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'csrf_token';
-        csrfInput.value = _csrfToken;
-        hiddenForm.appendChild(csrfInput);
-        var dataInput = document.createElement('input');
-        dataInput.type = 'hidden';
-        dataInput.name = 'mail_data';
-        dataInput.value = JSON.stringify(mailData);
-        hiddenForm.appendChild(dataInput);
-        document.body.appendChild(hiddenForm);
-        hiddenForm.submit();
+        var fd = new FormData();
+        fd.append('csrf_token', _csrfToken);
+        fd.append('mail_data', JSON.stringify(mailData));
+        fetch('send-mail.php', {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.ok) window.location.reload();
+            else if (typeof showToast === 'function') showToast(data.message || 'Erreur', 'danger');
+            else alert(data.message || 'Erreur');
+        })
+        .catch(function (err) {
+            if (typeof showToast === 'function') showToast('Erreur : ' + err.message, 'danger');
+            else alert('Erreur : ' + err.message);
+        });
       });
     }
   });

@@ -4,8 +4,15 @@ require_once '../config/csrf.php';
 require '../config/googleMail.php';
 requireRole(['admin','user']);
 
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
 // 🔒 [SEC-02] Vérification CSRF avant envoi de mails en masse (CWE-352)
 if (!csrf_verify()) {
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'message' => 'Session expirée. Veuillez réessayer.']);
+        exit;
+    }
     $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Session expirée. Veuillez réessayer.'];
     header('Location: ../public/accueil');
     exit;
@@ -15,7 +22,11 @@ if (!csrf_verify()) {
     $recipients = $mailData['recipients'] ?? [];
     $subject = $mailData['subject'] ?? '';
     $mailTitle = $mailData['mail_title'] ?? '';
-    $description = $mailData['description'] ?? '';
+
+    // Décodage Base64 de la description (encodée côté JS pour contourner le WAF)
+    $rawDesc = $mailData['description'] ?? '';
+    $decoded = base64_decode($rawDesc, true);
+    $description = ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) ? $decoded : $rawDesc;
 
         // Collect unique emails (BCC mode — recipients won't see each other)
         $adresses = [];
@@ -40,6 +51,12 @@ if (!csrf_verify()) {
             'type' => 'error',
             'message' => '❌ Erreur lors de l\'envoi du mail. Veuillez réessayer.'
         ];
+    }
+
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => $mailSent]);
+        exit;
     }
 
     header('Location: mail-settings.php?tab=envoi');

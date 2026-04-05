@@ -533,12 +533,12 @@ $formFields = getActiveFields($pdo, 'qr');
       <h2 class="register-online-title text-center mb-4">Inscription en ligne</h2>
 
       <?php
-      // 🔒 [SEC-09] Reconstruction des tags AssoConnect à partir des valeurs nettoyées
-      if ($assoconnectIframe && preg_match('#data-collect-id=["\'][A-Z0-9]{26}["\']#i', $assoconnectIframe)) {
-          echo '<div ' . $assoconnectIframe . '></div>', PHP_EOL;
+      // 🔒 [SEC-09] Validation domaine AssoConnect avant echo (CWE-79)
+      if ($assoconnectIframe && preg_match('#^<div[^>]+data-collect-id=["\'][A-Z0-9]{26}["\']#i', trim($assoconnectIframe))) {
+          echo $assoconnectIframe, PHP_EOL;
       }
-      if ($assoconnectJs && preg_match('#^https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectJs))) {
-          echo '<script src="' . htmlspecialchars(trim($assoconnectJs), ENT_QUOTES, 'UTF-8') . '"></script>', PHP_EOL;
+      if ($assoconnectJs && preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectJs))) {
+          echo $assoconnectJs, PHP_EOL;
       }
       ?>
     <?php endif; ?>

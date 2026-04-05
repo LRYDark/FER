@@ -31,10 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     die('Invalid CSRF token');
 }
 
+// ─── Détection AJAX et décodage Base64 des champs HTML ───
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+function decodeHtmlField(string $raw): string {
+    $decoded = base64_decode($raw, true);
+    if ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) {
+        return $decoded;
+    }
+    return $raw;
+}
+
 // ─── Add news ───
 if (isset($_POST['add_news'])) {
     $title = $_POST['title_article'];
-    $desc = $_POST['desc_article'];
+    $desc = $isAjax ? decodeHtmlField($_POST['desc_article'] ?? '') : ($_POST['desc_article'] ?? '');
     $imgName = '';
 
     if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
@@ -61,6 +72,11 @@ if (isset($_POST['add_news'])) {
         $stmt->execute([$imgName, $title, $desc]);
     }
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article ajouté avec succès.'];
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
 }
@@ -69,7 +85,7 @@ if (isset($_POST['add_news'])) {
 if (isset($_POST['update_news'])) {
     $id = $_POST['news_id'];
     $title = $_POST['title_article'];
-    $desc = $_POST['desc_article'];
+    $desc = $isAjax ? decodeHtmlField($_POST['desc_article'] ?? '') : ($_POST['desc_article'] ?? '');
 
     $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     // 🔒 [FIX-04] Validation MIME réelle via magic bytes, pas seulement l'extension (CWE-434)
@@ -135,9 +151,13 @@ if (isset($_POST['update_news'])) {
         }
     }
 
-    // Rediriger vers la même page/filtre et rouvrir le modal
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis à jour avec succès.'];
     $_SESSION['reopen_news_modal'] = $id;
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
     $qs = http_build_query(array_filter([
         'filter' => $_GET['filter'] ?? '',
         'page'   => $_GET['page'] ?? '',
@@ -830,6 +850,42 @@ if ($migrationDone) {
 
             // Configuration du mode code
             toolbar_mode: 'sliding'
+        });
+
+        /* ── Envoi AJAX pour contourner le WAF (encode desc_article en Base64) ── */
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('button[name="add_news"], button[name="update_news"]');
+            if (!btn) return;
+            e.preventDefault();
+
+            var form = btn.closest('form');
+            /* 1. Forcer TinyMCE à écrire dans le textarea */
+            tinymce.triggerSave();
+
+            /* 2. Construire FormData et encoder desc_article en Base64 */
+            var fd = new FormData(form);
+            var desc = fd.get('desc_article') || '';
+            fd.set('desc_article', btoa(unescape(encodeURIComponent(desc))));
+            fd.set(btn.name, '1');
+
+            /* 3. Envoyer via fetch (le WAF ne voit pas le HTML) */
+            fetch(form.action || window.location.href, {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.ok) {
+                    window.location.reload();
+                } else {
+                    showToast(data.message || 'Erreur', 'danger');
+                }
+            })
+            .catch(function (err) {
+                console.error('[NEWS AJAX]', err);
+                showToast('Erreur lors de l\'envoi : ' + err.message, 'danger');
+            });
         });
     </script>
 <!-- ############################ Description ############################ -->

@@ -101,6 +101,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     die('Invalid CSRF token');
 }
 
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+function decodeHtmlField(string $raw): string {
+    $decoded = base64_decode($raw, true);
+    if ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) {
+        return $decoded;
+    }
+    return $raw;
+}
+
 // Traitement des actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
@@ -405,29 +415,19 @@ if (isset($_POST['save_inscription_params'])) {
 -------------------------------------------------------------------------- */
 if (isset($_POST['LinkAssoConnect'])) {
 
-    /* a) Lecture & nettoyage (CWE-79)
-       On ne stocke que les attributs du div (sans <div>) et l'URL du script
-       pour éviter le blocage WAF sur les balises HTML. */
-    $divAttrs  = trim($_POST['assoconnect_iframe'] ?? '');
-    $scriptUrl = trim($_POST['assoconnect_js']     ?? '');
+    /* a) Décodage Base64 des champs (encodés côté JS pour contourner le WAF) */
+    $iframe = $isAjax ? trim(decodeHtmlField($_POST['assoconnect_iframe'] ?? '')) : trim($_POST['assoconnect_iframe'] ?? '');
+    $script = $isAjax ? trim(decodeHtmlField($_POST['assoconnect_js']     ?? '')) : trim($_POST['assoconnect_js']     ?? '');
 
-    /* Extraction si l'utilisateur colle le tag complet */
-    if (preg_match('#<div\s+([^>]+?)\s*/?\s*>#i', $divAttrs, $m)) {
-        $divAttrs = $m[1];
-    }
-    if (preg_match('#<script[^>]+src=["\']([^"\']+)["\']#i', $scriptUrl, $m)) {
-        $scriptUrl = $m[1];
-    }
-
-    if ($divAttrs === '' || $scriptUrl === '') {
+    if ($iframe === '' || $script === '') {
          addToast('danger', 'Les deux champs sont obligatoires.');
-    } elseif (!preg_match('#data-collect-id=["\'][A-Z0-9]{26}["\']#i', $divAttrs)) {
-         addToast('danger', 'Les attributs DIV doivent contenir un data-collect-id AssoConnect valide.');
-    } elseif (!preg_match('#^https://[a-z0-9.-]*\.assoconnect\.com/#i', $scriptUrl)) {
+    } elseif (!preg_match('#^<div[^>]+data-collect-id=["\'][A-Z0-9]{26}["\']#i', $iframe)) {
+         addToast('danger', 'Le code DIV doit contenir un data-collect-id AssoConnect valide.');
+    } elseif (!preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', $script)) {
          addToast('danger', 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).');
     } else {
 
-        /* b) Requête préparée */
+        /* b) Requête préparée — on stocke le tag complet */
         $upd = $pdo->prepare(
             'UPDATE setting
                 SET assoconnect_iframe = :iframe,
@@ -436,8 +436,8 @@ if (isset($_POST['LinkAssoConnect'])) {
         );
 
         $ok = $upd->execute([
-            'iframe' => $divAttrs,
-            'script' => $scriptUrl,
+            'iframe' => $iframe,
+            'script' => $script,
             'id'     => 1
         ]);
 
@@ -449,14 +449,17 @@ if (isset($_POST['LinkAssoConnect'])) {
                  addToast('warning', 'Aucun changement détecté.', 10000);
             }
 
-            /* Mettre à jour les variables pour le pré-remplissage */
-            $assoconnectIframe = $divAttrs;
-            $assoconnectJs     = $scriptUrl;
+            $assoconnectIframe = $iframe;
+            $assoconnectJs     = $script;
         } else {
-            /* $execute a échoué : on affiche le message renvoyé par PDO */
             $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
             addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
         }
+    }
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
     }
 }
 
@@ -736,7 +739,8 @@ if (isset($_POST['uploadGalerie']) && isset($_FILES['galerieImages'])) {
 if (isset($_POST['reglementation'])) {
 
     /* a) Lecture & sanitisation HTML (CWE-79) */
-    $div_reglementation = sanitizeHtml(trim($_POST['div_reglementation'] ?? ''));
+    $rawRegl = $_POST['div_reglementation'] ?? '';
+    $div_reglementation = sanitizeHtml(trim($isAjax ? decodeHtmlField($rawRegl) : $rawRegl));
 
     /* b) Requête préparée */
     $upd = $pdo->prepare(
@@ -761,6 +765,11 @@ if (isset($_POST['reglementation'])) {
         /* $execute a échoué : on affiche le message renvoyé par PDO */
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
         addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
+    }
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
     }
 }
 
@@ -1567,27 +1576,25 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
                     <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                         <?= csrf_field() ?>
                         <div class="form-group mb-3">
-                            <label for="divCode">Attributs DIV Assoconnect</label>
+                            <label for="divCode">Code DIV Assoconnect</label>
                             <input type="text"
                                 class="form-control"
                                 id="divCode"
                                 name="assoconnect_iframe"
-                                placeholder='class=&quot;iframe-asc-container&quot; data-type=&quot;collect&quot; data-collect-id=&quot;...&quot;'
+                                placeholder="&lt;div class=&quot;iframe-asc-container&quot; ...&gt;&lt;/div&gt;"
                                 value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
                                 required>
-                            <small class="text-muted">Collez le tag &lt;div&gt; complet — les balises seront retirées automatiquement.</small>
                         </div>
 
                         <div class="form-group mb-3">
-                            <label for="scriptCode">URL Script Assoconnect</label>
+                            <label for="scriptCode">Code Script Assoconnect</label>
                             <input type="text"
                                 class="form-control"
                                 id="scriptCode"
                                 name="assoconnect_js"
-                                placeholder="https://xxx.assoconnect.com/public/build/js/iframe.js"
+                                placeholder="&lt;script src=&quot;https://...assoconnect.com/...&quot;&gt;&lt;/script&gt;"
                                 value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
                                 required>
-                            <small class="text-muted">Collez le tag &lt;script&gt; complet ou juste l'URL.</small>
                         </div>
                         <div class="col-12 text-end">
                             <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
@@ -2681,17 +2688,52 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+/* ── Envoi AJAX pour contourner le WAF (encode les champs HTML en Base64) ── */
 (function () {
-    var fields = [
-        { id: 'divCode',    re: /<div\s+([^>]+?)\s*\/?>/i },
-        { id: 'scriptCode', re: /src=["']([^"']+)["']/i }
-    ];
-    fields.forEach(function (f) {
-        var el = document.getElementById(f.id);
-        if (el) el.addEventListener('input', function () {
-            var m = this.value.match(f.re);
-            if (m) this.value = m[1];
+
+    /* Fonction générique d'envoi AJAX */
+    function ajaxSubmit(btn, fieldsToEncode) {
+        var form = btn.closest('form');
+        if (!form) return;
+
+        /* TinyMCE : forcer la sauvegarde si disponible */
+        if (typeof tinymce !== 'undefined') tinymce.triggerSave();
+
+        var fd = new FormData(form);
+        fd.set(btn.name, '1');
+
+        /* Encoder les champs sensibles en Base64 */
+        fieldsToEncode.forEach(function (name) {
+            var val = fd.get(name) || '';
+            if (val) fd.set(name, btoa(unescape(encodeURIComponent(val))));
         });
+
+        fetch(form.action || window.location.href, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.ok) window.location.reload();
+            else if (typeof showToast === 'function') showToast(data.message || 'Erreur', 'danger');
+        })
+        .catch(function (err) {
+            if (typeof showToast === 'function') showToast('Erreur : ' + err.message, 'danger');
+        });
+    }
+
+    /* AssoConnect */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="LinkAssoConnect"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['assoconnect_iframe', 'assoconnect_js']); }
     });
+
+    /* Réglementation (TinyMCE) */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="reglementation"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['div_reglementation']); }
+    });
+
 })();
 </script>

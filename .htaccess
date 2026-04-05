@@ -23,6 +23,12 @@
     Require all denied
 </FilesMatch>
 
+# Bloquer le dossier .git
+RedirectMatch 404 /\.git
+
+# Désactiver le listing des répertoires
+Options -Indexes
+
 # Bloquer les fichiers de migration
 <FilesMatch "^migrate">
     Require all denied
