@@ -223,8 +223,8 @@ foreach ($fields as $field) {
    En-tête du site
 -------------------------------------------------------------------------- */
 if (isset($_POST['save_header'])) {
-    $newTitle = $_POST['title'] ?? '';
-    $newTitleMobile = $_POST['title_mobile'] ?? '';
+    $newTitle = $isAjax ? decodeHtmlField($_POST['title'] ?? '') : ($_POST['title'] ?? '');
+    $newTitleMobile = $isAjax ? decodeHtmlField($_POST['title_mobile'] ?? '') : ($_POST['title_mobile'] ?? '');
 
     $pdo->prepare('UPDATE setting SET title = :title, title_mobile = :title_mobile WHERE id = 1')
         ->execute(['title' => $newTitle, 'title_mobile' => $newTitleMobile]);
@@ -232,6 +232,11 @@ if (isset($_POST['save_header'])) {
     addToast('success', 'En-tête enregistré !');
     $title = $newTitle;
     $title_mobile = $newTitleMobile;
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -467,8 +472,8 @@ if (isset($_POST['LinkAssoConnect'])) {
    Accueil — Hero (titre/image sur la vidéo)
 -------------------------------------------------------------------------- */
 if (isset($_POST['save_hero'])) {
-    $newTitleAccueil = $_POST['titleAccueil'] ?? '';
-    $newTitleAccueilMobile = $_POST['titleAccueil_mobile'] ?? '';
+    $newTitleAccueil = $isAjax ? decodeHtmlField($_POST['titleAccueil'] ?? '') : ($_POST['titleAccueil'] ?? '');
+    $newTitleAccueilMobile = $isAjax ? decodeHtmlField($_POST['titleAccueil_mobile'] ?? '') : ($_POST['titleAccueil_mobile'] ?? '');
     $newSubtitleAccueil = trim($_POST['subtitle_accueil'] ?? '');
     $newSubtitleAccueilMobile = trim($_POST['subtitle_accueil_mobile'] ?? '');
 
@@ -485,6 +490,11 @@ if (isset($_POST['save_hero'])) {
     $titleAccueil_mobile = $newTitleAccueilMobile;
     $subtitle_accueil = $newSubtitleAccueil;
     $subtitle_accueil_mobile = $newSubtitleAccueilMobile;
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -2733,6 +2743,18 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="reglementation"]');
         if (btn) { e.preventDefault(); ajaxSubmit(btn, ['div_reglementation']); }
+    });
+
+    /* Titre / Image sur la vidéo (TinyMCE) */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="save_hero"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['titleAccueil', 'titleAccueil_mobile']); }
+    });
+
+    /* En-tête du site d'inscription (TinyMCE) */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="save_header"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['title', 'title_mobile']); }
     });
 
 })();
