@@ -136,10 +136,11 @@ case 'add_comment':
     exit;
 
 case 'like_comment':
-    $commentId = intval($_POST['comment_id'] ?? 0);
+    $commentId = (int)($_POST['comment_id'] ?? 0);
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     if ($commentId <= 0) { echo json_encode(['success' => false]); exit; }
 
+    try {
     // Check if already liked → toggle (unlike)
     $stmtChk = $pdo->prepare('SELECT id FROM news_comments_likes WHERE comment_id = :cid AND ip_address = :ip LIMIT 1');
     $stmtChk->execute(['cid' => $commentId, 'ip' => $ip]);
@@ -162,6 +163,10 @@ case 'like_comment':
     } catch (Exception $e) {
         $pdo->rollBack();
         echo json_encode(['success' => false]);
+    }
+    } catch (PDOException $e) {
+        error_log('[NEWS_ACTION] ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Erreur serveur.']);
     }
     exit;
 

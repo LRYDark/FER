@@ -5,14 +5,18 @@ requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
 
-$stmt = $pdo->prepare(
-    'SELECT *
-       FROM setting
-      WHERE id = :id
-      LIMIT 1');
-$stmt->execute(['id' => 1]);
-
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+  $stmt = $pdo->prepare(
+      'SELECT *
+         FROM setting
+        WHERE id = :id
+        LIMIT 1');
+  $stmt->execute(['id' => 1]);
+  $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (PDOException $e) {
+  error_log('[ALBUMS] load settings: ' . $e->getMessage());
+  $data = [];
+}
 
 
 
@@ -51,78 +55,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 }
 
 if (isset($_POST['update_year'])) {
-  $yearId = $_POST['year_id'];
-  $year = $_POST['year'];
-  $title = $_POST['title'];
+  $yearId = (int)($_POST['year_id'] ?? 0);
+  $year = trim($_POST['year'] ?? '');
+  $title = trim($_POST['title'] ?? '');
 
-  if ($hasStatusCol) {
-    $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
-    $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ?, status = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $status, $yearId]);
-  } else {
-    $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $yearId]);
+  if ($yearId <= 0 || $year === '' || $title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs obligatoires manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
   }
 
-  $_SESSION['reopen_modal'] = $yearId;
-  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise à jour.'];
+  try {
+    if ($hasStatusCol) {
+      $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+      $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ?, status = ? WHERE id = ?");
+      $stmt->execute([$year, $title, $status, $yearId]);
+    } else {
+      $stmt = $pdo->prepare("UPDATE photo_years SET year = ?, title = ? WHERE id = ?");
+      $stmt->execute([$year, $title, $yearId]);
+    }
+
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise à jour.'];
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] update_year: ' . $e->getMessage());
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour de l\'année.'];
+  }
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
 
 if (isset($_POST['update_album'])) {
-  $albumId = $_POST['album_id'];
-  $album_title = $_POST['album_title'];
-  $album_desc = $_POST['album_desc'];
-  $yearId = $_POST['year_id'];
+  $albumId = (int)($_POST['album_id'] ?? 0);
+  $album_title = trim($_POST['album_title'] ?? '');
+  $album_desc = trim($_POST['album_desc'] ?? '');
+  $yearId = (int)($_POST['year_id'] ?? 0);
   $deleteImage = !empty($_POST['delete_image']);
 
-  // Get current album to check type
-  $stmtCur = $pdo->prepare("SELECT album_type, album_link FROM photo_albums WHERE id = ?");
-  $stmtCur->execute([$albumId]);
-  $curAlbum = $stmtCur->fetch(PDO::FETCH_ASSOC);
-  $isLocal = (($curAlbum['album_type'] ?? 'link') === 'local');
+  if ($albumId <= 0 || $yearId <= 0 || $album_title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs obligatoires manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
 
-  // For link type, update the link; for local, keep the folder path
-  $album_link = $isLocal ? $curAlbum['album_link'] : ($_POST['album_link'] ?? '');
+  try {
+    // Get current album to check type
+    $stmtCur = $pdo->prepare("SELECT album_type, album_link FROM photo_albums WHERE id = ?");
+    $stmtCur->execute([$albumId]);
+    $curAlbum = $stmtCur->fetch(PDO::FETCH_ASSOC);
+    $isLocal = (($curAlbum['album_type'] ?? 'link') === 'local');
 
-  if (!empty($_FILES['album_img']['name'])) {
-    $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
-    $mime = mime_content_type($_FILES['album_img']['tmp_name']);
-    if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
-      $safeName = uniqid('album_', true) . '.' . $ext;
-      move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $safeName);
-      $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = ?, album_desc = ? WHERE id = ?");
-      $stmt->execute([$album_title, $album_link, $safeName, $album_desc, $albumId]);
+    // For link type, update the link; for local, keep the folder path
+    $album_link = $isLocal ? $curAlbum['album_link'] : ($_POST['album_link'] ?? '');
+
+    if (!empty($_FILES['album_img']['name'])) {
+      $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+      $mime = mime_content_type($_FILES['album_img']['tmp_name']);
+      if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
+        $safeName = uniqid('album_', true) . '.' . $ext;
+        move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_albums/" . $safeName);
+        $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = ?, album_desc = ? WHERE id = ?");
+        $stmt->execute([$album_title, $album_link, $safeName, $album_desc, $albumId]);
+      } else {
+        $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
+        $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
+      }
+    } elseif ($deleteImage) {
+      // Supprimer l'image de couverture existante
+      $stmtOld = $pdo->prepare("SELECT album_img FROM photo_albums WHERE id = ?");
+      $stmtOld->execute([$albumId]);
+      $oldImg = $stmtOld->fetchColumn();
+      if ($oldImg && file_exists("../files/_albums/" . $oldImg)) {
+        unlink("../files/_albums/" . $oldImg);
+      }
+      $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = '', album_desc = ? WHERE id = ?");
+      $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
     } else {
       $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
       $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
     }
-  } elseif ($deleteImage) {
-    // Supprimer l'image de couverture existante
-    $stmtOld = $pdo->prepare("SELECT album_img FROM photo_albums WHERE id = ?");
-    $stmtOld->execute([$albumId]);
-    $oldImg = $stmtOld->fetchColumn();
-    if ($oldImg && file_exists("../files/_albums/" . $oldImg)) {
-      unlink("../files/_albums/" . $oldImg);
-    }
-    $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_img = '', album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
-  } else {
-    $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album mis à jour.'];
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] update_album: ' . $e->getMessage());
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour de l\'album.'];
   }
-  $_SESSION['reopen_modal'] = $yearId;
-  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album mis à jour.'];
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
 
 if (isset($_POST['add_album'])) {
-  $yearId = $_POST['year_id'];
+  $yearId = (int)($_POST['year_id'] ?? 0);
   $albumType = (isset($_POST['album_type']) && $_POST['album_type'] === 'local') ? 'local' : 'link';
+  $album_title = trim($_POST['album_title'] ?? '');
+  $album_desc = trim($_POST['album_desc'] ?? '');
+  $album_link = trim($_POST['album_link'] ?? '');
+
+  if ($yearId <= 0 || $album_title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs obligatoires manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
   $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
   $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
@@ -136,210 +173,59 @@ if (isset($_POST['add_album'])) {
     }
   }
 
-  if ($albumType === 'local') {
-    // Create album first, then create folder with album ID
-    $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, '', 'local', ?, ?)");
-    $stmt->execute([$yearId, $_POST['album_title'], $safeName, $_POST['album_desc']]);
-    $newId = $pdo->lastInsertId();
-    $basePath = __DIR__ . '/../files/_albums/';
-    $folderName = 'album_' . $newId . '_' . bin2hex(random_bytes(6));
-    while (is_dir($basePath . $folderName)) {
+  try {
+    if ($albumType === 'local') {
+      // Create album first, then create folder with album ID
+      $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, '', 'local', ?, ?)");
+      $stmt->execute([$yearId, $album_title, $safeName, $album_desc]);
+      $newId = $pdo->lastInsertId();
+      $basePath = __DIR__ . '/../files/_albums/';
       $folderName = 'album_' . $newId . '_' . bin2hex(random_bytes(6));
+      while (is_dir($basePath . $folderName)) {
+        $folderName = 'album_' . $newId . '_' . bin2hex(random_bytes(6));
+      }
+      mkdir($basePath . $folderName, 0755, true);
+      $stmt2 = $pdo->prepare("UPDATE photo_albums SET album_link = ? WHERE id = ?");
+      $stmt2->execute([$folderName, $newId]);
+    } else {
+      if ($safeName) {
+        $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, ?, 'link', ?, ?)");
+        $stmt->execute([$yearId, $album_title, $album_link, $safeName, $album_desc]);
+      }
     }
-    mkdir($basePath . $folderName, 0755, true);
-    $stmt2 = $pdo->prepare("UPDATE photo_albums SET album_link = ? WHERE id = ?");
-    $stmt2->execute([$folderName, $newId]);
-  } else {
-    if ($safeName) {
-      $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, ?, 'link', ?, ?)");
-      $stmt->execute([$yearId, $_POST['album_title'], $_POST['album_link'], $safeName, $_POST['album_desc']]);
-    }
-  }
 
-  $_SESSION['reopen_modal'] = $yearId;
-  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album ajouté.'];
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album ajouté.'];
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] add_album: ' . $e->getMessage());
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de l\'ajout de l\'album.'];
+  }
   header("Location: " . $_SERVER['PHP_SELF']);
   exit;
 }
 
 // ─── Delete album ───
 if (isset($_POST['delete_album'])) {
-  $albumId = $_POST['album_id'];
-  $yearId = $_POST['year_id'];
+  $albumId = (int)($_POST['album_id'] ?? 0);
+  $yearId = (int)($_POST['year_id'] ?? 0);
 
-  // Get album info to check type
-  $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
-  $stmt->execute([$albumId]);
-  $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
-
-  if ($albumRow) {
-    // Delete thumbnail
-    if (!empty($albumRow['album_img']) && file_exists("../files/_albums/" . $albumRow['album_img'])) {
-      unlink("../files/_albums/" . $albumRow['album_img']);
-    }
-    // Delete local album folder
-    if (($albumRow['album_type'] ?? 'link') === 'local' && !empty($albumRow['album_link'])) {
-      $folderPath = __DIR__ . '/../files/_albums/' . basename($albumRow['album_link']);
-      if (is_dir($folderPath)) {
-        deleteDirectory($folderPath);
-      }
-    }
-  }
-
-  // Always hard delete (no trash for albums in modal)
-  $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
-  $stmt->execute([$albumId]);
-
-  $_SESSION['reopen_modal'] = $yearId;
-  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé définitivement.'];
-  header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
-  exit;
-}
-
-if (isset($_POST['add_year'])) {
-  if ($hasStatusCol) {
-    $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
-    $stmt = $pdo->prepare("INSERT INTO photo_years (year, title, status) VALUES (?, ?, ?)");
-    $stmt->execute([$_POST['year'], $_POST['title'], $status]);
-  } else {
-    $stmt = $pdo->prepare("INSERT INTO photo_years (year, title) VALUES (?, ?)");
-    $stmt->execute([$_POST['year'], $_POST['title']]);
-  }
-  $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année ajoutée.'];
-  header("Location: " . $_SERVER['PHP_SELF']);
-  exit;
-}
-
-// ─── Reorder albums (AJAX) ───
-if (isset($_POST['reorder_albums'])) {
-  $ids = json_decode($_POST['album_ids'], true);
-  if (is_array($ids)) {
-    $stmt = $pdo->prepare("UPDATE photo_albums SET sort_order = ? WHERE id = ?");
-    foreach ($ids as $i => $id) {
-      $stmt->execute([$i, (int)$id]);
-    }
-  }
-  if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
-    header('Content-Type: application/json');
-    echo json_encode(['ok' => true]);
-    exit;
-  }
-  $yearId = $_POST['year_id'] ?? '';
-  $_SESSION['reopen_modal'] = $yearId;
-  header("Location: " . $_SERVER['PHP_SELF']);
-  exit;
-}
-
-// ─── Delete year ───
-if (isset($_POST['delete_year'])) {
-  $yearId = $_POST['year_id'];
-
-  if ($migrationDone) {
-    // Soft-delete the year
-    $stmt = $pdo->prepare("UPDATE photo_years SET deleted_at = NOW() WHERE id = ?");
-    $stmt->execute([$yearId]);
-    // Soft-delete all child albums
-    $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NOW() WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
-  } else {
-    // Hard delete (old behavior)
-    $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-    $albumRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($albumRows as $ar) {
-      if (!empty($ar['album_img']) && file_exists("../files/_albums/" . $ar['album_img'])) {
-        unlink("../files/_albums/" . $ar['album_img']);
-      }
-      if (($ar['album_type'] ?? 'link') === 'local' && !empty($ar['album_link'])) {
-        $fp = __DIR__ . '/../files/_albums/' . basename($ar['album_link']);
-        if (is_dir($fp)) deleteDirectory($fp);
-      }
-    }
-    $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
-    $stmt1->execute([$yearId]);
-    $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
-    $stmt2->execute([$yearId]);
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
+  if ($albumId <= 0 || $yearId <= 0) {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Paramètres manquants.'];
     header("Location: " . $_SERVER['PHP_SELF']);
-  }
-  exit;
-}
-
-if ($migrationDone) {
-  // ─── Restore year from trash ───
-  if (isset($_POST['restore_year'])) {
-    $yearId = $_POST['year_id'];
-
-    $stmt = $pdo->prepare("UPDATE photo_years SET deleted_at = NULL WHERE id = ?");
-    $stmt->execute([$yearId]);
-
-    $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NULL WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année restaurée.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
   }
 
-  // ─── Restore album from trash ───
-  if (isset($_POST['restore_album'])) {
-    $albumId = $_POST['album_id'];
-    $yearId = $_POST['year_id'];
-
-    $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NULL WHERE id = ?");
-    $stmt->execute([$albumId]);
-
-    $_SESSION['reopen_modal'] = $yearId;
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album restauré.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
-    exit;
-  }
-
-  // ─── Permanent delete year ───
-  if (isset($_POST['permanent_delete_year'])) {
-    $yearId = $_POST['year_id'];
-
-    // Delete image files and local folders for all albums
-    $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-    $albumRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($albumRows as $ar) {
-      if (!empty($ar['album_img']) && file_exists("../files/_albums/" . $ar['album_img'])) {
-        unlink("../files/_albums/" . $ar['album_img']);
-      }
-      if (($ar['album_type'] ?? 'link') === 'local' && !empty($ar['album_link'])) {
-        $fp = __DIR__ . '/../files/_albums/' . basename($ar['album_link']);
-        if (is_dir($fp)) deleteDirectory($fp);
-      }
-    }
-
-    // Delete albums and year permanently
-    $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
-    $stmt1->execute([$yearId]);
-    $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
-    $stmt2->execute([$yearId]);
-
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée définitivement.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
-    exit;
-  }
-
-  // ─── Permanent delete album ───
-  if (isset($_POST['permanent_delete_album'])) {
-    $albumId = $_POST['album_id'];
-    $yearId = $_POST['year_id'];
-
-    // Get album info
+  try {
+    // Get album info to check type
     $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
     $stmt->execute([$albumId]);
     $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($albumRow) {
-      $img = $albumRow['album_img'];
-      if ($img && file_exists("../files/_albums/" . $img)) {
-        unlink("../files/_albums/" . $img);
+      // Delete thumbnail
+      if (!empty($albumRow['album_img']) && file_exists("../files/_albums/" . $albumRow['album_img'])) {
+        unlink("../files/_albums/" . $albumRow['album_img']);
       }
       // Delete local album folder
       if (($albumRow['album_type'] ?? 'link') === 'local' && !empty($albumRow['album_link'])) {
@@ -350,12 +236,264 @@ if ($migrationDone) {
       }
     }
 
-    // Delete album permanently
+    // Always hard delete (no trash for albums in modal)
     $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
     $stmt->execute([$albumId]);
 
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé définitivement.'];
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] delete_album: ' . $e->getMessage());
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression de l\'album.'];
+  }
+  header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+  exit;
+}
+
+if (isset($_POST['add_year'])) {
+  $year = trim($_POST['year'] ?? '');
+  $title = trim($_POST['title'] ?? '');
+
+  if ($year === '' || $title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs obligatoires manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if ($hasStatusCol) {
+      $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+      $stmt = $pdo->prepare("INSERT INTO photo_years (year, title, status) VALUES (?, ?, ?)");
+      $stmt->execute([$year, $title, $status]);
+    } else {
+      $stmt = $pdo->prepare("INSERT INTO photo_years (year, title) VALUES (?, ?)");
+      $stmt->execute([$year, $title]);
+    }
+    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année ajoutée.'];
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] add_year: ' . $e->getMessage());
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de l\'ajout de l\'année.'];
+  }
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
+}
+
+// ─── Reorder albums (AJAX) ───
+if (isset($_POST['reorder_albums'])) {
+  $ids = json_decode($_POST['album_ids'] ?? '[]', true);
+  $yearId = (int)($_POST['year_id'] ?? 0);
+
+  try {
+    if (is_array($ids)) {
+      $stmt = $pdo->prepare("UPDATE photo_albums SET sort_order = ? WHERE id = ?");
+      foreach ($ids as $i => $id) {
+        $stmt->execute([$i, (int)$id]);
+      }
+    }
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+      header('Content-Type: application/json');
+      echo json_encode(['ok' => true]);
+      exit;
+    }
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] reorder_albums: ' . $e->getMessage());
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+      header('Content-Type: application/json');
+      echo json_encode(['ok' => false, 'error' => 'Erreur lors du réordonnancement.']);
+      exit;
+    }
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors du réordonnancement.'];
+  }
+  $_SESSION['reopen_modal'] = $yearId;
+  header("Location: " . $_SERVER['PHP_SELF']);
+  exit;
+}
+
+// ─── Delete year ───
+if (isset($_POST['delete_year'])) {
+  $yearId = (int)($_POST['year_id'] ?? 0);
+
+  if ($yearId <= 0) {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Paramètres manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if ($migrationDone) {
+      // Soft-delete the year
+      $stmt = $pdo->prepare("UPDATE photo_years SET deleted_at = NOW() WHERE id = ?");
+      $stmt->execute([$yearId]);
+      // Soft-delete all child albums
+      $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NOW() WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+    } else {
+      // Hard delete (old behavior)
+      $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+      $albumRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      foreach ($albumRows as $ar) {
+        if (!empty($ar['album_img']) && file_exists("../files/_albums/" . $ar['album_img'])) {
+          unlink("../files/_albums/" . $ar['album_img']);
+        }
+        if (($ar['album_type'] ?? 'link') === 'local' && !empty($ar['album_link'])) {
+          $fp = __DIR__ . '/../files/_albums/' . basename($ar['album_link']);
+          if (is_dir($fp)) deleteDirectory($fp);
+        }
+      }
+      $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
+      $stmt1->execute([$yearId]);
+      $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
+      $stmt2->execute([$yearId]);
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
+      header("Location: " . $_SERVER['PHP_SELF']);
+    }
+  } catch (PDOException $e) {
+    error_log('[ALBUMS] delete_year: ' . $e->getMessage());
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression de l\'année.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+  }
+  exit;
+}
+
+if ($migrationDone) {
+  // ─── Restore year from trash ───
+  if (isset($_POST['restore_year'])) {
+    $yearId = (int)($_POST['year_id'] ?? 0);
+
+    if ($yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Paramètres manquants.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
+
+    try {
+      $stmt = $pdo->prepare("UPDATE photo_years SET deleted_at = NULL WHERE id = ?");
+      $stmt->execute([$yearId]);
+
+      $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NULL WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année restaurée.'];
+    } catch (PDOException $e) {
+      error_log('[ALBUMS] restore_year: ' . $e->getMessage());
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration de l\'année.'];
+    }
+    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+    exit;
+  }
+
+  // ─── Restore album from trash ───
+  if (isset($_POST['restore_album'])) {
+    $albumId = (int)($_POST['album_id'] ?? 0);
+    $yearId = (int)($_POST['year_id'] ?? 0);
+
+    if ($albumId <= 0 || $yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Paramètres manquants.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
+
+    try {
+      $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NULL WHERE id = ?");
+      $stmt->execute([$albumId]);
+
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album restauré.'];
+    } catch (PDOException $e) {
+      error_log('[ALBUMS] restore_album: ' . $e->getMessage());
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration de l\'album.'];
+    }
+    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+    exit;
+  }
+
+  // ─── Permanent delete year ───
+  if (isset($_POST['permanent_delete_year'])) {
+    $yearId = (int)($_POST['year_id'] ?? 0);
+
+    if ($yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Paramètres manquants.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
+
+    try {
+      // Delete image files and local folders for all albums
+      $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+      $albumRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      foreach ($albumRows as $ar) {
+        if (!empty($ar['album_img']) && file_exists("../files/_albums/" . $ar['album_img'])) {
+          unlink("../files/_albums/" . $ar['album_img']);
+        }
+        if (($ar['album_type'] ?? 'link') === 'local' && !empty($ar['album_link'])) {
+          $fp = __DIR__ . '/../files/_albums/' . basename($ar['album_link']);
+          if (is_dir($fp)) deleteDirectory($fp);
+        }
+      }
+
+      // Delete albums and year permanently
+      $stmt1 = $pdo->prepare("DELETE FROM photo_albums WHERE year_id = ?");
+      $stmt1->execute([$yearId]);
+      $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
+      $stmt2->execute([$yearId]);
+
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée définitivement.'];
+    } catch (PDOException $e) {
+      error_log('[ALBUMS] permanent_delete_year: ' . $e->getMessage());
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression définitive de l\'année.'];
+    }
+    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+    exit;
+  }
+
+  // ─── Permanent delete album ───
+  if (isset($_POST['permanent_delete_album'])) {
+    $albumId = (int)($_POST['album_id'] ?? 0);
+    $yearId = (int)($_POST['year_id'] ?? 0);
+
+    if ($albumId <= 0 || $yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Paramètres manquants.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
+
+    try {
+      // Get album info
+      $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
+      $stmt->execute([$albumId]);
+      $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      if ($albumRow) {
+        $img = $albumRow['album_img'];
+        if ($img && file_exists("../files/_albums/" . $img)) {
+          unlink("../files/_albums/" . $img);
+        }
+        // Delete local album folder
+        if (($albumRow['album_type'] ?? 'link') === 'local' && !empty($albumRow['album_link'])) {
+          $folderPath = __DIR__ . '/../files/_albums/' . basename($albumRow['album_link']);
+          if (is_dir($folderPath)) {
+            deleteDirectory($folderPath);
+          }
+        }
+      }
+
+      // Delete album permanently
+      $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
+      $stmt->execute([$albumId]);
+
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé définitivement.'];
+    } catch (PDOException $e) {
+      error_log('[ALBUMS] permanent_delete_album: ' . $e->getMessage());
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression définitive de l\'album.'];
+    }
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
   }
@@ -364,48 +502,57 @@ if ($migrationDone) {
 // ─── Filter logic ───
 $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
 $isTrashed = false;
+$years = [];
+$albumsByYear = [];
+$countAll = 0;
+$countTrashed = 0;
+$countPublished = 0;
+$countDraft = 0;
 
-if ($migrationDone) {
-  $isTrashed = ($filter === 'trashed');
+try {
+  if ($migrationDone) {
+    $isTrashed = ($filter === 'trashed');
 
-  if ($isTrashed) {
-    $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NOT NULL ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
-  } elseif ($hasStatusCol && $filter === 'published') {
-    $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
-  } elseif ($hasStatusCol && $filter === 'draft') {
-    $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'draft' ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
-  } else {
-    $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NULL ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
-  }
-
-  $albumsByYear = [];
-  foreach ($years as $y) {
     if ($isTrashed) {
-      $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ? ORDER BY sort_order");
+      $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NOT NULL ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+    } elseif ($hasStatusCol && $filter === 'published') {
+      $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'published' ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+    } elseif ($hasStatusCol && $filter === 'draft') {
+      $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NULL AND status = 'draft' ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
     } else {
-      $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ? AND deleted_at IS NULL ORDER BY sort_order");
+      $years = $pdo->query("SELECT * FROM photo_years WHERE deleted_at IS NULL ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
     }
-    $stmt->execute([$y['id']]);
-    $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-  }
 
-  // Counts for tab badges
-  $countAll     = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NULL")->fetchColumn();
-  $countTrashed = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NOT NULL")->fetchColumn();
-  if ($hasStatusCol) {
-    $countPublished = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NULL AND status = 'published'")->fetchColumn();
-    $countDraft     = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NULL AND (status = 'draft' OR status IS NULL)")->fetchColumn();
-  }
-} else {
-  $filter = '';
-  $years = $pdo->query("SELECT * FROM photo_years ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($years as $y) {
+      if ($isTrashed) {
+        $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ? ORDER BY sort_order");
+      } else {
+        $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ? AND deleted_at IS NULL ORDER BY sort_order");
+      }
+      $stmt->execute([$y['id']]);
+      $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-  $albumsByYear = [];
-  foreach ($years as $y) {
-    $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ? ORDER BY sort_order");
-    $stmt->execute([$y['id']]);
-    $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Counts for tab badges
+    $countAll     = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NULL")->fetchColumn();
+    $countTrashed = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NOT NULL")->fetchColumn();
+    if ($hasStatusCol) {
+      $countPublished = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NULL AND status = 'published'")->fetchColumn();
+      $countDraft     = $pdo->query("SELECT COUNT(*) FROM photo_years WHERE deleted_at IS NULL AND (status = 'draft' OR status IS NULL)")->fetchColumn();
+    }
+  } else {
+    $filter = '';
+    $years = $pdo->query("SELECT * FROM photo_years ORDER BY year DESC")->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($years as $y) {
+      $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE year_id = ? ORDER BY sort_order");
+      $stmt->execute([$y['id']]);
+      $albumsByYear[$y['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
   }
+} catch (PDOException $e) {
+  error_log('[ALBUMS] filter/load data: ' . $e->getMessage());
+  $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors du chargement des données.'];
 }
 ?>
 

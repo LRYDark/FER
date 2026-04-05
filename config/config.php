@@ -314,9 +314,6 @@ function addToast(string $type, string $msg, int $delay = 4000): void
 
 // 🔒 [SEC-01] URL de base fiable — empêche le Host header injection (CWE-644)
 function getAppBaseUrl(): string {
-    if (!empty($_ENV['APP_URL'])) {
-        return rtrim($_ENV['APP_URL'], '/');
-    }
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     if (!preg_match('/^[a-zA-Z0-9._:-]+$/', $host)) {
         error_log('[SECURITY] Rejected malformed Host header: ' . substr($host, 0, 100));

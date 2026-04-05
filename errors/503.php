@@ -107,9 +107,9 @@
     </div>
     <h1 class="error-title">Maintenance en cours</h1>
     <p class="error-desc">Le site est temporairement indisponible pour maintenance. Veuillez réessayer dans quelques instants.</p>
-    <a href="/FER/public/accueil.php" class="error-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-      Réessayer
+    <a href="javascript:history.back()" class="error-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Retour
     </a>
   </div>
 </body>
