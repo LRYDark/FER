@@ -1510,8 +1510,11 @@ function generateTimelineSVG(int $count): array {
       right: -100px;
       width: 100px;
       height: 100%;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L65,0 C40,15 60,35 25,50 C-10,65 20,85 0,100 L0,100 Z' fill='%230f172a'/%3E%3C/svg%3E");
-      background-size: 100% 100%;
+      background-color: var(--secondary, #0f172a);
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L65,0 C40,15 60,35 25,50 C-10,65 20,85 0,100 L0,100 Z' fill='white'/%3E%3C/svg%3E");
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L65,0 C40,15 60,35 25,50 C-10,65 20,85 0,100 L0,100 Z' fill='white'/%3E%3C/svg%3E");
+      -webkit-mask-size: 100% 100%;
+      mask-size: 100% 100%;
     }
 
     .reg-count .reg-kicker {
@@ -1649,7 +1652,11 @@ function generateTimelineSVG(int $count): array {
         left: 0;
         width: 100%;
         height: 40px;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L0,15 Q15,25 30,15 Q45,5 60,15 Q75,25 90,15 Q105,5 120,15 L120,0 Z' fill='%230f172a'/%3E%3C/svg%3E");
+        background-color: var(--secondary, #0f172a);
+        -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L0,15 Q15,25 30,15 Q45,5 60,15 Q75,25 90,15 Q105,5 120,15 L120,0 Z' fill='white'/%3E%3C/svg%3E");
+        mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40' preserveAspectRatio='none'%3E%3Cpath d='M0,0 L0,15 Q15,25 30,15 Q45,5 60,15 Q75,25 90,15 Q105,5 120,15 L120,0 Z' fill='white'/%3E%3C/svg%3E");
+        -webkit-mask-size: 100% 100%;
+        mask-size: 100% 100%;
       }
       
       .reg-count .reg-kicker {
@@ -1733,6 +1740,49 @@ function generateTimelineSVG(int $count): array {
       background: var(--primary, #db2777);
       color: #fff;
       z-index: 2;
+      cursor: pointer;
+      width: 64px;
+      height: 64px;
+      border-radius: 50px;
+      flex-direction: row;
+      justify-content: flex-start;
+      align-items: center;
+      overflow: hidden;
+      transition: width .4s cubic-bezier(.4,0,.2,1);
+    }
+    .demo-badge--fee .demo-badge-value{
+      font-size: 20px;
+      flex-shrink: 0;
+      min-width: 64px;
+      text-align: center;
+      margin-left: -2px;
+    }
+    .badge-tooltip{
+      max-width: 0;
+      overflow: hidden;
+      opacity: 0;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: max-width .4s cubic-bezier(.4,0,.2,1), opacity .3s ease .1s;
+    }
+    @media (max-width: 980px){
+      .badge-tooltip{
+        white-space: normal;
+        line-height: 1.3;
+        font-size: 12px;
+      }
+    }
+    .demo-badge--fee.expanded{
+      width: fit-content;
+      padding-right: 18px;
+    }
+    .demo-badge--fee.expanded .badge-tooltip{
+      max-width: 300px;
+      opacity: 1;
+    }
+    .demo-badge--fee .demo-badge-value{
+      flex-shrink: 0;
     }
     .demo-badge--km{
       background: #fff;
@@ -1757,6 +1807,10 @@ function generateTimelineSVG(int $count): array {
       }
       .demo-badge + .demo-badge{
         margin-left: -24px;
+      }
+      .demo-badge--fee .demo-badge-value{
+        min-width: 52px;
+        font-size: 17px;
       }
     }
 
@@ -2917,6 +2971,12 @@ function generateTimelineSVG(int $count): array {
   .demo-card{
     height: var(--demo-card-height, clamp(555px, calc(64vh - 40px), 775px)) !important;
     box-shadow: none;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .demo-card.ready{
+    opacity: 1;
+    transition: opacity .3s ease, height .4s ease;
   }
   .demo-panel.video-float{
     position: relative;
@@ -3038,6 +3098,14 @@ function generateTimelineSVG(int $count): array {
     }
 
     /* ===== DARK THEME OVERRIDES for Accueil ===== */
+    body.dark-theme .demo-badge--fee{
+      background: #db2777;
+      color: #fff;
+    }
+    body.dark-theme .demo-badge--km{
+      background: #fff;
+      color: #0f172a;
+    }
     body.dark-theme .reg-card{
       background: linear-gradient(135deg, #1a1025, #1e1230);
     }
@@ -3157,8 +3225,9 @@ function generateTimelineSVG(int $count): array {
           </div>
           <?php endif; ?>
           <?php if (!empty($registration_fee)): ?>
-          <div class="demo-badge demo-badge--fee">
+          <div class="demo-badge demo-badge--fee" id="badgeFee">
             <span class="demo-badge-value"><?= (int)$registration_fee ?>€</span>
+            <div class="badge-tooltip" id="badgeTooltip">Entièrement reversé à la<br>Ligue contre le cancer</div>
           </div>
           <?php endif; ?>
         </div>
@@ -3713,24 +3782,33 @@ function generateTimelineSVG(int $count): array {
         return window.matchMedia('(max-width: 980px)').matches;
       }
 
-      function updateHeroHeight(force){
+      function getDemoAbsoluteTop(){
+        // Position absolue du demoCard dans la page (indépendante du scroll)
+        let top = 0;
+        let el = demoCard;
+        while (el) {
+          top += el.offsetTop;
+          el = el.offsetParent;
+        }
+        return top;
+      }
+
+      function updateHeroHeight(){
         if (!isMobile()){
           demoCard.style.removeProperty('--demo-card-height');
-          locked = false;
           return;
         }
-        if (locked && !force) return;
 
         const bottomInner = bottomBar.querySelector('.mobile-bottom-actions') || bottomBar;
         const bottomRect = bottomInner.getBoundingClientRect();
         if (!bottomRect.height) return;
 
         const gapAboveBar = 15;
-        const targetBottom = bottomRect.top - gapAboveBar;
+        // La navbar est fixed : bottomRect.top est sa vraie position viewport (constante)
+        // demoAbsoluteTop est la position absolue dans la page (indépendante du scroll)
+        const demoAbsoluteTop = getDemoAbsoluteTop();
+        let nextHeight = bottomRect.top - gapAboveBar - demoAbsoluteTop;
 
-        const demoRect = demoCard.getBoundingClientRect();
-
-        let nextHeight = targetBottom - demoRect.top;
         if (!Number.isFinite(nextHeight)) return;
 
         const minHeight = 260;
@@ -3738,26 +3816,39 @@ function generateTimelineSVG(int $count): array {
         nextHeight = Math.max(minHeight, Math.min(maxHeight, nextHeight));
 
         demoCard.style.setProperty('--demo-card-height', `${Math.round(nextHeight)}px`);
-        locked = true;
+        if (!demoCard.classList.contains('ready')) {
+          requestAnimationFrame(() => demoCard.classList.add('ready'));
+        }
       }
 
-      function scheduleUpdate(force){
-        requestAnimationFrame(() => requestAnimationFrame(() => updateHeroHeight(force)));
+      function scheduleUpdate(){
+        requestAnimationFrame(() => requestAnimationFrame(() => updateHeroHeight()));
       }
+
+      // Sur desktop, afficher directement
+      if (!isMobile()) demoCard.classList.add('ready');
 
       window.addEventListener('load', () => {
-        scheduleUpdate(true);
-        setTimeout(() => scheduleUpdate(true), 300);
-        setTimeout(() => scheduleUpdate(true), 800);
+        scheduleUpdate();
+        setTimeout(() => scheduleUpdate(), 300);
+        setTimeout(() => scheduleUpdate(), 800);
       });
-      window.addEventListener('resize', () => {
-        if (!locked) scheduleUpdate(true);
+      window.addEventListener('resize', () => scheduleUpdate());
+      window.addEventListener('orientationchange', () => scheduleUpdate());
+      scheduleUpdate();
+    })();
+
+    // ===== Badge fee tooltip =====
+    (function(){
+      const badge = document.getElementById('badgeFee');
+      if (!badge) return;
+      badge.addEventListener('click', function(e){
+        e.stopPropagation();
+        badge.classList.toggle('expanded');
       });
-      window.addEventListener('orientationchange', () => {
-        locked = false;
-        scheduleUpdate(true);
+      document.addEventListener('click', function(){
+        badge.classList.remove('expanded');
       });
-      scheduleUpdate(true);
     })();
 
     // ===== Video Play/Pause toggle =====
