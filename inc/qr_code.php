@@ -5,18 +5,28 @@ $role = currentRole();
 require 'navbar-data.php';
 
 // Récupération des organisations existantes
-$stmt = $pdo->prepare('SELECT DISTINCT organisation FROM users WHERE organisation IS NOT NULL AND organisation != ""');
-$stmt->execute();
-$organisations = $stmt->fetchAll(PDO::FETCH_COLUMN);
+try {
+    $stmt = $pdo->prepare('SELECT DISTINCT organisation FROM users WHERE organisation IS NOT NULL AND organisation != ""');
+    $stmt->execute();
+    $organisations = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    error_log('[QR_CODE] ' . $e->getMessage());
+    $organisations = [];
+}
 
 // Récupération des données pour l'affichage
-$stmt = $pdo->prepare(
-    'SELECT *
-       FROM setting
-      WHERE id = :id
-      LIMIT 1');
-$stmt->execute(['id' => 1]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare(
+        'SELECT *
+           FROM setting
+          WHERE id = :id
+          LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (Exception $e) {
+    error_log('[QR_CODE] ' . $e->getMessage());
+    $data = [];
+}
 
 $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  

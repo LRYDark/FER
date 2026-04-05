@@ -112,10 +112,10 @@ if ($_POST) {
             $stmt->execute($formData);
 
             $subject = 'Inscription enregistrée - Forbach en Rose';
-            if($_POST['email'] != ''){
+            if(($_POST['email'] ?? '') != ''){
               try {
                 require_once '../config/googleMail.php';
-                sendMail($_POST['email'], $subject, null, null, $_POST['nom'], $_POST['prenom'], 'inscription', $nextInscriptionNo);
+                sendMail($_POST['email'], $subject, null, null, $_POST['nom'] ?? '', $_POST['prenom'] ?? '', 'inscription', $nextInscriptionNo);
               } catch (\Throwable $e) { /* mail failure does not block registration */ }
             }
             $success_message = "👍 Inscription enregistrée avec succès !";
@@ -142,7 +142,7 @@ $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
 $title  = $data['title']   ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 $course_km = $data['course_km'] ?? 7;
-$accueil_active = $data['accueil_active'] ? 1 : 0;
+$accueil_active = !empty($data['accueil_active']) ? 1 : 0;
 
 // Ouverture / fermeture automatique des inscriptions
 $tz = new DateTimeZone('Europe/Paris');
@@ -160,7 +160,12 @@ $div_reglementation = $data['div_reglementation'] ?? '';
 
 // Formulaire dynamique
 require_once '../config/form_fields.php';
-$formFields = getActiveFields($pdo, 'qr');
+try {
+    $formFields = getActiveFields($pdo, 'qr');
+} catch (PDOException $e) {
+    error_log('[REGISTER] ' . $e->getMessage());
+    $formFields = [];
+}
 ?>
 <!doctype html>
 <html lang="fr">

@@ -3,19 +3,24 @@ require '../config/config.php';
 checkMaintenance();
 require '../inc/navbar-data.php';
 
-$albumId = isset($_GET['album_id']) ? (int)$_GET['album_id'] : 0;
+$albumId = (int)($_GET['album_id'] ?? 0);
 if ($albumId <= 0) {
     header('Location: photos');
     exit;
 }
 
 // Fetch the album
-$stmt = $pdo->prepare("SELECT pa.*, py.year, py.title as year_title, py.id as year_id
-                        FROM photo_albums pa
-                        JOIN photo_years py ON pa.year_id = py.id
-                        WHERE pa.id = :id AND pa.deleted_at IS NULL AND pa.album_type = 'local'");
-$stmt->execute(['id' => $albumId]);
-$album = $stmt->fetch(PDO::FETCH_ASSOC);
+try {
+    $stmt = $pdo->prepare("SELECT pa.*, py.year, py.title as year_title, py.id as year_id
+                            FROM photo_albums pa
+                            JOIN photo_years py ON pa.year_id = py.id
+                            WHERE pa.id = :id AND pa.deleted_at IS NULL AND pa.album_type = 'local'");
+    $stmt->execute(['id' => $albumId]);
+    $album = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log('[GALLERY] ' . $e->getMessage());
+    $album = null;
+}
 
 if (!$album) {
     header('Location: photos');

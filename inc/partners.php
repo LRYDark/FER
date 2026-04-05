@@ -35,6 +35,11 @@ try {
 // ─── CSRF check for all POST actions ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403);
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'message' => 'Session expirée. Veuillez réessayer.']);
+        exit;
+    }
     die('Invalid CSRF token');
 }
 
@@ -52,23 +57,35 @@ function decodeHtmlField(string $raw): string {
 if (isset($_POST['update_partners_desc'])) {
     $partnersTitle = $_POST['partners_title'] ?? '';
     $partnersDesc = $isAjax ? decodeHtmlField($_POST['partners_desc'] ?? '') : ($_POST['partners_desc'] ?? '');
-    if (!empty($_FILES['partners_img']['name'])) {
-        $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        $ext  = strtolower(pathinfo($_FILES['partners_img']['name'], PATHINFO_EXTENSION));
-        $mime = mime_content_type($_FILES['partners_img']['tmp_name']);
-        if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
-            $safeName = uniqid('partner_', true) . '.' . $ext;
-            move_uploaded_file($_FILES['partners_img']['tmp_name'], "../files/_partners/" . $safeName);
-            $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ?, partners_img = ? WHERE id = 1");
-            $stmt->execute([$partnersTitle, $partnersDesc, $safeName]);
+    try {
+        if (!empty($_FILES['partners_img']['name'])) {
+            $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $ext  = strtolower(pathinfo($_FILES['partners_img']['name'], PATHINFO_EXTENSION));
+            $mime = mime_content_type($_FILES['partners_img']['tmp_name']);
+            if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
+                $safeName = uniqid('partner_', true) . '.' . $ext;
+                move_uploaded_file($_FILES['partners_img']['tmp_name'], "../files/_partners/" . $safeName);
+                $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ?, partners_img = ? WHERE id = 1");
+                $stmt->execute([$partnersTitle, $partnersDesc, $safeName]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
+                $stmt->execute([$partnersTitle, $partnersDesc]);
+            }
         } else {
             $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
             $stmt->execute([$partnersTitle, $partnersDesc]);
         }
-    } else {
-        $stmt = $pdo->prepare("UPDATE setting SET partners_title = ?, partners_desc = ? WHERE id = 1");
-        $stmt->execute([$partnersTitle, $partnersDesc]);
+    } catch (PDOException $e) {
+        error_log('[PARTNERS] update_partners_desc: ' . $e->getMessage());
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'message' => 'Erreur lors de la mise à jour.']);
+            exit;
+        }
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Description mise à jour.'];
     if ($isAjax) {
@@ -81,17 +98,30 @@ if (isset($_POST['update_partners_desc'])) {
 }
 
 if (isset($_POST['update_year'])) {
-  $yearId = $_POST['year_id'];
-  $year = $_POST['year'];
-  $title = $_POST['title'];
+  $yearId = (int)($_POST['year_id'] ?? 0);
+  $year = $_POST['year'] ?? '';
+  $title = $_POST['title'] ?? '';
 
-  if ($hasStatusCol) {
-    $status = $_POST['status'] ?? 'draft';
-    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, status = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $status, $yearId]);
-  } else {
-    $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
-    $stmt->execute([$year, $title, $yearId]);
+  if ($yearId <= 0 || $year === '' || $title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs requis manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if ($hasStatusCol) {
+      $status = $_POST['status'] ?? 'draft';
+      $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ?, status = ? WHERE id = ?");
+      $stmt->execute([$year, $title, $status, $yearId]);
+    } else {
+      $stmt = $pdo->prepare("UPDATE partners_years SET year = ?, title = ? WHERE id = ?");
+      $stmt->execute([$year, $title, $yearId]);
+    }
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] update_year: ' . $e->getMessage());
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
   }
   $_SESSION['reopen_modal'] = $yearId;
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise à jour.'];
@@ -100,39 +130,53 @@ if (isset($_POST['update_year'])) {
 }
 
 if (isset($_POST['update_album'])) {
-  $albumId = $_POST['album_id'];
-  $album_title = $_POST['album_title'];
-  $album_desc = $_POST['album_desc'];
-  $yearId = $_POST['year_id'];
+  $albumId = (int)($_POST['album_id'] ?? 0);
+  $album_title = $_POST['album_title'] ?? '';
+  $album_desc = $_POST['album_desc'] ?? '';
+  $yearId = (int)($_POST['year_id'] ?? 0);
   $deleteImage = !empty($_POST['delete_image']);
 
-  if (!empty($_FILES['album_img']['name'])) {
-    $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
-    $mime = mime_content_type($_FILES['album_img']['tmp_name']);
-    if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
-      $safeName = uniqid('partner_', true) . '.' . $ext;
-      move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $safeName);
-      $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = ?, album_desc = ? WHERE id = ?");
-      $stmt->execute([$album_title, $safeName, $album_desc, $albumId]);
+  if ($albumId <= 0 || $yearId <= 0 || $album_title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs requis manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if (!empty($_FILES['album_img']['name'])) {
+      $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+      $mime = mime_content_type($_FILES['album_img']['tmp_name']);
+      if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
+        $safeName = uniqid('partner_', true) . '.' . $ext;
+        move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $safeName);
+        $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = ?, album_desc = ? WHERE id = ?");
+        $stmt->execute([$album_title, $safeName, $album_desc, $albumId]);
+      } else {
+        $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_desc = ? WHERE id = ?");
+        $stmt->execute([$album_title, $album_desc, $albumId]);
+      }
+    } elseif ($deleteImage) {
+      // Supprimer l'image existante
+      $stmtOld = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
+      $stmtOld->execute([$albumId]);
+      $oldImg = $stmtOld->fetchColumn();
+      if ($oldImg && file_exists("../files/_partners/" . $oldImg)) {
+        unlink("../files/_partners/" . $oldImg);
+      }
+      $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = '', album_desc = ? WHERE id = ?");
+      $stmt->execute([$album_title, $album_desc, $albumId]);
     } else {
       $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_desc = ? WHERE id = ?");
       $stmt->execute([$album_title, $album_desc, $albumId]);
     }
-  } elseif ($deleteImage) {
-    // Supprimer l'image existante
-    $stmtOld = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
-    $stmtOld->execute([$albumId]);
-    $oldImg = $stmtOld->fetchColumn();
-    if ($oldImg && file_exists("../files/_partners/" . $oldImg)) {
-      unlink("../files/_partners/" . $oldImg);
-    }
-    $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_img = '', album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_desc, $albumId]);
-  } else {
-    $stmt = $pdo->prepare("UPDATE partners_albums SET album_title = ?, album_desc = ? WHERE id = ?");
-    $stmt->execute([$album_title, $album_desc, $albumId]);
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] update_album: ' . $e->getMessage());
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour du partenaire.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
   }
   $_SESSION['reopen_modal'] = $yearId;
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis à jour.'];
@@ -141,21 +185,36 @@ if (isset($_POST['update_album'])) {
 }
 
 if (isset($_POST['add_album'])) {
-  $yearId = $_POST['year_id'];
-  $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-  $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
-  $mime = mime_content_type($_FILES['album_img']['tmp_name']);
-  if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
-    $safeName = uniqid('partner_', true) . '.' . $ext;
-    move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $safeName);
+  $yearId = (int)($_POST['year_id'] ?? 0);
+  $album_title = $_POST['album_title'] ?? '';
+  $album_desc = $_POST['album_desc'] ?? '';
+
+  if ($yearId <= 0 || $album_title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs requis manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    $safeName = null;
+    if (!empty($_FILES['album_img']['name']) && $_FILES['album_img']['error'] === UPLOAD_ERR_OK) {
+      $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+      $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      $ext  = strtolower(pathinfo($_FILES['album_img']['name'], PATHINFO_EXTENSION));
+      $mime = mime_content_type($_FILES['album_img']['tmp_name']);
+      if (in_array($ext, $allowedExts) && in_array($mime, $allowedMimes)) {
+        $safeName = uniqid('partner_', true) . '.' . $ext;
+        move_uploaded_file($_FILES['album_img']['tmp_name'], "../files/_partners/" . $safeName);
+      }
+    }
     $stmt = $pdo->prepare("INSERT INTO partners_albums (year_id, album_title, album_img, album_desc) VALUES (?, ?, ?, ?)");
-    $stmt->execute([
-      $yearId,
-      $_POST['album_title'],
-      $safeName,
-      $_POST['album_desc']
-    ]);
+    $stmt->execute([$yearId, $album_title, $safeName, $album_desc]);
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] add_album: ' . $e->getMessage());
+    $_SESSION['reopen_modal'] = $yearId;
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de l\'ajout du partenaire.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
   }
   $_SESSION['reopen_modal'] = $yearId;
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire ajouté.'];
@@ -165,40 +224,69 @@ if (isset($_POST['add_album'])) {
 
 // ─── Delete album ───
 if (isset($_POST['delete_album'])) {
-  $albumId = $_POST['album_id'];
-  $yearId = $_POST['year_id'];
+  $albumId = (int)($_POST['album_id'] ?? 0);
+  $yearId = (int)($_POST['year_id'] ?? 0);
 
-  if ($migrationDone) {
-    $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE id = ?");
-    $stmt->execute([$albumId]);
-    $_SESSION['reopen_modal'] = $yearId;
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis en corbeille.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
-  } else {
-    // Hard delete (old behavior)
-    $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
-    $stmt->execute([$albumId]);
-    $img = $stmt->fetchColumn();
-    if ($img && file_exists("../files/_partners/" . $img)) {
-      unlink("../files/_partners/" . $img);
+  if ($albumId <= 0 || $yearId <= 0) {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Identifiants manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if ($migrationDone) {
+      $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE id = ?");
+      $stmt->execute([$albumId]);
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis en corbeille.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+    } else {
+      // Hard delete (old behavior)
+      $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
+      $stmt->execute([$albumId]);
+      $img = $stmt->fetchColumn();
+      if ($img && file_exists("../files/_partners/" . $img)) {
+        unlink("../files/_partners/" . $img);
+      }
+      $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
+      $stmt->execute([$albumId]);
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire supprimé.'];
+      header("Location: " . $_SERVER['PHP_SELF']);
     }
-    $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
-    $stmt->execute([$albumId]);
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] delete_album: ' . $e->getMessage());
     $_SESSION['reopen_modal'] = $yearId;
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire supprimé.'];
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression du partenaire.'];
     header("Location: " . $_SERVER['PHP_SELF']);
   }
   exit;
 }
 
 if (isset($_POST['add_year'])) {
-  if ($hasStatusCol) {
-    $status = $_POST['status'] ?? 'draft';
-    $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, status) VALUES (?, ?, ?)");
-    $stmt->execute([$_POST['year'], $_POST['title'], $status]);
-  } else {
-    $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
-    $stmt->execute([$_POST['year'], $_POST['title']]);
+  $year = $_POST['year'] ?? '';
+  $title = $_POST['title'] ?? '';
+
+  if ($year === '' || $title === '') {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Champs requis manquants.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if ($hasStatusCol) {
+      $status = $_POST['status'] ?? 'draft';
+      $stmt = $pdo->prepare("INSERT INTO partners_years (year, title, status) VALUES (?, ?, ?)");
+      $stmt->execute([$year, $title, $status]);
+    } else {
+      $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
+      $stmt->execute([$year, $title]);
+    }
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] add_year: ' . $e->getMessage());
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de l\'ajout de l\'année.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
   }
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année ajoutée.'];
   header("Location: " . $_SERVER['PHP_SELF']);
@@ -207,12 +295,24 @@ if (isset($_POST['add_year'])) {
 
 // ─── Reorder albums (AJAX) ───
 if (isset($_POST['reorder_albums'])) {
-  $ids = json_decode($_POST['album_ids'], true);
-  if (is_array($ids)) {
-    $stmt = $pdo->prepare("UPDATE partners_albums SET sort_order = ? WHERE id = ?");
-    foreach ($ids as $i => $id) {
-      $stmt->execute([$i, (int)$id]);
+  $ids = json_decode($_POST['album_ids'] ?? '[]', true);
+  try {
+    if (is_array($ids)) {
+      $stmt = $pdo->prepare("UPDATE partners_albums SET sort_order = ? WHERE id = ?");
+      foreach ($ids as $i => $id) {
+        $stmt->execute([$i, (int)$id]);
+      }
     }
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] reorder_albums: ' . $e->getMessage());
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+      header('Content-Type: application/json');
+      echo json_encode(['ok' => false, 'message' => 'Erreur lors du réordonnancement.']);
+      exit;
+    }
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors du réordonnancement.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
   }
   if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json');
@@ -227,32 +327,44 @@ if (isset($_POST['reorder_albums'])) {
 
 // ─── Delete year ───
 if (isset($_POST['delete_year'])) {
-  $yearId = $_POST['year_id'];
+  $yearId = (int)($_POST['year_id'] ?? 0);
 
-  if ($migrationDone) {
-    // Soft-delete the year
-    $stmt = $pdo->prepare("UPDATE partners_years SET deleted_at = NOW() WHERE id = ?");
-    $stmt->execute([$yearId]);
-    // Soft-delete all child albums
-    $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
-    header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
-  } else {
-    // Hard delete (old behavior)
-    $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-    $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($albumImgs as $img) {
-      if ($img && file_exists("../files/_partners/" . $img)) {
-        unlink("../files/_partners/" . $img);
+  if ($yearId <= 0) {
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Identifiant manquant.'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+  }
+
+  try {
+    if ($migrationDone) {
+      // Soft-delete the year
+      $stmt = $pdo->prepare("UPDATE partners_years SET deleted_at = NOW() WHERE id = ?");
+      $stmt->execute([$yearId]);
+      // Soft-delete all child albums
+      $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+    } else {
+      // Hard delete (old behavior)
+      $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+      $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+      foreach ($albumImgs as $img) {
+        if ($img && file_exists("../files/_partners/" . $img)) {
+          unlink("../files/_partners/" . $img);
+        }
       }
+      $stmt1 = $pdo->prepare("DELETE FROM partners_albums WHERE year_id = ?");
+      $stmt1->execute([$yearId]);
+      $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
+      $stmt2->execute([$yearId]);
+      $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
+      header("Location: " . $_SERVER['PHP_SELF']);
     }
-    $stmt1 = $pdo->prepare("DELETE FROM partners_albums WHERE year_id = ?");
-    $stmt1->execute([$yearId]);
-    $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
-    $stmt2->execute([$yearId]);
-    $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
+  } catch (PDOException $e) {
+    error_log('[PARTNERS] delete_year: ' . $e->getMessage());
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression de l\'année.'];
     header("Location: " . $_SERVER['PHP_SELF']);
   }
   exit;
@@ -261,13 +373,26 @@ if (isset($_POST['delete_year'])) {
 if ($migrationDone) {
   // ─── Restore year from trash ───
   if (isset($_POST['restore_year'])) {
-    $yearId = $_POST['year_id'];
+    $yearId = (int)($_POST['year_id'] ?? 0);
 
-    $stmt = $pdo->prepare("UPDATE partners_years SET deleted_at = NULL WHERE id = ?");
-    $stmt->execute([$yearId]);
+    if ($yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Identifiant manquant.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
 
-    $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE year_id = ?");
-    $stmt->execute([$yearId]);
+    try {
+      $stmt = $pdo->prepare("UPDATE partners_years SET deleted_at = NULL WHERE id = ?");
+      $stmt->execute([$yearId]);
+
+      $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE year_id = ?");
+      $stmt->execute([$yearId]);
+    } catch (PDOException $e) {
+      error_log('[PARTNERS] restore_year: ' . $e->getMessage());
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
 
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année restaurée.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
@@ -276,11 +401,24 @@ if ($migrationDone) {
 
   // ─── Restore album from trash ───
   if (isset($_POST['restore_album'])) {
-    $albumId = $_POST['album_id'];
-    $yearId = $_POST['year_id'];
+    $albumId = (int)($_POST['album_id'] ?? 0);
+    $yearId = (int)($_POST['year_id'] ?? 0);
 
-    $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE id = ?");
-    $stmt->execute([$albumId]);
+    if ($albumId <= 0 || $yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Identifiants manquants.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
+
+    try {
+      $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE id = ?");
+      $stmt->execute([$albumId]);
+    } catch (PDOException $e) {
+      error_log('[PARTNERS] restore_album: ' . $e->getMessage());
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
 
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire restauré.'];
@@ -290,35 +428,48 @@ if ($migrationDone) {
 
   // ─── Permanent delete year ───
   if (isset($_POST['permanent_delete_year'])) {
-    $yearId = $_POST['year_id'];
+    $yearId = (int)($_POST['year_id'] ?? 0);
 
-    // Delete image files for all albums
-    $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE year_id = ?");
-    $stmt->execute([$yearId]);
-    $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($albumImgs as $img) {
-      if ($img && file_exists("../files/_partners/" . $img)) {
-        unlink("../files/_partners/" . $img);
-      }
+    if ($yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Identifiant manquant.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
     }
 
-    // Delete year image if exists
     try {
-      $stmt = $pdo->prepare("SELECT img FROM partners_years WHERE id = ?");
+      // Delete image files for all albums
+      $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE year_id = ?");
       $stmt->execute([$yearId]);
-      $yearImg = $stmt->fetchColumn();
-      if ($yearImg && file_exists("../files/_partners/" . $yearImg)) {
-        unlink("../files/_partners/" . $yearImg);
+      $albumImgs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+      foreach ($albumImgs as $img) {
+        if ($img && file_exists("../files/_partners/" . $img)) {
+          unlink("../files/_partners/" . $img);
+        }
       }
-    } catch (PDOException $e) {
-      // Column 'img' may not exist — skip image cleanup
-    }
 
-    // Delete albums and year permanently
-    $stmt1 = $pdo->prepare("DELETE FROM partners_albums WHERE year_id = ?");
-    $stmt1->execute([$yearId]);
-    $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
-    $stmt2->execute([$yearId]);
+      // Delete year image if exists
+      try {
+        $stmt = $pdo->prepare("SELECT img FROM partners_years WHERE id = ?");
+        $stmt->execute([$yearId]);
+        $yearImg = $stmt->fetchColumn();
+        if ($yearImg && file_exists("../files/_partners/" . $yearImg)) {
+          unlink("../files/_partners/" . $yearImg);
+        }
+      } catch (PDOException $e) {
+        // Column 'img' may not exist — skip image cleanup
+      }
+
+      // Delete albums and year permanently
+      $stmt1 = $pdo->prepare("DELETE FROM partners_albums WHERE year_id = ?");
+      $stmt1->execute([$yearId]);
+      $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
+      $stmt2->execute([$yearId]);
+    } catch (PDOException $e) {
+      error_log('[PARTNERS] permanent_delete_year: ' . $e->getMessage());
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression définitive.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
 
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée définitivement.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
@@ -327,21 +478,35 @@ if ($migrationDone) {
 
   // ─── Permanent delete album ───
   if (isset($_POST['permanent_delete_album'])) {
-    $albumId = $_POST['album_id'];
-    $yearId = $_POST['year_id'];
+    $albumId = (int)($_POST['album_id'] ?? 0);
+    $yearId = (int)($_POST['year_id'] ?? 0);
 
-    // Delete image file
-    $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
-    $stmt->execute([$albumId]);
-    $img = $stmt->fetchColumn();
-
-    if ($img && file_exists("../files/_partners/" . $img)) {
-      unlink("../files/_partners/" . $img);
+    if ($albumId <= 0 || $yearId <= 0) {
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Identifiants manquants.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
     }
 
-    // Delete album permanently
-    $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
-    $stmt->execute([$albumId]);
+    try {
+      // Delete image file
+      $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
+      $stmt->execute([$albumId]);
+      $img = $stmt->fetchColumn();
+
+      if ($img && file_exists("../files/_partners/" . $img)) {
+        unlink("../files/_partners/" . $img);
+      }
+
+      // Delete album permanently
+      $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
+      $stmt->execute([$albumId]);
+    } catch (PDOException $e) {
+      error_log('[PARTNERS] permanent_delete_album: ' . $e->getMessage());
+      $_SESSION['reopen_modal'] = $yearId;
+      $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression définitive.'];
+      header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
+      exit;
+    }
 
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire supprimé définitivement.'];
@@ -971,7 +1136,7 @@ if ($migrationDone) {
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.ok) window.location.reload();
+                if (data.ok) { window.location.href = window.location.pathname + '?tab=description'; }
                 else if (typeof showToast === 'function') showToast(data.message || 'Erreur', 'danger');
             })
             .catch(function (err) {

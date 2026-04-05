@@ -98,6 +98,11 @@ if (isset($_GET['auth'])) {
 // ─── CSRF check for all POST actions ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403);
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'message' => 'Session expirée. Veuillez réessayer.']);
+        exit;
+    }
     die('Invalid CSRF token');
 }
 
@@ -2702,7 +2707,7 @@ document.addEventListener('DOMContentLoaded', function() {
 (function () {
 
     /* Fonction générique d'envoi AJAX */
-    function ajaxSubmit(btn, fieldsToEncode) {
+    function ajaxSubmit(btn, fieldsToEncode, tab) {
         var form = btn.closest('form');
         if (!form) return;
 
@@ -2725,7 +2730,10 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            if (data.ok) window.location.reload();
+            if (data.ok) {
+                var url = window.location.pathname + (tab ? '?tab=' + tab : '');
+                window.location.href = url;
+            }
             else if (typeof showToast === 'function') showToast(data.message || 'Erreur', 'danger');
         })
         .catch(function (err) {
@@ -2736,25 +2744,25 @@ document.addEventListener('DOMContentLoaded', function() {
     /* AssoConnect */
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="LinkAssoConnect"]');
-        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['assoconnect_iframe', 'assoconnect_js']); }
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['assoconnect_iframe', 'assoconnect_js'], 'inscription'); }
     });
 
     /* Réglementation (TinyMCE) */
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="reglementation"]');
-        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['div_reglementation']); }
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['div_reglementation'], 'reglementation'); }
     });
 
     /* Titre / Image sur la vidéo (TinyMCE) */
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="save_hero"]');
-        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['titleAccueil', 'titleAccueil_mobile']); }
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['titleAccueil', 'titleAccueil_mobile'], 'accueil'); }
     });
 
     /* En-tête du site d'inscription (TinyMCE) */
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="save_header"]');
-        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['title', 'title_mobile']); }
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['title', 'title_mobile'], 'inscription'); }
     });
 
 })();

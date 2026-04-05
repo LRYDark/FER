@@ -19,9 +19,16 @@ if ($albumId <= 0) {
 }
 
 // Fetch album and verify it's a local album
-$stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE id = ? AND deleted_at IS NULL");
-$stmt->execute([$albumId]);
-$album = $stmt->fetch(PDO::FETCH_ASSOC);
+try {
+    $stmt = $pdo->prepare("SELECT * FROM photo_albums WHERE id = ? AND deleted_at IS NULL");
+    $stmt->execute([$albumId]);
+    $album = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log('[ALBUM-PHOTOS] ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Erreur serveur.']);
+    exit;
+}
 
 if (!$album) {
     http_response_code(404);
@@ -111,8 +118,12 @@ if ($action === 'upload' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $src = $folderPath . DIRECTORY_SEPARATOR . $firstPhoto;
         $thumbDest = realpath(__DIR__ . '/../files/_albums') . DIRECTORY_SEPARATOR . $thumbName;
         if (copy($src, $thumbDest)) {
-            $stmtThumb = $pdo->prepare("UPDATE photo_albums SET album_img = ? WHERE id = ?");
-            $stmtThumb->execute([$thumbName, $albumId]);
+            try {
+                $stmtThumb = $pdo->prepare("UPDATE photo_albums SET album_img = ? WHERE id = ?");
+                $stmtThumb->execute([$thumbName, $albumId]);
+            } catch (PDOException $e) {
+                error_log('[ALBUM-PHOTOS] ' . $e->getMessage());
+            }
         }
     }
 
@@ -192,8 +203,15 @@ if ($action === 'set_thumbnail' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (copy($src, $thumbDest)) {
-        $stmt = $pdo->prepare("UPDATE photo_albums SET album_img = ? WHERE id = ?");
-        $stmt->execute([$thumbName, $albumId]);
+        try {
+            $stmt = $pdo->prepare("UPDATE photo_albums SET album_img = ? WHERE id = ?");
+            $stmt->execute([$thumbName, $albumId]);
+        } catch (PDOException $e) {
+            error_log('[ALBUM-PHOTOS] ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Erreur serveur.']);
+            exit;
+        }
         echo json_encode(['ok' => true, 'thumbnail' => $thumbName]);
     } else {
         http_response_code(500);

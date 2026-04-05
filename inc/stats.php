@@ -4,24 +4,33 @@ requireRole(['admin','viewer','user']);
 $role = currentRole();
 require 'navbar-data.php';
 
-$stmt = $pdo->prepare(
-    'SELECT *
-       FROM setting
-      WHERE id = :id
-      LIMIT 1');
-$stmt->execute(['id' => 1]);
-
-$data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+try {
+    $stmt = $pdo->prepare(
+        'SELECT *
+           FROM setting
+          WHERE id = :id
+          LIMIT 1');
+    $stmt->execute(['id' => 1]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+} catch (Exception $e) {
+    error_log('[STATS] ' . $e->getMessage());
+    $data = [];
+}
 
 
 
 // 1. Récupère toutes les stats agrégées par année avec table_name ET les nouvelles colonnes
-$stats = $pdo->query(
-    'SELECT year, total_inscrits, tshirt_xs, tshirt_s, tshirt_m, tshirt_l, tshirt_xl, tshirt_xxl,
-            age_moyen, table_name, ville_top, entreprise_top, plus_vieux_h, plus_vieille_f
-       FROM registrations_stats
-       ORDER BY year'
-)->fetchAll(PDO::FETCH_ASSOC);
+try {
+    $stats = $pdo->query(
+        'SELECT year, total_inscrits, tshirt_xs, tshirt_s, tshirt_m, tshirt_l, tshirt_xl, tshirt_xxl,
+                age_moyen, table_name, ville_top, entreprise_top, plus_vieux_h, plus_vieille_f
+           FROM registrations_stats
+           ORDER BY year'
+    )->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log('[STATS] ' . $e->getMessage());
+    $stats = [];
+}
 $years = array_column($stats,'year');
 $currentYear = end($years) ?: date('Y');  // dernière année dispo ou année courante
 

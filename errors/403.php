@@ -118,9 +118,9 @@
     <?php else: ?>
       <h1 class="error-title">Acc&egrave;s refus&eacute;</h1>
       <p class="error-desc">Vous n'avez pas les permissions n&eacute;cessaires pour acc&eacute;der &agrave; cette page.</p>
-      <a href="/FER/public/accueil.php" class="error-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
-        Retour &agrave; l'accueil
+      <a href="javascript:history.back()" class="error-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Retour
       </a>
     <?php endif; ?>
   </div>

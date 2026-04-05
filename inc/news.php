@@ -28,6 +28,11 @@ try {
 // ─── CSRF check for all POST actions ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403);
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'message' => 'Session expirée. Veuillez réessayer.']);
+        exit;
+    }
     die('Invalid CSRF token');
 }
 
@@ -44,7 +49,7 @@ function decodeHtmlField(string $raw): string {
 
 // ─── Add news ───
 if (isset($_POST['add_news'])) {
-    $title = $_POST['title_article'];
+    $title = trim($_POST['title_article'] ?? '');
     $desc = $isAjax ? decodeHtmlField($_POST['desc_article'] ?? '') : ($_POST['desc_article'] ?? '');
     $imgName = '';
 
@@ -63,13 +68,25 @@ if (isset($_POST['add_news'])) {
         }
     }
 
-    if ($migrationDone) {
-        $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
-        $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`, status) VALUES (?, ?, ?, NOW(), 0, 0, ?)");
-        $stmt->execute([$imgName, $title, $desc, $status]);
-    } else {
-        $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
-        $stmt->execute([$imgName, $title, $desc]);
+    try {
+        if ($migrationDone) {
+            $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+            $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`, status) VALUES (?, ?, ?, NOW(), 0, 0, ?)");
+            $stmt->execute([$imgName, $title, $desc, $status]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
+            $stmt->execute([$imgName, $title, $desc]);
+        }
+    } catch (PDOException $e) {
+        error_log('[NEWS] add_news: ' . $e->getMessage());
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'message' => 'Erreur lors de l\'ajout.']);
+            exit;
+        }
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de l\'ajout de l\'article.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article ajouté avec succès.'];
     if ($isAjax) {
@@ -83,72 +100,81 @@ if (isset($_POST['add_news'])) {
 
 // ─── Update news ───
 if (isset($_POST['update_news'])) {
-    $id = $_POST['news_id'];
-    $title = $_POST['title_article'];
+    $id = (int)($_POST['news_id'] ?? 0);
+    $title = trim($_POST['title_article'] ?? '');
     $desc = $isAjax ? decodeHtmlField($_POST['desc_article'] ?? '') : ($_POST['desc_article'] ?? '');
 
     $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-    // 🔒 [FIX-04] Validation MIME réelle via magic bytes, pas seulement l'extension (CWE-434)
     $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     $deleteImage = !empty($_POST['delete_image']);
 
-    // Supprimer l'image existante si demandé
-    if ($deleteImage) {
-        $stmtOld = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
-        $stmtOld->execute([$id]);
-        $oldImg = $stmtOld->fetchColumn();
-        if ($oldImg && file_exists("../files/_news/" . $oldImg)) {
-            unlink("../files/_news/" . $oldImg);
+    try {
+        // Supprimer l'image existante si demandé
+        if ($deleteImage) {
+            $stmtOld = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+            $stmtOld->execute([$id]);
+            $oldImg = $stmtOld->fetchColumn();
+            if ($oldImg && file_exists("../files/_news/" . $oldImg)) {
+                unlink("../files/_news/" . $oldImg);
+            }
         }
-    }
 
-    if ($migrationDone) {
-        $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
-        if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
-            $finfo    = new finfo(FILEINFO_MIME_TYPE);
-            $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
-            // 🔒 [FIX-UPLOAD-SIZE] Limite taille fichier à 5 Mo (CWE-400)
-            if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
-                && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
-                $safeName = uniqid('news_', true) . '.' . $ext;
-                move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
-                $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ?, status = ? WHERE id = ?");
-                $stmt->execute([$safeName, $title, $desc, $status, $id]);
+        if ($migrationDone) {
+            $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
+            if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
+                $finfo    = new finfo(FILEINFO_MIME_TYPE);
+                $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
+                if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
+                    && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
+                    $safeName = uniqid('news_', true) . '.' . $ext;
+                    move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
+                    $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+                    $stmt->execute([$safeName, $title, $desc, $status, $id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+                    $stmt->execute([$title, $desc, $status, $id]);
+                }
+            } elseif ($deleteImage) {
+                $stmt = $pdo->prepare("UPDATE news SET img_article = '', title_article = ?, desc_article = ?, status = ? WHERE id = ?");
+                $stmt->execute([$title, $desc, $status, $id]);
             } else {
                 $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
                 $stmt->execute([$title, $desc, $status, $id]);
             }
-        } elseif ($deleteImage) {
-            $stmt = $pdo->prepare("UPDATE news SET img_article = '', title_article = ?, desc_article = ?, status = ? WHERE id = ?");
-            $stmt->execute([$title, $desc, $status, $id]);
         } else {
-            $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
-            $stmt->execute([$title, $desc, $status, $id]);
-        }
-    } else {
-        if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
-            $finfo    = new finfo(FILEINFO_MIME_TYPE);
-            $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
-            // 🔒 [FIX-UPLOAD-SIZE] Limite taille fichier à 5 Mo (CWE-400)
-            if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
-                && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
-                $safeName = uniqid('news_', true) . '.' . $ext;
-                move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
-                $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
-                $stmt->execute([$safeName, $title, $desc, $id]);
+            if (!empty($_FILES['img_article']['name']) && $_FILES['img_article']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['img_article']['name'], PATHINFO_EXTENSION));
+                $finfo    = new finfo(FILEINFO_MIME_TYPE);
+                $mimeType = $finfo->file($_FILES['img_article']['tmp_name']);
+                if ($_FILES['img_article']['size'] <= 5 * 1024 * 1024
+                    && in_array($ext, $allowedExts) && in_array($mimeType, $allowedMimes)) {
+                    $safeName = uniqid('news_', true) . '.' . $ext;
+                    move_uploaded_file($_FILES['img_article']['tmp_name'], "../files/_news/" . $safeName);
+                    $stmt = $pdo->prepare("UPDATE news SET img_article = ?, title_article = ?, desc_article = ? WHERE id = ?");
+                    $stmt->execute([$safeName, $title, $desc, $id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
+                    $stmt->execute([$title, $desc, $id]);
+                }
+            } elseif ($deleteImage) {
+                $stmt = $pdo->prepare("UPDATE news SET img_article = '', title_article = ?, desc_article = ? WHERE id = ?");
+                $stmt->execute([$title, $desc, $id]);
             } else {
                 $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
                 $stmt->execute([$title, $desc, $id]);
             }
-        } elseif ($deleteImage) {
-            $stmt = $pdo->prepare("UPDATE news SET img_article = '', title_article = ?, desc_article = ? WHERE id = ?");
-            $stmt->execute([$title, $desc, $id]);
-        } else {
-            $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ? WHERE id = ?");
-            $stmt->execute([$title, $desc, $id]);
         }
+    } catch (PDOException $e) {
+        error_log('[NEWS] update_news: ' . $e->getMessage());
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'message' => 'Erreur lors de la mise à jour.']);
+            exit;
+        }
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la mise à jour de l\'article.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
 
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis à jour avec succès.'];
@@ -169,24 +195,28 @@ if (isset($_POST['update_news'])) {
 
 // ─── Delete news ───
 if (isset($_POST['delete_news'])) {
-    $id = $_POST['news_id'];
-    if ($migrationDone) {
-        // Soft delete (move to trash)
-        $stmt = $pdo->prepare("UPDATE news SET deleted_at = NOW() WHERE id = ?");
-        $stmt->execute([$id]);
-        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis en corbeille.'];
-        header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
-    } else {
-        // Hard delete (old behavior)
-        $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
-        $stmt->execute([$id]);
-        $img = $stmt->fetchColumn();
-        if ($img && file_exists("../files/_news/" . $img)) {
-            unlink("../files/_news/" . $img);
+    $id = (int)($_POST['news_id'] ?? 0);
+    try {
+        if ($migrationDone) {
+            $stmt = $pdo->prepare("UPDATE news SET deleted_at = NOW() WHERE id = ?");
+            $stmt->execute([$id]);
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis en corbeille.'];
+            header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
+        } else {
+            $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+            $stmt->execute([$id]);
+            $img = $stmt->fetchColumn();
+            if ($img && file_exists("../files/_news/" . $img)) {
+                unlink("../files/_news/" . $img);
+            }
+            $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
+            $stmt->execute([$id]);
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé.'];
+            header("Location: " . $_SERVER['PHP_SELF']);
         }
-        $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
-        $stmt->execute([$id]);
-        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé.'];
+    } catch (PDOException $e) {
+        error_log('[NEWS] delete_news: ' . $e->getMessage());
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression.'];
         header("Location: " . $_SERVER['PHP_SELF']);
     }
     exit;
@@ -195,28 +225,38 @@ if (isset($_POST['delete_news'])) {
 if ($migrationDone) {
     // ─── Restore from trash ───
     if (isset($_POST['restore_news'])) {
-        $id = $_POST['news_id'];
-        $stmt = $pdo->prepare("UPDATE news SET deleted_at = NULL WHERE id = ?");
-        $stmt->execute([$id]);
-        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article restauré.'];
+        $id = (int)($_POST['news_id'] ?? 0);
+        try {
+            $stmt = $pdo->prepare("UPDATE news SET deleted_at = NULL WHERE id = ?");
+            $stmt->execute([$id]);
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article restauré.'];
+        } catch (PDOException $e) {
+            error_log('[NEWS] restore_news: ' . $e->getMessage());
+            $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration.'];
+        }
         header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
         exit;
     }
 
     // ─── Permanent delete ───
     if (isset($_POST['permanent_delete_news'])) {
-        $id = $_POST['news_id'];
-        $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
-        $stmt->execute([$id]);
-        $img = $stmt->fetchColumn();
+        $id = (int)($_POST['news_id'] ?? 0);
+        try {
+            $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+            $stmt->execute([$id]);
+            $img = $stmt->fetchColumn();
 
-        if ($img && file_exists("../files/_news/" . $img)) {
-            unlink("../files/_news/" . $img);
+            if ($img && file_exists("../files/_news/" . $img)) {
+                unlink("../files/_news/" . $img);
+            }
+
+            $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
+            $stmt->execute([$id]);
+            $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé définitivement.'];
+        } catch (PDOException $e) {
+            error_log('[NEWS] permanent_delete_news: ' . $e->getMessage());
+            $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression.'];
         }
-
-        $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
-        $stmt->execute([$id]);
-        $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé définitivement.'];
         header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
         exit;
     }
