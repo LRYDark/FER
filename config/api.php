@@ -150,7 +150,7 @@ function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 144
     // Notifier les admins du ban IP
     try {
         require_once __DIR__ . '/googleMail.php';
-        if (isGoogleConnectionValid()) {
+        if (isMailConfigured()) {
             $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
             $durationH = round($banMinutes / 60);
             foreach ($admins as $adminEmail) {
@@ -268,7 +268,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 ->execute([$attempts, $u['id']]);
             try {
                 require_once __DIR__ . '/googleMail.php';
-                if (isGoogleConnectionValid()) {
+                if (isMailConfigured()) {
                     $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
                     foreach ($admins as $adminEmail) {
                         sendMail($adminEmail, 'Compte verrouille – Forbach en Rose', 'Compte verrouille apres 3 tentatives',
@@ -429,7 +429,7 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
         // Envoyer le mail si Gmail est configuré
         try {
             require_once __DIR__ . '/googleMail.php';
-            if (isGoogleConnectionValid()) {
+            if (isMailConfigured()) {
                 // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
                 $resetUrl = getAppBaseUrl()
                           . dirname(dirname($_SERVER['SCRIPT_NAME']))
@@ -539,7 +539,7 @@ if ($route === 'users') {
         if ($userEmail) {
             try {
                 require_once __DIR__ . '/googleMail.php';
-                if (isGoogleConnectionValid()) {
+                if (isMailConfigured()) {
                     $emailSent = sendMail(
                         $userEmail,
                         'Réinitialisation de votre mot de passe – Forbach en Rose',
@@ -666,7 +666,7 @@ if ($route === 'users') {
         $emailSent = false;
         try {
             require_once __DIR__ . '/googleMail.php';
-            if (isGoogleConnectionValid()) {
+            if (isMailConfigured()) {
                 $emailSent = sendMail(
                     $d['email'],
                     'Votre compte Forbach en Rose',
@@ -842,7 +842,7 @@ if ($route==='registrations'){
         if ($inscEmail !== '') {
             try {
                 require_once __DIR__ . '/googleMail.php';
-                if (isGoogleConnectionValid()) {
+                if (isMailConfigured()) {
                     sendMail(
                         $inscEmail,
                         'Inscription enregistrée - Forbach en Rose',
