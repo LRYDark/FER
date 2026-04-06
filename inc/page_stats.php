@@ -250,11 +250,12 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 
 <div class="row g-4">
     <!-- Top pages -->
-    <div class="col-lg-7">
+    <div class="col-lg-6">
         <div class="card" style="border:1px solid #f0e8eb; border-radius:12px;">
             <div class="card-body">
                 <h6 class="mb-3" style="color:#5f4b52; font-weight:600;">
-                    <i class="bi bi-file-earmark-text me-1"></i>Top 10 pages
+                    <i class="bi bi-file-earmark-text me-1"></i>Top 5 pages
+                    <span class="ms-1" style="cursor:help;" data-bs-toggle="tooltip" data-bs-placement="top" title="Les 5 pages les plus visitees sur votre site. Chaque ligne correspond a une URL unique (avec ses parametres). Le nombre indique le total de pages vues sur la periode selectionnee."><i class="bi bi-info-circle text-muted" style="font-size:13px;"></i></span>
                 </h6>
                 <?php if (empty($activeStats['top_pages'])): ?>
                     <p class="text-muted small">Aucune donnee pour cette periode.</p>
@@ -273,7 +274,9 @@ $desktopPct = $activeStats['unique_visitors'] > 0
                                     <td class="text-truncate" style="max-width:400px;" title="<?= htmlspecialchars($page['page_url']) ?>">
                                         <?php
                                         $parsed = parse_url($page['page_url']);
-                                        echo htmlspecialchars($parsed['path'] ?? $page['page_url']);
+                                        $displayUrl = $parsed['path'] ?? $page['page_url'];
+                                        if (!empty($parsed['query'])) $displayUrl .= '?' . $parsed['query'];
+                                        echo htmlspecialchars($displayUrl);
                                         ?>
                                     </td>
                                     <td class="text-end fw-semibold"><?= number_format($page['visits']) ?></td>
@@ -283,16 +286,22 @@ $desktopPct = $activeStats['unique_visitors'] > 0
                         </table>
                     </div>
                 <?php endif; ?>
+                <?php if (!empty($activeStats['all_pages'])): ?>
+                <div class="text-center mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalAllPages"><i class="bi bi-eye me-1"></i>Tout voir (<?= count($activeStats['all_pages']) ?>)</button>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
     <!-- Top referers -->
-    <div class="col-lg-5">
+    <div class="col-lg-6">
         <div class="card" style="border:1px solid #f0e8eb; border-radius:12px;">
             <div class="card-body">
                 <h6 class="mb-3" style="color:#5f4b52; font-weight:600;">
                     <i class="bi bi-box-arrow-in-right me-1"></i>Top 5 referents
+                    <span class="ms-1" style="cursor:help;" data-bs-toggle="tooltip" data-bs-placement="top" title="D'ou viennent vos visiteurs. 'Visite directe' = l'URL a ete tapee dans le navigateur ou ajoutee en favori. Les autres domaines (google.com, facebook.com...) indiquent que le visiteur a clique un lien vers votre site depuis ce site."><i class="bi bi-info-circle text-muted" style="font-size:13px;"></i></span>
                 </h6>
                 <?php if (empty($activeStats['top_referers'])): ?>
                     <p class="text-muted small">Aucune donnee pour cette periode.</p>
@@ -301,18 +310,19 @@ $desktopPct = $activeStats['unique_visitors'] > 0
                         <table class="table stats-table mb-0">
                             <thead>
                                 <tr>
-                                    <th>URL</th>
+                                    <th>Domaine</th>
                                     <th class="text-end" style="width:100px;">Pages vues</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($activeStats['top_referers'] as $ref): ?>
                                 <tr>
-                                    <td class="text-truncate" style="max-width:300px;" title="<?= htmlspecialchars($ref['referer']) ?>">
-                                        <?php
-                                        $parsedRef = parse_url($ref['referer']);
-                                        echo htmlspecialchars($parsedRef['host'] ?? $ref['referer']);
-                                        ?>
+                                    <td class="text-truncate" style="max-width:300px;">
+                                        <?php if ($ref['referer'] === 'Visite directe'): ?>
+                                            <span data-bs-toggle="tooltip" data-bs-placement="top" title="Le visiteur a tape votre URL directement dans le navigateur, utilise un favori, ou est arrive sans lien externe." style="cursor:help;border-bottom:1px dashed #94a3b8;"><?= htmlspecialchars($ref['referer']) ?></span>
+                                        <?php else: ?>
+                                            <?= htmlspecialchars($ref['referer']) ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="text-end fw-semibold"><?= number_format($ref['visits']) ?></td>
                                 </tr>
@@ -321,14 +331,99 @@ $desktopPct = $activeStats['unique_visitors'] > 0
                         </table>
                     </div>
                 <?php endif; ?>
+                <?php if (!empty($activeStats['all_referers'])): ?>
+                <div class="text-center mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalAllReferers"><i class="bi bi-eye me-1"></i>Tout voir (<?= count($activeStats['all_referers']) ?>)</button>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Modal: Toutes les pages -->
+<div class="modal fade" id="modalAllPages" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:16px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #f0e8eb;">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Toutes les pages (<?= count($activeStats['all_pages'] ?? []) ?>)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control mb-3" id="searchAllPages" placeholder="Rechercher une page..." style="border-radius:8px;">
+        <div class="table-responsive">
+          <table class="table stats-table mb-0">
+            <thead><tr><th>URL</th><th class="text-end" style="width:100px;">Vues</th></tr></thead>
+            <tbody id="tbodyAllPages">
+              <?php foreach ($activeStats['all_pages'] ?? [] as $i => $page):
+                $parsed = parse_url($page['page_url']);
+                $displayUrl = $parsed['path'] ?? $page['page_url'];
+                if (!empty($parsed['query'])) $displayUrl .= '?' . $parsed['query'];
+              ?>
+              <tr><td class="text-truncate" style="max-width:500px;" title="<?= htmlspecialchars($page['page_url']) ?>"><?= htmlspecialchars($displayUrl) ?></td><td class="text-end fw-semibold"><?= number_format($page['visits']) ?></td></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Tous les referents -->
+<div class="modal fade" id="modalAllReferers" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:16px;border:none;">
+      <div class="modal-header" style="border-bottom:1px solid #f0e8eb;">
+        <h5 class="modal-title"><i class="bi bi-box-arrow-in-right me-2"></i>Tous les referents (<?= count($activeStats['all_referers'] ?? []) ?>)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control mb-3" id="searchAllReferers" placeholder="Rechercher un domaine..." style="border-radius:8px;">
+        <div class="table-responsive">
+          <table class="table stats-table mb-0">
+            <thead><tr><th>Domaine</th><th class="text-end" style="width:100px;">Vues</th></tr></thead>
+            <tbody id="tbodyAllReferers">
+              <?php foreach ($activeStats['all_referers'] ?? [] as $ref): ?>
+              <tr><td class="text-truncate" style="max-width:500px;"><?php if ($ref['referer'] === 'Visite directe'): ?><span data-bs-toggle="tooltip" data-bs-placement="top" title="Le visiteur a tape votre URL directement dans le navigateur, utilise un favori, ou est arrive sans lien externe." style="cursor:help;border-bottom:1px dashed #94a3b8;"><?= htmlspecialchars($ref['referer']) ?></span><?php else: ?><?= htmlspecialchars($ref['referer']) ?><?php endif; ?></td><td class="text-end fw-semibold"><?= number_format($ref['visits']) ?></td></tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Chart.js initialization -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
+    // Init Bootstrap tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) { new bootstrap.Tooltip(el); });
+
+    // Recherche dans les modals stats
+    function initStatsSearch(inputId, tbodyId) {
+        var input = document.getElementById(inputId);
+        if (!input) return;
+        input.addEventListener('input', function() {
+            var q = this.value.toLowerCase();
+            var rows = document.getElementById(tbodyId).querySelectorAll('tr');
+            rows.forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.indexOf(q) !== -1 ? '' : 'none';
+            });
+        });
+    }
+    initStatsSearch('searchAllPages', 'tbodyAllPages');
+    initStatsSearch('searchAllReferers', 'tbodyAllReferers');
+
+    // Init tooltips dans les modals à l'ouverture
+    ['modalAllPages', 'modalAllReferers'].forEach(function(id) {
+        var modal = document.getElementById(id);
+        if (modal) modal.addEventListener('shown.bs.modal', function() {
+            modal.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) { new bootstrap.Tooltip(el); });
+        });
+    });
     var dailyPageViews = <?= json_encode($dailyVisits, JSON_FORCE_OBJECT) ?>;
     var dailyUniqAll   = <?= json_encode($dailyUnique['all'], JSON_FORCE_OBJECT) ?>;
     var dailyUniqMob   = <?= json_encode($dailyUnique['mobile'], JSON_FORCE_OBJECT) ?>;

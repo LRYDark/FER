@@ -736,6 +736,7 @@ $jsConfig = json_encode([
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='envoi'?'active':'' ?>" href="#" data-pane="paneEnvoi">Envoi de mail</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='template'?'active':'' ?>" href="#" data-pane="paneTemplate">Template email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='google'?'active':'' ?>" href="#" data-pane="paneGoogle">Google / Email</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeSubTab==='notifications'?'active':'' ?>" href="#" data-pane="paneNotifications">Notifications</a></li>
 </ul>
 
 <!-- ═══ ENVOI DE MAIL PANE ═══ -->
@@ -1232,30 +1233,18 @@ $jsConfig = json_encode([
     </div>
     <?php endif; ?>
 
-    <!-- QR Code -->
-    <div class="col-12 col-lg-6">
-      <div class="setting-card">
-        <h2><i class="bi bi-qr-code me-2"></i>QR Code</h2>
-        <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google">
-          <div class="col-12">
-            <select class="form-select" name="qrcode_mail_mode">
-              <option value="none" <?= $qrcode_mail_mode==='none'?'selected':'' ?>>Aucun</option>
-              <option value="all" <?= $qrcode_mail_mode==='all'?'selected':'' ?>>Pour tous</option>
-              <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>X premiers</option>
-            </select>
-          </div>
-          <div class="col-12 text-end"><button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button></div>
-        </form>
-      </div>
-    </div>
+  </div>
+</div>
 
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
+<!-- ═══ NOTIFICATIONS PANE ═══ -->
+<div class="ed-pane <?= $activeSubTab==='notifications'?'active':'' ?>" id="paneNotifications" style="display:<?= $activeSubTab==='notifications'?'block':'none' ?>;">
+  <div class="row g-4">
+    <div class="col-12 col-lg-8">
+      <div class="setting-card">
         <h2><i class="bi bi-bell me-2"></i>Notifications admin</h2>
-        <p class="text-muted mb-3">Choisissez les notifications à envoyer et les destinataires.</p>
+        <p class="text-muted mb-3">Choisissez les notifications a envoyer et les destinataires.</p>
         <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
           <div class="col-12">
             <div class="list-group">
               <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
@@ -1329,6 +1318,24 @@ $jsConfig = json_encode([
       </div>
     </div>
 
+    <div class="col-12 col-lg-4">
+      <div class="setting-card">
+        <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>
+        <p class="text-muted mb-3">Inclure un QR Code dans le mail de confirmation d'inscription. Le participant pourra le presenter le jour de l'evenement pour etre identifie ou recuperer son t-shirt.</p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Mode d'inclusion</label>
+            <select class="form-select" name="qrcode_mail_mode">
+              <option value="none" <?= $qrcode_mail_mode==='none'?'selected':'' ?>>Aucun — pas de QR Code</option>
+              <option value="all" <?= $qrcode_mail_mode==='all'?'selected':'' ?>>Pour tous les inscrits</option>
+              <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>Pour les X premiers inscrits</option>
+            </select>
+          </div>
+          <div class="col-12 text-end"><button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button></div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1374,10 +1381,13 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       $$('#mailSettingsTabs .nav-link').forEach(function(x){ x.classList.remove('active'); });
       this.classList.add('active');
       var id = this.dataset.pane;
-      $('#paneEnvoi').classList.toggle('active', id==='paneEnvoi');
-      $('#paneTemplate').classList.toggle('active', id==='paneTemplate');
-      $('#paneGoogle').classList.toggle('active', id==='paneGoogle');
-      $('#paneGoogle').style.display = (id==='paneGoogle') ? 'block' : 'none';
+      ['paneEnvoi','paneTemplate','paneGoogle','paneNotifications'].forEach(function(pId){
+        var el = $('#' + pId);
+        if (el) {
+          el.classList.toggle('active', id === pId);
+          el.style.display = (id === pId) ? 'block' : 'none';
+        }
+      });
       // Initialize TinyMCE when envoi tab is shown
       if (id === 'paneEnvoi') initMailTinyMCE();
     });
