@@ -313,6 +313,42 @@ function addToast(string $type, string $msg, int $delay = 4000): void
 }
 
 /**
+ * Détecte si la requête est AJAX (XMLHttpRequest).
+ */
+function isAjaxRequest(): bool {
+    return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+}
+
+/**
+ * Décode un champ HTML encodé en Base64 (contournement WAF).
+ */
+function decodeHtmlField(string $raw): string {
+    $decoded = base64_decode($raw, true);
+    if ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) {
+        return $decoded;
+    }
+    return $raw;
+}
+
+/**
+ * Upload sécurisé d'une image. Retourne le nom du fichier ou null en cas d'échec.
+ */
+function uploadImage(array $file, string $uploadDir, string $prefix = 'img_', int $maxSize = 5242880): ?string {
+    if (empty($file['name']) || $file['error'] !== UPLOAD_ERR_OK) return null;
+    $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    if ($file['size'] > $maxSize) return null;
+    if (!in_array($ext, $allowedExts, true) || !in_array($mime, $allowedMimes, true)) return null;
+    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+    $safeName = uniqid($prefix, true) . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $uploadDir . $safeName)) return null;
+    return $safeName;
+}
+
+/**
  * Scanne le dossier fonts/ et retourne les fonts custom.
  * Retourne un tableau ['NomFont' => 'chemin/fichier.ttf', ...]
  */
@@ -335,15 +371,210 @@ function getCustomFonts(): array {
 }
 
 /**
+ * Retourne le font-stack du thème actif pour le content_style TinyMCE.
+ */
+function getThemeFontStack(PDO $pdo): string {
+    try {
+        $font = $pdo->query("SELECT theme_font_family FROM setting WHERE id = 1 LIMIT 1")->fetchColumn() ?: 'Inter';
+    } catch (PDOException $e) {
+        $font = 'Inter';
+    }
+    if ($font === 'system-ui') return 'system-ui, -apple-system, sans-serif';
+    // Guillemets doubles pour ne pas casser les apostrophes JS du content_style
+    return '"' . addslashes($font) . '", sans-serif';
+}
+
+/**
+ * Retourne l'URL Google Fonts pour charger toutes les polices disponibles dans TinyMCE.
+ */
+function getTinyMceGoogleFontsUrl(): string {
+    $fonts = ['Inter','Poppins','Roboto','Open+Sans','Montserrat','Lato','Nunito','Raleway',
+              'Source+Sans+3','Work+Sans','DM+Sans','Outfit','Plus+Jakarta+Sans','Manrope',
+              'Figtree','Quicksand','Cabin','Rubik','Karla','Playfair+Display','Bebas+Neue',
+              'Oswald','Dancing+Script','Lobster'];
+    $families = array_map(function($f) { return 'family=' . $f . ':wght@300;400;500;600;700;800;900'; }, $fonts);
+    return 'https://fonts.googleapis.com/css2?' . implode('&', $families) . '&display=swap';
+}
+
+/**
+ * Retourne la config JS commune pour tinymce.init() — à injecter directement dans le JS.
+ * $overrides permet de surcharger des options (ex: height, selector, toolbar).
+ */
+function getTinyMceConfig(PDO $pdo, array $overrides = []): string {
+    $fontStyles = getTinyMceFontStyles();
+    $fontStack = getThemeFontStack($pdo);
+    $fontFormats = getTinyMceFontFormats();
+    $googleFontsUrl = getTinyMceGoogleFontsUrl();
+    $csrfToken = function_exists('csrf_token') ? csrf_token() : '';
+
+    $defaults = [
+        'license_key' => 'gpl',
+        'language' => 'fr_FR',
+        'plugins' => 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
+        'toolbar' => 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+        'height' => 400,
+        'menubar' => false,
+        'branding' => false,
+        'content_style' => $fontStyles . 'body { font-family: ' . $fontStack . '; font-size: 14px; }',
+        'content_css' => $googleFontsUrl,
+        'font_family_formats' => $fontFormats,
+        'automatic_uploads' => true,
+        'images_reuse_filename' => true,
+        'file_picker_types' => 'file image',
+        'toolbar_mode' => 'sliding',
+    ];
+
+    $config = array_merge($defaults, $overrides);
+
+    // Construire le JS
+    // Options JS complexes (objets/tableaux) qui ne passent pas par le sérialiseur string
+    $jsExtras = [];
+
+    // valid_styles — restreint les propriétés CSS autorisées par type d'élément
+    $jsExtras[] = "valid_styles: {
+                '*': 'text-align,line-height,color,background-color,font-size,font-weight,font-style,font-family,text-decoration,padding,padding-left,padding-right,padding-top,padding-bottom,margin,margin-left,margin-right,margin-top,margin-bottom',
+                'img': 'width,height,max-width,float,margin,margin-left,margin-right,margin-top,margin-bottom,display',
+                'table': 'width,height,border-collapse,border-spacing'
+            }";
+
+    // color_map — palette de couleurs personnalisée
+    $jsExtras[] = "color_map: [
+                '000000','Noir','993300','Marron fonce','333300','Vert fonce','003300','Vert sombre',
+                '003366','Bleu marine','000080','Bleu','333399','Indigo','333333','Gris tres fonce',
+                '800000','Marron','FF6600','Orange','808000','Olive','008000','Vert',
+                '008080','Sarcelle','0000FF','Bleu vif','666699','Gris bleu','808080','Gris',
+                'FF0000','Rouge','FF9900','Ambre','99CC00','Vert jaune','339966','Vert mer',
+                '33CCCC','Turquoise','3366FF','Bleu royal','800080','Violet','999999','Gris moyen',
+                'FF00FF','Magenta','FFCC00','Or','FFFF00','Jaune','00FF00','Lime',
+                '00FFFF','Cyan','00CCFF','Bleu ciel','993366','Rouge brun','FFFFFF','Blanc',
+                'FF99CC','Rose','FFCC99','Peche','FFFF99','Jaune clair','CCFFCC','Vert clair',
+                'CCFFFF','Cyan clair','99CCFF','Bleu clair','CC99FF','Prune'
+            ]";
+
+    // extended_valid_elements — whitelist HTML sécurisée
+    $jsExtras[] = "extended_valid_elements: 'a[href|target|title|class|rel],'
+              + 'img[src|alt|title|width|height|class|loading|style],'
+              + 'p[class|style],span[class|style],div[class|style],'
+              + 'table[class|border|cellpadding|cellspacing|style],thead,tbody,tfoot,'
+              + 'tr,td[class|style|colspan|rowspan],th[class|style|colspan|rowspan],'
+              + 'ul[class],ol[class|type|start],li[class],'
+              + 'blockquote[class|cite],pre[class],code,strong/b,em/i,u,s,sub,sup,br,'
+              + 'hr[class],h1[class|style],h2[class|style],h3[class|style],'
+              + 'h4[class|style],h5[class|style],h6[class|style],'
+              + 'figure[class],figcaption,video[src|controls|width|height|class],'
+              + 'audio[src|controls|class],source[src|type]'";
+
+    // invalid_elements — éléments HTML bloqués (sécurité XSS)
+    $jsExtras[] = "invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base'";
+    $parts = [];
+    foreach ($config as $key => $val) {
+        $jsKey = $key;
+        if (is_bool($val)) {
+            $parts[] = "$jsKey: " . ($val ? 'true' : 'false');
+        } elseif (is_int($val)) {
+            $parts[] = "$jsKey: $val";
+        } else {
+            // Escape pour JS single-quote string
+            $escaped = str_replace("'", "\\'", (string)$val);
+            $parts[] = "$jsKey: '$escaped'";
+        }
+    }
+
+    // Ajouter les handlers JS (non sérialisables)
+    $parts[] = "images_upload_handler: function(blobInfo) {
+        return new Promise(function(resolve, reject) {
+            var formData = new FormData();
+            formData.append('file', blobInfo.blob(), blobInfo.filename());
+            formData.append('csrf_token', '$csrfToken');
+            fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                .then(function(data) { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+                .catch(function(e) { reject(e.message); });
+        });
+    }";
+    $parts[] = "file_picker_callback: function(callback, value, meta) {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+        input.addEventListener('change', function() {
+            var file = input.files[0];
+            if (!file) return;
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('csrf_token', '$csrfToken');
+            fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                .then(function(data) { if (data.location) { var n = data.title || file.name.replace(/\\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+                .catch(function(e) { alert('Erreur upload: ' + e.message); });
+        });
+        input.click();
+    }";
+
+    return implode(",\n            ", array_merge($parts, $jsExtras));
+}
+
+/**
+ * Retourne le CSS content_style pour TinyMCE avec les @font-face des fonts custom.
+ */
+function getTinyMceFontStyles(): string {
+    $custom = getCustomFonts();
+    if (empty($custom)) return '';
+    $formatMap = ['otf' => 'opentype', 'woff2' => 'woff2', 'woff' => 'woff', 'ttf' => 'truetype'];
+    $css = '';
+    foreach ($custom as $name => $path) {
+        $ext = pathinfo($path, PATHINFO_EXTENSION);
+        $format = $formatMap[$ext] ?? 'truetype';
+        // Utiliser des guillemets doubles dans le CSS pour ne pas casser les apostrophes JS
+        $css .= '@font-face { font-family: "' . addslashes($name) . '"; src: url("../' . addslashes($path) . '") format("' . $format . '"); font-weight: normal; font-style: normal; } ';
+    }
+    return $css;
+}
+
+/**
  * Retourne la chaîne font_family_formats pour TinyMCE incluant les fonts custom.
  */
 function getTinyMceFontFormats(): string {
-    $base = "System=system-ui,sans-serif; Georgia=Georgia,serif; Playfair Display='Playfair Display',serif; Bebas Neue='Bebas Neue',sans-serif; Oswald=Oswald,sans-serif; Montserrat=Montserrat,sans-serif; Dancing Script='Dancing Script',cursive; Lobster=Lobster,cursive; Impact=Impact,sans-serif";
+    $fonts = [
+        'System' => 'system-ui,sans-serif',
+        'Inter' => "'Inter',sans-serif",
+        'Poppins' => "'Poppins',sans-serif",
+        'Roboto' => "'Roboto',sans-serif",
+        'Open Sans' => "'Open Sans',sans-serif",
+        'Montserrat' => "'Montserrat',sans-serif",
+        'Lato' => "'Lato',sans-serif",
+        'Nunito' => "'Nunito',sans-serif",
+        'Raleway' => "'Raleway',sans-serif",
+        'Source Sans 3' => "'Source Sans 3',sans-serif",
+        'Work Sans' => "'Work Sans',sans-serif",
+        'DM Sans' => "'DM Sans',sans-serif",
+        'Outfit' => "'Outfit',sans-serif",
+        'Plus Jakarta Sans' => "'Plus Jakarta Sans',sans-serif",
+        'Manrope' => "'Manrope',sans-serif",
+        'Figtree' => "'Figtree',sans-serif",
+        'Quicksand' => "'Quicksand',sans-serif",
+        'Cabin' => "'Cabin',sans-serif",
+        'Rubik' => "'Rubik',sans-serif",
+        'Karla' => "'Karla',sans-serif",
+        'Georgia' => 'Georgia,serif',
+        'Playfair Display' => "'Playfair Display',serif",
+        'Bebas Neue' => "'Bebas Neue',sans-serif",
+        'Oswald' => "'Oswald',sans-serif",
+        'Dancing Script' => "'Dancing Script',cursive",
+        'Lobster' => "'Lobster',cursive",
+        'Impact' => 'Impact,sans-serif',
+    ];
+    // Ajouter les fonts custom
     $custom = getCustomFonts();
     foreach ($custom as $name => $path) {
-        $base .= '; ' . $name . "='" . $name . "',sans-serif";
+        if (!isset($fonts[$name])) {
+            $fonts[$name] = "'" . $name . "',sans-serif";
+        }
     }
-    return $base;
+    $parts = [];
+    foreach ($fonts as $label => $stack) {
+        $parts[] = $label . '=' . $stack;
+    }
+    return implode('; ', $parts);
 }
 
 /**
@@ -518,6 +749,38 @@ function _sanitizeNode(DOMNode $node, array $allowedTags, array $allowedAttrs, a
                         }
                         // float (left, right, none)
                         if (preg_match('/^float\s*:\s*(left|right|none)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // font-family (noms de polices entre guillemets ou sans)
+                        if (preg_match('/^font-family\s*:/i', $decl) && !preg_match('/expression|url|javascript/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // font-size
+                        if (preg_match('/^font-size\s*:\s*[\d.]+(px|pt|em|rem|%)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // font-weight
+                        if (preg_match('/^font-weight\s*:\s*(normal|bold|bolder|lighter|\d{3})\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // font-style
+                        if (preg_match('/^font-style\s*:\s*(normal|italic|oblique)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // color
+                        if (preg_match('/^color\s*:\s*(#[0-9a-fA-F]{3,8}|rgb[a]?\([^)]+\)|[a-z]+)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // background-color
+                        if (preg_match('/^background-color\s*:\s*(#[0-9a-fA-F]{3,8}|rgb[a]?\([^)]+\)|[a-z]+|transparent)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // text-decoration
+                        if (preg_match('/^text-decoration\s*:\s*(none|underline|overline|line-through)\s*$/i', $decl)) {
+                            $safeProps[] = $decl;
+                        }
+                        // padding
+                        if (preg_match('/^(padding|padding-left|padding-right|padding-top|padding-bottom)\s*:\s*[\d.]+(px|%|em|rem)(\s+[\d.]+(px|%|em|rem))*\s*$/i', $decl)) {
                             $safeProps[] = $decl;
                         }
                     }

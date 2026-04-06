@@ -4,7 +4,7 @@ require_once '../config/csrf.php';
 require '../config/googleMail.php';
 requireRole(['admin','user']);
 
-$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjax = isAjaxRequest();
 
 // 🔒 [SEC-02] Vérification CSRF avant envoi de mails en masse (CWE-352)
 if (!csrf_verify()) {
@@ -24,9 +24,7 @@ if (!csrf_verify()) {
     $mailTitle = $mailData['mail_title'] ?? '';
 
     // Décodage Base64 de la description (encodée côté JS pour contourner le WAF)
-    $rawDesc = $mailData['description'] ?? '';
-    $decoded = base64_decode($rawDesc, true);
-    $description = ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) ? $decoded : $rawDesc;
+    $description = decodeHtmlField($mailData['description'] ?? '');
 
         // Collect unique emails (BCC mode — recipients won't see each other)
         $adresses = [];

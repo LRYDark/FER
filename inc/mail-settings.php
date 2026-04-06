@@ -2067,56 +2067,9 @@ $(document).ready(function() {
     if (mailTinymceInitialized) return;
     tinymce.init({
       selector: '#mailDescription',
-      license_key: 'gpl',
-      height: 400,
-      menubar: false,
-      plugins: [
-        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
-        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-        'insertdatetime', 'media', 'table', 'preview', 'help', 'wordcount'
-      ],
-      toolbar: 'undo redo | formatselect | ' +
-        'bold italic forecolor backcolor | alignleft aligncenter ' +
-        'alignright alignjustify | bullist numlist outdent indent | ' +
-        'removeformat | help',
-      content_style: 'body { font-family:Arial,sans-serif; font-size:14px }',
-      valid_styles: {
-          '*': 'text-align,line-height,color,background-color,font-size,font-weight,font-style,text-decoration,padding,padding-left,padding-right,padding-top,padding-bottom,margin,margin-left,margin-right,margin-top,margin-bottom',
-          'img': 'width,height,max-width,float,margin,margin-left,margin-right,margin-top,margin-bottom,display',
-          'table': 'width,height,border-collapse,border-spacing'
-      },
-      language: 'fr_FR',
-      images_upload_handler: function(blobInfo) {
-        return new Promise(function(resolve, reject) {
-          var formData = new FormData();
-          formData.append('file', blobInfo.blob(), blobInfo.filename());
-          formData.append('csrf_token', _csrfToken);
-          fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
-            .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
-            .then(function(data) { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
-            .catch(function(e) { reject(e.message); });
-        });
-      },
-      automatic_uploads: true,
-      images_reuse_filename: true,
-      file_picker_types: 'file image',
-      file_picker_callback: function(callback, value, meta) {
-        var input = document.createElement('input');
-        input.type = 'file';
-        input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
-        input.addEventListener('change', function() {
-          var file = input.files[0];
-          if (!file) return;
-          var formData = new FormData();
-          formData.append('file', file);
-          formData.append('csrf_token', _csrfToken);
-          fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
-            .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
-            .then(function(data) { if (data.location) { var n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
-            .catch(function(e) { alert('Erreur upload: ' + e.message); });
-        });
-        input.click();
-      }
+      <?= getTinyMceConfig($pdo, [
+          'toolbar' => 'undo redo | formatselect | bold italic forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
+      ]) ?>
     });
     mailTinymceInitialized = true;
   };

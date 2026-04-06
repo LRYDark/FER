@@ -15,7 +15,7 @@ if (!empty($_SESSION['contact_success'])) {
     unset($_SESSION['contact_success']);
 }
 
-$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjax = isAjaxRequest();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
@@ -36,12 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $sujet = trim($_POST['sujet'] ?? '');
     $rawMessage = $_POST['message'] ?? '';
-    if ($isAjax) {
-        $decoded = base64_decode($rawMessage, true);
-        if ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) {
-            $rawMessage = $decoded;
-        }
-    }
+    if ($isAjax) $rawMessage = decodeHtmlField($rawMessage);
     $message = trim($rawMessage);
 
     if ($nom === '' || $email === '' || $sujet === '' || $message === '') {
