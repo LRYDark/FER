@@ -788,6 +788,7 @@ if ($migrationDone) {
             language: 'fr_FR',
             plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
             toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+            font_family_formats: "<?= getTinyMceFontFormats() ?>",
             height: 500,
             menubar: false,
             branding: false,

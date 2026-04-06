@@ -17,6 +17,14 @@ try { $pdo->query("SELECT mail_email FROM setting LIMIT 0"); $hasMailFields = tr
 $mail_email = $data['mail_email'] ?? '';
 $mail_phone = $data['mail_phone'] ?? '';
 $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
+$notify_recipients_raw = $data['notify_recipients'] ?? null;
+$notify_recipients = $notify_recipients_raw ? json_decode($notify_recipients_raw, true) : [];
+$notify_toggles_raw = $data['notify_toggles'] ?? null;
+$notify_toggles = $notify_toggles_raw ? json_decode($notify_toggles_raw, true) : [];
+$notify_toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'twofa' => true, 'lock' => true];
+
+// Charger les admins pour le select
+$adminUsers = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY email ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // SMTP / mail provider
 $mail_provider   = $data['mail_provider'] ?? 'google';
@@ -249,6 +257,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         addToast('success', 'Configuration QR Code enregistrée');
     }
 
+    // Notifications admin : toggles + destinataires
+    if (isset($_POST['save_notify_comment'])) {
+        $rawRecipients = $_POST['notify_recipients'] ?? '';
+        $recipientList = array_values(array_unique(array_filter(array_map(function($e) {
+            return strtolower(trim($e));
+        }, explode(',', $rawRecipients)), function($e) {
+            return filter_var($e, FILTER_VALIDATE_EMAIL);
+        })));
+        $notifyRecipientsJson = !empty($recipientList) ? json_encode($recipientList) : null;
+        $notify_toggles = [
+            'mention' => !empty($_POST['notify_mention']),
+            'partner' => !empty($_POST['notify_partner']),
+            'ip_ban'  => !empty($_POST['notify_ip_ban']),
+            'twofa'   => !empty($_POST['notify_twofa']),
+            'lock'    => !empty($_POST['notify_lock']),
+        ];
+        $togglesJson = json_encode($notify_toggles);
+        $pdo->prepare('UPDATE setting SET notify_recipients = :r, notify_toggles = :t WHERE id = 1')->execute([
+            'r' => $notifyRecipientsJson,
+            't' => $togglesJson
+        ]);
+        $notify_recipients_raw = $notifyRecipientsJson;
+        addToast('success', 'Paramètres de notification enregistrés');
+    }
+
     // Gmail actions
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
@@ -304,7 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
         'mail_email'     => $testEmail,
         'mail_phone'     => $testPhone,
         'mtc'            => $mtcPreview,
-        'mail_subtype'   => $previewType,
+        'mail_subtype'   => (strpos($previewType, 'notif_') === 0) ? 'test' : $previewType,
     ];
 
     switch ($previewType) {
@@ -351,6 +384,114 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
             ];
             break;
         case 'test':
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Test réussi !',
+                'description' => 'Ce mail de test confirme que la configuration email fonctionne correctement.',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+
+        // ── Notifications admin ──
+        case 'notif_mention':
+            $baseUrl = getAppBaseUrl();
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Mention @forbachenrose',
+                'description' => '<p>Bonjour,</p>'
+                    . '<p><strong>Marie Martin</strong> vous a mentionné dans un commentaire sur votre site.</p>'
+                    . '<p style="padding:14px 18px;background:#f1f5f9;border-radius:8px;border-left:3px solid #F42182;font-style:italic;color:#475569;margin:16px 0;">'
+                    . 'Bravo <span style="color:#F42182;font-weight:600;">@forbachenrose</span> pour cette belle initiative ! '
+                    . 'Hate d\'y participer cette annee, j\'ai deja convaincu toute mon equipe de venir courir avec nous. '
+                    . 'On sera la en force !</p>'
+                    . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
+                    . '<tr><td style="padding:12px 16px;background:#fdf2f8;border-radius:8px;">'
+                    . '<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">Article concerne</p>'
+                    . '<p style="margin:0;font-weight:600;color:#0f172a;">Course caritative 2025 — Toutes les infos pratiques</p>'
+                    . '<p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">Publie le 06/04/2025 — 3 commentaires</p>'
+                    . '</td></tr></table>'
+                    . '<p style="text-align:center;margin:20px 0 0;"><a href="' . htmlspecialchars($baseUrl) . '/public/news?id=1" style="display:inline-block;padding:12px 32px;background:#F42182;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Voir le commentaire</a></p>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+        case 'notif_partner':
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Nouvelle demande de partenariat',
+                'description' => '<p>Bonjour,</p>'
+                    . '<p>Une nouvelle demande de partenariat a ete soumise sur le site Forbach en Rose.</p>'
+                    . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
+                    . '<tr><td style="padding:14px 18px;background:#f1f5f9;border-radius:8px;">'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Email :</strong> contact@pharmacie-forbach.fr</p>'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Domaine :</strong> pharmacie-forbach.fr</p>'
+                    . '<p style="margin:0;font-size:13px;"><strong>Date de la demande :</strong> ' . date('d/m/Y à H:i') . '</p>'
+                    . '</td></tr></table>'
+                    . '<p>Vous pouvez consulter et gerer les demandes de partenariat depuis l\'espace d\'administration du site.</p>'
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+        case 'notif_ip_ban':
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'IP bannie automatiquement',
+                'description' => '<p>Bonjour,</p>'
+                    . '<p>Une adresse IP a ete <strong>bannie automatiquement</strong> par le systeme de securite du site.</p>'
+                    . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
+                    . '<tr><td style="padding:14px 18px;background:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;">'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Adresse IP :</strong> 192.168.1.42</p>'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Duree du ban :</strong> 24 heures</p>'
+                    . '<p style="margin:0;font-size:13px;"><strong>Raison :</strong> Trop de tentatives de connexion echouees (10 en 30 minutes)</p>'
+                    . '</td></tr></table>'
+                    . '<p>Le ban expirera automatiquement a la fin de la duree indiquee. Si necessaire, vous pouvez lever ce ban manuellement depuis la page d\'administration des utilisateurs.</p>'
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Notification de securite — Forbach en Rose</p>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+        case 'notif_twofa':
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Connexion sans 2FA',
+                'description' => '<p>Bonjour,</p>'
+                    . '<p>Un utilisateur s\'est connecte <strong>sans verification a deux facteurs</strong> car l\'envoi du code par e-mail a echoue.</p>'
+                    . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
+                    . '<tr><td style="padding:14px 18px;background:#fffbeb;border-radius:8px;border-left:3px solid #f59e0b;">'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Compte concerne :</strong> admin@forbachenrose.fr</p>'
+                    . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
+                    . '</td></tr></table>'
+                    . '<p>Ce probleme peut indiquer un souci avec la configuration de l\'envoi de mails (Gmail ou SMTP). Nous vous recommandons de verifier les parametres dans l\'espace d\'administration, section <strong>Parametres mail</strong>.</p>'
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+        case 'notif_lock':
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Compte verrouille apres 3 tentatives',
+                'description' => '<p>Bonjour,</p>'
+                    . '<p>Un compte utilisateur a ete <strong>verrouille automatiquement</strong> apres 3 tentatives de connexion echouees consecutives.</p>'
+                    . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
+                    . '<tr><td style="padding:14px 18px;background:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;">'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Compte concerne :</strong> user@exemple.fr</p>'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Adresse IP :</strong> 192.168.1.42</p>'
+                    . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
+                    . '</td></tr></table>'
+                    . '<p>L\'utilisateur devra utiliser la fonctionnalite <strong>"Mot de passe oublie"</strong> pour reactiver son compte. Vous pouvez egalement le debloquer manuellement depuis la gestion des utilisateurs.</p>'
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+
         default:
             $vars += [
                 'type' => 'info',
@@ -398,6 +539,8 @@ $jsConfig = json_encode([
 <body>
 <?php require 'navbar-admin.php'; ?>
 <link href="../css/gmail-settings.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
 
 <style>
 /* ── Setting card (same as setting.php) ── */
@@ -771,6 +914,23 @@ $jsConfig = json_encode([
       <button type="button" class="preview-btn" data-preview="test" style="width:100%;margin-bottom:8px">
         <span style="font-weight:600">Mail test</span><br><span style="font-size:11px;color:#94a3b8">Test simple de configuration</span>
       </button>
+      <hr style="margin:16px 0;border-color:#e2e8f0">
+      <p style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px"><i class="bi bi-bell me-1"></i>Notifications admin</p>
+      <button type="button" class="preview-btn" data-preview="notif_mention" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Mention @forbachenrose</span><br><span style="font-size:11px;color:#94a3b8">Identification dans un commentaire</span>
+      </button>
+      <button type="button" class="preview-btn" data-preview="notif_partner" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Demande de partenariat</span><br><span style="font-size:11px;color:#94a3b8">Nouvelle demande entreprise</span>
+      </button>
+      <button type="button" class="preview-btn" data-preview="notif_ip_ban" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Ban IP automatique</span><br><span style="font-size:11px;color:#94a3b8">IP bannie apres tentatives</span>
+      </button>
+      <button type="button" class="preview-btn" data-preview="notif_twofa" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Echec 2FA</span><br><span style="font-size:11px;color:#94a3b8">Connexion sans verification</span>
+      </button>
+      <button type="button" class="preview-btn" data-preview="notif_lock" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Verrouillage compte</span><br><span style="font-size:11px;color:#94a3b8">3 tentatives echouees</span>
+      </button>
       <button type="button" class="preview-btn" data-preview="editor" style="width:100%;margin-top:8px;background:#f1f5f9;font-weight:600">
         &#8592; Retour éditeur
       </button>
@@ -1086,6 +1246,85 @@ $jsConfig = json_encode([
             </select>
           </div>
           <div class="col-12 text-end"><button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2><i class="bi bi-bell me-2"></i>Notifications admin</h2>
+        <p class="text-muted mb-3">Choisissez les notifications à envoyer et les destinataires.</p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google">
+          <div class="col-12">
+            <div class="list-group">
+              <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="notify_mention" id="notify_mention" <?= !empty($notify_toggles['mention']) ? 'checked' : '' ?>>
+                </div>
+                <div>
+                  <i class="bi bi-chat-left-dots text-primary me-1"></i>
+                  <strong>Mention @forbachenrose</strong>
+                  <small class="d-block text-muted">Quand @forbachenrose est identifie dans un commentaire</small>
+                </div>
+              </label>
+              <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="notify_partner" id="notify_partner" <?= !empty($notify_toggles['partner']) ? 'checked' : '' ?>>
+                </div>
+                <div>
+                  <i class="bi bi-people text-primary me-1"></i>
+                  <strong>Demande de partenariat</strong>
+                  <small class="d-block text-muted">Quand une entreprise envoie une demande de partenariat</small>
+                </div>
+              </label>
+              <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="notify_ip_ban" id="notify_ip_ban" <?= !empty($notify_toggles['ip_ban']) ? 'checked' : '' ?>>
+                </div>
+                <div>
+                  <i class="bi bi-shield-exclamation text-primary me-1"></i>
+                  <strong>Bannissement automatique d'IP</strong>
+                  <small class="d-block text-muted">Quand une IP est bannie suite a trop de tentatives</small>
+                </div>
+              </label>
+              <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="notify_twofa" id="notify_twofa" <?= !empty($notify_toggles['twofa']) ? 'checked' : '' ?>>
+                </div>
+                <div>
+                  <i class="bi bi-key text-primary me-1"></i>
+                  <strong>Echec d'envoi du code 2FA</strong>
+                  <small class="d-block text-muted">Quand un utilisateur se connecte sans 2FA car le mail a echoue</small>
+                </div>
+              </label>
+              <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="notify_lock" id="notify_lock" <?= !empty($notify_toggles['lock']) ? 'checked' : '' ?>>
+                </div>
+                <div>
+                  <i class="bi bi-lock text-primary me-1"></i>
+                  <strong>Verrouillage de compte</strong>
+                  <small class="d-block text-muted">Quand un compte est verrouille apres 3 tentatives echouees</small>
+                </div>
+              </label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Destinataires</label>
+            <select class="form-select" id="notifyRecipients" name="notify_recipients_select[]" multiple>
+              <?php foreach ($adminUsers as $email): ?>
+                <option value="<?= htmlspecialchars($email) ?>" <?= in_array($email, $notify_recipients) ? 'selected' : '' ?>><?= htmlspecialchars($email) ?></option>
+              <?php endforeach; ?>
+              <?php foreach ($notify_recipients as $r):
+                if (!in_array($r, $adminUsers)): ?>
+                <option value="<?= htmlspecialchars($r) ?>" selected><?= htmlspecialchars($r) ?></option>
+              <?php endif; endforeach; ?>
+            </select>
+            <input type="hidden" name="notify_recipients" id="notifyRecipientsHidden" value="<?= htmlspecialchars(implode(',', $notify_recipients)) ?>">
+            <small class="text-muted">Selectionnez des admins ou saisissez un e-mail externe. Si vide, tous les admins recevront les notifications.</small>
+          </div>
+          <div class="col-12 text-end"><button type="submit" name="save_notify_comment" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
@@ -1788,6 +2027,32 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
 
 <?php require 'admin-footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+$(document).ready(function() {
+    var $sel = $('#notifyRecipients');
+    if ($sel.length) {
+        $sel.select2({
+            theme: 'bootstrap-5',
+            tags: true,
+            tokenSeparators: [',', ' '],
+            placeholder: 'Sélectionnez ou saisissez un e-mail...',
+            allowClear: true,
+            createTag: function(params) {
+                var val = params.term.trim();
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return null;
+                return { id: val, text: val };
+            }
+        });
+        // Synchroniser avec le champ hidden avant submit
+        $sel.closest('form').on('submit', function() {
+            var vals = $sel.val() || [];
+            $('#notifyRecipientsHidden').val(vals.join(','));
+        });
+    }
+});
+</script>
 
 <!-- ═══ Envoi de mail JS ═══ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

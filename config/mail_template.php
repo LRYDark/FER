@@ -127,7 +127,7 @@ $sections['qrcode'] = function() use ($qrcode, $type, $inscription_no, $c, $r, $
             <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:'.$accent.';margin:0 0 6px;">'.htmlspecialchars($t['qrcode_title']).'</p>
             <p style="font-size:13px;color:#64748b;margin:0 0 4px;">Billet n&deg; '.htmlspecialchars((string)($inscription_no ?? '')).'</p>
             <p style="font-size:13px;color:#64748b;margin:0 0 16px;">'.htmlspecialchars($t['qrcode_subtitle']).'</p>
-            <img src="'.$qrcode.'" alt="QR Code" width="180" height="180" style="display:inline-block;border-radius:8px;">
+            <img src="'.$qrcode.'" alt="QR Code" width="200" height="200" style="display:inline-block;border-radius:16px;">
         </td></tr></table>';
 };
 

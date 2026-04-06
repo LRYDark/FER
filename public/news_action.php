@@ -24,20 +24,34 @@ case 'get_comments':
     $perPage = 5;
     if ($newsId <= 0) { echo json_encode(['success' => false]); exit; }
 
+    $currentIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
     try {
-        $stmt = $pdo->prepare('SELECT id, parent_id, author_name, content, likes, created_at FROM news_comments WHERE news_id = :nid ORDER BY created_at ASC');
+        $stmt = $pdo->prepare('SELECT id, parent_id, author_name, content, ip_address, likes, created_at, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed FROM news_comments WHERE news_id = :nid ORDER BY created_at ASC');
         $stmt->execute(['nid' => $newsId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Récupérer tous les likes de l'utilisateur courant pour cet article en une requête
+        $stmtLikes = $pdo->prepare('SELECT l.comment_id FROM news_comments_likes l INNER JOIN news_comments c ON l.comment_id = c.id WHERE c.news_id = :nid AND l.ip_address = :ip');
+        $stmtLikes->execute(['nid' => $newsId, 'ip' => $currentIp]);
+        $myLikes = array_flip($stmtLikes->fetchAll(PDO::FETCH_COLUMN));
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'error' => 'Erreur chargement commentaires']);
         exit;
     }
 
-    // Grouper parent / replies
+    // Grouper parent / replies + flags is_mine / can_edit / liked
     $parents = [];
     $replies = [];
     foreach ($rows as $r) {
         $r['likes'] = (int)$r['likes'];
+        $isMine = ($r['ip_address'] === $currentIp);
+        $elapsed = (int)$r['elapsed'];
+        $r['is_mine'] = $isMine;
+        $r['can_edit'] = $isMine && $elapsed < 600; // 10 minutes
+        $r['edit_remaining'] = $r['can_edit'] ? (600 - $elapsed) : 0;
+        $r['liked'] = isset($myLikes[$r['id']]);
+        unset($r['ip_address'], $r['elapsed']);
         if ($r['parent_id'] === null) {
             $r['replies'] = [];
             $parents[$r['id']] = $r;
@@ -129,9 +143,124 @@ case 'add_comment':
             'ip' => $ip
         ]);
 
-        echo json_encode(['success' => true]);
+        $newId = (int)$pdo->lastInsertId();
+        $stmtNew = $pdo->prepare('SELECT id, parent_id, author_name, content, likes, created_at FROM news_comments WHERE id = :id LIMIT 1');
+        $stmtNew->execute(['id' => $newId]);
+        $newComment = $stmtNew->fetch(PDO::FETCH_ASSOC);
+        $newComment['likes'] = 0;
+        $newComment['is_mine'] = true;
+        $newComment['can_edit'] = true;
+        $newComment['edit_remaining'] = 600;
+        $newComment['liked'] = false;
+        $newComment['replies'] = [];
+
+        // Mettre à jour le total
+        $stmtTotal = $pdo->prepare('SELECT COUNT(*) FROM news_comments WHERE news_id = :nid');
+        $stmtTotal->execute(['nid' => $newsId]);
+        $total = (int)$stmtTotal->fetchColumn();
+
+        // Notification mail si @forbachenrose est mentionné
+        if (preg_match('/@forbachenrose\b/i', $content)) {
+            try {
+                if (isNotifyEnabled($pdo, 'mention')) {
+                    require_once __DIR__ . '/../config/googleMail.php';
+                    $recipients = getNotifyRecipients($pdo);
+                    if (!empty($recipients)) {
+                        $rawContent = html_entity_decode($content, ENT_QUOTES, 'UTF-8');
+                        $rawAuthor  = html_entity_decode($authorName, ENT_QUOTES, 'UTF-8');
+                        $stmtNews = $pdo->prepare('SELECT title_article FROM news WHERE id = :nid LIMIT 1');
+                        $stmtNews->execute(['nid' => $newsId]);
+                        $newsTitle = $stmtNews->fetchColumn() ?: 'Article #' . $newsId;
+                        $articleUrl = getAppBaseUrl() . '/public/news?id=' . $newsId;
+                        $mailDesc = '<p><strong>' . htmlspecialchars($rawAuthor, ENT_QUOTES, 'UTF-8') . '</strong> vous a mentionné dans un commentaire :</p>'
+                                  . '<p style="padding:12px 16px;background:#f1f5f9;border-radius:8px;border-left:3px solid #F42182;font-style:italic;color:#475569;">'
+                                  . nl2br(htmlspecialchars($rawContent, ENT_QUOTES, 'UTF-8')) . '</p>'
+                                  . '<p><strong>Article :</strong> ' . htmlspecialchars($newsTitle, ENT_QUOTES, 'UTF-8') . '</p>'
+                                  . '<p><a href="' . htmlspecialchars($articleUrl, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;padding:10px 24px;background:#F42182;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Voir le commentaire</a></p>';
+                        foreach ($recipients as $rcpt) {
+                            sendMail($rcpt, 'Vous avez été identifié(e) dans un commentaire', 'Mention @forbachenrose', $mailDesc, null, null, 'info', null, 'test');
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                error_log('[NEWS_ACTION] Mention mail error: ' . $e->getMessage());
+            }
+        }
+
+        echo json_encode(['success' => true, 'comment' => $newComment, 'total' => $total]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'error' => 'Erreur lors de la publication du commentaire.']);
+    }
+    exit;
+
+case 'edit_comment':
+    $commentId = (int)($_POST['comment_id'] ?? 0);
+    $content = htmlspecialchars(trim($_POST['content'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if ($commentId <= 0 || $content === '') {
+        echo json_encode(['success' => false, 'error' => 'Données invalides.']);
+        exit;
+    }
+    if (mb_strlen($content) > 2000) $content = mb_substr($content, 0, 2000);
+    try {
+        $stmt = $pdo->prepare('SELECT ip_address, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed FROM news_comments WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $commentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['ip_address'] !== $ip) {
+            echo json_encode(['success' => false, 'error' => 'Vous ne pouvez pas modifier ce commentaire.']);
+            exit;
+        }
+        if ((int)$row['elapsed'] >= 600) {
+            echo json_encode(['success' => false, 'error' => 'Le délai de modification (10 min) est dépassé.']);
+            exit;
+        }
+        // Bloquer si le commentaire a des réponses
+        $stmtReplies = $pdo->prepare('SELECT COUNT(*) FROM news_comments WHERE parent_id = :id');
+        $stmtReplies->execute(['id' => $commentId]);
+        if ((int)$stmtReplies->fetchColumn() > 0) {
+            echo json_encode(['success' => false, 'error' => 'Impossible de modifier un commentaire qui a des réponses.']);
+            exit;
+        }
+        $pdo->prepare('UPDATE news_comments SET content = :c WHERE id = :id')->execute(['c' => $content, 'id' => $commentId]);
+        echo json_encode(['success' => true]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'error' => 'Erreur lors de la modification.']);
+    }
+    exit;
+
+case 'delete_own_comment':
+    $commentId = (int)($_POST['comment_id'] ?? 0);
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if ($commentId <= 0) { echo json_encode(['success' => false]); exit; }
+    try {
+        $stmt = $pdo->prepare('SELECT news_id, parent_id, ip_address, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed FROM news_comments WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $commentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['ip_address'] !== $ip) {
+            echo json_encode(['success' => false, 'error' => 'Vous ne pouvez pas supprimer ce commentaire.']);
+            exit;
+        }
+        if ((int)$row['elapsed'] >= 600) {
+            echo json_encode(['success' => false, 'error' => 'Le délai de suppression (10 min) est dépassé.']);
+            exit;
+        }
+        // Bloquer si le commentaire a des réponses
+        $stmtReplies = $pdo->prepare('SELECT COUNT(*) FROM news_comments WHERE parent_id = :id');
+        $stmtReplies->execute(['id' => $commentId]);
+        if ((int)$stmtReplies->fetchColumn() > 0) {
+            echo json_encode(['success' => false, 'error' => 'Impossible de supprimer un commentaire qui a des réponses.']);
+            exit;
+        }
+        $deletedParentId = $row['parent_id'];
+        $deletedNewsId = (int)$row['news_id'];
+        // Supprimer les réponses enfants aussi
+        $pdo->prepare('DELETE FROM news_comments WHERE id = :id OR parent_id = :pid')->execute(['id' => $commentId, 'pid' => $commentId]);
+        $stmtTotal = $pdo->prepare('SELECT COUNT(*) FROM news_comments WHERE news_id = :nid');
+        $stmtTotal->execute(['nid' => $deletedNewsId]);
+        $total = (int)$stmtTotal->fetchColumn();
+        echo json_encode(['success' => true, 'total' => $total, 'parent_id' => $deletedParentId]);
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'error' => 'Erreur lors de la suppression.']);
     }
     exit;
 

@@ -32,6 +32,10 @@ $migrations = [
     "ALTER TABLE `photo_years` ADD COLUMN `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP",
     "ALTER TABLE `partners_years` ADD COLUMN `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP",
     "ALTER TABLE `setting` ADD COLUMN `course_km` INT(10) DEFAULT 7",
+    "ALTER TABLE `setting` ADD COLUMN `notify_recipients` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `notify_toggles` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_custom_content` MEDIUMTEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_custom_position` ENUM('off','after_inscrits','after_partners') NOT NULL DEFAULT 'off'",
 ];
 
 $results = [];

@@ -312,6 +312,72 @@ function addToast(string $type, string $msg, int $delay = 4000): void
     $_SESSION['toasts'][] = ['msg' => $msg, 'type' => $type, 'delay' => $delay];
 }
 
+/**
+ * Scanne le dossier fonts/ et retourne les fonts custom.
+ * Retourne un tableau ['NomFont' => 'chemin/fichier.ttf', ...]
+ */
+function getCustomFonts(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    $dir = __DIR__ . '/../fonts';
+    if (!is_dir($dir)) return $cache;
+    $files = glob($dir . '/*.{ttf,otf,woff,woff2}', GLOB_BRACE);
+    foreach ($files as $file) {
+        $basename = pathinfo($file, PATHINFO_FILENAME);
+        // Convertir CamelCase/underscore en nom lisible : "BrittanySignature" → "Brittany Signature"
+        $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $basename);
+        $name = str_replace(['_', '-'], ' ', $name);
+        $name = trim($name);
+        $cache[$name] = 'fonts/' . basename($file);
+    }
+    return $cache;
+}
+
+/**
+ * Retourne la chaîne font_family_formats pour TinyMCE incluant les fonts custom.
+ */
+function getTinyMceFontFormats(): string {
+    $base = "System=system-ui,sans-serif; Georgia=Georgia,serif; Playfair Display='Playfair Display',serif; Bebas Neue='Bebas Neue',sans-serif; Oswald=Oswald,sans-serif; Montserrat=Montserrat,sans-serif; Dancing Script='Dancing Script',cursive; Lobster=Lobster,cursive; Impact=Impact,sans-serif";
+    $custom = getCustomFonts();
+    foreach ($custom as $name => $path) {
+        $base .= '; ' . $name . "='" . $name . "',sans-serif";
+    }
+    return $base;
+}
+
+/**
+ * Vérifie si une notification est activée par son type.
+ */
+function isNotifyEnabled(PDO $pdo, string $type): bool {
+    static $toggles = null;
+    if ($toggles === null) {
+        $stmt = $pdo->prepare('SELECT notify_toggles FROM setting WHERE id = 1 LIMIT 1');
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        $toggles = $raw ? json_decode($raw, true) : [];
+        $toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'twofa' => true, 'lock' => true];
+    }
+    return !empty($toggles[$type]);
+}
+
+/**
+ * Retourne les destinataires des notifications admin.
+ * Si des destinataires sont configurés dans les settings, les utilise.
+ * Sinon, retourne tous les admins actifs.
+ */
+function getNotifyRecipients(PDO $pdo): array {
+    $stmt = $pdo->prepare('SELECT notify_recipients FROM setting WHERE id = 1 LIMIT 1');
+    $stmt->execute();
+    $raw = $stmt->fetchColumn();
+    if ($raw) {
+        $list = json_decode($raw, true);
+        if (!empty($list)) return $list;
+    }
+    // Fallback : tous les admins actifs
+    return $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+}
+
 // 🔒 [SEC-01] URL de base fiable — empêche le Host header injection (CWE-644)
 function getAppBaseUrl(): string {
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';

@@ -150,15 +150,15 @@ function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 144
     // Notifier les admins du ban IP
     try {
         require_once __DIR__ . '/googleMail.php';
-        if (isMailConfigured()) {
-            $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+        if (isMailConfigured() && isNotifyEnabled($pdo, 'ip_ban')) {
+            $admins = getNotifyRecipients($pdo);
             $durationH = round($banMinutes / 60);
             foreach ($admins as $adminEmail) {
                 sendMail($adminEmail, 'Ban IP automatique – Forbach en Rose', 'IP bannie automatiquement',
                     '<p>L\'adresse IP <strong>' . htmlspecialchars($ip) . '</strong> a ete bannie automatiquement pour ' . $durationH . 'h.</p>'
                     . '<p><strong>Raison :</strong> ' . htmlspecialchars($reason) . '</p>'
                     . '<p>Le ban expirera automatiquement. Vous pouvez le lever manuellement depuis l\'espace d\'administration.</p>',
-                    null, null, 'warning');
+                    null, null, 'info', null, 'test');
             }
         }
     } catch (\Throwable $e) { error_log('IP ban notification mail error: ' . $e->getMessage()); }
@@ -235,13 +235,13 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
             // Alerter les admins
             try {
-                $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                $admins = isNotifyEnabled($pdo, 'twofa') ? getNotifyRecipients($pdo) : [];
                 if (!empty($admins) && function_exists('sendMail')) {
                     foreach ($admins as $adminEmail) {
                         @sendMail($adminEmail, 'Alerte 2FA - Forbach en Rose', 'Connexion sans 2FA',
                             '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> s\'est connecte sans verification 2FA car l\'envoi du code a echoue.</p>'
                             . '<p>Verifiez la configuration Gmail dans les parametres.</p>',
-                            null, null, 'warning');
+                            null, null, 'info', null, 'test');
                     }
                 }
             } catch (\Throwable $e) {}
@@ -268,12 +268,12 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 ->execute([$attempts, $u['id']]);
             try {
                 require_once __DIR__ . '/googleMail.php';
-                if (isMailConfigured()) {
-                    $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                if (isMailConfigured() && isNotifyEnabled($pdo, 'lock')) {
+                    $admins = getNotifyRecipients($pdo);
                     foreach ($admins as $adminEmail) {
                         sendMail($adminEmail, 'Compte verrouille – Forbach en Rose', 'Compte verrouille apres 3 tentatives',
                             '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> a ete verrouille automatiquement apres 3 tentatives de connexion echouees.</p>'
-                            . '<p>IP : ' . htmlspecialchars($ip) . '</p>', null, null, 'warning');
+                            . '<p>IP : ' . htmlspecialchars($ip) . '</p>', null, null, 'info', null, 'test');
                     }
                 }
             } catch (\Throwable $e) { error_log('Lock notification mail error: ' . $e->getMessage()); }
@@ -1724,9 +1724,8 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // Check token without redirecting — this is an AJAX endpoint, never redirect
         $tokenAvailable = (getAccessToken(false) !== false);
 
-        if ($tokenAvailable) {
-            $admins = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")
-                          ->fetchAll(PDO::FETCH_COLUMN);
+        if ($tokenAvailable && isNotifyEnabled($pdo, 'partner')) {
+            $admins = getNotifyRecipients($pdo);
 
             $subject = 'Nouvelle demande de partenariat – Forbach en Rose';
             $body  = '<h2>Nouvelle demande de partenariat</h2>';
@@ -1736,10 +1735,9 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $body .= '<p><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>';
             $body .= '<hr><p style="color:#888;font-size:12px">Message automatique – Forbach en Rose</p>';
 
-            foreach ($admins as $rawEmail) {
-                $adminEmail = decrypt($rawEmail);
+            foreach ($admins as $adminEmail) {
                 if ($adminEmail && filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
-                    sendMail($adminEmail, $subject, 'Nouvelle demande de partenariat', $body);
+                    sendMail($adminEmail, $subject, 'Nouvelle demande de partenariat', $body, null, null, 'info', null, 'test');
                 }
             }
         } else {

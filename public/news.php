@@ -652,7 +652,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .comment-form input { flex: 1; height: 42px; }
     .comment-form textarea { min-height: 70px; }
     .comment-form-actions {
-      display: flex; justify-content: flex-end;
+      display: flex; justify-content: space-between; align-items: center;
     }
     .comment-submit {
       display: inline-flex; align-items: center; gap: 6px;
@@ -666,6 +666,28 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .comment-submit:hover { opacity: .85; }
     .comment-submit:active { transform: scale(.97); }
     .comment-submit:disabled { opacity: .5; cursor: not-allowed; }
+    .comment-mention-hint { font-size: 12px; color: #94a3b8; margin: 0; }
+    .comment-own-action { font-size: 12px !important; }
+    .comment-delete-btn { color: #ef4444 !important; }
+    .comment-delete-btn:hover { color: #dc2626 !important; }
+    .comment-edit-form { margin-top: 6px; }
+    .comment-edit-textarea {
+      width: 100%; min-height: 60px; padding: 8px 12px;
+      border: 1px solid #e2e8f0; border-radius: 8px;
+      font-size: 14px; font-family: inherit; resize: vertical;
+      background: var(--page-bg); color: var(--page-text);
+    }
+    .comment-edit-textarea:focus { outline: none; border-color: var(--pink); }
+    .comment-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+    .comment-edit-cancel {
+      padding: 5px 14px; border: 1px solid #e2e8f0; border-radius: 8px;
+      background: transparent; color: var(--page-text); font-size: 13px; cursor: pointer;
+    }
+    .comment-edit-save {
+      padding: 5px 14px; border: none; border-radius: 8px;
+      background: var(--pink); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .comment-edit-save:hover { opacity: .85; }
 
     /* Comment items */
     .comment-list { display: flex; flex-direction: column; gap: 0; }
@@ -961,6 +983,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
         </div>
         <textarea id="commentContent" placeholder="Ecrire un commentaire..." maxlength="2000"></textarea>
         <div class="comment-form-actions">
+          <small class="comment-mention-hint"><i class="bi bi-at"></i> Utilisez <strong>@</strong> pour identifier quelqu'un</small>
           <button class="comment-submit" data-action="submit-comment">Publier</button>
         </div>
       </div>
@@ -1171,29 +1194,24 @@ function timeAgo(dateStr) {
     return Math.floor(diff / 31536000) + ' an(s)';
 }
 
-function getLikeCookie(id) {
-    return document.cookie.split(';').some(function(c) { return c.trim().indexOf('clike_' + id + '=1') === 0; });
-}
-function setLikeCookie(id) {
-    var d = new Date(); d.setFullYear(d.getFullYear() + 1);
-    document.cookie = 'clike_' + id + '=1; expires=' + d.toUTCString() + '; path=/';
-}
-function removeLikeCookie(id) {
-    document.cookie = 'clike_' + id + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
-}
-
 function renderComment(c, isReply, replyCount) {
     var initial = (c.author_name || '?').charAt(0);
-    var liked = getLikeCookie(c.id);
+    var liked = !!c.liked;
     var likeCount = parseInt(c.likes) || 0;
     var html = '<div class="comment-item" data-id="' + c.id + '">';
     html += '<div class="comment-avatar">' + initial + '</div>';
     html += '<div class="comment-body">';
     html += '<div class="comment-head">';
     html += '<span class="comment-author">' + escapeHtml(c.author_name) + '</span>';
-    html += '<span class="comment-date">' + timeAgo(c.created_at) + '</span>';
+    html += '<span class="comment-date" data-created="' + escapeHtml(c.created_at) + '">' + timeAgo(c.created_at) + '</span>';
     html += '</div>';
-    html += '<div class="comment-text">' + highlightMentions(escapeHtml(c.content)).replace(/\n/g, '<br>') + '</div>';
+    html += '<div class="comment-text" id="comment-text-' + c.id + '">' + highlightMentions(escapeHtml(c.content)).replace(/\n/g, '<br>') + '</div>';
+    html += '<div class="comment-edit-form" id="comment-edit-' + c.id + '" style="display:none;">';
+    html += '<textarea class="comment-edit-textarea" id="comment-edit-ta-' + c.id + '" maxlength="2000">' + escapeHtml(c.content) + '</textarea>';
+    html += '<div class="comment-edit-actions">';
+    html += '<button class="comment-edit-cancel" data-action="cancel-edit" data-comment-id="' + c.id + '">Annuler</button>';
+    html += '<button class="comment-edit-save" data-action="save-edit" data-comment-id="' + c.id + '">Enregistrer</button>';
+    html += '</div></div>';
     html += '<div class="comment-actions">';
     html += '<button class="comment-action-btn' + (liked ? ' liked' : '') + '" data-action="like-comment" data-comment-id="' + c.id + '">';
     html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="' + (liked ? 'var(--pink)' : 'none') + '" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
@@ -1201,12 +1219,33 @@ function renderComment(c, isReply, replyCount) {
     html += '</button>';
     if (!isReply) {
         html += '<button class="comment-action-btn" data-action="show-reply" data-comment-id="' + c.id + '">Repondre</button>';
-        if (replyCount > 0) {
-            html += '<button class="comment-toggle-replies" data-action="toggle-replies" data-comment-id="' + c.id + '">';
-            html += '<span class="toggle-replies-count">' + replyCount + ' reponse' + (replyCount > 1 ? 's' : '') + '</span>';
-            html += '<svg class="toggle-replies-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
-            html += '</button>';
+    }
+    if (c.can_edit && replyCount === 0) {
+        html += '<button class="comment-action-btn comment-own-action" data-action="edit-comment" data-comment-id="' + c.id + '"><i class="bi bi-pencil"></i> Modifier</button>';
+        html += '<button class="comment-action-btn comment-own-action comment-delete-btn" data-action="delete-own-comment" data-comment-id="' + c.id + '"><i class="bi bi-trash"></i> Supprimer</button>';
+        // Auto-suppression des boutons après expiration du délai de 10 min
+        var remaining = (c.edit_remaining || 0) * 1000;
+        if (remaining > 0) {
+            (function(commentId) {
+                setTimeout(function() {
+                    var item = document.querySelector('.comment-item[data-id="' + commentId + '"]');
+                    if (item) {
+                        item.querySelectorAll('.comment-own-action').forEach(function(b) { b.remove(); });
+                        var editForm = document.getElementById('comment-edit-' + commentId);
+                        if (editForm && editForm.style.display !== 'none') {
+                            document.getElementById('comment-text-' + commentId).style.display = '';
+                            editForm.style.display = 'none';
+                        }
+                    }
+                }, remaining);
+            })(c.id);
         }
+    }
+    if (!isReply && replyCount > 0) {
+        html += '<button class="comment-toggle-replies" data-action="toggle-replies" data-comment-id="' + c.id + '">';
+        html += '<span class="toggle-replies-count">' + replyCount + ' reponse' + (replyCount > 1 ? 's' : '') + '</span>';
+        html += '<svg class="toggle-replies-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+        html += '</button>';
     }
     html += '</div>';
     html += '</div></div>';
@@ -1237,7 +1276,12 @@ function loadMentionNames() {
         dataType: 'json',
         data: { action: 'get_commenters', news_id: newsId },
         success: function(res) {
-            if (res.success) mentionNames = res.names;
+            if (res.success) {
+                // Toujours inclure forbachenrose en premier
+                var names = res.names.filter(function(n) { return n.toLowerCase() !== 'forbachenrose'; });
+                names.unshift('forbachenrose');
+                mentionNames = names;
+            }
         }
     });
 }
@@ -1256,19 +1300,13 @@ function showMentionDropdown(textarea, query) {
     });
     dd.innerHTML = html;
 
-    // Position the dropdown near the textarea
+    // Position the dropdown below the textarea
     var rect = textarea.getBoundingClientRect();
     var scrollY = window.scrollY || window.pageYOffset;
     dd.style.left = rect.left + 'px';
-    dd.style.top = (rect.top + scrollY - dd.offsetHeight - 4) + 'px';
+    dd.style.top = (rect.bottom + scrollY + 4) + 'px';
     dd.classList.add('show');
     dd.style.position = 'absolute';
-
-    // Reposition if above viewport
-    var ddRect = dd.getBoundingClientRect();
-    if (ddRect.top < 0) {
-        dd.style.top = (rect.bottom + scrollY + 4) + 'px';
-    }
 
     mentionActive = true;
 }
@@ -1368,6 +1406,7 @@ loadMentionNames();
 var commentsPage = 1;
 var commentsLoading = false;
 var commentsHasMore = false;
+var lastKnownTotal = 0;
 
 function loadComments(reset) {
     if (commentsLoading) return;
@@ -1389,7 +1428,7 @@ function loadComments(reset) {
                 if (commentsPage === 1) $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
                 return;
             }
-            $('#commentsCount').text(res.total);
+            $('#commentsCount').text(res.total); lastKnownTotal = res.total;
             if (res.comments.length === 0 && commentsPage === 1) {
                 $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
                 return;
@@ -1488,14 +1527,74 @@ function submitComment(parentId) {
         },
         success: function(res) {
             btn.disabled = false;
-            if (res.success) {
+            if (res.success && res.comment) {
                 contentEl.value = '';
+                var c = res.comment;
+                $('#commentsCount').text(res.total); lastKnownTotal = res.total;
+
                 if (parentId) {
+                    // Réponse : injecter dans le bloc replies existant ou en créer un
                     var rf = document.getElementById('replyForm_' + parentId);
+                    var repliesEl = document.getElementById('replies_' + parentId);
+                    if (!repliesEl) {
+                        repliesEl = document.createElement('div');
+                        repliesEl.className = 'comment-replies';
+                        repliesEl.id = 'replies_' + parentId;
+                        var parentEl = document.querySelector('.comment-item[data-id="' + parentId + '"]');
+                        if (parentEl) parentEl.after(repliesEl);
+                    }
+                    repliesEl.style.display = '';
+                    repliesEl.insertAdjacentHTML('beforeend', renderComment(c, true, 0));
+                    // Masquer Modifier/Supprimer du parent (verrouillé dès qu'il y a une réponse)
+                    var parentActions = document.querySelector('.comment-item[data-id="' + parentId + '"] .comment-actions');
+                    if (parentActions) {
+                        parentActions.querySelectorAll('.comment-own-action').forEach(function(b) { b.remove(); });
+                    }
+                    // Mettre à jour le compteur de réponses
+                    var toggleBtn = document.querySelector('[data-action="toggle-replies"][data-comment-id="' + parentId + '"]');
+                    var newCount = repliesEl.querySelectorAll('.comment-item').length;
+                    if (toggleBtn) {
+                        toggleBtn.querySelector('.toggle-replies-count').textContent = newCount + ' reponse' + (newCount > 1 ? 's' : '');
+                        toggleBtn.classList.add('open');
+                    } else {
+                        // Créer le bouton toggle s'il n'existait pas — toujours en dernier (margin-left:auto le pousse à droite)
+                        var actionsEl = document.querySelector('.comment-item[data-id="' + parentId + '"] .comment-actions');
+                        if (actionsEl) {
+                            var toggleHtml = '<button class="comment-toggle-replies open" data-action="toggle-replies" data-comment-id="' + parentId + '">';
+                            toggleHtml += '<span class="toggle-replies-count">1 reponse</span>';
+                            toggleHtml += '<svg class="toggle-replies-arrow" style="transform:rotate(180deg)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+                            toggleHtml += '</button>';
+                            actionsEl.insertAdjacentHTML('beforeend', toggleHtml);
+                        }
+                    }
                     if (rf) rf.remove();
+                    // Scroll vers la nouvelle réponse + message inline
+                    var newEl = repliesEl.querySelector('.comment-item:last-child');
+                    if (newEl) {
+                        newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        var inlineMsg = document.createElement('div');
+                        inlineMsg.className = 'reply-msg success';
+                        inlineMsg.textContent = 'Réponse publiée !';
+                        newEl.after(inlineMsg);
+                        setTimeout(function() { inlineMsg.remove(); }, 4000);
+                    }
+                } else {
+                    // Commentaire principal : insérer en haut de la liste
+                    var emptyEl = document.querySelector('.comments-empty');
+                    if (emptyEl) emptyEl.remove();
+                    var html = renderComment(c, false, 0);
+                    $('#commentList').prepend(html);
+                    var newEl = document.querySelector('.comment-item[data-id="' + c.id + '"]');
+                    if (newEl) {
+                        newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        var inlineMsg = document.createElement('div');
+                        inlineMsg.className = 'reply-msg success';
+                        inlineMsg.textContent = 'Commentaire publié !';
+                        newEl.after(inlineMsg);
+                        setTimeout(function() { inlineMsg.remove(); }, 4000);
+                    }
                 }
-                showCommentMsg('Commentaire publié !', 'success');
-                loadComments(true);
+                loadMentionNames();
             } else {
                 showCommentMsg(res.error || 'Erreur lors de la publication.', 'error', msgTarget);
             }
@@ -1560,11 +1659,9 @@ function likeComment(commentId, btn) {
         success: function(res) {
             if (res.success) {
                 if (res.liked) {
-                    setLikeCookie(commentId);
                     btn.classList.add('liked');
                     btn.querySelector('svg').setAttribute('fill', 'var(--pink)');
                 } else {
-                    removeLikeCookie(commentId);
                     btn.classList.remove('liked');
                     btn.querySelector('svg').setAttribute('fill', 'none');
                 }
@@ -1611,6 +1708,67 @@ function copyArticleLink() {
 
 // Load comments on page load
 loadComments(true);
+
+// ─── Mise à jour des timestamps toutes les 30s ───
+setInterval(function() {
+    document.querySelectorAll('.comment-date[data-created]').forEach(function(el) {
+        el.textContent = timeAgo(el.getAttribute('data-created'));
+    });
+}, 30000);
+
+// ─── Auto-refresh commentaires (polling toutes les 15s) ───
+setInterval(function() {
+    if (commentsLoading) return;
+    $.ajax({
+        url: 'news_action.php',
+        type: 'GET',
+        dataType: 'json',
+        data: { action: 'get_comments', news_id: newsId, page: 1 },
+        success: function(res) {
+            if (!res.success) return;
+            if (res.total === lastKnownTotal) return;
+            lastKnownTotal = res.total;
+
+            // Sauvegarder l'état : réponses ouvertes + scroll
+            var openReplies = {};
+            document.querySelectorAll('.comment-replies').forEach(function(el) {
+                if (el.style.display !== 'none') {
+                    var id = el.id.replace('replies_', '');
+                    openReplies[id] = true;
+                }
+            });
+            var scrollY = window.scrollY;
+
+            // Reconstruire la liste
+            var html = '';
+            res.comments.forEach(function(c) {
+                var rc = (c.replies && c.replies.length) || 0;
+                html += renderComment(c, false, rc);
+                if (rc > 0) {
+                    var isOpen = openReplies[c.id];
+                    html += '<div class="comment-replies" id="replies_' + c.id + '" style="' + (isOpen ? '' : 'display:none;') + '">';
+                    c.replies.forEach(function(r) {
+                        html += renderComment(r, true, 0);
+                    });
+                    html += '</div>';
+                }
+            });
+            $('#commentList').html(html);
+            $('#commentsCount').text(res.total); lastKnownTotal = res.total;
+
+            // Restaurer la position de scroll
+            window.scrollTo(0, scrollY);
+
+            // Mettre à jour les toggles ouverts
+            Object.keys(openReplies).forEach(function(id) {
+                var toggleBtn = document.querySelector('[data-action="toggle-replies"][data-comment-id="' + id + '"]');
+                if (toggleBtn) toggleBtn.classList.add('open');
+            });
+
+            loadMentionNames();
+        }
+    });
+}, 15000);
 
 <?php endif; ?>
 
@@ -1674,6 +1832,82 @@ $(function() {
 });
 <?php endif; ?>
 
+// ─── Edit / Delete own comment ───
+function startEditComment(id) {
+    document.getElementById('comment-text-' + id).style.display = 'none';
+    document.getElementById('comment-edit-' + id).style.display = 'block';
+    var ta = document.getElementById('comment-edit-ta-' + id);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+function cancelEditComment(id) {
+    document.getElementById('comment-text-' + id).style.display = '';
+    document.getElementById('comment-edit-' + id).style.display = 'none';
+}
+function saveEditComment(id) {
+    var ta = document.getElementById('comment-edit-ta-' + id);
+    var content = ta.value.trim();
+    if (!content) return;
+    $.ajax({
+        url: 'news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { action: 'edit_comment', comment_id: id, content: content },
+        success: function(res) {
+            if (res.success) {
+                var textEl = document.getElementById('comment-text-' + id);
+                textEl.innerHTML = highlightMentions(escapeHtml(content)).replace(/\n/g, '<br>');
+                cancelEditComment(id);
+            } else {
+                alert(res.error || 'Erreur lors de la modification.');
+            }
+        }
+    });
+}
+function deleteOwnComment(id) {
+    if (!confirm('Supprimer ce commentaire ?')) return;
+    $.ajax({
+        url: 'news_action.php',
+        type: 'POST',
+        dataType: 'json',
+        data: { action: 'delete_own_comment', comment_id: id },
+        success: function(res) {
+            if (res.success) {
+                $('#commentsCount').text(res.total); lastKnownTotal = res.total;
+                var el = document.querySelector('.comment-item[data-id="' + id + '"]');
+                if (el) {
+                    if (res.parent_id) {
+                        // C'est une réponse : supprimer juste l'élément
+                        el.remove();
+                        // Mettre à jour le compteur de réponses du parent
+                        var repliesEl = document.getElementById('replies_' + res.parent_id);
+                        if (repliesEl) {
+                            var remaining = repliesEl.querySelectorAll('.comment-item').length;
+                            var toggleBtn = document.querySelector('[data-action="toggle-replies"][data-comment-id="' + res.parent_id + '"]');
+                            if (remaining === 0) {
+                                repliesEl.remove();
+                                if (toggleBtn) toggleBtn.remove();
+                            } else if (toggleBtn) {
+                                toggleBtn.querySelector('.toggle-replies-count').textContent = remaining + ' reponse' + (remaining > 1 ? 's' : '');
+                            }
+                        }
+                    } else {
+                        // C'est un parent : supprimer aussi le bloc de réponses
+                        var repliesEl = document.getElementById('replies_' + id);
+                        if (repliesEl) repliesEl.remove();
+                        el.remove();
+                    }
+                }
+                if (res.total === 0) {
+                    $('#commentList').html('<div class="comments-empty">Soyez le premier a commenter !</div>');
+                }
+            } else {
+                alert(res.error || 'Erreur lors de la suppression.');
+            }
+        }
+    });
+}
+
 // ─── Event delegation — remplace tous les onclick inline (CSP-compatible) ───
 document.addEventListener('click', function(e) {
     var el = e.target.closest('[data-action]');
@@ -1719,6 +1953,18 @@ document.addEventListener('click', function(e) {
             break;
         case 'submit-reply':
             submitComment(parseInt(el.dataset.commentId));
+            break;
+        case 'edit-comment':
+            startEditComment(parseInt(el.dataset.commentId));
+            break;
+        case 'cancel-edit':
+            cancelEditComment(parseInt(el.dataset.commentId));
+            break;
+        case 'save-edit':
+            saveEditComment(parseInt(el.dataset.commentId));
+            break;
+        case 'delete-own-comment':
+            deleteOwnComment(parseInt(el.dataset.commentId));
             break;
     }
 });
