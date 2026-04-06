@@ -17,9 +17,15 @@ function trackPageVisit()
     global $pdo;
     if (!$pdo) return;
 
-    // Build page URL
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $pageUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['REQUEST_URI'] ?? '/');
+    // Build page URL (path + query only, no domain, sans .php)
+    $pageUrl = $_SERVER['REQUEST_URI'] ?? '/';
+
+    // Ne pas tracker les requêtes AJAX ni les previews admin
+    if (isAjaxRequest()) return;
+    if (str_contains($pageUrl, 'preview=')) return;
+
+    // Normaliser : retirer .php de l'URL pour regrouper /accueil.php et /accueil
+    $pageUrl = preg_replace('/\.php(?=\?|$)/', '', $pageUrl);
 
     // Anonymize IP: zero the last octet (IPv4) or last group (IPv6)
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
@@ -82,8 +88,8 @@ function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month 
         $stmt->execute($params);
         $row = $stmt->fetch();
 
-        // All pages (for modal) + top 5
-        $stmt = $pdo->prepare("SELECT page_url, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY page_url ORDER BY visits DESC");
+        // All pages (for modal) + top 5 — normalise URLs (domaine, .php, slash), regroupe, exclut ajax/preview
+        $stmt = $pdo->prepare("SELECT TRIM(TRAILING '/' FROM REPLACE(CASE WHEN page_url LIKE 'http://%' THEN SUBSTR(page_url, LOCATE('/', page_url, 8)) WHEN page_url LIKE 'https://%' THEN SUBSTR(page_url, LOCATE('/', page_url, 9)) ELSE page_url END, '.php', '')) AS page_url, COUNT(*) AS visits FROM page_visits WHERE $where AND page_url NOT LIKE '%ajax=%' AND page_url NOT LIKE '%preview=%' GROUP BY 1 ORDER BY visits DESC");
         $stmt->execute($params);
         $allPages = $stmt->fetchAll();
         $topPages = array_slice($allPages, 0, 5);

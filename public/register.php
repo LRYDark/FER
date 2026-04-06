@@ -1,5 +1,7 @@
 <?php
 require '../config/config.php';
+require_once '../config/tracker.php';
+trackPageVisit();
 checkMaintenance();
 require_once '../config/csrf.php';
 
