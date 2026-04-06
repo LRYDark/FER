@@ -128,11 +128,10 @@ if (!isset($__themeLoaded)) {
 }
 
 // ── Output ──
-if ($__needsGoogleFont): ?>
+?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=<?= urlencode($__theme['font']) ?>:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<?php endif; ?>
+<link href="<?= getTinyMceGoogleFontsUrl() ?>" rel="stylesheet">
 <?php if (!empty($__customFonts)):
   $__prefix = (strpos($_SERVER['SCRIPT_NAME'] ?? '', '/public/') !== false || strpos($_SERVER['SCRIPT_NAME'] ?? '', '/inc/') !== false) ? '../' : '';
   $__formatMap = ['otf' => 'opentype', 'woff2' => 'woff2', 'woff' => 'woff', 'ttf' => 'truetype'];

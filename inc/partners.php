@@ -43,15 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     die('Invalid CSRF token');
 }
 
-$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjax = isAjaxRequest();
 
-function decodeHtmlField(string $raw): string {
-    $decoded = base64_decode($raw, true);
-    if ($decoded !== false && mb_detect_encoding($decoded, 'UTF-8', true)) {
-        return $decoded;
-    }
-    return $raw;
-}
+
 
 // Sauvegarde description et image générique partenaires
 if (isset($_POST['update_partners_desc'])) {
@@ -1010,113 +1004,7 @@ if ($migrationDone) {
     <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
         tinymce.init({
             selector: '#partners_desc_editor',
-            license_key: 'gpl',
-            language: 'fr_FR',
-            plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
-            toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
-            font_family_formats: "<?= getTinyMceFontFormats() ?>",
-            height: 200,
-            menubar: false,
-            branding: false,
-            content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
-            valid_styles: {
-                '*': 'text-align,line-height,color,background-color,font-size,font-weight,font-style,text-decoration,padding,padding-left,padding-right,padding-top,padding-bottom,margin,margin-left,margin-right,margin-top,margin-bottom',
-                'img': 'width,height,max-width,float,margin,margin-left,margin-right,margin-top,margin-bottom,display',
-                'table': 'width,height,border-collapse,border-spacing'
-            },
-
-            // Configuration des couleurs
-            color_map: [
-                "000000", "Noir",
-                "993300", "Marron foncé",
-                "333300", "Vert foncé",
-                "003300", "Vert sombre",
-                "003366", "Bleu marine",
-                "000080", "Bleu",
-                "333399", "Indigo",
-                "333333", "Gris très foncé",
-                "800000", "Marron",
-                "FF6600", "Orange",
-                "808000", "Olive",
-                "008000", "Vert",
-                "008080", "Sarcelle",
-                "0000FF", "Bleu",
-                "666699", "Gris bleu",
-                "808080", "Gris",
-                "FF0000", "Rouge",
-                "FF9900", "Ambre",
-                "99CC00", "Vert jaune",
-                "339966", "Vert mer",
-                "33CCCC", "Turquoise",
-                "3366FF", "Bleu royal",
-                "800080", "Violet",
-                "999999", "Gris moyen",
-                "FF00FF", "Magenta",
-                "FFCC00", "Or",
-                "FFFF00", "Jaune",
-                "00FF00", "Lime",
-                "00FFFF", "Cyan",
-                "00CCFF", "Bleu ciel",
-                "993366", "Rouge brun",
-                "FFFFFF", "Blanc",
-                "FF99CC", "Rose",
-                "FFCC99", "Pêche",
-                "FFFF99", "Jaune clair",
-                "CCFFCC", "Vert clair",
-                "CCFFFF", "Cyan clair",
-                "99CCFF", "Bleu clair",
-                "CC99FF", "Prune"
-            ],
-
-            // 🔒 [SEC-05] Whitelist HTML sécurisée (CWE-79)
-            extended_valid_elements: 'a[href|target|title|class|rel],'
-              + 'img[src|alt|title|width|height|class|loading|style],'
-              + 'p[class|style],span[class|style],div[class|style],'
-              + 'table[class|border|cellpadding|cellspacing|style],thead,tbody,tfoot,'
-              + 'tr,td[class|style|colspan|rowspan],th[class|style|colspan|rowspan],'
-              + 'ul[class],ol[class|type|start],li[class],'
-              + 'blockquote[class|cite],pre[class],code,strong/b,em/i,u,s,sub,sup,br,'
-              + 'hr[class],h1[class|style],h2[class|style],h3[class|style],'
-              + 'h4[class|style],h5[class|style],h6[class|style],'
-              + 'figure[class],figcaption,video[src|controls|width|height|class],'
-              + 'audio[src|controls|class],source[src|type]',
-            invalid_elements: 'script,iframe,object,embed,form,input,textarea,select,button,applet,meta,link,base',
-
-            // Upload images sur le serveur au lieu de base64
-            images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
-                const formData = new FormData();
-                formData.append('file', blobInfo.blob(), blobInfo.filename());
-                formData.append('csrf_token', '<?= csrf_token() ?>');
-                fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
-                    .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
-                    .then(data => { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
-                    .catch(e => reject(e.message));
-            }),
-            automatic_uploads: true,
-            images_reuse_filename: true,
-
-            // Upload fichiers (PDF, images) via le sélecteur de fichiers
-            file_picker_types: 'file image',
-            file_picker_callback: (callback, value, meta) => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
-                input.addEventListener('change', () => {
-                    const file = input.files[0];
-                    if (!file) return;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('csrf_token', '<?= csrf_token() ?>');
-                    fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
-                        .then(r => { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
-                        .then(data => { if (data.location) { const n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
-                        .catch(e => alert('Erreur upload: ' + e.message));
-                });
-                input.click();
-            },
-
-            // Configuration du mode code
-            toolbar_mode: 'sliding'
+            <?= getTinyMceConfig($pdo, ['height' => 200]) ?>
         });
 
         /* ── Envoi AJAX pour contourner le WAF ── */
