@@ -82,15 +82,17 @@ function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month 
         $stmt->execute($params);
         $row = $stmt->fetch();
 
-        // Top pages
-        $stmt = $pdo->prepare("SELECT page_url, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY page_url ORDER BY visits DESC LIMIT 10");
+        // All pages (for modal) + top 5
+        $stmt = $pdo->prepare("SELECT page_url, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY page_url ORDER BY visits DESC");
         $stmt->execute($params);
-        $topPages = $stmt->fetchAll();
+        $allPages = $stmt->fetchAll();
+        $topPages = array_slice($allPages, 0, 5);
 
-        // Top referers (exclude empty)
-        $stmt = $pdo->prepare("SELECT referer, COUNT(*) AS visits FROM page_visits WHERE $where AND referer IS NOT NULL AND referer != '' GROUP BY referer ORDER BY visits DESC LIMIT 5");
+        // All referers grouped by domain (for modal) + top 5, including direct visits
+        $stmt = $pdo->prepare("SELECT CASE WHEN referer IS NULL OR referer = '' THEN 'Visite directe' ELSE SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(referer, 'https://', ''), 'http://', ''), '/', 1), '?', 1) END AS referer, COUNT(*) AS visits FROM page_visits WHERE $where GROUP BY 1 ORDER BY visits DESC");
         $stmt->execute($params);
-        $topReferers = $stmt->fetchAll();
+        $allReferers = $stmt->fetchAll();
+        $topReferers = array_slice($allReferers, 0, 5);
 
         // Unique visitors by device type (mobile vs desktop)
         $mobilePattern = 'Mobile|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|webOS|BlackBerry';
@@ -109,6 +111,8 @@ function getVisitStats(PDO $pdo, string $period, ?int $year = null, ?int $month 
             'unique_desktop'  => $uniqueDesktop,
             'top_pages'       => $topPages,
             'top_referers'    => $topReferers,
+            'all_pages'       => $allPages,
+            'all_referers'    => $allReferers,
         ];
     } catch (PDOException $e) {
         error_log('Tracker getVisitStats failed: ' . $e->getMessage());
