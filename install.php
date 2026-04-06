@@ -588,6 +588,10 @@ function getCreateTableStatements(): array
           `smtp_encryption` ENUM('ssl','tls','none') NOT NULL DEFAULT 'ssl',
           `smtp_from_email` VARCHAR(255) DEFAULT NULL,
           `smtp_from_name` VARCHAR(255) DEFAULT 'Forbach en Rose',
+          `notify_recipients` TEXT DEFAULT NULL,
+          `notify_toggles` TEXT DEFAULT NULL,
+          `accueil_custom_content` MEDIUMTEXT DEFAULT NULL,
+          `accueil_custom_position` ENUM('off','after_inscrits','after_partners') NOT NULL DEFAULT 'off',
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 

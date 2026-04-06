@@ -104,6 +104,8 @@ $course_km = $data['course_km'] ?? 0;
 $picture_partner = $data['picture_partner'] ?? '';
 $flash_info_text = $data['flash_info_text'] ?? '';
 $flash_info_active = !empty($data['flash_info_active']) ? 1 : 0;
+$accueil_custom_content = $data['accueil_custom_content'] ?? '';
+$accueil_custom_position = $data['accueil_custom_position'] ?? 'off';
 $flash_bg_color = $data['flash_bg_color'] ?? '#db2777';
 $flash_text_color = $data['flash_text_color'] ?? '#ffffff';
 
@@ -2514,6 +2516,68 @@ function generateTimelineSVG(int $count): array {
     /* ===== MARQUEE / LOGO STRIP (Vimeo-like) ===== */
 
 
+    /* ===== CONTENU PERSONNALISE ===== */
+    .custom-content-section {
+      max-width: 1050px;
+      margin: 80px auto;
+      padding: 0 24px;
+    }
+    .custom-content-inner {
+      border-left: 4px solid var(--pink, #F42182);
+      padding: 24px 32px;
+      border-radius: 0 12px 12px 0;
+    }
+    .custom-content-inner > *:first-child { margin-top: 0; }
+    .custom-content-inner > *:last-child { margin-bottom: 0; }
+    .custom-content-inner p { margin: 0 0 16px; }
+    .custom-content-inner img {
+      max-width: 100%; height: auto; border-radius: 8px; cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .custom-content-inner img:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .custom-content-inner table { width: 100%; border-collapse: collapse; margin: 0 0 16px; }
+    .custom-content-inner td, .custom-content-inner th { padding: 8px 12px; border: 1px solid #e2e8f0; }
+    .custom-content-inner a { color: var(--pink, #F42182); text-decoration: underline; }
+    .custom-content-inner a:hover { opacity: .8; }
+    /* Bouton PDF */
+    .cc-pdf-link {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 6px 14px; background: #fff; border: 1px solid rgba(15,23,42,.12);
+      border-radius: 12px; color: var(--page-text, #0f172a); font-size: 14px;
+      text-decoration: none !important; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+      transition: all .2s ease; margin: 8px 0;
+    }
+    .cc-pdf-link:hover { border-color: var(--pink, #db2777); box-shadow: 0 4px 16px rgba(244,33,130,.12); transform: translateY(-1px); }
+    .cc-pdf-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; background: rgba(244,33,130,.08);
+      border-radius: 10px; flex-shrink: 0;
+    }
+    .cc-pdf-link:hover .cc-pdf-icon { background: rgba(244,33,130,.14); }
+    .cc-pdf-icon svg { width: 20px; height: 20px; stroke: var(--pink, #db2777); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .cc-pdf-info { display: flex; flex-direction: column; gap: 2px; }
+    .cc-pdf-name { font-weight: 600; line-height: 1.3; }
+    .cc-pdf-hint { font-size: 12px; color: rgba(15,23,42,.45); }
+    /* Lightbox custom content */
+    .cc-lightbox {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.9); z-index: 99999;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .cc-lightbox.active { display: flex; }
+    .cc-lightbox-close {
+      position: absolute; top: 30px; right: 40px;
+      font-size: 48px; color: #fff; cursor: pointer; user-select: none;
+    }
+    .cc-lightbox-close:hover { transform: scale(1.1); }
+    .cc-lightbox-img { max-width: 90%; max-height: 90%; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+    .custom-content-section + .community-section { margin-top: 32px; }
+    .custom-content-section.pos-after-partners { margin-top: 80px; margin-bottom: -24px; }
+    @media(max-width:768px) {
+      .custom-content-section { margin: 80px auto; padding: 0 16px; }
+      .custom-content-inner { padding: 16px 20px; }
+    }
+
     /* ===== COMMUNITY SECTION (Vimeo style) ===== */
     .community-section{
       width: 100vw;
@@ -2590,7 +2654,6 @@ function generateTimelineSVG(int $count): array {
       margin: 0 0 16px 0;
       letter-spacing: -0.02em;
     }
-
     .community-text{
       font-size: 15px;
       line-height: 1.6;
@@ -2601,7 +2664,6 @@ function generateTimelineSVG(int $count): array {
     
     .partner-form{
       margin-top: 0;
-      border-top: 1px solid rgba(128,128,128,.15);
     }
     
     .form-group{
@@ -3219,10 +3281,10 @@ function generateTimelineSVG(int $count): array {
         <?php if (!empty($registration_fee) || !empty($course_km)): ?>
         <div class="demo-badges">
           <?php if (!empty($course_km)): ?>
-          <div class="demo-badge demo-badge--km">
+          <a href="parcours" class="demo-badge demo-badge--km" style="text-decoration:none;color:inherit;cursor:pointer;">
             <span class="demo-badge-value"><?= (int)$course_km ?> km</span>
             <span class="demo-badge-label">Parcours</span>
-          </div>
+          </a>
           <?php endif; ?>
           <?php if (!empty($registration_fee)): ?>
           <div class="demo-badge demo-badge--fee" id="badgeFee">
@@ -3392,6 +3454,12 @@ function generateTimelineSVG(int $count): array {
     
 
 
+    <?php if ($accueil_custom_position === 'after_inscrits' && !empty($accueil_custom_content)): ?>
+    <section class="custom-content-section">
+      <div class="custom-content-inner"><?= $accueil_custom_content ?></div>
+    </section>
+    <?php endif; ?>
+
     <!-- COMMUNITY SECTION (style Vimeo) -->
     <section class="community-section" aria-label="Devenez partenaire">
       <div class="community-container<?php if (empty($picture_partner) || !is_file('../files/_pictures/' . $picture_partner)): ?> no-partner-img<?php endif; ?>">
@@ -3435,6 +3503,12 @@ function generateTimelineSVG(int $count): array {
       </div>
     </section>
 
+
+<?php if ($accueil_custom_position === 'after_partners' && !empty($accueil_custom_content)): ?>
+    <section class="custom-content-section pos-after-partners">
+      <div class="custom-content-inner"><?= $accueil_custom_content ?></div>
+    </section>
+    <?php endif; ?>
 
 <!-- TIMELINE (below video) -->
     <?php if ($isTimelinePreview): ?>
@@ -3873,6 +3947,42 @@ function generateTimelineSVG(int $count): array {
       });
     })();
   </script>
+
+<?php if ($accueil_custom_position !== 'off' && !empty($accueil_custom_content)): ?>
+<!-- Lightbox + PDF pour contenu personnalisé -->
+<div class="cc-lightbox" id="ccLightbox">
+  <span class="cc-lightbox-close" id="ccLbClose">&times;</span>
+  <img class="cc-lightbox-img" id="ccLbImg" src="" alt="">
+</div>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  // Transformer les liens PDF en boutons stylés
+  var seenPdf = {};
+  document.querySelectorAll('.custom-content-inner a[href$=".pdf"]').forEach(function(a) {
+    var href = a.getAttribute('href');
+    if (seenPdf[href]) { a.remove(); return; }
+    seenPdf[href] = true;
+    var raw = (a.title || href.split('/').pop()).replace(/\.[^.]+$/, '');
+    var name = /^tiny_[a-f0-9.]+$/.test(raw) ? 'Document' : raw;
+    a.className = 'cc-pdf-link';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.innerHTML = '<span class="cc-pdf-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg></span><span class="cc-pdf-info"><span class="cc-pdf-name">' + name + '.pdf</span><span class="cc-pdf-hint">Cliquer pour ouvrir</span></span>';
+  });
+
+  // Lightbox pour images
+  var lb = document.getElementById('ccLightbox');
+  var lbImg = document.getElementById('ccLbImg');
+  if (lb) {
+    document.querySelectorAll('.custom-content-inner img').forEach(function(img) {
+      img.addEventListener('click', function() { lbImg.src = img.src; lb.classList.add('active'); });
+    });
+    document.getElementById('ccLbClose').addEventListener('click', function() { lb.classList.remove('active'); });
+    lb.addEventListener('click', function(e) { if (e.target === lb) lb.classList.remove('active'); });
+  }
+})();
+</script>
+<?php endif; ?>
 
 </body>
 </html>

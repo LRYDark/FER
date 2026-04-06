@@ -63,6 +63,8 @@ $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $debogage = !empty($data['debogage']) ? 1 : 0;
 $video_accueil = $data['video_accueil'] ?? 'FER.mp4';
+$accueil_custom_content = $data['accueil_custom_content'] ?? '';
+$accueil_custom_position = $data['accueil_custom_position'] ?? 'off';
 $maintenance_mode = !empty($data['maintenance_mode']) ? 1 : 0;
 $maintenance_message = $data['maintenance_message'] ?? '';
 
@@ -321,6 +323,9 @@ if (isset($_POST['save_footer_logo'])) {
 // Liste des polices autorisées
 $allowedFonts = ['system-ui','Inter','Poppins','Roboto','Open Sans','Montserrat','Lato','Nunito',
     'Raleway','Source Sans 3','Work Sans','DM Sans','Outfit','Plus Jakarta Sans','Manrope','Figtree','Quicksand','Cabin','Rubik','Karla'];
+// Ajouter les fonts custom du dossier fonts/
+$customFonts = getCustomFonts();
+$allowedFonts = array_merge($allowedFonts, array_keys($customFonts));
 
 if (isset($_POST['save_theme'])) {
     $theme_primary        = $_POST['theme_primary_color']        ?? '#db2777';
@@ -545,6 +550,26 @@ if (isset($_POST['save_accueil_params'])) {
     addToast('success', 'Paramètres enregistrés !');
     $picture_partner = $newPicturePartner;
     $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
+}
+
+/* --------------------------------------------------------------------------
+   Accueil — Contenu personnalisé
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_custom_content'])) {
+    $rawContent = $_POST['accueil_custom_content'] ?? '';
+    $accueil_custom_content = sanitizeHtml(trim($isAjax ? decodeHtmlField($rawContent) : $rawContent));
+    $accueil_custom_position = $_POST['accueil_custom_position'] ?? 'off';
+    if (!in_array($accueil_custom_position, ['off', 'after_inscrits', 'after_partners'], true)) {
+        $accueil_custom_position = 'off';
+    }
+    $pdo->prepare('UPDATE setting SET accueil_custom_content = :c, accueil_custom_position = :p WHERE id = 1')
+        ->execute(['c' => $accueil_custom_content, 'p' => $accueil_custom_position]);
+    addToast('success', 'Contenu personnalisé enregistré !');
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -1082,7 +1107,7 @@ $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
     elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
-    elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil'])) $activeTab = 'accueil';
+    elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
     elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
@@ -1245,8 +1270,8 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
 
             <div class="col-md-6">
               <label class="form-label">Police d'écriture</label>
-              <select class="form-select" id="themeFont" name="theme_font_family">
-                <?php
+              <input type="hidden" id="themeFont" name="theme_font_family" value="<?= htmlspecialchars($theme_font) ?>">
+              <?php
                 $fontsUI = [
                   'system-ui' => 'Système (par défaut)',
                   'Inter' => 'Inter',
@@ -1269,11 +1294,27 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
                   'Rubik' => 'Rubik',
                   'Karla' => 'Karla',
                 ];
-                foreach ($fontsUI as $val => $label):
-                ?>
-                <option value="<?= $val ?>" <?= $theme_font === $val ? 'selected' : '' ?>><?= $label ?></option>
-                <?php endforeach; ?>
-              </select>
+                $allFontsForPicker = $fontsUI;
+                foreach ($customFonts as $name => $path) {
+                    $allFontsForPicker[$name] = $name;
+                }
+              ?>
+              <div class="font-picker-wrapper" style="position:relative;">
+                <div class="font-picker-selected form-select" id="fontPickerToggle" style="cursor:pointer;">
+                  <span id="fontPickerLabel" style="font-family:<?= $theme_font === 'system-ui' ? 'system-ui' : "'" . htmlspecialchars($theme_font) . "'" ?>;"><?= htmlspecialchars($allFontsForPicker[$theme_font] ?? $theme_font) ?></span>
+                </div>
+                <div class="font-picker-dropdown" id="fontPickerDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:320px;overflow-y:auto;margin-top:4px;">
+                  <?php foreach ($allFontsForPicker as $val => $label):
+                    $isCustom = isset($customFonts[$val]);
+                    $ff = $val === 'system-ui' ? 'system-ui, sans-serif' : "'" . htmlspecialchars($val) . "', sans-serif";
+                  ?>
+                  <div class="font-picker-item<?= $val === $theme_font ? ' active' : '' ?>" data-value="<?= htmlspecialchars($val) ?>" style="padding:10px 16px;cursor:pointer;font-family:<?= $ff ?>;font-size:15px;transition:background .15s;<?= $isCustom ? 'border-left:3px solid #F42182;' : '' ?>" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=this.classList.contains('active')?'#fdf2f8':''">
+                    <?= htmlspecialchars($label) ?>
+                    <?php if ($isCustom): ?><span style="font-size:10px;color:#F42182;font-family:system-ui;margin-left:6px;">custom</span><?php endif; ?>
+                  </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
               <small class="text-muted">Appliqué sur tout le site</small>
             </div>
 
@@ -1281,6 +1322,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
             <div class="col-12 mt-3">
               <label class="form-label fw-bold">Aperçu en direct</label>
               <div id="themePreview" style="border:1px solid #e2e8f0;border-radius:12px;padding:24px;transition:background .3s,color .3s;">
+                <div id="prevFontSample" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e2e8f0;">
+                  <div style="font-size:28px;font-weight:700;margin-bottom:4px;">Forbach en Rose</div>
+                  <div style="font-size:16px;opacity:.7;">Course caritative contre le cancer du sein — abcdefghijklmnopqrstuvwxyz 0123456789</div>
+                </div>
                 <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
                   <button type="button" class="btn" id="prevBtnPrimary" style="border:none;padding:8px 20px;font-weight:600">Bouton primaire</button>
                   <button type="button" class="btn" id="prevBtnSecondary" style="border:none;padding:8px 20px;font-weight:600">Bouton secondaire</button>
@@ -1489,6 +1534,32 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
 
           <div class="col-12 text-end">
             <button type="submit" name="save_video_accueil" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
+
+    <!-- Carte 4 : Contenu personnalisé -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2><i class="bi bi-text-paragraph me-2"></i>Contenu personnalisé</h2>
+        <p class="text-muted mb-3">Ajoutez du contenu libre (texte, images, liens, tableaux...) qui sera affiché sur la page d'accueil avec un trait rose sur le côté gauche.</p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Position d'affichage</label>
+            <select class="form-select" name="accueil_custom_position">
+              <option value="off" <?= $accueil_custom_position === 'off' ? 'selected' : '' ?>>Désactivé</option>
+              <option value="after_inscrits" <?= $accueil_custom_position === 'after_inscrits' ? 'selected' : '' ?>>Entre "Déjà inscrits" et le bandeau partenaires</option>
+              <option value="after_partners" <?= $accueil_custom_position === 'after_partners' ? 'selected' : '' ?>>Entre le bandeau partenaires et l'historique</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Contenu</label>
+            <textarea id="accueilCustomEditor" name="accueil_custom_content"><?= htmlspecialchars($accueil_custom_content, ENT_QUOTES, 'UTF-8') ?></textarea>
+          </div>
+          <div class="col-12 text-end">
+            <button type="button" name="save_custom_content" class="btn btn-primary w-auto" id="btnSaveCustomContent">Sauvegarder</button>
           </div>
         </form>
       </div>
@@ -2179,7 +2250,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
     image_advtab: true,
     image_dimensions: true,
     content_style: 'body { font-family: system-ui, sans-serif; font-size: 32px; color: #ffffff; background: #1e293b; text-align: center; padding: 16px; } p { margin: 0; } img { max-width: 100%; height: auto; }',
-    font_family_formats: "System=system-ui,sans-serif; Georgia=Georgia,serif; Playfair Display='Playfair Display',serif; Bebas Neue='Bebas Neue',sans-serif; Oswald=Oswald,sans-serif; Montserrat=Montserrat,sans-serif; Dancing Script='Dancing Script',cursive; Lobster=Lobster,cursive; Impact=Impact,sans-serif",
+    font_family_formats: "<?= getTinyMceFontFormats() ?>",
     font_size_formats: '16px 20px 24px 28px 32px 40px 48px 56px 64px 72px 80px',
     content_css: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Bebas+Neue&family=Oswald:wght@700&family=Montserrat:wght@700;900&family=Dancing+Script:wght@700&family=Lobster&display=swap',
     images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
@@ -2347,6 +2418,57 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
     'Cabin': "'Cabin', sans-serif", 'Rubik': "'Rubik', sans-serif",
     'Karla': "'Karla', sans-serif"
   };
+  <?php foreach ($customFonts as $name => $path): ?>
+  fontMap['<?= addslashes($name) ?>'] = "'<?= addslashes($name) ?>', sans-serif";
+  <?php endforeach; ?>
+  var loadedGoogleFonts = {};
+  var customFontNames = <?= json_encode(array_keys($customFonts)) ?>;
+
+  // Font picker dropdown
+  var fpToggle = document.getElementById('fontPickerToggle');
+  var fpDrop = document.getElementById('fontPickerDropdown');
+  var fpLabel = document.getElementById('fontPickerLabel');
+  if (fpToggle) {
+    fpToggle.addEventListener('click', function() {
+      fpDrop.style.display = fpDrop.style.display === 'none' ? '' : 'none';
+    });
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.font-picker-wrapper')) fpDrop.style.display = 'none';
+    });
+    fpDrop.querySelectorAll('.font-picker-item').forEach(function(item) {
+      item.addEventListener('click', function() {
+        var val = this.dataset.value;
+        font.value = val;
+        fpLabel.textContent = this.textContent.replace(/\s*custom\s*$/, '').trim();
+        fpLabel.style.fontFamily = fontMap[val] || "'" + val + "', sans-serif";
+        fpDrop.querySelectorAll('.font-picker-item').forEach(function(i) { i.classList.remove('active'); i.style.background = ''; });
+        this.classList.add('active');
+        this.style.background = '#fdf2f8';
+        fpDrop.style.display = 'none';
+        // Charger dynamiquement la Google Font si nécessaire
+        if (val !== 'system-ui' && customFontNames.indexOf(val) === -1 && !loadedGoogleFonts[val]) {
+          var link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(val) + ':wght@300;400;500;600;700;800;900&display=swap';
+          document.head.appendChild(link);
+          loadedGoogleFonts[val] = true;
+        }
+        updatePreview();
+      });
+    });
+    // Précharger les Google Fonts visibles pour l'aperçu dans le dropdown
+    var gfToLoad = [];
+    fpDrop.querySelectorAll('.font-picker-item').forEach(function(item) {
+      var v = item.dataset.value;
+      if (v !== 'system-ui' && customFontNames.indexOf(v) === -1) gfToLoad.push(v);
+    });
+    if (gfToLoad.length > 0) {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?family=' + gfToLoad.map(function(f) { return encodeURIComponent(f) + ':wght@400;700'; }).join('&family=') + '&display=swap';
+      document.head.appendChild(link);
+    }
+  }
 
   function luminance(hex) {
     hex = hex.replace('#','');
@@ -2430,6 +2552,8 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
     document.getElementById('prevCardTitle').style.fontFamily = ff;
     document.getElementById('prevCardTitle').style.color = textColor;
     document.getElementById('prevCardText').style.fontFamily = ff;
+    var fs = document.getElementById('prevFontSample');
+    if (fs) { fs.style.fontFamily = ff; fs.style.borderColor = borderColor; }
 
     // Preview switch
     var sw = document.getElementById('prevSwitch');
@@ -2763,6 +2887,57 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="save_header"]');
         if (btn) { e.preventDefault(); ajaxSubmit(btn, ['title', 'title_mobile'], 'inscription'); }
+    });
+
+    // Contenu personnalisé accueil — TinyMCE + AJAX save
+    if (document.getElementById('accueilCustomEditor')) {
+        tinymce.init({
+            selector: '#accueilCustomEditor',
+            license_key: 'gpl',
+            language: 'fr_FR',
+            plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
+            toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+            font_family_formats: "<?= getTinyMceFontFormats() ?>",
+            height: 400,
+            menubar: false,
+            branding: false,
+            content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+            images_upload_handler: function(blobInfo) {
+                return new Promise(function(resolve, reject) {
+                    var formData = new FormData();
+                    formData.append('file', blobInfo.blob(), blobInfo.filename());
+                    formData.append('csrf_token', '<?= csrf_token() ?>');
+                    fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                        .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                        .then(function(data) { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
+                        .catch(function(e) { reject(e.message); });
+                });
+            },
+            automatic_uploads: true,
+            images_reuse_filename: true,
+            file_picker_types: 'file image',
+            file_picker_callback: function(callback, value, meta) {
+                var input = document.createElement('input');
+                input.type = 'file';
+                input.accept = meta.filetype === 'image' ? 'image/*' : 'image/*,.pdf';
+                input.addEventListener('change', function() {
+                    var file = input.files[0];
+                    if (!file) return;
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('csrf_token', '<?= csrf_token() ?>');
+                    fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
+                        .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                        .then(function(data) { if (data.location) { var n = data.title || file.name.replace(/\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
+                        .catch(function(e) { alert('Erreur upload: ' + e.message); });
+                });
+                input.click();
+            },
+        });
+    }
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('#btnSaveCustomContent');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['accueil_custom_content'], 'accueil'); }
     });
 
 })();

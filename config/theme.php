@@ -117,8 +117,14 @@ if (!isset($__themeLoaded)) {
         'Rubik'             => "'Rubik', sans-serif",
         'Karla'             => "'Karla', sans-serif",
     ];
+    // Ajouter les fonts custom du dossier fonts/
+    $__customFonts = getCustomFonts();
+    foreach ($__customFonts as $__cfName => $__cfPath) {
+        $__fontMap[$__cfName] = "'" . $__cfName . "', sans-serif";
+    }
     $__fontStack = $__fontMap[$__theme['font']] ?? $__fontMap['system-ui'];
-    $__needsGoogleFont = ($__theme['font'] !== 'system-ui');
+    $__isCustomFont = isset($__customFonts[$__theme['font']]);
+    $__needsGoogleFont = !$__isCustomFont && ($__theme['font'] !== 'system-ui');
 }
 
 // ── Output ──
@@ -126,6 +132,25 @@ if ($__needsGoogleFont): ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=<?= urlencode($__theme['font']) ?>:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<?php endif; ?>
+<?php if (!empty($__customFonts)):
+  $__prefix = (strpos($_SERVER['SCRIPT_NAME'] ?? '', '/public/') !== false || strpos($_SERVER['SCRIPT_NAME'] ?? '', '/inc/') !== false) ? '../' : '';
+  $__formatMap = ['otf' => 'opentype', 'woff2' => 'woff2', 'woff' => 'woff', 'ttf' => 'truetype'];
+?>
+<style>
+<?php foreach ($__customFonts as $__cfName => $__cfPath):
+  $__ext = pathinfo($__cfPath, PATHINFO_EXTENSION);
+  $__format = $__formatMap[$__ext] ?? 'truetype';
+?>
+@font-face {
+  font-family: '<?= htmlspecialchars($__cfName) ?>';
+  src: url('<?= $__prefix . htmlspecialchars($__cfPath) ?>') format('<?= $__format ?>');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+<?php endforeach; ?>
+</style>
 <?php endif; ?>
 <style id="theme-vars">
 :root {
