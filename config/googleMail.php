@@ -184,6 +184,9 @@ function getAccessToken(bool $autoRedirect = true) {
 
 /**
  * Génère un QR Code en data URI (base64 PNG) pour un inscription_no donné.
+ * Utilisé uniquement pour la prévisualisation HTML dans le navigateur (admin).
+ * Pour l'envoi par mail, voir generateQrCodePngBytes() qui renvoie les octets bruts
+ * destinés à être embarqués en pièce jointe inline (CID).
  * Retourne '' si la lib n'est pas disponible.
  */
 function generateQrCodeDataUri(string|int $inscriptionNo): string
@@ -200,6 +203,29 @@ function generateQrCodeDataUri(string|int $inscriptionNo): string
     } catch (\Throwable $e) {
         writeLog("⚠️ Erreur génération QR Code : " . $e->getMessage());
         return '';
+    }
+}
+
+/**
+ * Génère un QR Code en PNG (octets bruts) pour un inscription_no donné.
+ * Renvoie null si la lib n'est pas disponible ou en cas d'erreur.
+ * Ces octets sont destinés à être embarqués comme image inline via CID
+ * (Gmail/Outlook bloquent les data: URI dans les <img>).
+ */
+function generateQrCodePngBytes(string|int $inscriptionNo): ?string
+{
+    try {
+        $qrCode = new \Endroid\QrCode\QrCode(
+            data: (string) $inscriptionNo,
+            size: 200,
+            margin: 8
+        );
+        $writer = new \Endroid\QrCode\Writer\PngWriter();
+        $result = $writer->write($qrCode);
+        return $result->getString();
+    } catch (\Throwable $e) {
+        writeLog("⚠️ Erreur génération QR Code PNG : " . $e->getMessage());
+        return null;
     }
 }
 
@@ -283,7 +309,9 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
     writeSmtpLog("Envoi SMTP vers : " . (is_array($to) ? implode(', ', $to) : $to) . " | Serveur : $smtpHost:$smtpPort ($smtpEnc)");
 
     /* ---------- Corps (même template que Gmail) ---------- */
-    $body = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    $built  = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    $body   = $built['body'];
+    $qrPng  = $built['qrPng'];
     if (empty($body)) {
         $lastMailError = "Le template mail est vide ou introuvable (mail_template.php).";
         writeSmtpLog("❌ " . $lastMailError);
@@ -323,6 +351,11 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
         $mail->Subject = $subject;
         $mail->Body    = $body;
 
+        // QR Code en pièce jointe inline référencée par cid:qrcode_inline
+        if ($qrPng !== null) {
+            $mail->addStringEmbeddedImage($qrPng, 'qrcode_inline', 'qrcode.png', 'base64', 'image/png', 'inline');
+        }
+
         $mail->send();
         writeSmtpLog("✅ Mail SMTP envoyé à : " . (is_array($to) ? implode(', ', $to) : $to));
         return true;
@@ -335,8 +368,10 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
 
 /**
  * Construit le corps HTML du mail (partagé entre Gmail et SMTP).
+ * Renvoie un tableau ['body' => string, 'qrPng' => ?string] où qrPng contient
+ * les octets PNG du QR Code à embarquer en pièce jointe inline (CID), ou null.
  */
-function buildMailBody($to, string $subject, $mailTitle, $description, $lastname, $firstname, string $type, string|int|null $inscriptionNo, ?string $mailSubtype): string {
+function buildMailBody($to, string $subject, $mailTitle, $description, $lastname, $firstname, string $type, string|int|null $inscriptionNo, ?string $mailSubtype): array {
     global $data;
 
     $formattedDate = '';
@@ -353,15 +388,21 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
         }
     }
 
-    $qrCodeDataUri = '';
+    // Le QR Code est embarqué en pièce jointe inline référencée via cid:
+    // (les data: URI sont bloquées par Gmail/Outlook et apparaissent comme image cassée).
+    $qrPngBytes = null;
+    $qrcodeSrc = '';
     if ($type === 'inscription' && $inscriptionNo !== null && shouldIncludeQrCode($inscriptionNo)) {
-        $qrCodeDataUri = generateQrCodeDataUri($inscriptionNo);
+        $qrPngBytes = generateQrCodePngBytes($inscriptionNo);
+        if ($qrPngBytes !== null) {
+            $qrcodeSrc = 'cid:qrcode_inline';
+        }
     }
 
     $mtcJson = $data['mail_template_config'] ?? null;
     $mtc = $mtcJson ? json_decode($mtcJson, true) : [];
 
-    return render('mail_template.php', [
+    $body = render('mail_template.php', [
         'type'        => $type,
         'mailTitle'   => $mailTitle,
         'description' => $description,
@@ -373,11 +414,13 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
         'cancer'      => $data['link_cancer'] ?? '',
         'mail_email'  => $data['mail_email'] ?? '',
         'mail_phone'  => $data['mail_phone'] ?? '',
-        'qrcode'      => $qrCodeDataUri,
+        'qrcode'      => $qrcodeSrc,
         'inscription_no' => $inscriptionNo,
         'mtc'         => $mtc,
         'mail_subtype' => $mailSubtype ?? ($type === 'inscription' ? 'inscription' : 'info'),
     ]);
+
+    return ['body' => $body, 'qrPng' => $qrPngBytes];
 }
 
 /**
@@ -418,7 +461,9 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
     /* ---------- Corps (template partagé) ---------- */
-    $body = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    $built = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    $body  = $built['body'];
+    $qrPng = $built['qrPng'];
 
     if (empty($body)) {
         $lastMailError = "Le template mail est vide ou introuvable (mail_template.php).";
@@ -440,8 +485,30 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     if ($bccHeader) $raw .= "Bcc: $bccHeader\r\n";
     $raw .= "Subject: $encodedSubject\r\n";
     $raw .= "MIME-Version: 1.0\r\n";
-    $raw .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-    $raw .= $body;
+
+    if ($qrPng !== null) {
+        // multipart/related : HTML + image inline référencée par cid:qrcode_inline
+        // (Gmail/Outlook bloquent les data: URI dans les <img>, d'où l'embed CID).
+        // HTML et PNG sont tous deux encodés en base64 pour éviter tout problème
+        // de ligne longue ou de caractère spécial lors du transit.
+        $boundary = 'fer_' . bin2hex(random_bytes(12));
+        $raw .= "Content-Type: multipart/related; boundary=\"$boundary\"; type=\"text/html\"\r\n\r\n";
+        $raw .= "This is a multi-part message in MIME format.\r\n\r\n";
+        $raw .= "--$boundary\r\n";
+        $raw .= "Content-Type: text/html; charset=UTF-8\r\n";
+        $raw .= "Content-Transfer-Encoding: base64\r\n\r\n";
+        $raw .= chunk_split(base64_encode($body), 76, "\r\n") . "\r\n";
+        $raw .= "--$boundary\r\n";
+        $raw .= "Content-Type: image/png; name=\"qrcode.png\"\r\n";
+        $raw .= "Content-Transfer-Encoding: base64\r\n";
+        $raw .= "Content-ID: <qrcode_inline>\r\n";
+        $raw .= "Content-Disposition: inline; filename=\"qrcode.png\"\r\n\r\n";
+        $raw .= chunk_split(base64_encode($qrPng), 76, "\r\n") . "\r\n";
+        $raw .= "--$boundary--\r\n";
+    } else {
+        $raw .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+        $raw .= $body;
+    }
 
     $mime = rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
     $msg  = new Google_Service_Gmail_Message();
