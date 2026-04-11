@@ -1,7 +1,8 @@
 <?php
 require '../config/config.php';
-requireRole(['admin']);
+requirePage('page_stats');
 $role = currentRole();
+// Cette page est purement consultative — aucune action d'écriture
 require 'navbar-data.php';
 require '../config/tracker.php';
 

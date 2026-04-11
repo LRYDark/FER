@@ -1,8 +1,12 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('news');
 $role = currentRole();
+$canCreate = canDoAction('news.create');
+$canEdit   = canDoAction('news.edit');
+$canDelete = canDoAction('news.delete');
+$readOnly  = !$canCreate && !$canEdit && !$canDelete;
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -39,7 +43,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 // ─── Détection AJAX et décodage Base64 des champs HTML ───
 $isAjax = isAjaxRequest();
 
-
+// ─── Bloc de protection des actions d'écriture ───
+$writeOps = [
+    'add_news'              => 'news.create',
+    'update_news'           => 'news.edit',
+    'delete_news'           => 'news.delete',
+    'permanent_delete_news' => 'news.delete',
+    'restore_news'          => 'news.edit',
+];
+foreach ($writeOps as $__op => $__perm) {
+    if (isset($_POST[$__op]) && !canDoAction($__perm)) {
+        http_response_code(403);
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'message' => 'Action non autorisée.']);
+            exit;
+        }
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
+}
 
 // ─── Add news ───
 if (isset($_POST['add_news'])) {
@@ -459,7 +483,7 @@ if ($migrationDone) {
         <?php endif; ?>
       </div>
     </form>
-    <?php if (!$isTrashed): ?>
+    <?php if (!$isTrashed && $canCreate): ?>
     <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddNews">
       <i class="bi bi-plus-lg"></i> Ajouter un article
     </button>
@@ -500,6 +524,7 @@ if ($migrationDone) {
             <div class="mt-auto d-flex gap-2 flex-wrap align-items-center">
               <?php if ($migrationDone && $isTrashed): ?>
                 <!-- Trash view buttons -->
+                <?php if ($canEdit): ?>
                 <form method="post">
                   <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
@@ -507,6 +532,8 @@ if ($migrationDone) {
                     <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                   </button>
                 </form>
+                <?php endif; ?>
+                <?php if ($canDelete): ?>
                 <form method="post" data-confirm="Supprimer DÉFINITIVEMENT cet article ? Cette action est irréversible.">
                   <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
@@ -514,14 +541,18 @@ if ($migrationDone) {
                     <i class="bi bi-x-circle"></i> Supprimer définitivement
                   </button>
                 </form>
+                <?php endif; ?>
               <?php else: ?>
                 <!-- Normal view buttons -->
                 <a href="../public/news.php?preview=<?= $n['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu">
                   <i class="bi bi-eye"></i> Aperçu
                 </a>
+                <?php if ($canEdit): ?>
                 <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditNews<?= $n['id'] ?>">
                   <i class="bi bi-pencil"></i> Modifier
                 </button>
+                <?php endif; ?>
+                <?php if ($canDelete): ?>
                 <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cet article en corbeille ?' : 'Supprimer definitivement cet article ?' ?>">
                   <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
@@ -529,6 +560,7 @@ if ($migrationDone) {
                     <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Corbeille' : 'Supprimer' ?>
                   </button>
                 </form>
+                <?php endif; ?>
                 <?php if ($migrationDone): ?>
                   <span class="ms-auto badge <?= $n['status'] === 'published' ? 'bg-success' : 'bg-warning text-dark' ?>">
                     <?= $n['status'] === 'published' ? 'Publié' : 'Brouillon' ?>

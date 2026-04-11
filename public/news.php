@@ -25,7 +25,7 @@ $link_cancer = $data['link_cancer'] ?? null;
 $hasStatusCol = false;
 try { $pdo->query("SELECT status FROM news LIMIT 0"); $hasStatusCol = true; } catch (PDOException $e) {}
 
-// ─── Mode preview (admin only) ───
+// ─── Mode preview (utilisateur authentifié avec accès page news) ───
 $isPreview = false;
 $previewId = isset($_GET['preview']) ? (int)$_GET['preview'] : 0;
 
@@ -36,9 +36,8 @@ $singleArticle = null;
 if ($articleId > 0) {
     try {
         if ($previewId > 0) {
-            // Preview mode: admin only, any status
-            if (session_status() === PHP_SESSION_NONE) { session_start(); }
-            if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+            // Preview mode : nécessite session valide + accès page 'news'
+            if (!isset($_SESSION['uid']) || !canAccessPage('news')) {
                 header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
             }
             $isPreview = true;

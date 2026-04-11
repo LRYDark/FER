@@ -10,8 +10,18 @@ try {
     error_log('googleMail load error: ' . $e->getMessage());
 }
 
-requireRole(['admin','user','viewer','saisie']);
+requirePage('setting');
 $role = currentRole();
+$canWrite     = canDoAction('settings.write');
+$pageReadOnly = !$canWrite;
+
+// Bloquer toute action POST si pas le droit d'écriture
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
+    http_response_code(403);
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (lecture seule).'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
 
 require 'navbar-data.php';
 

@@ -5,12 +5,26 @@
  */
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('albums');
 
 header('Content-Type: application/json');
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $albumId = (int)($_POST['album_id'] ?? $_GET['album_id'] ?? 0);
+
+// Vérification d'action selon les permissions granulaires (par page)
+$actionPerm = [
+    'list'          => null, // toujours autorisé si page accessible
+    'upload'        => 'albums.create',
+    'set_thumbnail' => 'albums.edit',
+    'delete_photo'  => 'albums.delete',
+    'delete_all'    => 'albums.delete',
+];
+if (isset($actionPerm[$action]) && $actionPerm[$action] !== null && !canDoAction($actionPerm[$action])) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Action non autorisée.']);
+    exit;
+}
 
 if ($albumId <= 0) {
     http_response_code(400);

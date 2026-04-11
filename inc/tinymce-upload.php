@@ -10,8 +10,24 @@ require_once __DIR__ . '/../config/csrf.php';
 
 header('Content-Type: application/json');
 
-// Auth check
-requireRole(['admin', 'user']);
+// Auth check : utilisateur authentifié + au moins une permission d'écriture sur un éditeur TinyMCE
+if (!isset($_SESSION['uid'])) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Non authentifié.']);
+    exit;
+}
+// L'éditeur TinyMCE est utilisé sur toutes les pages de contenu + Réglages + Mail
+$canUseEditor = canDoAction('news.create')     || canDoAction('news.edit')
+             || canDoAction('timeline.create') || canDoAction('timeline.edit')
+             || canDoAction('partners.create') || canDoAction('partners.edit')
+             || canDoAction('albums.create')   || canDoAction('albums.edit')
+             || canDoAction('settings.write')
+             || canDoAction('mail.write');
+if (!$canUseEditor) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Action non autorisée.']);
+    exit;
+}
 
 // CSRF check
 if (!csrf_verify()) {

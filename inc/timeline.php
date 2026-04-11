@@ -1,8 +1,12 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('timeline');
 $role = currentRole();
+$canCreate = canDoAction('timeline.create');
+$canEdit   = canDoAction('timeline.edit');
+$canDelete = canDoAction('timeline.delete');
+$readOnly  = !$canCreate && !$canEdit && !$canDelete;
 require 'navbar-data.php';
 
 // ─── Ensure _TimeLine directory exists ───
@@ -29,6 +33,24 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403);
     die('Invalid CSRF token');
+}
+
+// ─── Bloc de protection des actions d'écriture ───
+$writeOps = [
+    'add_item'              => 'timeline.create',
+    'update_item'           => 'timeline.edit',
+    'reorder_items'         => 'timeline.edit',
+    'delete_item'           => 'timeline.delete',
+    'permanent_delete_item' => 'timeline.delete',
+    'restore_item'          => 'timeline.edit',
+];
+foreach ($writeOps as $__op => $__perm) {
+    if (isset($_POST[$__op]) && !canDoAction($__perm)) {
+        http_response_code(403);
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
 }
 
 // ─── Reorder via AJAX ───
@@ -338,7 +360,7 @@ foreach ($items as $item) {
 
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h1 class="mb-3 fw-bold"><i class="bi bi-clock-history me-2"></i>Gestion de la Timeline</h1>
-          <?php if (!$isTrashed): ?>
+          <?php if (!$isTrashed && $canCreate): ?>
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddItem">
             <i class="bi bi-plus-lg me-1"></i>Ajouter un item
           </button>
@@ -422,32 +444,40 @@ foreach ($items as $item) {
                       <a href="../public/accueil.php?preview_timeline=1" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu timeline">
                         <i class="bi bi-eye"></i>
                       </a>
+                      <?php if ($canEdit): ?>
                       <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
                         <i class="bi bi-pencil"></i>
                       </button>
+                      <?php endif; ?>
                       <?php if ($isTrashed): ?>
-                      <form method="post" class="d-inline">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                        <button type="submit" name="restore_item" class="btn btn-sm btn-success" title="Restaurer">
-                          <i class="bi bi-arrow-counterclockwise"></i>
-                        </button>
-                      </form>
-                      <form method="post" class="d-inline" data-confirm="Supprimer définitivement cet item ?">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                        <button type="submit" name="permanent_delete_item" class="btn btn-sm btn-danger" title="Supprimer définitivement">
-                          <i class="bi bi-x-lg"></i>
-                        </button>
-                      </form>
+                        <?php if ($canEdit): ?>
+                        <form method="post" class="d-inline">
+                          <?= csrf_field() ?>
+                          <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                          <button type="submit" name="restore_item" class="btn btn-sm btn-success" title="Restaurer">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                          </button>
+                        </form>
+                        <?php endif; ?>
+                        <?php if ($canDelete): ?>
+                        <form method="post" class="d-inline" data-confirm="Supprimer définitivement cet item ?">
+                          <?= csrf_field() ?>
+                          <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                          <button type="submit" name="permanent_delete_item" class="btn btn-sm btn-danger" title="Supprimer définitivement">
+                            <i class="bi bi-x-lg"></i>
+                          </button>
+                        </form>
+                        <?php endif; ?>
                       <?php else: ?>
-                      <form method="post" class="d-inline" data-confirm="<?= $hasDeletedAt ? 'Mettre cet item en corbeille ?' : 'Supprimer cet item et ses tags ?' ?>">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                        <button type="submit" name="delete_item" class="btn btn-sm btn-danger">
-                          <i class="bi bi-trash"></i>
-                        </button>
-                      </form>
+                        <?php if ($canDelete): ?>
+                        <form method="post" class="d-inline" data-confirm="<?= $hasDeletedAt ? 'Mettre cet item en corbeille ?' : 'Supprimer cet item et ses tags ?' ?>">
+                          <?= csrf_field() ?>
+                          <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                          <button type="submit" name="delete_item" class="btn btn-sm btn-danger">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                        <?php endif; ?>
                       <?php endif; ?>
                     </div>
                   </div>

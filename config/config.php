@@ -97,6 +97,80 @@ ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_strict_mode', 1);
 session_start();
 
+/* ───── Enforcement IP ban global ──────────────────────────────────────────
+ * Vérifie si l'IP du visiteur est dans login_banned_ips dès le require de
+ * config.php. Si c'est le cas, redirige vers /errors/ip-banned.php (sauf
+ * exclusions ci-dessous, pour éviter les boucles et préserver les API JSON).
+ * ────────────────────────────────────────────────────────────────────────── */
+do {
+    // 1. Exclusions par chemin pour éviter les boucles + préserver l'API JSON
+    $__reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    $__reqBase = basename($__reqPath);
+    if (in_array($__reqBase, [
+        'ip-banned.php', '403.php', '404.php', '500.php', '503.php',
+        'maintenance.php', 'api.php',
+    ], true)) break;
+
+    // 2. Détecter le nom de la colonne IP dans login_banned_ips (compat ancien schéma)
+    try {
+        $__cols = $pdo->query("SHOW COLUMNS FROM login_banned_ips")->fetchAll(PDO::FETCH_COLUMN);
+        $__ipCol = in_array('ip', $__cols, true) ? 'ip'
+                 : (in_array('ip_address', $__cols, true) ? 'ip_address' : null);
+        if ($__ipCol === null) break;
+    } catch (\Throwable $e) {
+        break; // Table absente : pas de check possible
+    }
+
+    // 3. Récupérer l'IP réelle (gestion proxy/Cloudflare)
+    $__ip = '';
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $__ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $__ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+    } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
+        $__ip = $_SERVER['REMOTE_ADDR'];
+    }
+    if (empty($__ip)) break;
+
+    // 4. Vérifier le ban actif (NULL = permanent, future date = temporaire)
+    try {
+        $__sql = "SELECT reason, expires_at FROM login_banned_ips
+                  WHERE `{$__ipCol}` = ? AND (expires_at IS NULL OR expires_at > NOW())
+                  LIMIT 1";
+        $__st = $pdo->prepare($__sql);
+        $__st->execute([$__ip]);
+        $__banInfo = $__st->fetch(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        break; // Erreur SQL : ne pas bloquer
+    }
+
+    if (!$__banInfo) break;
+
+    // 5. Construire l'URL absolue vers errors/ip-banned.php
+    //    (les coordonnées de contact sont chargées directement par ip-banned.php)
+    $__type  = !empty($__banInfo['expires_at']) ? 'temp' : 'permanent';
+    $__until = $__banInfo['expires_at'] ?? '';
+
+    // Calculer le préfixe applicatif : on prend SCRIPT_NAME, on retire le nom du fichier,
+    // puis on remonte d'un cran si on est dans inc/public/config/errors
+    $__dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/');
+    $__lastSeg = basename($__dir);
+    if (in_array($__lastSeg, ['inc', 'public', 'config', 'errors'], true)) {
+        $__appRoot = dirname($__dir);
+    } else {
+        $__appRoot = $__dir;
+    }
+    if ($__appRoot === '/' || $__appRoot === '\\' || $__appRoot === '.') $__appRoot = '';
+
+    $__target = $__appRoot . '/errors/ip-banned.php?type=' . urlencode($__type)
+              . '&ip=' . urlencode($__ip)
+              . ($__until ? '&until=' . urlencode($__until) : '');
+
+    http_response_code(403);
+    header('Location: ' . $__target);
+    exit;
+} while (false);
+
 /* Helpers ------------------------------------------------------------------ */
 function currentRole()   { return $_SESSION['role'] ?? null; }
 function currentUserId() { return $_SESSION['uid']  ?? null; }
@@ -108,6 +182,257 @@ function requireRole(array $roles)
         header('Location: ../login.php');
         exit;
     }
+}
+
+/* ───── Système de permissions granulaires ─────────────────────────────────
+ * Pages disponibles : dashboard, timeline, news, partners, albums, stats,
+ *                     setting, mail-settings, qr_code, connexions, logs,
+ *                     page_stats
+ *
+ * Actions disponibles :
+ *   Inscriptions :
+ *     - dashboard.create_registration / edit_registration / delete_registration
+ *     - dashboard.archive / import_excel / export_excel
+ *     - dashboard.scan_qr  (mode "Remise T-shirts" : scanner QR + assigner taille)
+ *   Contenus (granularité par page) :
+ *     - news.create / news.edit / news.delete
+ *     - timeline.create / timeline.edit / timeline.delete
+ *     - partners.create / partners.edit / partners.delete
+ *     - albums.create / albums.edit / albums.delete
+ *   Pages d'administration (read = page access, write = action) :
+ *     - settings.write       (Réglages)
+ *     - mail.write           (Paramètres mail : Template / Google / Notifications)
+ *     - mail.send            (Paramètres mail : envoyer des mails — onglet "Envoi de mail")
+ *     - qrcode.write         (QR Code create/delete)
+ *     - connexions.write     (ban/débannir IPs, révoquer appareils)
+ *     - logs.write           (vider les logs)
+ *
+ * Stockage : users.permissions (JSON) — si NULL, on applique les défauts du rôle.
+ * Règle dure unique : admin a tout, jamais bridé.
+ * Tous les autres rôles (user, viewer, saisie) sont entièrement personnalisables.
+ *
+ * Backward compatibility : les anciennes permissions content.create / content.edit /
+ * content.delete sont reconnues comme raccourci pour les 4 pages de contenu correspondantes.
+ */
+/**
+ * Permissions par défaut "dures" — utilisées comme fallback si aucune valeur custom
+ * n'est stockée en BDD pour les rôles user et viewer (admin/saisie sont toujours fixes).
+ */
+function hardcodedDefaultPermissions(string $role): array
+{
+    return match ($role) {
+        'admin' => [
+            'pages'   => ['*'],
+            'actions' => ['*'],
+        ],
+        'user' => [
+            'pages'   => ['dashboard','timeline','news','partners','albums','stats'],
+            'actions' => [
+                'dashboard.create_registration',
+                'dashboard.edit_registration',
+                'dashboard.import_excel',
+                'dashboard.export_excel',
+                // Création + modification sur les 4 contenus, pas de suppression
+                'news.create','news.edit',
+                'timeline.create','timeline.edit',
+                'partners.create','partners.edit',
+                'albums.create','albums.edit',
+            ],
+        ],
+        'viewer' => [
+            'pages'   => ['dashboard','stats'],
+            'actions' => ['dashboard.export_excel'],
+        ],
+        'saisie' => [
+            'pages'   => ['dashboard'],
+            'actions' => ['dashboard.create_registration'],
+        ],
+        default => ['pages' => [], 'actions' => []],
+    };
+}
+
+/**
+ * Catalogue centralisé des pages et actions disponibles dans le système.
+ * Utilisé par l'API de validation et par l'UI.
+ */
+function permCatalog(): array
+{
+    return [
+        'pages' => [
+            'dashboard','timeline','news','partners','albums','stats',
+            'setting','mail-settings','qr_code','connexions','logs','page_stats',
+        ],
+        'actions' => [
+            // Inscriptions (dashboard)
+            'dashboard.create_registration','dashboard.edit_registration',
+            'dashboard.delete_registration','dashboard.archive',
+            'dashboard.import_excel','dashboard.export_excel',
+            'dashboard.scan_qr',
+            // Contenus — granularité par page
+            'news.create','news.edit','news.delete',
+            'timeline.create','timeline.edit','timeline.delete',
+            'partners.create','partners.edit','partners.delete',
+            'albums.create','albums.edit','albums.delete',
+            // Pages d'administration (write actions)
+            'settings.write','mail.write','mail.send','qrcode.write','connexions.write','logs.write',
+        ],
+    ];
+}
+
+function defaultPermissions(string $role): array
+{
+    // admin : toujours tout (jamais bridé)
+    if ($role === 'admin') {
+        return hardcodedDefaultPermissions('admin');
+    }
+
+    // user, viewer, saisie : charger depuis setting.role_permissions si la conf existe
+    static $stored = null;
+    if ($stored === null) {
+        global $pdo;
+        try {
+            $row = $pdo->query("SELECT role_permissions FROM setting WHERE id = 1 LIMIT 1")->fetchColumn();
+            $stored = $row ? (json_decode($row, true) ?: []) : [];
+        } catch (PDOException $e) {
+            $stored = [];
+        }
+    }
+
+    if (isset($stored[$role]) && is_array($stored[$role])
+        && isset($stored[$role]['pages'], $stored[$role]['actions'])) {
+        return [
+            'pages'   => array_values((array)$stored[$role]['pages']),
+            'actions' => array_values((array)$stored[$role]['actions']),
+        ];
+    }
+
+    return hardcodedDefaultPermissions($role);
+}
+
+function userPermissions(?int $uid = null): array
+{
+    static $cache = [];
+    $uid = $uid ?? currentUserId();
+    if ($uid === null) return ['pages' => [], 'actions' => [], 'role' => null];
+    if (isset($cache[$uid])) return $cache[$uid];
+
+    global $pdo;
+    // Détection de la colonne permissions (peut ne pas exister si update.php non exécuté)
+    static $hasPermsCol = null;
+    if ($hasPermsCol === null) {
+        try { $pdo->query('SELECT permissions FROM users LIMIT 0'); $hasPermsCol = true; }
+        catch (PDOException $e) { $hasPermsCol = false; }
+    }
+
+    try {
+        $sql = $hasPermsCol
+            ? 'SELECT role, permissions FROM users WHERE id = ?'
+            : 'SELECT role FROM users WHERE id = ?';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$uid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $row = null;
+    }
+    if (!$row) return $cache[$uid] = ['pages' => [], 'actions' => [], 'role' => null];
+
+    $role  = $row['role'];
+    $perms = (!empty($row['permissions'] ?? null)) ? (json_decode($row['permissions'], true) ?: null) : null;
+
+    if (!$perms || !isset($perms['pages']) || !isset($perms['actions'])) {
+        $perms = defaultPermissions($role);
+    }
+
+    // Seule règle dure : admin a tout
+    if ($role === 'admin') {
+        $perms = ['pages' => ['*'], 'actions' => ['*']];
+    }
+
+    $perms['role'] = $role;
+    return $cache[$uid] = $perms;
+}
+
+function canAccessPage(string $page): bool
+{
+    if (currentRole() === 'admin') return true;
+    $perms = userPermissions();
+    $pages = $perms['pages'] ?? [];
+    return in_array('*', $pages, true) || in_array($page, $pages, true);
+}
+
+function canDoAction(string $action): bool
+{
+    if (currentRole() === 'admin') return true;
+    $perms = userPermissions();
+    $actions = $perms['actions'] ?? [];
+    if (in_array('*', $actions, true) || in_array($action, $actions, true)) {
+        return true;
+    }
+
+    // Backward compatibility : ancien content.create / content.edit / content.delete
+    // équivaut au droit correspondant sur les 4 pages de contenu.
+    static $contentCompat = [
+        'news.create'     => 'content.create',
+        'timeline.create' => 'content.create',
+        'partners.create' => 'content.create',
+        'albums.create'   => 'content.create',
+        'news.edit'       => 'content.edit',
+        'timeline.edit'   => 'content.edit',
+        'partners.edit'   => 'content.edit',
+        'albums.edit'     => 'content.edit',
+        'news.delete'     => 'content.delete',
+        'timeline.delete' => 'content.delete',
+        'partners.delete' => 'content.delete',
+        'albums.delete'   => 'content.delete',
+    ];
+    if (isset($contentCompat[$action]) && in_array($contentCompat[$action], $actions, true)) {
+        return true;
+    }
+
+    return false;
+}
+
+function requirePage(string $page)
+{
+    if (!isset($_SESSION['uid'])) {
+        http_response_code(403);
+        header('Location: ../login.php');
+        exit;
+    }
+    if (!canAccessPage($page)) {
+        // Éviter les boucles de redirection : si dashboard est accessible et qu'on n'est pas déjà dessus, y aller
+        if ($page !== 'dashboard' && canAccessPage('dashboard')) {
+            header('Location: dashboard.php');
+            exit;
+        }
+        // Sinon : aucun fallback, on déconnecte proprement
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+        http_response_code(403);
+        header('Location: ../login.php?msg=no_access');
+        exit;
+    }
+}
+
+function requireAction(string $action)
+{
+    if (!canDoAction($action)) {
+        http_response_code(403);
+        if (!headers_sent()) {
+            header('Content-Type: application/json');
+        }
+        echo json_encode(['ok' => false, 'err' => 'Action non autorisée']);
+        exit;
+    }
+}
+
+function isViewer(): bool
+{
+    return currentRole() === 'viewer';
 }
 
 /**

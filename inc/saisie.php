@@ -2,7 +2,11 @@
 require '../config/config.php';
 require_once '../config/csrf.php';
 require 'navbar-data.php';
-requireRole(['saisie']);           // seul ce rôle a accès
+requireRole(['saisie']);           // page dédiée au rôle saisie
+
+// Cohérence avec le système de permissions : si l'admin a retiré
+// dashboard.create_registration au rôle saisie, on ne montre pas le formulaire
+$canCreateReg = canDoAction('dashboard.create_registration');
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -176,6 +180,13 @@ $formFields = getActiveFields($pdo, 'saisie');
       <h2 class="text-center mb-4">Ajouter une inscription</h2>
       <div id="msg" class="alert alert-info d-none"></div>
 
+      <?php if (!$canCreateReg): ?>
+        <div class="alert alert-warning text-center">
+          <i class="bi bi-shield-exclamation me-1"></i>
+          La permission de créer des inscriptions a été retirée à votre rôle.
+          Contactez un administrateur pour la rétablir.
+        </div>
+      <?php else: ?>
       <form id="fAdd" class="row g-3">
         <?php foreach ($formFields as $f): ?>
           <?= renderFormField($f) ?>
@@ -198,6 +209,7 @@ $formFields = getActiveFields($pdo, 'saisie');
           <button class="btn btn-rose btn-lg">Enregistrer</button>
         </div>
       </form>
+      <?php endif; ?>
     </div>
 
   <?php require 'admin-footer.php'; ?>

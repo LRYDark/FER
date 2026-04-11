@@ -1,9 +1,37 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('partners');
 $role = currentRole();
+$canCreate = canDoAction('partners.create');
+$canEdit   = canDoAction('partners.edit');
+$canDelete = canDoAction('partners.delete');
+$readOnly  = !$canCreate && !$canEdit && !$canDelete;
 require 'navbar-data.php';
+
+// ─── Bloc de protection des actions d'écriture ───
+$writeOps = [
+    'add_album'             => 'partners.create',
+    'add_year'              => 'partners.create',
+    'update_album'          => 'partners.edit',
+    'update_year'           => 'partners.edit',
+    'update_partners_desc'  => 'partners.edit',
+    'reorder_albums'        => 'partners.edit',
+    'restore_year'          => 'partners.edit',
+    'restore_album'         => 'partners.edit',
+    'delete_album'          => 'partners.delete',
+    'delete_year'           => 'partners.delete',
+    'permanent_delete_album'=> 'partners.delete',
+    'permanent_delete_year' => 'partners.delete',
+];
+foreach ($writeOps as $__op => $__perm) {
+    if (isset($_POST[$__op]) && !canDoAction($__perm)) {
+        http_response_code(403);
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
+}
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -730,9 +758,11 @@ if ($migrationDone) {
                       <textarea class="form-control" id="partners_desc_editor" name="partners_desc" rows="10"><?= htmlspecialchars($partners_desc) ?></textarea>
                     </div>
                   </div>
+                  <?php if ($canEdit): ?>
                   <div class="text-end mt-3">
                     <button type="submit" name="update_partners_desc" class="btn btn-primary">Enregistrer</button>
                   </div>
+                  <?php endif; ?>
                 </form>
               </div>
             </div>
@@ -766,7 +796,7 @@ if ($migrationDone) {
             </div>
             <?php endif; ?>
 
-            <?php if (!$isTrashed): ?>
+            <?php if (!$isTrashed && $canCreate): ?>
             <!-- Bouton pour ajouter une année -->
             <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">
               <i class="bi bi-plus-lg"></i> Ajouter une Année
@@ -791,6 +821,7 @@ if ($migrationDone) {
                   <span class="badge album-count-badge bg-secondary"><?= $albumCount ?> album<?= $albumCount > 1 ? 's' : '' ?></span>
                 </div>
                 <div class="d-flex gap-2">
+                  <?php if ($canEdit): ?>
                   <form method="post">
                     <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -798,6 +829,8 @@ if ($migrationDone) {
                       <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                     </button>
                   </form>
+                  <?php endif; ?>
+                  <?php if ($canDelete): ?>
                   <form method="post" data-confirm="Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.">
                     <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -805,6 +838,7 @@ if ($migrationDone) {
                       <i class="bi bi-x-circle"></i> Supprimer définitivement
                     </button>
                   </form>
+                  <?php endif; ?>
                 </div>
               </div>
 
@@ -824,9 +858,11 @@ if ($migrationDone) {
                   <a href="../public/partenaires.php?preview_year=<?= $year['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu">
                     <i class="bi bi-eye"></i> Aperçu
                   </a>
+                  <?php if ($canEdit || $canCreate): ?>
                   <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">
                     <i class="bi bi-pencil"></i> Modifier
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
 
@@ -862,8 +898,11 @@ if ($migrationDone) {
                           <?php endif; ?>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+                          <?php if ($canEdit): ?>
                           <button type="submit" name="update_year" class="btn btn-primary">Enregistrer</button>
+                          <?php else: ?><span></span><?php endif; ?>
                     </form>
+                          <?php if ($canDelete): ?>
                           <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -871,8 +910,10 @@ if ($migrationDone) {
                               <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Mettre en corbeille' : 'Supprimer' ?>
                             </button>
                           </form>
+                          <?php endif; ?>
                         </div>
 
+                    <?php if ($canCreate): ?>
                     <h6>Ajouter un partenaire</h6>
                     <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff">
                         <?= csrf_field() ?>
@@ -895,6 +936,7 @@ if ($migrationDone) {
                           </div>
                         </div>
                     </form>
+                    <?php endif; ?>
 
                     <div class="mb-3"></div>
 
@@ -929,8 +971,12 @@ if ($migrationDone) {
                               </div>
                               <div class="col-auto text-end">
                                 <div class="d-flex gap-1">
+                                  <?php if ($canEdit): ?>
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
+                                  <?php endif; ?>
+                                  <?php if ($canDelete): ?>
                                   <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="Supprimer" data-confirm="Supprimer définitivement cet album ?"><i class="bi bi-x-lg"></i></button>
+                                  <?php endif; ?>
                                 </div>
                               </div>
                             </div>

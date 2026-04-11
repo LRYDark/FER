@@ -27,19 +27,35 @@ function logLoginAttempt($pdo, $userId, $email, $success, $reason = null) {
 }
 
 // 🔒 [FIX-U2] Ban IP avec support auto-ban temporaire (expires_at) et ban permanent (CWE-307)
+/**
+ * Détecte le nom de la colonne d'IP dans login_banned_ips.
+ * Anciens schémas peuvent avoir 'ip_address' au lieu de 'ip'.
+ */
+function _bannedIpsCol($pdo): string {
+    static $col = null;
+    if ($col !== null) return $col;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM login_banned_ips")->fetchAll(PDO::FETCH_COLUMN);
+        if (in_array('ip', $cols, true))         return $col = 'ip';
+        if (in_array('ip_address', $cols, true)) return $col = 'ip_address';
+    } catch (\Throwable $e) {}
+    return $col = 'ip'; // fallback par défaut
+}
+
 function getIpBanInfo($pdo, $ip): ?array {
+    $ipCol = _bannedIpsCol($pdo);
     try {
         $st = $pdo->prepare(
-            'SELECT reason, expires_at FROM login_banned_ips
-             WHERE ip = ? AND (expires_at IS NULL OR expires_at > NOW())
-             LIMIT 1'
+            "SELECT reason, expires_at FROM login_banned_ips
+             WHERE `{$ipCol}` = ? AND (expires_at IS NULL OR expires_at > NOW())
+             LIMIT 1"
         );
         $st->execute([$ip]);
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
     } catch (\Throwable $e) {
         // Fallback si colonne expires_at absente
         try {
-            $st = $pdo->prepare('SELECT reason FROM login_banned_ips WHERE ip = ? LIMIT 1');
+            $st = $pdo->prepare("SELECT reason FROM login_banned_ips WHERE `{$ipCol}` = ? LIMIT 1");
             $st->execute([$ip]);
             $row = $st->fetch(PDO::FETCH_ASSOC);
             return $row ? array_merge($row, ['expires_at' => null]) : null;
@@ -134,20 +150,50 @@ function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 144
     if ($failures < $threshold) return;
 
     $reason = "Auto-ban : $failures echecs de connexion en 24h (multi-comptes)";
+    $banSucceeded = false;
+    $ipCol = _bannedIpsCol($pdo);
+
+    /* La table login_banned_ips a (idéalement) une UNIQUE KEY sur la colonne IP.
+     * On utilise INSERT ... ON DUPLICATE KEY UPDATE pour gérer le cas où une
+     * ancienne ligne existe déjà (ban expiré ou actif). */
     try {
-        $pdo->prepare(
-            'INSERT INTO login_banned_ips (ip, reason, banned_at, expires_at)
-             VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE))'
-        )->execute([$ip, $reason, $banMinutes]);
+        $sql = "INSERT INTO login_banned_ips (`{$ipCol}`, reason, banned_at, expires_at)
+                VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE))
+                ON DUPLICATE KEY UPDATE
+                    reason = VALUES(reason),
+                    banned_at = NOW(),
+                    expires_at = DATE_ADD(NOW(), INTERVAL ? MINUTE)";
+        $pdo->prepare($sql)->execute([$ip, $reason, $banMinutes, $banMinutes]);
+        $banSucceeded = true;
     } catch (\Throwable $e) {
-        // Fallback si colonne expires_at absente
+        error_log('autoBanIpIfNeeded INSERT (with expires_at) failed: ' . $e->getMessage());
+        // Fallback 1 : sans expires_at (vieux schéma)
         try {
-            $pdo->prepare('INSERT INTO login_banned_ips (ip, reason, banned_at) VALUES (?, ?, NOW())')
-                ->execute([$ip, $reason]);
-        } catch (\Throwable $e2) {}
+            $sql2 = "INSERT INTO login_banned_ips (`{$ipCol}`, reason, banned_at)
+                     VALUES (?, ?, NOW())
+                     ON DUPLICATE KEY UPDATE reason = VALUES(reason), banned_at = NOW()";
+            $pdo->prepare($sql2)->execute([$ip, $reason]);
+            $banSucceeded = true;
+        } catch (\Throwable $e2) {
+            error_log('autoBanIpIfNeeded fallback 1 INSERT failed: ' . $e2->getMessage());
+            // Fallback 2 : sans ON DUPLICATE KEY (pas de UNIQUE constraint)
+            try {
+                $sql3 = "INSERT INTO login_banned_ips (`{$ipCol}`, reason, banned_at) VALUES (?, ?, NOW())";
+                $pdo->prepare($sql3)->execute([$ip, $reason]);
+                $banSucceeded = true;
+            } catch (\Throwable $e3) {
+                error_log('autoBanIpIfNeeded fallback 2 INSERT failed: ' . $e3->getMessage());
+            }
+        }
     }
 
-    // Notifier les admins du ban IP
+    // Si l'INSERT a échoué, on n'envoie PAS de mail trompeur disant que l'IP est bannie
+    if (!$banSucceeded) {
+        error_log("autoBanIpIfNeeded: aucun ban inséré pour IP $ip — pas de notification envoyée");
+        return;
+    }
+
+    // Notifier les admins du ban IP (uniquement si l'INSERT a réussi)
     try {
         require_once __DIR__ . '/googleMail.php';
         if (isMailConfigured() && isNotifyEnabled($pdo, 'ip_ban')) {
@@ -512,6 +558,97 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
     echo json_encode(['ok' => true]); exit;
 }
 
+/* ───── ROLE PERMISSIONS (admin) — défauts par rôle modifiables depuis le tableau ───── */
+if ($route === 'role-permissions') {
+    requireRole(['admin']);
+
+    // Détection de la colonne role_permissions
+    $hasCol = false;
+    try { $pdo->query('SELECT role_permissions FROM setting LIMIT 0'); $hasCol = true; }
+    catch (PDOException $e) {}
+
+    if (!$hasCol) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'err' => "La colonne 'role_permissions' n'existe pas. Lancez update.php."]);
+        exit;
+    }
+
+    $catalog = permCatalog();
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $row = $pdo->query("SELECT role_permissions FROM setting WHERE id = 1 LIMIT 1")->fetchColumn();
+        $data = $row ? (json_decode($row, true) ?: []) : [];
+        foreach (['user','viewer','saisie'] as $r) {
+            if (empty($data[$r])) $data[$r] = hardcodedDefaultPermissions($r);
+        }
+        echo json_encode(['ok' => true, 'permissions' => $data]);
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input) || !isset($input['role'], $input['type'], $input['key'], $input['value'])) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Paramètres manquants.']);
+            exit;
+        }
+
+        $role = $input['role'];
+        if (!in_array($role, ['user','viewer','saisie'], true)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Seuls les rôles user, viewer et saisie sont modifiables (admin est toujours total).']);
+            exit;
+        }
+
+        $type  = $input['type']; // 'pages' ou 'actions'
+        $key   = $input['key'];
+        $value = (bool)$input['value'];
+
+        if (!in_array($type, ['pages','actions'], true)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Type invalide.']);
+            exit;
+        }
+
+        // Validation de la clé selon le type (catalogue centralisé)
+        $allowed = $catalog[$type] ?? [];
+        if (!in_array($key, $allowed, true)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Clé inconnue : ' . $key]);
+            exit;
+        }
+
+        // Charger la conf actuelle
+        $row = $pdo->query("SELECT role_permissions FROM setting WHERE id = 1 LIMIT 1")->fetchColumn();
+        $data = $row ? (json_decode($row, true) ?: []) : [];
+
+        if (empty($data[$role])) {
+            $data[$role] = hardcodedDefaultPermissions($role);
+        }
+        if (!isset($data[$role]['pages']))   $data[$role]['pages']   = [];
+        if (!isset($data[$role]['actions'])) $data[$role]['actions'] = [];
+
+        // Toggle la permission
+        $list = $data[$role][$type];
+        if ($value && !in_array($key, $list, true)) {
+            $list[] = $key;
+        } elseif (!$value) {
+            $list = array_values(array_filter($list, fn($v) => $v !== $key));
+        }
+        $data[$role][$type] = array_values(array_unique($list));
+
+        $stmt = $pdo->prepare("UPDATE setting SET role_permissions = :rp WHERE id = 1");
+        $stmt->execute(['rp' => json_encode($data)]);
+
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    http_response_code(405);
+    echo json_encode(['ok' => false, 'err' => 'Méthode non autorisée']);
+    exit;
+}
+
 /* ───── USERS (admin) ────────────────────────── */
 if ($route === 'users') {
     requireRole(['admin']);
@@ -693,9 +830,13 @@ if ($route === 'users') {
 
     // GET : liste
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        echo json_encode(
-            $pdo->query('SELECT id,email,role,organisation,is_active,created_at FROM users')->fetchAll()
-        );
+        // Détection de la colonne permissions (peut ne pas exister si update.php non exécuté)
+        $hasPermsCol = false;
+        try { $pdo->query('SELECT permissions FROM users LIMIT 0'); $hasPermsCol = true; }
+        catch (PDOException $e) {}
+
+        $cols = 'id,email,role,organisation,is_active,created_at' . ($hasPermsCol ? ',permissions' : '');
+        echo json_encode($pdo->query("SELECT $cols FROM users")->fetchAll());
         exit;
     }
 
@@ -725,6 +866,42 @@ if ($route === 'users') {
             }
         }
 
+        // Gestion des permissions personnalisées (JSON) — uniquement si la colonne existe
+        $hasPermsCol = false;
+        try { $pdo->query('SELECT permissions FROM users LIMIT 0'); $hasPermsCol = true; }
+        catch (PDOException $e) {}
+
+        if (isset($d['permissions']) && $hasPermsCol) {
+            $permsRaw = $d['permissions'];
+            if ($permsRaw === '' || $permsRaw === 'null') {
+                // Réinitialisation aux permissions par défaut du rôle
+                $fields[] = 'permissions = NULL';
+            } else {
+                $decoded = json_decode($permsRaw, true);
+                if (!is_array($decoded) || !isset($decoded['pages']) || !isset($decoded['actions'])
+                    || !is_array($decoded['pages']) || !is_array($decoded['actions'])) {
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'err' => 'Format de permissions invalide.']);
+                    exit;
+                }
+                // Whitelist depuis le catalogue centralisé (config.php) — inclut content.* en backward compat
+                $catalog = permCatalog();
+                $allowedPages   = $catalog['pages'];
+                $allowedActions = array_merge(
+                    $catalog['actions'],
+                    // backward compat : on accepte de stocker les anciens content.* si jamais fournis
+                    ['content.create','content.edit','content.delete']
+                );
+                $cleanPages   = array_values(array_intersect($decoded['pages'], $allowedPages));
+                $cleanActions = array_values(array_intersect($decoded['actions'], $allowedActions));
+                $fields[] = 'permissions = :permissions';
+                $params['permissions'] = json_encode([
+                    'pages'   => $cleanPages,
+                    'actions' => $cleanActions,
+                ]);
+            }
+        }
+
         if (empty($fields)) {
             http_response_code(400);
             echo json_encode(['ok' => false, 'err' => 'aucune donnée à modifier']);
@@ -741,18 +918,29 @@ if ($route === 'users') {
 
 /* ───── REGISTRATIONS ────────────────────────── */
 if ($route==='registrations'){
-    /* GET : tous rôles */
+    /* GET : accessible si l'utilisateur a accès au dashboard */
     if($_SERVER['REQUEST_METHOD']==='GET'){
-        requireRole(['admin','user','viewer','saisie']);
+        if (!canAccessPage('dashboard')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Accès refusé']);
+            exit;
+        }
         $rows = $pdo->query("SELECT * FROM registrations ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC")->fetchAll();
         echo json_encode(decryptRows($rows)); exit;
     }
 
-    /* POST : public OU user/admin */
+    /* POST : public (anonyme) OU utilisateur authentifié avec permission create_registration */
     if($_SERVER['REQUEST_METHOD']==='POST'){
       try {
         $d = json_decode(file_get_contents('php://input'), true);
         if (!$d) { $d = $_POST; } // fallback form-data
+
+        // Si utilisateur authentifié, vérifier la permission
+        if (currentUserId() && !canDoAction('dashboard.create_registration')) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'err' => 'Action non autorisée']);
+            exit;
+        }
 
         // 🔒 [FIX-08] Rate limiting sur les inscriptions publiques non authentifiées (CWE-770)
         if (!currentUserId()) {
@@ -865,9 +1053,9 @@ if ($route==='registrations'){
       }
     }
 
-    /* DELETE (admin) */
+    /* DELETE (permission dashboard.delete_registration) */
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-        requireRole(['admin']);
+        requireAction('dashboard.delete_registration');
         parse_str(file_get_contents('php://input'), $d);    // ← on lit ici, uniquement pour DELETE
         $pdo->prepare('DELETE FROM registrations WHERE id=?')->execute([$d['id']]);
         echo json_encode(['ok'=>true]); exit;
@@ -875,8 +1063,6 @@ if ($route==='registrations'){
 
     /* ---------- PUT (mise à jour) ---------- */
     if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
-        requireRole(['admin']);
-
         /* 1. Récupérer le corps de requête (JSON ou x-www-form-urlencoded) */
         $raw = file_get_contents('php://input');
         $ct  = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -885,6 +1071,21 @@ if ($route==='registrations'){
             $d = json_decode($raw, true) ?: [];
         } else {
             parse_str($raw, $d);                         // compatibilité ancienne version
+        }
+
+        /* Permission : edit_registration en général,
+         *   mais si la requête met à jour UNIQUEMENT tshirt_size, on accepte aussi scan_qr
+         *   (mode "Remise T-shirts" : bénévole avec QR scanner sans plein droit d'édition) */
+        $putKeys = array_diff(array_keys($d), ['id']);
+        $isOnlyTshirt = (count($putKeys) === 1 && in_array('tshirt_size', $putKeys, true));
+        if ($isOnlyTshirt) {
+            if (!canDoAction('dashboard.edit_registration') && !canDoAction('dashboard.scan_qr')) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'err' => 'Action non autorisée']);
+                exit;
+            }
+        } else {
+            requireAction('dashboard.edit_registration');
         }
 
         /* 2. Vérifier l'id */
@@ -906,8 +1107,10 @@ if ($route==='registrations'){
         foreach ($fieldCols as $col => $meta) {
             if (!array_key_exists($col, $d)) continue;
             $raw = $d[$col];
-            if ($raw === '') $raw = null;
-            $params[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
+            // Cohérence avec POST : on stocke une chaîne vide plutôt que null
+            // (les colonnes NOT NULL acceptent '' mais pas null)
+            if ($raw === null) $raw = '';
+            $params[$col] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : $raw;
             $setParts[] = "`{$col}` = :{$col}";
         }
 
@@ -928,9 +1131,9 @@ if ($route==='registrations'){
     }
 }
 
-/* ───── IMPORT EXCEL (admin) ─────────────────── */
+/* ───── IMPORT EXCEL (permission dashboard.import_excel) ─────────────────── */
 if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    requireRole(['admin']);
+    requireAction('dashboard.import_excel');
 
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         http_response_code(400);
@@ -1184,7 +1387,7 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ═══ Vérification doublons avant import ═══
 if ($route === 'check-duplicates' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    requireRole(['admin']);
+    requireAction('dashboard.import_excel');
 
     $input = json_decode(file_get_contents('php://input'), true);
     $tickets = $input['tickets'] ?? [];
@@ -1250,9 +1453,9 @@ function logImportError(array $data, string $filename = 'import_errors.log') {
 }
 
 
-/* ───── EXPORT EXCEL (admin) ─────────────────── */
+/* ───── EXPORT EXCEL (permission dashboard.export_excel) ─────────────────── */
 if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    requireRole(['admin','user']);
+    requireAction('dashboard.export_excel');
 
     require_once __DIR__.'/../vendor/autoload.php';
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
@@ -1293,9 +1496,9 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-/* ───── ARCHIVE CURRENT YEAR (admin) ─────────────────── */
+/* ───── ARCHIVE CURRENT YEAR (permission dashboard.archive) ─────────────────── */
 if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    requireRole(['admin']);
+    requireAction('dashboard.archive');
 
     $year         = (int) date('Y');                // année en cours
     $tableArchive = "registrations_$year";
@@ -1422,7 +1625,12 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Dans votre api.php, section registrations-archive
 if ($route === 'registrations-archive') {
-    requireRole(['admin', 'viewer', 'user']);
+    // Lecture des archives : accessible si l'utilisateur a accès au dashboard
+    if (!canAccessPage('dashboard')) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Accès refusé']);
+        exit;
+    }
 
     $year = (int) ($_GET['year'] ?? date('Y'));
     $tableArchive = "registrations_$year";
@@ -1454,7 +1662,17 @@ if ($route === 'registrations-archive') {
 
 // Gestion des QR Codes
 if ($route === 'qrcodes') {
-    requireRole(['admin']);
+    if (!canAccessPage('qr_code')) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Accès refusé']);
+        exit;
+    }
+    // Lecture seule si pas de droit d'écriture
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET' && !canDoAction('qrcode.write')) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Action non autorisée (lecture seule)']);
+        exit;
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Récupération des QR codes - avec gestion d'erreurs
@@ -1608,8 +1826,12 @@ if ($route === 'qrcodes') {
     }
     
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
-        // Suppression d'un QR code (admin seulement)
-        requireRole(['admin']);
+        // Déjà filtré plus haut : sans qrcode.write, on a été bloqué
+        if (!canDoAction('qrcode.write')) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Action non autorisée']);
+            exit;
+        }
         
         parse_str(file_get_contents('php://input'), $data);
         
@@ -1754,11 +1976,139 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* ---------- Toggle débogage ---------- */
 if ($route === 'toggle-debogage' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    requireRole(['admin']);
+    if (!canAccessPage('setting') || !canDoAction('settings.write')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Accès refusé']);
+        exit;
+    }
     $d = json_decode(file_get_contents('php://input'), true);
     $val = !empty($d['debogage']) ? 1 : 0;
     $pdo->prepare('UPDATE setting SET debogage = ? WHERE id = 1')->execute([$val]);
     echo json_encode(['ok' => true, 'debogage' => $val]);
+    exit;
+}
+
+/* ───── IP GEOLOCATION (admin/connexions) ─────────────────────────
+ * Route serveur qui géolocalise une liste d'IPs avec cache fichier 30 jours.
+ * Utilisée par inc/connexions.php pour afficher (Ville, Pays) à côté
+ * des adresses IP des logs / IPs bannies / appareils.
+ *
+ * Sécurité : nécessite l'accès à la page connexions.
+ * Body JSON : { "ips": ["1.2.3.4", "5.6.7.8", ...] }
+ * Réponse   : { "ok": true, "geo": { "1.2.3.4": {"city":"Paris","country":"France"}, ... } }
+ * ──────────────────────────────────────────────────────────────── */
+if ($route === 'ip-geo') {
+    if (!canAccessPage('connexions')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Accès refusé']);
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['ok' => false, 'err' => 'Méthode non autorisée']);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $ips   = $input['ips'] ?? [];
+    if (!is_array($ips)) $ips = [];
+    // Limite anti-abus : max 200 IPs par requête
+    $ips = array_slice(array_unique(array_filter($ips, 'is_string')), 0, 200);
+
+    // Cache fichier (30 jours)
+    $cacheFile = __DIR__ . '/logs/ip_geo_cache.json';
+    $cacheTtl  = 30 * 86400;
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $cache = json_decode(@file_get_contents($cacheFile), true) ?: [];
+    }
+    $now = time();
+    $result = [];
+    $toFetch = [];
+
+    foreach ($ips as $ip) {
+        // IP privée / locale → pas de lookup
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            $result[$ip] = ['city' => null, 'country' => '__local__'];
+            continue;
+        }
+        // Cache hit
+        if (isset($cache[$ip]) && isset($cache[$ip]['t']) && ($now - $cache[$ip]['t']) < $cacheTtl) {
+            $result[$ip] = ['city' => $cache[$ip]['city'] ?? null, 'country' => $cache[$ip]['country'] ?? null];
+            continue;
+        }
+        $toFetch[] = $ip;
+    }
+
+    // Lookups réseau pour les IPs non cachées
+    // Chaîne de fallback : ipwho.is → freeipapi.com → ipapi.co
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 2,
+            'method'  => 'GET',
+            'header'  => "User-Agent: FER-Admin/1.0\r\nAccept: application/json\r\n",
+        ],
+    ]);
+
+    foreach ($toFetch as $ip) {
+        $geo = null;
+
+        // Tentative 1 : ipwho.is (riche en données, gratuit, HTTPS sans clé)
+        $raw = @file_get_contents("https://ipwho.is/" . urlencode($ip), false, $ctx);
+        if ($raw !== false) {
+            $data = json_decode($raw, true);
+            if (is_array($data) && !empty($data['success'])) {
+                $geo = [
+                    'city'    => $data['city']    ?? null,
+                    'country' => $data['country'] ?? null,
+                ];
+            }
+        }
+
+        // Tentative 2 : freeipapi.com
+        if ($geo === null || (empty($geo['city']) && empty($geo['country']))) {
+            $raw = @file_get_contents("https://freeipapi.com/api/json/" . urlencode($ip), false, $ctx);
+            if ($raw !== false) {
+                $data = json_decode($raw, true);
+                if (is_array($data)) {
+                    $geo = [
+                        'city'    => $data['cityName']    ?? null,
+                        'country' => $data['countryName'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        // Tentative 3 : ipapi.co
+        if ($geo === null || (empty($geo['city']) && empty($geo['country']))) {
+            $raw = @file_get_contents("https://ipapi.co/{$ip}/json/", false, $ctx);
+            if ($raw !== false) {
+                $data = json_decode($raw, true);
+                if (is_array($data) && empty($data['error'])) {
+                    $geo = [
+                        'city'    => $data['city']         ?? null,
+                        'country' => $data['country_name'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        if ($geo === null) $geo = ['city' => null, 'country' => null];
+
+        $cache[$ip] = ['city' => $geo['city'], 'country' => $geo['country'], 't' => $now];
+        $result[$ip] = $geo;
+    }
+
+    // Sauvegarder le cache (purge des entrées trop vieilles tant qu'on y est)
+    if (!empty($toFetch)) {
+        foreach ($cache as $k => $v) {
+            if (empty($v['t']) || ($now - $v['t']) > $cacheTtl) unset($cache[$k]);
+        }
+        @file_put_contents($cacheFile, json_encode($cache), LOCK_EX);
+    }
+
+    echo json_encode(['ok' => true, 'geo' => $result]);
     exit;
 }
 
