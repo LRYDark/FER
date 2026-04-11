@@ -1,6 +1,6 @@
 <?php
 require '../config/config.php';
-requireRole(['admin','viewer','user']);
+requirePage('stats');
 $role = currentRole();
 require 'navbar-data.php';
 

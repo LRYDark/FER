@@ -2,7 +2,18 @@
 require '../config/config.php';
 require_once '../config/csrf.php';
 require '../config/googleMail.php';
-requireRole(['admin','user']);
+requirePage('mail-settings');
+// L'envoi de mails est protégé par mail.send (séparé de mail.write qui couvre la conf)
+if (!canDoAction('mail.send')) {
+    if (isAjaxRequest()) {
+        header('Content-Type: application/json');
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'message' => 'Action non autorisée (droit « Envoyer des mails » requis).']);
+        exit;
+    }
+    http_response_code(403);
+    die('Action non autorisée');
+}
 
 $isAjax = isAjaxRequest();
 

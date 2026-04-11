@@ -4,6 +4,15 @@
   </div><!-- /oc-content -->
 </div><!-- /oc-app-container -->
 
+<?php
+// Mode lecture seule au niveau de la page courante :
+//   chaque page admin peut définir $pageReadOnly = true; pour signaler qu'on n'a
+//   pas le droit d'écrire — admin-footer.php ajoute alors la classe sur <body>
+//   et le JS plus bas désactive tous les boutons d'envoi de formulaire.
+if (!empty($pageReadOnly)):
+?>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">document.body.classList.add('app-readonly');</script>
+<?php endif; ?>
 <!-- ═══════ ADMIN LAYOUT SCRIPTS ═══════ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
@@ -89,5 +98,18 @@ document.addEventListener('DOMContentLoaded', function() {
       previewNewImage(el, el.dataset.positioner, el.dataset.imgpos);
     }
   });
+
+  // ── Mode lecture seule (viewer) : désactiver tous les boutons d'envoi de formulaire ──
+  if (document.body.classList.contains('app-readonly')) {
+    document.querySelectorAll('form button[type="submit"], form input[type="submit"]').forEach(function(b) {
+      b.disabled = true;
+      b.title = 'Lecture seule';
+      b.style.opacity = '0.4';
+      b.style.cursor = 'not-allowed';
+    });
+    document.querySelectorAll('form').forEach(function(f) {
+      f.addEventListener('submit', function(e) { e.preventDefault(); e.stopPropagation(); });
+    });
+  }
 });
 </script>

@@ -4,6 +4,46 @@ require_once '../config/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
 require 'navbar-data.php';
+
+// Permissions par défaut actuelles (chargées depuis setting.role_permissions ou hardcodées)
+$rolePermsDefault = [
+    'user'   => defaultPermissions('user'),
+    'viewer' => defaultPermissions('viewer'),
+    'saisie' => defaultPermissions('saisie'),
+];
+$hasRolePermsCol = false;
+try { $pdo->query('SELECT role_permissions FROM setting LIMIT 0'); $hasRolePermsCol = true; }
+catch (PDOException $e) {}
+
+/**
+ * Rend une cellule de la matrice des droits par rôle.
+ * - admin : toujours verrouillé (✓ + cadenas)
+ * - user / viewer / saisie : toujours cliquable
+ *
+ * - $role: 'admin' | 'user' | 'viewer' | 'saisie'
+ * - $type: 'pages' | 'actions'
+ * - $key:  ex 'timeline', 'dashboard.create_registration', ...
+ */
+function permCell(string $role, string $type, string $key, array $rolePermsDefault, bool $hasCol): string {
+    // Admin : toujours verrouillé avec cadenas
+    if ($role === 'admin') {
+        return '<td class="text-center text-success" title="Admin a toujours tout accès">'
+             . '✓ <i class="bi bi-lock-fill text-muted small"></i></td>';
+    }
+
+    // Vérifier l'état actuel
+    $list   = $rolePermsDefault[$role][$type] ?? [];
+    $active = in_array($key, $list, true);
+
+    $cls      = $active ? 'perm-cell perm-on' : 'perm-cell perm-off';
+    $icon     = $active ? '✓' : '○';
+    $title    = $hasCol ? 'Cliquer pour basculer' : "Lancez update.php pour activer l'édition";
+    $disabled = $hasCol ? '' : ' perm-disabled';
+    return '<td class="text-center ' . $cls . $disabled
+        . '" data-role="' . htmlspecialchars($role) . '" data-type="' . $type
+        . '" data-key="' . htmlspecialchars($key) . '" data-active="' . ($active ? '1' : '0')
+        . '" title="' . $title . '">' . $icon . '</td>';
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -71,6 +111,37 @@ require 'navbar-data.php';
     background:linear-gradient(135deg,#db2777,#be185d)!important;
     color:#fff!important;
   }
+
+  /* ═══ Cellules de permission cliquables ═══ */
+  .perm-cell {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color .15s, transform .1s;
+    font-size: 1.05rem;
+    font-weight: 600;
+    position: relative;
+  }
+  .perm-cell:hover:not(.perm-disabled) {
+    background-color: #fdf2f8;
+    transform: scale(1.05);
+  }
+  .perm-cell.perm-on  { color: #16a34a; background-color: #f0fdf4; }
+  .perm-cell.perm-off { color: #94a3b8; background-color: #f8fafc; }
+  .perm-cell.perm-disabled {
+    cursor: not-allowed;
+    opacity: .5;
+  }
+  .perm-cell.perm-saving {
+    pointer-events: none;
+    opacity: .5;
+  }
+  .perm-cell.perm-flash {
+    animation: permFlash .6s ease;
+  }
+  @keyframes permFlash {
+    0%   { background-color: #fef9c3; }
+    100% { background-color: inherit; }
+  }
 </style>
 </head>
 <body>
@@ -86,6 +157,146 @@ require 'navbar-data.php';
   </div>
   <div class="table-responsive">
     <table id="tblUsers" class="table table-sm w-100"></table>
+  </div>
+
+  <!-- ═══ Tableau interactif des droits par rôle ═══ -->
+  <div class="card-dashboard p-3 mt-4">
+    <h2 class="h5 fw-bold mb-3"><i class="bi bi-shield-lock me-2"></i>Droits par rôle</h2>
+    <p class="text-muted small mb-2">
+      <strong>Cliquez sur n'importe quelle cellule</strong> des colonnes <span class="badge bg-primary">User</span>,
+      <span class="badge bg-info text-dark">Viewer</span> et <span class="badge bg-secondary">Saisie</span>
+      pour activer ou désactiver une permission. Seule la colonne <span class="badge bg-danger">Admin</span>
+      est verrouillée (admin a toujours tout accès).
+      <br>L'accès à une <strong>page</strong> donne uniquement la lecture. Les <strong>actions</strong>
+      (boutons supprimer, créer, vider, etc.) sont contrôlées séparément.
+    </p>
+    <?php if (!$hasRolePermsCol): ?>
+      <div class="alert alert-warning small py-2 mb-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        La colonne <code>setting.role_permissions</code> n'existe pas. Lancez <a href="../update.php"><strong>update.php</strong></a>
+        pour activer la modification des droits par défaut depuis ce tableau.
+      </div>
+    <?php endif; ?>
+    <div id="rolePermsFlash" class="alert alert-success small py-2 mb-2" style="display:none"></div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0" id="rolePermsTable">
+        <thead class="table-light">
+          <tr>
+            <th>Fonctionnalité</th>
+            <th class="text-center"><span class="badge bg-danger">Admin</span></th>
+            <th class="text-center"><span class="badge bg-primary">User</span></th>
+            <th class="text-center"><span class="badge bg-info text-dark">Viewer</span></th>
+            <th class="text-center"><span class="badge bg-secondary">Saisie</span></th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">Accès aux pages (lecture seule)</td></tr>
+
+          <?php
+          $allPages = [
+            'dashboard'     => 'Tableau de bord (inscriptions)',
+            'timeline'      => 'Timeline',
+            'news'          => 'Actualités',
+            'partners'      => 'Partenaires',
+            'albums'        => 'Albums',
+            'stats'         => 'Statistiques',
+            'setting'       => 'Réglages',
+            'mail-settings' => 'Paramètres mail',
+            'qr_code'       => 'QR Code',
+            'connexions'    => 'Connexions',
+            'logs'          => 'Logs',
+            'page_stats'    => 'Visites',
+          ];
+          foreach ($allPages as $k => $label): ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'pages', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'pages', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'pages', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'pages', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">Actions sur les inscrits (Dashboard)</td></tr>
+
+          <?php
+          $dashActions = [
+            'dashboard.create_registration' => 'Créer un inscrit',
+            'dashboard.edit_registration'   => 'Modifier un inscrit',
+            'dashboard.delete_registration' => 'Supprimer un inscrit',
+            'dashboard.archive'             => 'Archiver l\'année en cours',
+            'dashboard.import_excel'        => 'Importer un fichier Excel',
+            'dashboard.export_excel'        => 'Exporter en Excel',
+            'dashboard.scan_qr'             => 'Scanner QR + remise des T-shirts (mode bénévole)',
+          ];
+          foreach ($dashActions as $k => $label): ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+
+          <?php
+          // Actions de contenu — granularité par page (création / modification / suppression)
+          $contentBlocks = [
+            'Actions sur la Timeline'    => ['timeline.create','timeline.edit','timeline.delete'],
+            'Actions sur les Actualités' => ['news.create','news.edit','news.delete'],
+            'Actions sur les Partenaires'=> ['partners.create','partners.edit','partners.delete'],
+            'Actions sur les Albums'     => ['albums.create','albums.edit','albums.delete'],
+          ];
+          $contentLabels = [
+            'create' => 'Création',
+            'edit'   => 'Modification',
+            'delete' => 'Suppression',
+          ];
+          foreach ($contentBlocks as $sectionTitle => $actions): ?>
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase"><?= $sectionTitle ?></td></tr>
+          <?php foreach ($actions as $k):
+            $verb = explode('.', $k)[1];
+            $label = $contentLabels[$verb] ?? $verb;
+          ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+          <?php endforeach; ?>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">Actions sur les pages d'administration</td></tr>
+
+          <?php
+          $adminActions = [
+            'settings.write'    => 'Modifier les Réglages',
+            'mail.write'        => 'Modifier les paramètres mail (Template / Google / Notifications)',
+            'mail.send'         => 'Envoyer des mails (onglet « Envoi de mail »)',
+            'qrcode.write'      => 'Créer / supprimer des QR Codes',
+            'connexions.write'  => 'Bannir / débannir IP, révoquer appareils (Connexions)',
+            'logs.write'        => 'Vider les fichiers de logs',
+          ];
+          foreach ($adminActions as $k => $label): ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      <p class="text-muted small mt-2 mb-0">
+        <strong>Légende :</strong> ✓ = autorisé · ○ = désactivé · <i class="bi bi-lock-fill"></i> = verrouillé (admin uniquement).<br>
+        Donner accès à une page sans cocher l'action correspondante = lecture seule (les boutons d'action sont masqués).
+        <br>Les modifications faites ici changent les défauts ; elles s'appliquent immédiatement à tous les utilisateurs sans permissions personnalisées.
+      </p>
+    </div>
   </div>
 </div>
 
@@ -124,7 +335,7 @@ require 'navbar-data.php';
 
 <!-- Modal modification utilisateur -->
 <div class="modal fade" id="editUserModal" tabindex="-1">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Modifier l'utilisateur</h5>
@@ -133,6 +344,7 @@ require 'navbar-data.php';
       <div class="modal-body">
         <form id="fEditUser" class="row g-3">
           <input type="hidden" name="id" id="editUserId">
+          <input type="hidden" name="permissions" id="editUserPermissions">
           <div class="col-12">
             <label class="form-label">Email</label>
             <input name="email" type="email" id="editUserEmail" class="form-control" required>
@@ -147,6 +359,60 @@ require 'navbar-data.php';
             <label class="form-label">Organisation</label>
             <input name="organisation" id="editUserOrg" class="form-control">
           </div>
+
+          <!-- ═══ Section Permissions ═══ -->
+          <div class="col-12" id="permsSection" style="display:none">
+            <hr>
+            <h6 class="fw-bold mb-2"><i class="bi bi-shield-check me-1"></i>Permissions</h6>
+
+            <!-- ─── État "Admin" : message indiquant l'accès total, sans bouton ─── -->
+            <div id="permsAdminMode" style="display:none">
+              <div class="alert alert-light border d-flex align-items-center py-2 mb-0">
+                <i class="bi bi-shield-fill-check text-success me-2 fs-5"></i>
+                <div class="small">
+                  Ce compte est <strong>administrateur</strong> :
+                  il a <strong>tous les accès</strong> à toutes les pages et toutes les actions.
+                  Aucune permission n'est modifiable.
+                </div>
+              </div>
+            </div>
+
+            <!-- ─── État "Défaut du rôle" : pas de panneau, juste un message + bouton ─── -->
+            <div id="permsDefaultMode">
+              <div class="alert alert-light border d-flex justify-content-between align-items-center py-2 mb-0">
+                <div class="small">
+                  <i class="bi bi-shield-check text-success me-1"></i>
+                  Cet utilisateur utilise les <strong>défauts du rôle</strong>
+                  (modifiables dans le tableau « Droits par rôle » plus haut).
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="btnEnableCustom">
+                  <i class="bi bi-pencil-square me-1"></i>Personnaliser
+                </button>
+              </div>
+            </div>
+
+            <!-- ─── État "Personnalisé" : panneau de cases à cocher ─── -->
+            <div id="permsCustomMode" style="display:none">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge bg-primary"><i class="bi bi-person-gear me-1"></i>Permissions personnalisées</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnResetPerms">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i>Revenir aux défauts du rôle
+                </button>
+              </div>
+              <p class="text-muted small mb-2" id="permsHelpText"></p>
+
+              <div class="mb-3">
+                <label class="form-label fw-semibold small text-uppercase">Pages accessibles</label>
+                <div class="row g-2" id="permsPagesContainer"></div>
+              </div>
+
+              <div class="mb-2" id="permsActionsWrapper">
+                <label class="form-label fw-semibold small text-uppercase">Actions autorisées</label>
+                <div class="row g-2" id="permsActionsContainer"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="col-12 text-end">
             <button type="submit" class="btn btn-primary">Enregistrer</button>
           </div>
@@ -208,6 +474,123 @@ document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
   }, delay);
 });
 
+/* ══ Tableau interactif des droits par rôle ════ */
+(function () {
+  const flashEl = document.getElementById('rolePermsFlash');
+  function showFlash(msg, isError) {
+    flashEl.textContent = msg;
+    flashEl.className = 'alert small py-2 mb-2 ' + (isError ? 'alert-danger' : 'alert-success');
+    flashEl.style.display = '';
+    clearTimeout(flashEl._t);
+    flashEl._t = setTimeout(() => { flashEl.style.display = 'none'; }, 2500);
+  }
+
+  document.querySelectorAll('#rolePermsTable .perm-cell').forEach(function (cell) {
+    if (cell.classList.contains('perm-disabled')) return;
+    cell.addEventListener('click', function () {
+      if (cell.classList.contains('perm-saving')) return;
+      const role  = cell.dataset.role;
+      const type  = cell.dataset.type;
+      const key   = cell.dataset.key;
+      const cur   = cell.dataset.active === '1';
+      const next  = !cur;
+
+      cell.classList.add('perm-saving');
+
+      fetch('../config/api.php?route=role-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
+        body: JSON.stringify({ role, type, key, value: next })
+      })
+      .then(r => r.json())
+      .then(j => {
+        cell.classList.remove('perm-saving');
+        if (j.ok) {
+          cell.dataset.active = next ? '1' : '0';
+          cell.classList.toggle('perm-on', next);
+          cell.classList.toggle('perm-off', !next);
+          cell.textContent = next ? '✓' : '○';
+          cell.classList.add('perm-flash');
+          setTimeout(() => cell.classList.remove('perm-flash'), 600);
+
+          // ▶︎ Synchroniser DEFAULT_PERMS pour que le modal d'édition utilisateur
+          //   utilise les nouveaux défauts plutôt que des valeurs périmées
+          if (typeof DEFAULT_PERMS !== 'undefined' && DEFAULT_PERMS[role]) {
+            const list = DEFAULT_PERMS[role][type] || [];
+            const idx  = list.indexOf(key);
+            if (next && idx === -1) list.push(key);
+            if (!next && idx !== -1) list.splice(idx, 1);
+            DEFAULT_PERMS[role][type] = list;
+          }
+
+          showFlash('Permission mise à jour pour le rôle « ' + role + ' »', false);
+        } else {
+          showFlash('Erreur : ' + (j.err || 'inconnue'), true);
+        }
+      })
+      .catch(err => {
+        cell.classList.remove('perm-saving');
+        showFlash('Erreur réseau : ' + err.message, true);
+      });
+    });
+  });
+})();
+
+/* ══ Permissions catalogue (must match config.php) ════ */
+const ALL_PAGES = [
+  { key: 'dashboard',     label: 'Tableau de bord' },
+  { key: 'timeline',      label: 'Timeline' },
+  { key: 'news',          label: 'Actualit\u00e9s' },
+  { key: 'partners',      label: 'Partenaires' },
+  { key: 'albums',        label: 'Albums' },
+  { key: 'stats',         label: 'Statistiques' },
+  { key: 'setting',       label: 'R\u00e9glages' },
+  { key: 'mail-settings', label: 'Param\u00e8tres mail' },
+  { key: 'qr_code',       label: 'QR Code' },
+  { key: 'connexions',    label: 'Connexions' },
+  { key: 'logs',          label: 'Logs' },
+  { key: 'page_stats',    label: 'Visites' },
+];
+const ALL_ACTIONS = [
+  { key: 'dashboard.create_registration', label: 'Cr\u00e9er un inscrit',     group: 'dashboard' },
+  { key: 'dashboard.edit_registration',   label: 'Modifier un inscrit',       group: 'dashboard' },
+  { key: 'dashboard.delete_registration', label: 'Supprimer un inscrit',      group: 'dashboard' },
+  { key: 'dashboard.archive',             label: 'Archiver l\u0027ann\u00e9e',group: 'dashboard' },
+  { key: 'dashboard.import_excel',        label: 'Importer Excel',            group: 'dashboard' },
+  { key: 'dashboard.export_excel',        label: 'Exporter Excel',            group: 'dashboard' },
+  { key: 'dashboard.scan_qr',             label: 'Scanner QR + remise T-shirts', group: 'dashboard' },
+  // Timeline
+  { key: 'timeline.create',               label: 'Timeline : cr\u00e9er',     group: 'timeline' },
+  { key: 'timeline.edit',                 label: 'Timeline : modifier',       group: 'timeline' },
+  { key: 'timeline.delete',               label: 'Timeline : supprimer',      group: 'timeline' },
+  // Actualités
+  { key: 'news.create',                   label: 'Actualit\u00e9s : cr\u00e9er',  group: 'news' },
+  { key: 'news.edit',                     label: 'Actualit\u00e9s : modifier',    group: 'news' },
+  { key: 'news.delete',                   label: 'Actualit\u00e9s : supprimer',   group: 'news' },
+  // Partenaires
+  { key: 'partners.create',               label: 'Partenaires : cr\u00e9er',  group: 'partners' },
+  { key: 'partners.edit',                 label: 'Partenaires : modifier',    group: 'partners' },
+  { key: 'partners.delete',               label: 'Partenaires : supprimer',   group: 'partners' },
+  // Albums
+  { key: 'albums.create',                 label: 'Albums : cr\u00e9er',       group: 'albums' },
+  { key: 'albums.edit',                   label: 'Albums : modifier',         group: 'albums' },
+  { key: 'albums.delete',                 label: 'Albums : supprimer',        group: 'albums' },
+  // Pages d'admin
+  { key: 'settings.write',                label: 'Modifier les R\u00e9glages',     group: 'admin' },
+  { key: 'mail.write',                    label: 'Modifier les param\u00e8tres mail',group: 'admin' },
+  { key: 'mail.send',                     label: 'Envoyer des mails',              group: 'admin' },
+  { key: 'qrcode.write',                  label: 'Cr\u00e9er/supprimer QR',        group: 'admin' },
+  { key: 'connexions.write',              label: 'G\u00e9rer connexions',          group: 'admin' },
+  { key: 'logs.write',                    label: 'Vider les logs',                 group: 'admin' },
+];
+// Initialisé depuis PHP avec les vrais défauts (BDD ou hardcodés) — mis à jour en live
+// quand l'admin modifie le tableau "Droits par rôle".
+const DEFAULT_PERMS = <?= json_encode([
+  'user'   => $rolePermsDefault['user'],
+  'viewer' => $rolePermsDefault['viewer'],
+  'saisie' => $rolePermsDefault['saisie'],
+]) ?>;
+
 /* ══ Users DataTable (init immediately) ════ */
 let usrTbl = $('#tblUsers').DataTable({
   ajax:{url:'../config/api.php?route=users',dataSrc:''},
@@ -261,6 +644,160 @@ document.getElementById('copyTempPwd').addEventListener('click', function() {
 /* ══ Current edit user data (for modal actions) ════ */
 let currentEditUser = null;
 
+/* ══ Permissions UI helpers ════ */
+function parseStoredPerms(raw) {
+  if (!raw) return null;
+  try {
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (p && Array.isArray(p.pages) && Array.isArray(p.actions)) return p;
+  } catch (e) {}
+  return null;
+}
+
+// État courant du modal
+let _modalCustomMode = false; // true = panneau visible (perms perso) / false = panneau caché (défauts du rôle)
+let _modalDirty      = false; // true si admin a fait une action qui change l'état (toggle perso, reset, perso → custom)
+
+/**
+ * Affiche le mode "admin" : message d'info, pas de bouton, pas de cases
+ */
+function showAdminMode() {
+  document.getElementById('permsAdminMode').style.display   = '';
+  document.getElementById('permsDefaultMode').style.display = 'none';
+  document.getElementById('permsCustomMode').style.display  = 'none';
+  _modalCustomMode = false;
+}
+
+/**
+ * Affiche le mode "défaut du rôle" : panneau caché, juste un message + bouton "Personnaliser"
+ */
+function showDefaultMode() {
+  document.getElementById('permsAdminMode').style.display   = 'none';
+  document.getElementById('permsDefaultMode').style.display = '';
+  document.getElementById('permsCustomMode').style.display  = 'none';
+  _modalCustomMode = false;
+}
+
+/**
+ * Affiche le mode "personnalisé" : panneau visible, cases à cocher pré-remplies
+ */
+function showCustomMode(role, currentPerms) {
+  document.getElementById('permsAdminMode').style.display   = 'none';
+  document.getElementById('permsDefaultMode').style.display = 'none';
+  document.getElementById('permsCustomMode').style.display  = '';
+  _modalCustomMode = true;
+
+  const help = document.getElementById('permsHelpText');
+  help.innerHTML = 'Cochez les <strong>pages accessibles</strong> (lecture) et les <strong>actions autoris\u00e9es</strong> (\u00e9criture). '
+                 + 'L\u0027acc\u00e8s \u00e0 une page sans son action correspondante = lecture seule.';
+
+  // Pages
+  const pagesC = document.getElementById('permsPagesContainer');
+  pagesC.innerHTML = '';
+  ALL_PAGES.forEach(p => {
+    const checked = currentPerms.pages.includes(p.key);
+    pagesC.insertAdjacentHTML('beforeend', `
+      <div class="col-md-4 col-sm-6">
+        <div class="form-check">
+          <input class="form-check-input perm-page" type="checkbox" id="perm_page_${p.key}"
+            value="${p.key}" ${checked ? 'checked' : ''}>
+          <label class="form-check-label" for="perm_page_${p.key}">${p.label}</label>
+        </div>
+      </div>`);
+  });
+
+  // Actions
+  const actionsWrap = document.getElementById('permsActionsWrapper');
+  const actionsC = document.getElementById('permsActionsContainer');
+  actionsWrap.style.display = '';
+  actionsC.innerHTML = '';
+  ALL_ACTIONS.forEach(a => {
+    const checked = currentPerms.actions.includes(a.key);
+    actionsC.insertAdjacentHTML('beforeend', `
+      <div class="col-md-4 col-sm-6">
+        <div class="form-check">
+          <input class="form-check-input perm-action" type="checkbox" id="perm_act_${a.key.replace(/\./g,'_')}"
+            value="${a.key}" ${checked ? 'checked' : ''}>
+          <label class="form-check-label" for="perm_act_${a.key.replace(/\./g,'_')}">${a.label}</label>
+        </div>
+      </div>`);
+  });
+
+  // Sync hidden field on any change
+  const syncHidden = () => {
+    const pages = Array.from(document.querySelectorAll('.perm-page:checked')).map(el => el.value);
+    const actions = Array.from(document.querySelectorAll('.perm-action:checked')).map(el => el.value);
+    document.getElementById('editUserPermissions').value = JSON.stringify({ pages, actions });
+  };
+  const onUserChange = () => {
+    _modalDirty = true;
+    syncHidden();
+  };
+  document.querySelectorAll('.perm-page, .perm-action').forEach(el => el.addEventListener('change', onUserChange));
+  syncHidden();
+}
+
+/**
+ * Point d'entrée appelé à l'ouverture du modal et au changement de rôle.
+ * Décide s'il faut afficher le mode défaut (cas 1) ou le mode personnalisé (cas 2).
+ *
+ * @param {string} role
+ * @param {object|null} storedPerms - permissions stockées en BDD (ou null si défauts)
+ */
+function renderPermsUI(role, storedPerms) {
+  const section = document.getElementById('permsSection');
+  // La carte Permissions est toujours visible (admin compris)
+  section.style.display = '';
+
+  if (role === 'admin') {
+    // Admin : info "tous les accès", pas de bouton, pas de cases
+    document.getElementById('editUserPermissions').value = '';
+    showAdminMode();
+    return;
+  }
+
+  if (storedPerms) {
+    // L'utilisateur a déjà des permissions personnalisées : afficher le panneau
+    showCustomMode(role, storedPerms);
+  } else {
+    // L'utilisateur utilise les défauts du rôle : cacher le panneau
+    showDefaultMode();
+  }
+}
+
+/* ── Changement de rôle ── */
+document.getElementById('editUserRole').addEventListener('change', function () {
+  const role = this.value;
+  // Changement de rôle = on retombe sur les défauts du nouveau rôle (mode défaut)
+  _modalDirty = true; // car le rôle a changé, il faut sauvegarder
+  // On envoie "null" pour permissions afin de garantir qu'on hérite du nouveau rôle
+  document.getElementById('editUserPermissions').value = 'null';
+  renderPermsUI(role, null);
+});
+
+/* ── Bouton "Personnaliser" : passer du mode défaut au mode personnalisé ── */
+document.getElementById('btnEnableCustom').addEventListener('click', function () {
+  const role = document.getElementById('editUserRole').value;
+  const defaults = DEFAULT_PERMS[role] || { pages: [], actions: [] };
+  // Cloner pour ne pas muter DEFAULT_PERMS quand l'admin coche/décoche
+  const seed = {
+    pages:   Array.from(defaults.pages),
+    actions: Array.from(defaults.actions),
+  };
+  _modalDirty = true; // dès qu'on personnalise, il faudra sauvegarder
+  showCustomMode(role, seed);
+  // Initialiser le hidden avec l'état actuel
+  document.getElementById('editUserPermissions').value = JSON.stringify(seed);
+});
+
+/* ── Bouton "Revenir aux défauts du rôle" : repasser en mode défaut + reset BDD ── */
+document.getElementById('btnResetPerms').addEventListener('click', function () {
+  const role = document.getElementById('editUserRole').value;
+  _modalDirty = true; // on doit dire au serveur de remettre à NULL
+  document.getElementById('editUserPermissions').value = 'null';
+  renderPermsUI(role, null);
+});
+
 /* ══ Row click -> open edit modal ════ */
 $('#tblUsers tbody').on('click', 'tr', function () {
   const data = usrTbl.row(this).data();
@@ -272,6 +809,15 @@ $('#tblUsers tbody').on('click', 'tr', function () {
   $('#editUserEmail').val(data.email);
   $('#editUserRole').val(data.role);
   $('#editUserOrg').val(data.organisation);
+
+  // Reset état dirty + hidden field à chaque ouverture
+  _modalDirty = false;
+  _modalCustomMode = false;
+  document.getElementById('editUserPermissions').value = '';
+
+  // Permissions stockées en BDD ? Si oui → mode custom. Sinon → mode défaut.
+  const stored = parseStoredPerms(data.permissions);
+  renderPermsUI(data.role, stored);
 
   // Toggle active button label
   const toggleBtn = document.getElementById('btnToggleActive');
@@ -288,6 +834,12 @@ $('#tblUsers tbody').on('click', 'tr', function () {
 $('#fEditUser').on('submit', function (e) {
   e.preventDefault();
   const fd = new FormData(this);
+
+  // Si l'admin n'a rien modifié dans la section permissions, on n'envoie pas le champ
+  // → l'utilisateur conserve son état actuel (NULL = défauts du rôle, ou ses perms perso)
+  if (!_modalDirty) {
+    fd.delete('permissions');
+  }
 
   fetch('../config/api.php?route=users', {
     method: 'PUT',

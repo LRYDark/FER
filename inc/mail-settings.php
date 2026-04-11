@@ -2,7 +2,19 @@
 require '../config/config.php';
 require_once '../config/csrf.php';
 require 'navbar-data.php';
-requireRole(['admin']);
+requirePage('mail-settings');
+$role = currentRole();
+$canWrite = canDoAction('mail.write'); // Template + Google + Notifications
+$canSend  = canDoAction('mail.send');  // Envoi de mail
+// Pas de $pageReadOnly global : on contrôle l'affichage onglet par onglet
+
+// Bloquer toute action POST si l'utilisateur n'a aucun des deux droits
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite && !$canSend) {
+    http_response_code(403);
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (lecture seule).'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
 
 // ── Load settings ──
 $stmt = $pdo->prepare('SELECT * FROM setting WHERE id = 1 LIMIT 1');
@@ -508,6 +520,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
 }
 
 $activeSubTab = $_POST['active_subtab'] ?? ($_GET['tab'] ?? 'envoi');
+
+// Forcer un onglet par défaut accessible à l'utilisateur :
+//   - 'envoi'  → nécessite mail.send
+//   - 'template' / 'google' / 'notifications' → nécessitent mail.write
+$envoiAllowed     = $canSend;
+$configAllowed    = $canWrite;
+$tabPermAllowed = [
+    'envoi'         => $envoiAllowed,
+    'template'      => $configAllowed,
+    'google'        => $configAllowed,
+    'notifications' => $configAllowed,
+];
+if (empty($tabPermAllowed[$activeSubTab])) {
+    // L'onglet demandé n'est pas autorisé : prendre le premier accessible
+    foreach ($tabPermAllowed as $k => $allowed) {
+        if ($allowed) { $activeSubTab = $k; break; }
+    }
+}
 $activeMailView = $_POST['mail_view'] ?? ($mail_provider === 'google' ? 'google' : 'smtp');
 
 // Build full config JSON for JS
@@ -731,15 +761,34 @@ $jsConfig = json_encode([
 
 <h1 class="mb-3 fw-bold"><i class="bi bi-envelope me-2"></i>Paramètres mail</h1>
 
+<?php if (!$canWrite && !$canSend): ?>
+  <!-- Accès en lecture seule : aucune section disponible -->
+  <div class="text-center py-5 my-4" style="background:#fff;border-radius:12px;box-shadow:0 0 25px rgba(0,0,0,.05)">
+    <i class="bi bi-shield-lock" style="font-size:4rem;color:#94a3b8"></i>
+    <h4 class="mt-3 mb-2 fw-bold">Accès en lecture seule</h4>
+    <p class="text-muted mb-0 px-4" style="max-width:560px;margin:0 auto">
+      Vous avez accès à cette page en consultation uniquement.<br>
+      Les sections de configuration des emails nécessitent le droit
+      <strong>« Modifier les paramètres mail »</strong> ou <strong>« Envoyer des mails »</strong>.<br>
+      Contactez un administrateur pour obtenir une de ces permissions.
+    </p>
+  </div>
+<?php else: ?>
+
 <!-- ═══ TABS ═══ -->
 <ul class="nav settings-tabs" id="mailSettingsTabs">
+  <?php if ($canSend): ?>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='envoi'?'active':'' ?>" href="#" data-pane="paneEnvoi">Envoi de mail</a></li>
+  <?php endif; ?>
+  <?php if ($canWrite): ?>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='template'?'active':'' ?>" href="#" data-pane="paneTemplate">Template email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='google'?'active':'' ?>" href="#" data-pane="paneGoogle">Google / Email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='notifications'?'active':'' ?>" href="#" data-pane="paneNotifications">Notifications</a></li>
+  <?php endif; ?>
 </ul>
 
-<!-- ═══ ENVOI DE MAIL PANE ═══ -->
+<!-- ═══ ENVOI DE MAIL PANE (mail.send) ═══ -->
+<?php if ($canSend): ?>
 <div class="ed-pane <?= $activeSubTab==='envoi'?'active':'' ?>" id="paneEnvoi">
 <div class="bg-white p-4" style="border-radius:12px;">
   <form id="fMail">
@@ -822,8 +871,10 @@ $jsConfig = json_encode([
   </form>
 </div>
 </div><!-- /paneEnvoi -->
+<?php endif; // $canSend ?>
 
-<!-- ═══ TEMPLATE PANE ═══ -->
+<!-- ═══ TEMPLATE PANE (mail.write) ═══ -->
+<?php if ($canWrite): ?>
 <div class="ed-pane <?= $activeSubTab==='template'?'active':'' ?>" id="paneTemplate">
 <div class="ed-wrap">
 
@@ -1338,6 +1389,10 @@ $jsConfig = json_encode([
     </div>
   </div>
 </div>
+
+<?php endif; // $canWrite — fin Template + Google + Notifications ?>
+
+<?php endif; // !$canWrite && !$canSend — fin du else global ?>
 
 <!-- ═══ JAVASCRIPT ═══ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

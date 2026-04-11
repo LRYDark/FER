@@ -9,12 +9,11 @@ require '../inc/navbar-data.php';
 $hasStatusCol = false;
 try { $pdo->query("SELECT status FROM photo_years LIMIT 0"); $hasStatusCol = true; } catch (PDOException $e) {}
 
-// Check preview mode
+// Check preview mode : nécessite session valide + accès page 'albums'
 $isPreview = false;
 $previewYearId = isset($_GET['preview_year']) ? (int)$_GET['preview_year'] : 0;
 if ($previewYearId > 0) {
-    if (session_status() === PHP_SESSION_NONE) { session_start(); }
-    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    if (!isset($_SESSION['uid']) || !canAccessPage('albums')) {
         header('HTTP/1.0 403 Forbidden'); echo 'Accès refusé'; exit;
     }
     $isPreview = true;

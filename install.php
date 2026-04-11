@@ -592,6 +592,7 @@ function getCreateTableStatements(): array
           `notify_toggles` TEXT DEFAULT NULL,
           `accueil_custom_content` MEDIUMTEXT DEFAULT NULL,
           `accueil_custom_position` ENUM('off','after_inscrits','after_partners') NOT NULL DEFAULT 'off',
+          `role_permissions` TEXT DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -616,6 +617,7 @@ function getCreateTableStatements(): array
           `locked_at` DATETIME DEFAULT NULL,
           `twofa_code` VARCHAR(6) DEFAULT NULL,
           `twofa_expires` DATETIME DEFAULT NULL,
+          `permissions` TEXT DEFAULT NULL,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`),
           UNIQUE KEY `email` (`email`)

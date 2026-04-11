@@ -36,6 +36,8 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `notify_toggles` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `accueil_custom_content` MEDIUMTEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `accueil_custom_position` ENUM('off','after_inscrits','after_partners') NOT NULL DEFAULT 'off'",
+    "ALTER TABLE `users` ADD COLUMN `permissions` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `role_permissions` TEXT DEFAULT NULL",
 ];
 
 $results = [];
@@ -76,6 +78,127 @@ foreach ($migrations as $sql) {
             $results[] = ['status' => 'error', 'sql' => $sql, 'msg' => $msg];
         }
     }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Migration des permissions content.* vers la granularité par page
+ * (news/timeline/partners/albums).create/edit/delete
+ *
+ * Convertit chaque entrée content.create / content.edit / content.delete
+ * trouvée en BDD en 4 entrées granulaires (une par page de contenu).
+ * S'applique à :
+ *   - users.permissions   (permissions personnalisées par utilisateur)
+ *   - setting.role_permissions  (défauts par rôle)
+ * ───────────────────────────────────────────────────────────────────────── */
+function migrateContentPermissions(array $perms): array
+{
+    if (!isset($perms['actions']) || !is_array($perms['actions'])) return $perms;
+    $map = [
+        'content.create' => ['news.create','timeline.create','partners.create','albums.create'],
+        'content.edit'   => ['news.edit','timeline.edit','partners.edit','albums.edit'],
+        'content.delete' => ['news.delete','timeline.delete','partners.delete','albums.delete'],
+    ];
+    $newActions = [];
+    foreach ($perms['actions'] as $a) {
+        if (isset($map[$a])) {
+            foreach ($map[$a] as $granular) $newActions[] = $granular;
+        } else {
+            $newActions[] = $a;
+        }
+    }
+    $perms['actions'] = array_values(array_unique($newActions));
+    return $perms;
+}
+
+// Migration users.permissions
+try {
+    $stmt = $pdo->query("SELECT id, permissions FROM users WHERE permissions IS NOT NULL AND permissions != ''");
+    $migratedUsers = 0;
+    foreach ($stmt as $row) {
+        $perms = json_decode($row['permissions'], true);
+        if (!is_array($perms)) continue;
+        $had = json_encode($perms);
+        $perms = migrateContentPermissions($perms);
+        $now = json_encode($perms);
+        if ($had !== $now) {
+            $pdo->prepare("UPDATE users SET permissions = ? WHERE id = ?")->execute([$now, $row['id']]);
+            $migratedUsers++;
+        }
+    }
+    $results[] = ['status' => 'success', 'sql' => 'MIGRATE users.permissions content.* → granular', 'msg' => "$migratedUsers utilisateur(s) migré(s)"];
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => 'MIGRATE users.permissions', 'msg' => $e->getMessage()];
+}
+
+// Migration login_banned_ips : la colonne d'IP doit s'appeler `ip`
+//   Anciens schémas peuvent avoir `ip_address` → on rename
+//   Si la table existe sans aucune colonne IP → on ajoute
+try {
+    $cols = $pdo->query("SHOW COLUMNS FROM login_banned_ips")->fetchAll(PDO::FETCH_COLUMN);
+    $hasIp        = in_array('ip', $cols, true);
+    $hasIpAddress = in_array('ip_address', $cols, true);
+    if (!$hasIp && $hasIpAddress) {
+        $pdo->exec("ALTER TABLE `login_banned_ips` CHANGE `ip_address` `ip` VARCHAR(45) NOT NULL");
+        $results[] = ['status' => 'success', 'sql' => 'RENAME login_banned_ips.ip_address → ip', 'msg' => 'Colonne renommée'];
+    } elseif (!$hasIp && !$hasIpAddress) {
+        $pdo->exec("ALTER TABLE `login_banned_ips` ADD COLUMN `ip` VARCHAR(45) NOT NULL");
+        $results[] = ['status' => 'success', 'sql' => 'ADD COLUMN login_banned_ips.ip', 'msg' => 'Colonne ajoutée'];
+    } else {
+        $results[] = ['status' => 'skip', 'sql' => 'login_banned_ips.ip', 'msg' => 'Déjà présente'];
+    }
+
+    // Vérifier aussi que la colonne expires_at existe
+    $cols2 = $pdo->query("SHOW COLUMNS FROM login_banned_ips")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('expires_at', $cols2, true)) {
+        $pdo->exec("ALTER TABLE `login_banned_ips` ADD COLUMN `expires_at` DATETIME NULL DEFAULT NULL");
+        $results[] = ['status' => 'success', 'sql' => 'ADD COLUMN login_banned_ips.expires_at', 'msg' => 'Colonne ajoutée'];
+    } else {
+        $results[] = ['status' => 'skip', 'sql' => 'login_banned_ips.expires_at', 'msg' => 'Déjà présente'];
+    }
+
+    // Vérifier la UNIQUE KEY sur ip (évite les doublons)
+    $idx = $pdo->query("SHOW INDEX FROM login_banned_ips WHERE Column_name = 'ip'")->fetchAll(PDO::FETCH_ASSOC);
+    $hasUnique = false;
+    foreach ($idx as $i) { if ((int)$i['Non_unique'] === 0) { $hasUnique = true; break; } }
+    if (!$hasUnique) {
+        // Avant d'ajouter UNIQUE, on déduplique
+        $pdo->exec("DELETE t1 FROM login_banned_ips t1
+                    INNER JOIN login_banned_ips t2
+                    WHERE t1.id < t2.id AND t1.ip = t2.ip");
+        $pdo->exec("ALTER TABLE `login_banned_ips` ADD UNIQUE KEY `idx_ip` (`ip`)");
+        $results[] = ['status' => 'success', 'sql' => 'ADD UNIQUE KEY login_banned_ips.idx_ip', 'msg' => 'Index unique ajouté'];
+    } else {
+        $results[] = ['status' => 'skip', 'sql' => 'login_banned_ips.idx_ip', 'msg' => 'Déjà unique'];
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => 'login_banned_ips schema fix', 'msg' => $e->getMessage()];
+}
+
+// Migration setting.role_permissions
+try {
+    $row = $pdo->query("SELECT role_permissions FROM setting WHERE id = 1")->fetchColumn();
+    if ($row) {
+        $data = json_decode($row, true);
+        if (is_array($data)) {
+            $had = json_encode($data);
+            foreach (['user','viewer','saisie'] as $r) {
+                if (isset($data[$r])) {
+                    $data[$r] = migrateContentPermissions($data[$r]);
+                }
+            }
+            $now = json_encode($data);
+            if ($had !== $now) {
+                $pdo->prepare("UPDATE setting SET role_permissions = ? WHERE id = 1")->execute([$now]);
+                $results[] = ['status' => 'success', 'sql' => 'MIGRATE setting.role_permissions content.* → granular', 'msg' => 'OK'];
+            } else {
+                $results[] = ['status' => 'skip', 'sql' => 'MIGRATE setting.role_permissions', 'msg' => 'Rien à migrer'];
+            }
+        }
+    } else {
+        $results[] = ['status' => 'skip', 'sql' => 'MIGRATE setting.role_permissions', 'msg' => 'Aucune conf à migrer'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => 'MIGRATE setting.role_permissions', 'msg' => $e->getMessage()];
 }
 
 $countOk   = count(array_filter($results, fn($r) => $r['status'] === 'success'));

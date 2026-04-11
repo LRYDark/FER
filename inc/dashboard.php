@@ -1,8 +1,17 @@
 <?php
 require '../config/config.php';
 require_once '../config/csrf.php';
-requireRole(['admin','user','viewer']);
+requirePage('dashboard');
 $role = currentRole();
+$canCreateReg  = canDoAction('dashboard.create_registration');
+$canEditReg    = canDoAction('dashboard.edit_registration');
+$canDeleteReg  = canDoAction('dashboard.delete_registration');
+$canArchive    = canDoAction('dashboard.archive');
+$canImportXls  = canDoAction('dashboard.import_excel');
+$canExportXls  = canDoAction('dashboard.export_excel');
+$canScanQr     = canDoAction('dashboard.scan_qr');
+// Le mode "Remise T-shirts" est accessible si on peut scanner OU si on peut éditer
+$canTshirtMode = $canScanQr || $canEditReg;
 
 // Charger les données pour la navbar
 require 'navbar-data.php';
@@ -232,13 +241,13 @@ tr.filters select{
       <h1 class="mb-0 fw-bold"><i class="bi bi-house me-2"></i>Inscriptions</h1>
 
       <div class="dashboard-actions d-none d-lg-flex flex-wrap gap-2">
-        <?php if($role!=='viewer'): ?>
+        <?php if($canCreateReg): ?>
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
         <?php endif; ?>
-        <?php if($role==='admin'): ?>
+        <?php if($canImportXls): ?>
           <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel</button>
         <?php endif; ?>
-        <?php if($role==='admin' || $role==='user'): ?>
+        <?php if($canExportXls): ?>
           <button id="btnExport" class="btn btn-info">Export Excel</button>
             <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.getElementById('btnExport').addEventListener('click', () => {
@@ -247,7 +256,7 @@ tr.filters select{
             });
             </script>
           <?php endif; ?>
-          <?php if($role==='admin'): ?>
+          <?php if($canArchive): ?>
             <button id="btnArchiveNow" class="btn btn-danger">Archiver&nbsp;<?= date('Y') ?></button>
 
             <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -446,6 +455,9 @@ tr.filters select{
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 const userRole = '<?= $role ?>';
+const canEditReg     = <?= $canEditReg ? 'true' : 'false' ?>;
+const canScanQr      = <?= $canScanQr ? 'true' : 'false' ?>;
+const canTshirtMode  = <?= $canTshirtMode ? 'true' : 'false' ?>;
 let tableData = []; // Pour stocker les données triées par date
 
 /* ══ Outils ════ */
@@ -497,7 +509,8 @@ const tbl=$('#tbl').DataTable({
       if ($col === 'tshirt_size'): ?>
     {data:'tshirt_size',title:'<?= $lbl ?>',render:(v,t,r)=>{
       if(t!=='display') return v??''; if(!tshirtMode) return v??'';
-      if(userRole === 'viewer') return `<span class="text-muted" style="font-style:italic;opacity:.6">${v||'-'}</span>`;
+      // Le dropdown est interactif si l'utilisateur peut éditer OU s'il a le droit scanner QR
+      if(!canEditReg && !canScanQr) return `<span class="text-muted" style="font-style:italic;opacity:.6">${v||'-'}</span>`;
       const sz=<?= json_encode(array_map('trim', explode(',', $af['options_list'] ?? '-,XS,S,M,L,XL,XXL'))) ?>;
       return `<select class="form-select form-select-sm tshirt-dd" data-id="${r.id}">${sz.map(s=>`<option${s===v?' selected':''}>${s}</option>`).join('')}</select>`;
     }},
@@ -511,7 +524,7 @@ const tbl=$('#tbl').DataTable({
       return val;
     }, width:'110px', className:'text-nowrap text-center'},
     {data:'origine',title:'Origine',defaultContent:''}
-    <?php if($role !== 'viewer'): ?>,
+    <?php if($canEditReg || $canDeleteReg): ?>,
     {
       data:null,
       title:'Actions',
@@ -520,8 +533,10 @@ const tbl=$('#tbl').DataTable({
       width:'120px',
       render: function(data, type, row) {
         let buttons = '';
-        <?php if($role==='admin'): ?>
+        <?php if($canEditReg): ?>
         buttons += '<button class="btn btn-sm btn-outline-primary edit me-1" title="Modifier"><i class="bi bi-pencil"></i></button>';
+        <?php endif; ?>
+        <?php if($canDeleteReg): ?>
         buttons += '<button class="btn btn-sm btn-outline-danger delete-row" title="Supprimer"><i class="bi bi-trash3"></i></button>';
         <?php endif; ?>
         return `<div class="action-buttons">${buttons}</div>`;
@@ -671,7 +686,7 @@ applyTshirtMode();
 
 /* ══ MAJ taille T-shirt ════ */
 $('#tbl').on('change','.tshirt-dd',function(){
-  if(userRole === 'viewer') {
+  if(!canEditReg && !canScanQr) {
     alert('Vous n\'avez pas les droits pour modifier les tailles de t-shirts.');
     return;
   }

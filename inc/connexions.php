@@ -1,9 +1,20 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('connexions');
 $role = currentRole();
+$canWrite     = canDoAction('connexions.write');
+$readOnly     = !$canWrite; // pour rétro-compatibilité avec les conditions HTML existantes
+$pageReadOnly = !$canWrite;
 require 'navbar-data.php';
+
+// Bloquer toute action POST si pas le droit d'écriture
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
+    http_response_code(403);
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (lecture seule).'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
 
 // ── Migration checks ────────────────────────────────────────
 $logsAvailable = false;
@@ -88,6 +99,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 <title>Connexions</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
@@ -178,7 +190,8 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
           <tr>
             <td><?= htmlspecialchars($log['created_at'] ?? '') ?></td>
             <td><?= htmlspecialchars($log['email'] ?? '') ?></td>
-            <td><?= htmlspecialchars($log['ip_address'] ?? $log['ip'] ?? '') ?></td>
+            <?php $logIp = $log['ip_address'] ?? $log['ip'] ?? ''; ?>
+            <td class="ip-cell" data-ip="<?= htmlspecialchars($logIp) ?>"><code><?= htmlspecialchars($logIp) ?></code><span class="ip-geo text-muted small ms-1"></span></td>
             <td class="ua-cell" title="<?= htmlspecialchars($log['user_agent'] ?? '') ?>">
               <?= htmlspecialchars(mb_strimwidth($log['user_agent'] ?? '', 0, 60, '...')) ?>
             </td>
@@ -208,6 +221,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
   <?php else: ?>
     <!-- Add ban form -->
     <div class="card mb-4">
+      <?php if (!$readOnly): ?>
       <div class="card-body">
         <h6 class="card-title mb-3"><i class="bi bi-plus-circle me-1"></i>Bannir une adresse IP</h6>
         <form method="post" class="row g-3 align-items-end">
@@ -228,6 +242,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
           </div>
         </form>
       </div>
+      <?php endif; ?>
     </div>
 
     <!-- Banned IPs table -->
@@ -253,7 +268,8 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
               $isExpired  = $isAutoban && strtotime($ban['expires_at']) <= time();
             ?>
             <tr<?= $isExpired ? ' class="text-muted"' : '' ?>>
-              <td><code><?= htmlspecialchars($ban['ip'] ?? '') ?></code></td>
+              <?php $banIp = $ban['ip'] ?? $ban['ip_address'] ?? ''; ?>
+              <td class="ip-cell" data-ip="<?= htmlspecialchars($banIp) ?>"><code><?= htmlspecialchars($banIp) ?></code><span class="ip-geo text-muted small ms-1"></span></td>
               <td><?= htmlspecialchars($ban['reason'] ?? '-') ?></td>
               <td>
                 <?php if ($isAutoban): ?>
@@ -270,22 +286,26 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
               </td>
               <td><?= htmlspecialchars($ban['banned_at'] ?? '') ?></td>
               <td>
-                <?php if (!$isExpired): ?>
-                <form method="post" style="display:inline" data-confirm="Débannir cette IP ?">
-                  <?= csrf_field() ?>
-                  <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
-                  <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-success">
-                    <i class="bi bi-unlock me-1"></i>Débannir
-                  </button>
-                </form>
+                <?php if (!$readOnly): ?>
+                  <?php if (!$isExpired): ?>
+                  <form method="post" style="display:inline" data-confirm="Débannir cette IP ?">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
+                    <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-success">
+                      <i class="bi bi-unlock me-1"></i>Débannir
+                    </button>
+                  </form>
+                  <?php else: ?>
+                  <form method="post" style="display:inline" data-confirm="Supprimer cette entrée ?">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
+                    <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-secondary">
+                      <i class="bi bi-trash me-1"></i>Supprimer
+                    </button>
+                  </form>
+                  <?php endif; ?>
                 <?php else: ?>
-                <form method="post" style="display:inline" data-confirm="Supprimer cette entrée ?">
-                  <?= csrf_field() ?>
-                  <input type="hidden" name="ban_id" value="<?= (int)$ban['id'] ?>">
-                  <button type="submit" name="unban_ip" value="1" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-trash me-1"></i>Supprimer
-                  </button>
-                </form>
+                  <span class="text-muted small">—</span>
                 <?php endif; ?>
               </td>
             </tr>
@@ -307,7 +327,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
   <?php else: ?>
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0">Appareils de confiance</h5>
-      <?php if (!empty($devices)): ?>
+      <?php if (!empty($devices) && !$readOnly): ?>
         <form method="post" data-confirm="Révoquer TOUS les appareils de confiance ?">
           <?= csrf_field() ?>
           <button type="submit" name="revoke_all_devices" value="1" class="btn btn-sm btn-outline-danger">
@@ -336,13 +356,15 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
             <?php foreach ($devices as $device): ?>
             <tr>
               <td><?= htmlspecialchars($device['email'] ?? 'Inconnu') ?></td>
-              <td><?= htmlspecialchars($device['ip_address'] ?? '') ?></td>
+              <?php $devIp = $device['ip_address'] ?? ''; ?>
+              <td class="ip-cell" data-ip="<?= htmlspecialchars($devIp) ?>"><code><?= htmlspecialchars($devIp) ?></code><span class="ip-geo text-muted small ms-1"></span></td>
               <td class="ua-cell" title="<?= htmlspecialchars($device['user_agent'] ?? '') ?>">
                 <?= htmlspecialchars(mb_strimwidth($device['user_agent'] ?? '', 0, 60, '...')) ?>
               </td>
               <td><?= htmlspecialchars($device['created_at'] ?? '') ?></td>
               <td><?= htmlspecialchars($device['expires_at'] ?? '') ?></td>
               <td>
+                <?php if (!$readOnly): ?>
                 <form method="post" style="display:inline" data-confirm="Révoquer cet appareil ?">
                   <?= csrf_field() ?>
                   <input type="hidden" name="device_id" value="<?= (int)$device['id'] ?>">
@@ -350,6 +372,9 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
                     <i class="bi bi-x-circle me-1"></i>Révoquer
                   </button>
                 </form>
+                <?php else: ?>
+                  <span class="text-muted small">—</span>
+                <?php endif; ?>
               </td>
             </tr>
             <?php endforeach; ?>
@@ -378,6 +403,55 @@ document.addEventListener('DOMContentLoaded', function() {
       bsAlert.close();
     }, delay);
   });
+
+  // ══════════════════════════════════════════════════════════════
+  // GÉOLOCALISATION IP — appel serveur + cache fichier (côté serveur)
+  // ══════════════════════════════════════════════════════════════
+  (function () {
+    function applyGeo(ip, geo) {
+      const cells = document.querySelectorAll('.ip-cell[data-ip="' + CSS.escape(ip) + '"] .ip-geo');
+      let label = '';
+      if (geo && geo.country === '__local__') {
+        label = ' (Réseau local)';
+      } else if (geo && (geo.city || geo.country)) {
+        const parts = [];
+        if (geo.city)    parts.push(geo.city);
+        if (geo.country) parts.push(geo.country);
+        label = ' (' + parts.join(', ') + ')';
+      }
+      cells.forEach(el => { el.textContent = label; });
+    }
+
+    // Récupérer toutes les IPs uniques visibles
+    const allIps = new Set();
+    document.querySelectorAll('.ip-cell[data-ip]').forEach(el => {
+      const ip = el.dataset.ip;
+      if (ip) allIps.add(ip);
+    });
+    if (allIps.size === 0) return;
+
+    // Récupérer le token CSRF (nécessaire pour les POST vers api.php)
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    // Appel batch unique vers notre API serveur (qui gère le cache fichier)
+    fetch('../config/api.php?route=ip-geo', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken
+      },
+      body: JSON.stringify({ ips: Array.from(allIps) })
+    })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (j && j.ok && j.geo) {
+        Object.keys(j.geo).forEach(ip => applyGeo(ip, j.geo[ip]));
+      }
+    })
+    .catch(() => { /* silent */ });
+  })();
 
   // ── Tab switching ──
   document.querySelectorAll('#connexionsTabs .nav-link').forEach(function(link) {

@@ -1,9 +1,36 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('albums');
 $role = currentRole();
+$canCreate = canDoAction('albums.create');
+$canEdit   = canDoAction('albums.edit');
+$canDelete = canDoAction('albums.delete');
+$readOnly  = !$canCreate && !$canEdit && !$canDelete;
 require 'navbar-data.php';
+
+// ─── Bloc de protection des actions d'écriture ───
+$writeOps = [
+    'add_album'             => 'albums.create',
+    'add_year'              => 'albums.create',
+    'update_album'          => 'albums.edit',
+    'update_year'           => 'albums.edit',
+    'reorder_albums'        => 'albums.edit',
+    'restore_year'          => 'albums.edit',
+    'restore_album'         => 'albums.edit',
+    'delete_album'          => 'albums.delete',
+    'delete_year'           => 'albums.delete',
+    'permanent_delete_album'=> 'albums.delete',
+    'permanent_delete_year' => 'albums.delete',
+];
+foreach ($writeOps as $__op => $__perm) {
+    if (isset($_POST[$__op]) && !canDoAction($__perm)) {
+        http_response_code(403);
+        $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée.'];
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
+    }
+}
 
 try {
   $stmt = $pdo->prepare(
@@ -705,7 +732,7 @@ try {
             </div>
             <?php endif; ?>
 
-            <?php if (!$isTrashed): ?>
+            <?php if (!$isTrashed && $canCreate): ?>
             <!-- Bouton pour ajouter une année -->
             <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">
               <i class="bi bi-plus-lg"></i> Ajouter une Année
@@ -730,6 +757,7 @@ try {
                   <span class="badge album-count-badge bg-secondary"><?= $albumCount ?> album<?= $albumCount > 1 ? 's' : '' ?></span>
                 </div>
                 <div class="d-flex gap-2">
+                  <?php if ($canEdit): ?>
                   <form method="post">
                     <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -737,6 +765,8 @@ try {
                       <i class="bi bi-arrow-counterclockwise"></i> Restaurer
                     </button>
                   </form>
+                  <?php endif; ?>
+                  <?php if ($canDelete): ?>
                   <form method="post" data-confirm="Supprimer DÉFINITIVEMENT cette année et tous ses albums ? Les fichiers images seront supprimés. Cette action est irréversible.">
                     <?= csrf_field() ?>
                     <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -744,6 +774,7 @@ try {
                       <i class="bi bi-x-circle"></i> Supprimer définitivement
                     </button>
                   </form>
+                  <?php endif; ?>
                 </div>
               </div>
 
@@ -763,9 +794,11 @@ try {
                   <a href="../public/photos.php?preview_year=<?= $year['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu">
                     <i class="bi bi-eye"></i> Aperçu
                   </a>
+                  <?php if ($canEdit || $canCreate): ?>
                   <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalYear<?= $year['id'] ?>">
                     <i class="bi bi-pencil"></i> Modifier
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
 
@@ -801,8 +834,11 @@ try {
                         <?php endif; ?>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+                          <?php if ($canEdit): ?>
                           <button type="submit" name="update_year" class="btn btn-primary">Enregistrer</button>
+                          <?php else: ?><span></span><?php endif; ?>
                     </form>
+                          <?php if ($canDelete): ?>
                           <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -810,8 +846,10 @@ try {
                               <i class="bi bi-trash3"></i> <?= $migrationDone ? 'Mettre en corbeille' : 'Supprimer' ?>
                             </button>
                           </form>
+                          <?php endif; ?>
                         </div>
 
+                    <?php if ($canCreate): ?>
                     <h6>Ajouter un nouvel album</h6>
                     <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff" class="add-album-form">
                         <?= csrf_field() ?>
@@ -860,6 +898,7 @@ try {
                           <small class="text-muted"><i class="bi bi-info-circle"></i> Un dossier sera cree sur le serveur. Vous pourrez ajouter des photos apres la creation.</small>
                         </div>
                     </form>
+                    <?php endif; ?>
 
                     <div class="mb-3"></div>
 
@@ -912,8 +951,12 @@ try {
                                   <?php if ($isLocalAlbum): ?>
                                   <button type="button" class="btn btn-sm btn-outline-primary btn-manage-photos" data-album-id="<?= $album['id'] ?>" data-album-title="<?= htmlspecialchars($album['album_title']) ?>" title="Gerer les photos"><i class="bi bi-camera"></i></button>
                                   <?php endif; ?>
+                                  <?php if ($canEdit): ?>
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
+                                  <?php endif; ?>
+                                  <?php if ($canDelete): ?>
                                   <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="Supprimer" data-confirm="Supprimer définitivement cet album ?"><i class="bi bi-x-lg"></i></button>
+                                  <?php endif; ?>
                                 </div>
                               </div>
                             </div>

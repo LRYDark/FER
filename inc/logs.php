@@ -1,9 +1,19 @@
 <?php
 require '../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
-requireRole(['admin']);
+requirePage('logs');
 $role = currentRole();
+$canWrite     = canDoAction('logs.write');
+$pageReadOnly = !$canWrite;
 require 'navbar-data.php';
+
+// Bloquer toute action POST si pas le droit d'écriture
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
+    http_response_code(403);
+    $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (lecture seule).'];
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
 
 // ── Fichiers de logs ────────────────────────────────────────
 $logFiles = [
@@ -297,7 +307,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
         <div class="d-flex align-items-center gap-2">
           <span class="badge-size"><?= $sizeStr ?></span>
           <span class="badge-lines"><?= $lines ?> ligne<?= $lines > 1 ? 's' : '' ?></span>
-          <?php if (!$isEmpty): ?>
+          <?php if (!$isEmpty && $canWrite): ?>
             <form method="post" class="d-inline" data-confirm="Vider le fichier « <?= htmlspecialchars($lf['name']) ?> » ?">
               <?= csrf_field() ?>
               <input type="hidden" name="clear_log" value="<?= htmlspecialchars($lf['key']) ?>">

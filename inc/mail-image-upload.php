@@ -7,7 +7,12 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
 
 header('Content-Type: application/json');
-requireRole(['admin']);
+requirePage('mail-settings');
+if (!canDoAction('mail.write')) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Action non autorisée (lecture seule).']);
+    exit;
+}
 
 if (!csrf_verify()) {
     http_response_code(403);

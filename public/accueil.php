@@ -122,11 +122,10 @@ if ($autoClose && $now >= $autoClose) { $accueil_active = 0; }
 
 $link_cancer = $data['link_cancer'] ?? null;
 
-// Timeline preview mode
+// Timeline preview mode : nécessite session valide + accès page 'timeline'
 $isTimelinePreview = isset($_GET['preview_timeline']) && $_GET['preview_timeline'] == '1';
 if ($isTimelinePreview) {
-    if (session_status() === PHP_SESSION_NONE) { session_start(); }
-    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    if (!isset($_SESSION['uid']) || !canAccessPage('timeline')) {
         $isTimelinePreview = false;
     }
 }
