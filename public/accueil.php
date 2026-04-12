@@ -283,7 +283,7 @@ function generateTimelineSVG(int $count): array {
     body.has-flash-banner .mobile-header{
       top: 38px;
     }
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       body.has-flash-banner{
         padding-top: 110px !important;
       }
@@ -336,7 +336,7 @@ function generateTimelineSVG(int $count): array {
     /* ===== Hero PC/Mobile toggle ===== */
     .hero-mobile{ display: none; }
     .hero-pc{ display: block; }
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .hero-pc{ display: none; }
       .hero-mobile{ display: block; }
     }
@@ -381,6 +381,7 @@ function generateTimelineSVG(int $count): array {
       align-items:center;
       gap:10px;
       padding: 14px 0;
+      min-height: 80px;
       border-radius: 0;
       background: #ffffff;
       border: 0;
@@ -392,7 +393,7 @@ function generateTimelineSVG(int $count): array {
       transition: none;
     }
 
-    @media (min-width: 981px){
+    @media (min-width: 1041px){
       body.nav-scrolled .floating-nav{
         position: fixed;
         top: 18px;
@@ -689,8 +690,8 @@ function generateTimelineSVG(int $count): array {
     /* Grid 2 colonnes : contenu + image */
     .mega-grid{
       display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 48px;
+      grid-template-columns: 1fr 260px;
+      gap: 36px;
       align-items: start;
     }
 
@@ -762,7 +763,7 @@ function generateTimelineSVG(int $count): array {
       place-items: center;
       background: rgba(244,33,130,.08);
       flex: 0 0 auto;
-      font-size: 20px;
+      color: var(--primary, #f42182);
     }
 
     .mega-link:hover .micon{
@@ -793,24 +794,31 @@ function generateTimelineSVG(int $count): array {
     .mega-featured{
       background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
       border-radius: var(--radius-lg);
-      padding: 24px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
       height: 100%;
-      min-height: 320px;
+      min-height: 0;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    a.mega-featured:hover{
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0,0,0,.08);
     }
 
     .mega-featured-img{
       width: 100%;
-      height: 200px;
+      height: 120px;
       border-radius: var(--radius-lg);
       overflow: hidden;
       background: rgba(255,255,255,0.5);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 64px;
+      color: var(--primary, #f42182);
     }
 
     .mega-featured-title{
@@ -828,23 +836,38 @@ function generateTimelineSVG(int $count): array {
       margin: 0;
     }
 
-    .mega-featured-link{
+    .mega-featured-btn{
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
-      color: var(--pink);
+      background: var(--primary, #f42182);
+      color: #fff;
       font-weight: 600;
-      font-size: 14px;
-      text-decoration: none;
+      font-size: 13px;
+      padding: 8px 18px;
+      border-radius: 50px;
       margin-top: auto;
-      transition: gap .2s ease;
+      transition: background .2s ease, gap .2s ease;
     }
-
-    .mega-featured-link:hover{
+    a.mega-featured:hover .mega-featured-btn{
+      background: #d81b60;
       gap: 10px;
     }
 
     /* Responsive */
+    @media (max-width: 1250px) and (min-width: 1041px){
+      .brand{
+        display: none;
+      }
+      .nav-pill{
+        justify-content: center;
+      }
+      .nav-right{
+        margin-left: 0;
+      }
+    }
+
     @media (max-width: 1100px){
       .mega{
         --mega-width: 720px;
@@ -853,12 +876,12 @@ function generateTimelineSVG(int $count): array {
         --mega-width: 860px;
       }
       .mega-grid{
-        grid-template-columns: 1fr 280px;
-        gap: 32px;
+        grid-template-columns: 1fr 240px;
+        gap: 24px;
       }
     }
 
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .mega{
         display: none !important;
       }
@@ -1222,22 +1245,24 @@ function generateTimelineSVG(int $count): array {
       gap: 8px;
       margin: auto 12px 12px;
       padding: 14px 20px;
-      background: rgba(15,23,42,.04);
+      background: #f42182;
       border-radius: var(--radius);
-      color: var(--page-text, #0f172a);
+      color: #fff;
       font-size: 14px;
       font-weight: 600;
       text-decoration: none;
       transition: background .2s ease;
       flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(244,33,130,.25);
     }
     .mobile-menu-see-all:hover{
-      background: rgba(15,23,42,.08);
+      background: #d81b60;
+      color: #fff;
     }
     .mobile-menu-see-all svg{
       width: 16px;
       height: 16px;
-      opacity: .5;
+      opacity: 1;
     }
 
     /* Footer */
@@ -1420,7 +1445,7 @@ function generateTimelineSVG(int $count): array {
     }
 
     /* ===== Show mobile elements only on mobile ===== */
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .mobile-header{
         display: flex;
       }
@@ -1767,7 +1792,7 @@ function generateTimelineSVG(int $count): array {
       white-space: nowrap;
       transition: max-width .4s cubic-bezier(.4,0,.2,1), opacity .3s ease .1s;
     }
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .badge-tooltip{
         white-space: normal;
         line-height: 1.3;
@@ -1791,7 +1816,7 @@ function generateTimelineSVG(int $count): array {
       z-index: 1;
       margin-top: 38px;
     }
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .demo-badges{
         top: 12px;
         left: 12px;
@@ -1822,7 +1847,7 @@ function generateTimelineSVG(int $count): array {
     }
 
     /* Extra gap under fixed navbar (not floating) */
-    @media (min-width: 981px){
+    @media (min-width: 1041px){
       body:not(.nav-scrolled) .demo-wrap{
         margin-top: 95px;
       }
@@ -1840,7 +1865,7 @@ function generateTimelineSVG(int $count): array {
     }
 
     /* 16" laptops: reduce video height a bit */
-    @media (max-width: 1440px) and (min-width: 981px){
+    @media (max-width: 1440px) and (min-width: 1041px){
       .demo-card{
         height: clamp(560px, 60vh, 900px);
       }
@@ -1884,7 +1909,7 @@ function generateTimelineSVG(int $count): array {
       pointer-events:none;
     }
     /* Mobile : en haut à droite, plus discret */
-    @media (max-width:980px){
+    @media (max-width:1040px){
       .video-toggle{
         top:12px; right:12px;
         bottom:auto;
@@ -2130,7 +2155,7 @@ function generateTimelineSVG(int $count): array {
     }
 
     /* ===== Responsive: desktop vs mobile ===== */
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       body{ padding-top: 70px; }
       /* Hide desktop nav links/cta, keep brand + burger */
       .links{ display:none; }
@@ -2183,7 +2208,7 @@ function generateTimelineSVG(int $count): array {
       padding-bottom: 48px;
     }
 
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .video-social-card{
         position: static;
         transform: none;
@@ -2879,7 +2904,7 @@ function generateTimelineSVG(int $count): array {
       .news-grid{ grid-template-columns: 1fr; }
       .news-media{ height: 150px; }
     }
-@media (max-width: 980px){
+@media (max-width: 1040px){
       .community-section{
         margin-top: 110px;
       }
@@ -3017,7 +3042,7 @@ function generateTimelineSVG(int $count): array {
   margin-top: 4px;
 }
 
-@media (max-width: 980px){
+@media (max-width: 1040px){
   .demo-overlay{
     align-items:flex-end;
     justify-content:center;
@@ -3118,7 +3143,7 @@ function generateTimelineSVG(int $count): array {
 }
 
 /* Shorter laptop screens: reduce video height a bit */
-@media (min-width: 981px) and (max-height: 900px){
+@media (min-width: 1041px) and (max-height: 900px){
   .demo-card{
     height: clamp(600px, 62vh, 960px);
   }
@@ -3131,7 +3156,7 @@ function generateTimelineSVG(int $count): array {
       }
     }
 
-    @media (max-width: 980px){
+    @media (max-width: 1040px){
       .mobile-socials{
         display:flex;
         width: 100%;
@@ -3852,7 +3877,7 @@ function generateTimelineSVG(int $count): array {
       let locked = false;
 
       function isMobile(){
-        return window.matchMedia('(max-width: 980px)').matches;
+        return window.matchMedia('(max-width: 1040px)').matches;
       }
 
       function getDemoAbsoluteTop(){

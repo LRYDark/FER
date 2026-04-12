@@ -388,6 +388,20 @@ tr.filters select{
     #qrScanModal .modal-dialog { max-width: 90%; }
     #qrScanModal .qr-size-btn { min-width: 70px; min-height: 54px; flex: 1 1 0; }
   }
+  /* Tablette en portrait : limite la hauteur de la caméra pour laisser la place au champ manuel */
+  @media (orientation: portrait) and (min-width: 577px) and (max-width: 1100px) {
+    #qrScanModal #qrReader {
+      max-width: 320px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    #qrScanModal #qrReader video {
+      width: 100% !important;
+      height: auto !important;
+      max-height: 45vh !important;
+      object-fit: cover;
+    }
+  }
 </style>
 <div class="modal fade" id="qrScanModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">

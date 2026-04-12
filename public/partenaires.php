@@ -317,7 +317,7 @@ if ($selectedYearId) {
       margin: 174px auto 0;
       padding: 0 24px;
     }
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .partners-title-bar {
         margin-top: 16px;
       }
@@ -545,7 +545,7 @@ if ($selectedYearId) {
       fill: none;
     }
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .years-grid {
         grid-template-columns: 1fr;
         gap: 14px;
@@ -619,7 +619,7 @@ if ($selectedYearId) {
       box-shadow: 0 20px 60px rgba(0,0,0,.8);
     }
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .partners-grid {
         grid-template-columns: 1fr;
         gap: 24px;

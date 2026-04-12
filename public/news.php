@@ -232,7 +232,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
       justify-content: space-between;
       gap: 16px;
     }
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .news-hero { margin-top: 16px; }
     }
 
@@ -435,7 +435,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     .nvote.voted { background: rgba(244,33,130,.12); }
     .nvote-count { font-size: 12px; }
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .ncards { grid-template-columns: repeat(2, 1fr); gap: 14px; }
     }
     @media (max-width: 640px) {

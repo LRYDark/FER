@@ -89,7 +89,7 @@ include_once __DIR__ . '/../config/theme.php';
                       ?>
                         <li>
                           <a class="mega-link" href="news?id=<?= $actu['id'] ?>">
-                            <span class="micon">📰</span>
+                            <span class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg></span>
                             <div class="mega-link-content">
                               <div class="mtitle"><?= htmlspecialchars($actu['title']) ?><?php if ($isNew): ?> <span class="badge-new">NEW</span><?php endif; ?></div>
                             </div>
@@ -99,7 +99,7 @@ include_once __DIR__ . '/../config/theme.php';
                     <?php else: ?>
                       <li>
                         <a class="mega-link" href="news">
-                          <span class="micon">📰</span>
+                          <span class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg></span>
                           <div class="mega-link-content">
                             <div class="mtitle">Voir toutes les actualités</div>
                           </div>
@@ -111,15 +111,12 @@ include_once __DIR__ . '/../config/theme.php';
               </div>
 
               <!-- Colonne droite : image -->
-              <div class="mega-featured">
-                <div class="mega-featured-img">📰</div>
+              <a href="news" class="mega-featured">
+                <div class="mega-featured-img"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/></svg></div>
                 <div class="mega-featured-title">Toutes nos actualités</div>
                 <div class="mega-featured-desc">Restez informés de tous les événements et nouveautés de Forbach en Rose</div>
-                <a href="news" class="mega-featured-link">
-                  Voir tout
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </a>
-              </div>
+                <span class="mega-featured-btn">Voir tout <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              </a>
             </div>
           </div>
         </li>
@@ -154,7 +151,7 @@ include_once __DIR__ . '/../config/theme.php';
                       ?>
                         <li>
                           <a class="mega-link" href="photos?year_id=<?= $galerie['id'] ?>">
-                            <span class="micon">📸</span>
+                            <span class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                             <div class="mega-link-content">
                               <div class="mtitle"><?= htmlspecialchars($galerie['title']) ?> (<?= $galerie['year'] ?>)<?php if ($isNewGal): ?> <span class="badge-new">NEW</span><?php endif; ?></div>
                             </div>
@@ -164,7 +161,7 @@ include_once __DIR__ . '/../config/theme.php';
                     <?php else: ?>
                       <li>
                         <a class="mega-link" href="photos">
-                          <span class="micon">📸</span>
+                          <span class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
                           <div class="mega-link-content">
                             <div class="mtitle">Voir tous les albums</div>
                           </div>
@@ -175,15 +172,12 @@ include_once __DIR__ . '/../config/theme.php';
                 </div>
               </div>
 
-              <div class="mega-featured">
-                <div class="mega-featured-img">📸</div>
+              <a href="photos" class="mega-featured">
+                <div class="mega-featured-img"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
                 <div class="mega-featured-title">Nos albums photos</div>
                 <div class="mega-featured-desc">Découvrez tous les moments forts de Forbach en Rose en images</div>
-                <a href="photos" class="mega-featured-link">
-                  Voir tout
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </a>
-              </div>
+                <span class="mega-featured-btn">Voir tout <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              </a>
             </div>
           </div>
         </li>
@@ -220,7 +214,7 @@ include_once __DIR__ . '/../config/theme.php';
                       ?>
                         <li>
                           <a class="mega-link" href="partenaires?year_id=<?= $part['id'] ?>">
-                            <span class="micon">🤝</span>
+                            <span class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                             <div class="mega-link-content">
                               <div class="mtitle"><?= htmlspecialchars($part['title']) ?> (<?= $part['year'] ?>)<?php if ($isNewPart): ?> <span class="badge-new">NEW</span><?php endif; ?></div>
                             </div>
@@ -230,7 +224,7 @@ include_once __DIR__ . '/../config/theme.php';
                     <?php else: ?>
                       <li>
                         <a class="mega-link" href="partenaires">
-                          <span class="micon">🤝</span>
+                          <span class="micon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                           <div class="mega-link-content">
                             <div class="mtitle">Voir tous les partenaires</div>
                           </div>
@@ -241,15 +235,12 @@ include_once __DIR__ . '/../config/theme.php';
                 </div>
               </div>
 
-              <div class="mega-featured">
-                <div class="mega-featured-img">🤝</div>
+              <a href="partenaires" class="mega-featured">
+                <div class="mega-featured-img"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                 <div class="mega-featured-title">Nos partenaires</div>
                 <div class="mega-featured-desc">Merci à tous nos partenaires qui soutiennent Forbach en Rose</div>
-                <a href="partenaires" class="mega-featured-link">
-                  Voir tout
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </a>
-              </div>
+                <span class="mega-featured-btn">Voir tout <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              </a>
             </div>
           </div>
         </li>

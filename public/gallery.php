@@ -382,7 +382,7 @@ $photoCount = count($photos);
       opacity: 0.5;
     }
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .gallery-hero { margin-top: 16px; }
       .gallery-grid {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
