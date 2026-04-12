@@ -7,7 +7,7 @@
 (function(){
   const overlay = document.getElementById('megaOverlay');
   const items = Array.from(document.querySelectorAll('.item[data-menu]'));
-  const isMobile = () => window.matchMedia('(max-width: 980px)').matches;
+  const isMobile = () => window.matchMedia('(max-width: 1040px)').matches;
 
   let currentItem = null;
   let enterTimer = null;
@@ -148,7 +148,7 @@
 
   if(!mobileHeader || !mobileBottomBar) return;
 
-  function isMobile(){ return window.matchMedia('(max-width: 980px)').matches; }
+  function isMobile(){ return window.matchMedia('(max-width: 1040px)').matches; }
 
   let lastScrollY = 0;
   const scrollThreshold = 80;
@@ -334,7 +334,7 @@
 (function(){
   let lastScroll = 0;
   const scrollThreshold = 50; // Pixel de scroll avant transition
-  const isMobile = () => window.matchMedia('(max-width: 980px)').matches;
+  const isMobile = () => window.matchMedia('(max-width: 1040px)').matches;
 
   function handleNavScroll() {
     if (isMobile()) {

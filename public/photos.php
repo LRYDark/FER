@@ -327,7 +327,7 @@ function resolveAlbumDateLabel(array $album): string
     }
 
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .photos-hero {
         margin-top: 16px;
       }
@@ -499,7 +499,7 @@ function resolveAlbumDateLabel(array $album): string
       fill: #fff;
     }
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .years-grid {
         grid-template-columns: 1fr;
         gap: 14px;

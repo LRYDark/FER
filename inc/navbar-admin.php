@@ -92,7 +92,11 @@ html, body {
   font-family: var(--font-main);
   font-size: 14px;
   height: 100vh !important;
+  height: 100svh !important;
   overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  top: 0; left: 0;
   color: #1e293b !important;
 }
 
@@ -197,6 +201,7 @@ html, body {
 #oc-app-container {
   display: flex; flex-direction: row;
   height: calc(100vh - var(--oc-topbar-h) - var(--oc-gap) * 3);
+  height: calc(100svh - var(--oc-topbar-h) - var(--oc-gap) * 3);
   overflow: hidden;
   border-radius: var(--oc-radius);
   margin: 0 var(--oc-gap) var(--oc-gap) var(--oc-gap);

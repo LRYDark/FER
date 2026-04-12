@@ -254,7 +254,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
       object-fit: cover;
     }
 
-    @media (max-width: 980px) {
+    @media (max-width: 1040px) {
       .parcours-hero {
         grid-template-columns: 1fr;
         gap: 40px;
