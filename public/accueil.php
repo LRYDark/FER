@@ -1192,28 +1192,33 @@ function generateTimelineSVG(int $count): array {
       margin-left: -2px;
     }
     .badge-tooltip{
-      max-width: 0;
+      width: 180px;
+      max-width: 180px;
+      flex-shrink: 0;
       overflow: hidden;
       opacity: 0;
       font-size: 13px;
       font-weight: 600;
       white-space: nowrap;
-      transition: max-width .4s cubic-bezier(.4,0,.2,1), opacity .3s ease .1s;
+      transition: opacity .3s ease;
     }
     @media (max-width: 1040px){
       .badge-tooltip{
+        width: 160px;
+        max-width: 160px;
         white-space: normal;
         line-height: 1.3;
         font-size: 12px;
+        flex-shrink: 0;
       }
     }
     .demo-badge--fee.expanded{
-      width: fit-content;
+      width: 275px;
       padding-right: 18px;
     }
     .demo-badge--fee.expanded .badge-tooltip{
-      max-width: 300px;
       opacity: 1;
+      transition: opacity .3s ease .1s;
     }
     .demo-badge--fee .demo-badge-value{
       flex-shrink: 0;
@@ -1245,6 +1250,9 @@ function generateTimelineSVG(int $count): array {
       .demo-badge--fee .demo-badge-value{
         min-width: 52px;
         font-size: 17px;
+      }
+      .demo-badge--fee.expanded{
+        width: min(240px, calc(100vw - 40px));
       }
     }
 
@@ -3355,6 +3363,19 @@ function generateTimelineSVG(int $count): array {
       document.addEventListener('click', function(){
         badge.classList.remove('expanded');
       });
+
+      // Auto-open once per browser session (cleared when browser closes)
+      try {
+        if (!sessionStorage.getItem('badgeFeeAutoShown')) {
+          sessionStorage.setItem('badgeFeeAutoShown', '1');
+          setTimeout(function(){
+            badge.classList.add('expanded');
+            setTimeout(function(){
+              badge.classList.remove('expanded');
+            }, 7000);
+          }, 2000);
+        }
+      } catch(e) {}
     })();
 
     // ===== Video Play/Pause toggle =====
