@@ -5,8 +5,9 @@ requirePage('news');
 $role = currentRole();
 $canCreate = canDoAction('news.create');
 $canEdit   = canDoAction('news.edit');
+$canTrash  = canDoAction('news.trash');
 $canDelete = canDoAction('news.delete');
-$readOnly  = !$canCreate && !$canEdit && !$canDelete;
+$readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -44,10 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 $isAjax = isAjaxRequest();
 
 // ─── Bloc de protection des actions d'écriture ───
+// delete_news : soft-delete si la migration est faite (→ news.trash),
+//               sinon hard-delete (→ news.delete).
 $writeOps = [
     'add_news'              => 'news.create',
     'update_news'           => 'news.edit',
-    'delete_news'           => 'news.delete',
+    'delete_news'           => $migrationDone ? 'news.trash' : 'news.delete',
     'permanent_delete_news' => 'news.delete',
     'restore_news'          => 'news.edit',
 ];
@@ -465,9 +468,11 @@ if ($migrationDone) {
     <a href="?filter=draft" class="<?= $filter === 'draft' ? 'active' : '' ?>">
       Brouillons <span class="badge bg-warning text-dark"><?= $countDraft ?></span>
     </a>
+    <?php if ($canDelete): ?>
     <a href="?filter=trashed" class="<?= $filter === 'trashed' ? 'active' : '' ?>">
       <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
     </a>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 
@@ -552,7 +557,7 @@ if ($migrationDone) {
                   <i class="bi bi-pencil"></i> Modifier
                 </button>
                 <?php endif; ?>
-                <?php if ($canDelete): ?>
+                <?php if ($migrationDone ? $canTrash : $canDelete): ?>
                 <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cet article en corbeille ?' : 'Supprimer definitivement cet article ?' ?>">
                   <?= csrf_field() ?>
                   <input type="hidden" name="news_id" value="<?= $n['id'] ?>">

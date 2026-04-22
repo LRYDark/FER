@@ -5,8 +5,9 @@ requirePage('timeline');
 $role = currentRole();
 $canCreate = canDoAction('timeline.create');
 $canEdit   = canDoAction('timeline.edit');
+$canTrash  = canDoAction('timeline.trash');
 $canDelete = canDoAction('timeline.delete');
-$readOnly  = !$canCreate && !$canEdit && !$canDelete;
+$readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
 require 'navbar-data.php';
 
 // ─── Ensure _TimeLine directory exists ───
@@ -36,11 +37,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 }
 
 // ─── Bloc de protection des actions d'écriture ───
+// delete_item : soft-delete si deleted_at existe (→ timeline.trash),
+//               sinon hard-delete (→ timeline.delete).
 $writeOps = [
     'add_item'              => 'timeline.create',
     'update_item'           => 'timeline.edit',
     'reorder_items'         => 'timeline.edit',
-    'delete_item'           => 'timeline.delete',
+    'delete_item'           => $hasDeletedAt ? 'timeline.trash' : 'timeline.delete',
     'permanent_delete_item' => 'timeline.delete',
     'restore_item'          => 'timeline.edit',
 ];
@@ -380,9 +383,11 @@ foreach ($items as $item) {
             Brouillons <span class="badge bg-warning text-dark"><?= $countDraft ?></span>
           </a>
           <?php endif; ?>
+          <?php if ($canDelete): ?>
           <a href="?filter=trashed" class="<?= $filter === 'trashed' ? 'active' : '' ?>">
             <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
           </a>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -469,7 +474,7 @@ foreach ($items as $item) {
                         </form>
                         <?php endif; ?>
                       <?php else: ?>
-                        <?php if ($canDelete): ?>
+                        <?php if ($hasDeletedAt ? $canTrash : $canDelete): ?>
                         <form method="post" class="d-inline" data-confirm="<?= $hasDeletedAt ? 'Mettre cet item en corbeille ?' : 'Supprimer cet item et ses tags ?' ?>">
                           <?= csrf_field() ?>
                           <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
