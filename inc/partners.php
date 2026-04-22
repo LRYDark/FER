@@ -5,11 +5,19 @@ requirePage('partners');
 $role = currentRole();
 $canCreate = canDoAction('partners.create');
 $canEdit   = canDoAction('partners.edit');
+$canTrash  = canDoAction('partners.trash');
 $canDelete = canDoAction('partners.delete');
-$readOnly  = !$canCreate && !$canEdit && !$canDelete;
+$readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
 require 'navbar-data.php';
 
+// Détection de la migration pour choisir entre soft-delete (trash) et hard-delete.
+$__migrationDone = false;
+try { $pdo->query("SELECT deleted_at FROM partners_years LIMIT 0"); $__migrationDone = true; }
+catch (PDOException $e) {}
+
 // ─── Bloc de protection des actions d'écriture ───
+// delete_album / delete_year : soft-delete si migration faite (→ partners.trash),
+//                              sinon hard-delete (→ partners.delete).
 $writeOps = [
     'add_album'             => 'partners.create',
     'add_year'              => 'partners.create',
@@ -19,8 +27,8 @@ $writeOps = [
     'reorder_albums'        => 'partners.edit',
     'restore_year'          => 'partners.edit',
     'restore_album'         => 'partners.edit',
-    'delete_album'          => 'partners.delete',
-    'delete_year'           => 'partners.delete',
+    'delete_album'          => $__migrationDone ? 'partners.trash' : 'partners.delete',
+    'delete_year'           => $__migrationDone ? 'partners.trash' : 'partners.delete',
     'permanent_delete_album'=> 'partners.delete',
     'permanent_delete_year' => 'partners.delete',
 ];
@@ -790,9 +798,11 @@ if ($migrationDone) {
                 Brouillons <span class="badge bg-warning text-dark"><?= $countDraft ?></span>
               </a>
               <?php endif; ?>
+              <?php if ($canDelete): ?>
               <a href="?filter=trashed" class="<?= $filter === 'trashed' ? 'active' : '' ?>">
                 <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
               </a>
+              <?php endif; ?>
             </div>
             <?php endif; ?>
 
@@ -902,7 +912,7 @@ if ($migrationDone) {
                           <button type="submit" name="update_year" class="btn btn-primary">Enregistrer</button>
                           <?php else: ?><span></span><?php endif; ?>
                     </form>
-                          <?php if ($canDelete): ?>
+                          <?php if ($migrationDone ? $canTrash : $canDelete): ?>
                           <form method="post" data-confirm="<?= $migrationDone ? 'Mettre cette année et tous ses albums en corbeille ?' : 'Supprimer definitivement cette annee et tous ses albums ?' ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -974,8 +984,8 @@ if ($migrationDone) {
                                   <?php if ($canEdit): ?>
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
                                   <?php endif; ?>
-                                  <?php if ($canDelete): ?>
-                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="Supprimer" data-confirm="Supprimer définitivement cet album ?"><i class="bi bi-x-lg"></i></button>
+                                  <?php if ($migrationDone ? $canTrash : $canDelete): ?>
+                                  <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="<?= $migrationDone ? 'Mettre en corbeille' : 'Supprimer' ?>" data-confirm="<?= $migrationDone ? 'Mettre ce partenaire en corbeille ?' : 'Supprimer définitivement cet album ?' ?>"><i class="bi bi-x-lg"></i></button>
                                   <?php endif; ?>
                                 </div>
                               </div>

@@ -195,10 +195,12 @@ function requireRole(array $roles)
  *     - dashboard.archive / import_excel / export_excel
  *     - dashboard.scan_qr  (mode "Remise T-shirts" : scanner QR + assigner taille)
  *   Contenus (granularité par page) :
- *     - news.create / news.edit / news.delete
- *     - timeline.create / timeline.edit / timeline.delete
- *     - partners.create / partners.edit / partners.delete
- *     - albums.create / albums.edit / albums.delete
+ *     - news.create / news.edit / news.trash / news.delete
+ *     - timeline.create / timeline.edit / timeline.trash / timeline.delete
+ *     - partners.create / partners.edit / partners.trash / partners.delete
+ *     - albums.create / albums.edit / albums.trash / albums.delete
+ *     ( .trash = mise en corbeille uniquement ; .delete = onglet Corbeille visible
+ *       + suppression définitive. .delete est un superset de .trash. )
  *   Pages d'administration (read = page access, write = action) :
  *     - settings.write       (Réglages)
  *     - mail.write           (Paramètres mail : Template / Google / Notifications)
@@ -269,10 +271,10 @@ function permCatalog(): array
             'dashboard.import_excel','dashboard.export_excel',
             'dashboard.scan_qr',
             // Contenus — granularité par page
-            'news.create','news.edit','news.delete',
-            'timeline.create','timeline.edit','timeline.delete',
-            'partners.create','partners.edit','partners.delete',
-            'albums.create','albums.edit','albums.delete',
+            'news.create','news.edit','news.trash','news.delete',
+            'timeline.create','timeline.edit','timeline.trash','timeline.delete',
+            'partners.create','partners.edit','partners.trash','partners.delete',
+            'albums.create','albums.edit','albums.trash','albums.delete',
             // Pages d'administration (write actions)
             'settings.write','mail.write','mail.send','qrcode.write','connexions.write','logs.write',
             // Sous-onglets des Réglages (granularité par onglet)
@@ -392,9 +394,22 @@ function canDoAction(string $action): bool
         'timeline.delete' => 'content.delete',
         'partners.delete' => 'content.delete',
         'albums.delete'   => 'content.delete',
+        // content.delete (ancien) couvre aussi la mise en corbeille (.trash)
+        'news.trash'      => 'content.delete',
+        'timeline.trash'  => 'content.delete',
+        'partners.trash'  => 'content.delete',
+        'albums.trash'    => 'content.delete',
     ];
     if (isset($contentCompat[$action]) && in_array($contentCompat[$action], $actions, true)) {
         return true;
+    }
+
+    // {page}.delete est un superset de {page}.trash : si l'utilisateur peut supprimer
+    // définitivement, il peut évidemment mettre en corbeille.
+    if (preg_match('/^(news|timeline|partners|albums)\.trash$/', $action, $m)) {
+        if (in_array($m[1] . '.delete', $actions, true)) {
+            return true;
+        }
     }
 
     return false;

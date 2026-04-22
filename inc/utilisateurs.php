@@ -243,14 +243,15 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
           <?php
           // Actions de contenu — granularité par page (création / modification / suppression)
           $contentBlocks = [
-            'Actions sur la Timeline'    => ['timeline.create','timeline.edit','timeline.delete'],
-            'Actions sur les Actualités' => ['news.create','news.edit','news.delete'],
-            'Actions sur les Partenaires'=> ['partners.create','partners.edit','partners.delete'],
-            'Actions sur les Albums'     => ['albums.create','albums.edit','albums.delete'],
+            'Actions sur la Timeline'    => ['timeline.create','timeline.edit','timeline.trash','timeline.delete'],
+            'Actions sur les Actualités' => ['news.create','news.edit','news.trash','news.delete'],
+            'Actions sur les Partenaires'=> ['partners.create','partners.edit','partners.trash','partners.delete'],
+            'Actions sur les Albums'     => ['albums.create','albums.edit','albums.trash','albums.delete'],
           ];
           $contentLabels = [
             'create' => 'Création',
             'edit'   => 'Modification',
+            'trash'  => 'Corbeille',
             'delete' => 'Suppression',
           ];
           foreach ($contentBlocks as $sectionTitle => $actions): ?>
