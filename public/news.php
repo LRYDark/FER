@@ -172,10 +172,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 <div class="ncard-bottom">
                     <div class="ncard-votes" data-stop-propagation>
                         <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" data-action="vote">
-                            👍 <span class="nvote-count"><?= $article['like'] ?></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                            <span class="nvote-count"><?= $article['like'] ?></span>
                         </button>
                         <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" data-action="vote">
-                            👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                            <span class="nvote-count"><?= $article['dislike'] ?></span>
                         </button>
                     </div>
                     <span class="ncard-comments-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <?= $nbComments ?></span>
@@ -424,18 +426,44 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     }
     .ncard-comments-badge svg { opacity: .6; }
     .nvote {
-      display: inline-flex; align-items: center; gap: 3px;
-      padding: 3px 8px;
-      background: rgba(15,23,42,.05); border: none; border-radius: var(--radius-sm);
-      cursor: pointer; font-size: 13px; font-weight: 500; color: var(--page-text);
-      transition: background .15s, transform .1s;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px;
+      background: transparent;
+      border: 1.5px solid rgba(15,23,42,.12);
+      border-radius: 100px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      color: rgba(15,23,42,.45);
+      transition: all .18s ease;
     }
-    .nvote:hover { background: rgba(15,23,42,.1); }
-    .nvote:active { transform: scale(.94); }
-    .nvote.voted { background: rgba(244,33,130,.12); }
+    .nvote svg { transition: stroke .18s ease; }
+    .nvote-like:hover {
+      background: rgba(34,197,94,.08);
+      border-color: rgba(34,197,94,.4);
+      color: #16a34a;
+    }
+    .nvote-like:hover svg { stroke: #16a34a; }
+    .nvote-dislike:hover {
+      background: rgba(239,68,68,.08);
+      border-color: rgba(239,68,68,.35);
+      color: #dc2626;
+    }
+    .nvote-dislike:hover svg { stroke: #dc2626; }
+    .nvote:active { transform: scale(.92); }
+    .nvote-like.voted {
+      background: rgba(34,197,94,.1);
+      border-color: rgba(34,197,94,.5);
+      color: #16a34a;
+    }
+    .nvote-like.voted svg { stroke: #16a34a; }
+    .nvote-dislike.voted {
+      background: rgba(239,68,68,.1);
+      border-color: rgba(239,68,68,.45);
+      color: #dc2626;
+    }
+    .nvote-dislike.voted svg { stroke: #dc2626; }
     .nvote-count { font-size: 12px; }
 
-    @media (max-width: 1040px) {
+    @media (max-width: 1280px) {
       .ncards { grid-template-columns: repeat(2, 1fr); gap: 14px; }
     }
     @media (max-width: 640px) {
@@ -912,10 +940,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
     <div class="news-hero-votes">
       <button class="hero-vote nvote-like" data-id="<?= $singleArticle['id'] ?>" data-action="vote">
-        👍 <span class="nvote-count"><?= $singleArticle['like'] ?></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        <span class="nvote-count"><?= $singleArticle['like'] ?></span>
       </button>
       <button class="hero-vote nvote-dislike" data-id="<?= $singleArticle['id'] ?>" data-action="vote">
-        👎 <span class="nvote-count"><?= $singleArticle['dislike'] ?></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+        <span class="nvote-count"><?= $singleArticle['dislike'] ?></span>
       </button>
     </div>
   </section>
@@ -1061,10 +1091,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
           <div class="ncard-bottom">
             <div class="ncard-votes" data-stop-propagation>
               <button class="nvote nvote-like" data-id="<?= $article['id'] ?>" data-action="vote">
-                👍 <span class="nvote-count"><?= $article['like'] ?></span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                <span class="nvote-count"><?= $article['like'] ?></span>
               </button>
               <button class="nvote nvote-dislike" data-id="<?= $article['id'] ?>" data-action="vote">
-                👎 <span class="nvote-count"><?= $article['dislike'] ?></span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                <span class="nvote-count"><?= $article['dislike'] ?></span>
               </button>
             </div>
             <span class="ncard-comments-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <?= $nbComments ?></span>
