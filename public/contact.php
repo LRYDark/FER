@@ -46,19 +46,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         require_once '../config/googleMail.php';
 
-        // Destinataire = le compte Google configuré
-        $accessToken = getAccessToken(false);
-        if ($accessToken) {
-            $gmailClient = new Google_Client();
-            $gmailClient->setAccessToken(['access_token' => $accessToken]);
-            $gmailService = new Google_Service_Gmail($gmailClient);
-            $contactEmail = $gmailService->users->getProfile('me')->getEmailAddress();
+        // Vérif de la config mail en fonction du provider actif (Google OAuth ou SMTP)
+        $provider = $data['mail_provider'] ?? 'google';
+        if ($provider === 'smtp') {
+            $mailConfigured = !empty($data['smtp_host']) && !empty($data['smtp_user']) && !empty($data['smtp_pass']);
+        } else {
+            $mailConfigured = !empty($clientID) && !empty($clientSecret) && file_exists(__DIR__ . '/../config/token.json');
+        }
 
+        // Destinataire : destinataires de notification, fallback mail_email / smtp_from_email
+        $recipients = getNotifyRecipients($pdo);
+        if (empty($recipients)) {
+            $fallback = $data['mail_email'] ?? $data['smtp_from_email'] ?? '';
+            if ($fallback) $recipients = [$fallback];
+        }
+
+        if (!$mailConfigured || empty($recipients)) {
+            $error = "Une erreur est survenue, veuillez réessayer plus tard.";
+        } else {
             $body = "Nouveau message depuis le formulaire de contact :<br><br>";
             $body .= "<strong>Nom :</strong> " . htmlspecialchars($nom) . "<br>";
             $body .= "<strong>Email :</strong> " . htmlspecialchars($email) . "<br>";
             $body .= "<strong>Sujet :</strong> " . htmlspecialchars($sujet) . "<br><br>";
             $body .= "<strong>Message :</strong><br>" . nl2br(htmlspecialchars($message));
+
+            $contactEmail = count($recipients) === 1 ? $recipients[0] : $recipients;
 
             $sent = sendMail(
                 $contactEmail,
@@ -73,8 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $error = "Une erreur est survenue, veuillez réessayer plus tard.";
             }
-        } else {
-            $error = "Une erreur est survenue, veuillez réessayer plus tard.";
         }
     }
         } // end rate limit else

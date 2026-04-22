@@ -1943,10 +1943,8 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         require_once __DIR__ . '/googleMail.php';
 
-        // Check token without redirecting — this is an AJAX endpoint, never redirect
-        $tokenAvailable = (getAccessToken(false) !== false);
-
-        if ($tokenAvailable && isNotifyEnabled($pdo, 'partner')) {
+        // Provider-agnostic : isMailConfigured() gère Google OAuth ET SMTP direct
+        if (isMailConfigured() && isNotifyEnabled($pdo, 'partner')) {
             $admins = getNotifyRecipients($pdo);
 
             $subject = 'Nouvelle demande de partenariat – Forbach en Rose';
@@ -1963,7 +1961,7 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         } else {
-            error_log('Partner request from ' . $email . ': Google token unavailable, admin notification skipped.');
+            error_log('Partner request from ' . $email . ': mail not configured or notification disabled, admin notification skipped.');
         }
     } catch (\Throwable $e) {
         error_log('Partner request mail error: ' . $e->getMessage());
