@@ -33,7 +33,7 @@ $notify_recipients_raw = $data['notify_recipients'] ?? null;
 $notify_recipients = $notify_recipients_raw ? json_decode($notify_recipients_raw, true) : [];
 $notify_toggles_raw = $data['notify_toggles'] ?? null;
 $notify_toggles = $notify_toggles_raw ? json_decode($notify_toggles_raw, true) : [];
-$notify_toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'twofa' => true, 'lock' => true];
+$notify_toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'twofa' => true, 'lock' => true, 'contact' => true];
 
 // Charger les admins pour le select
 $adminUsers = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY email ASC")->fetchAll(PDO::FETCH_COLUMN);
@@ -284,6 +284,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
             'ip_ban'  => !empty($_POST['notify_ip_ban']),
             'twofa'   => !empty($_POST['notify_twofa']),
             'lock'    => !empty($_POST['notify_lock']),
+            'contact' => !empty($_POST['notify_contact']),
         ];
         $togglesJson = json_encode($notify_toggles);
         $pdo->prepare('UPDATE setting SET notify_recipients = :r, notify_toggles = :t WHERE id = 1')->execute([
@@ -480,6 +481,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                     . '<p>Ce probleme peut indiquer un souci avec la configuration de l\'envoi de mails (Gmail ou SMTP). Nous vous recommandons de verifier les parametres dans l\'espace d\'administration, section <strong>Parametres mail</strong>.</p>'
                     . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
                     . '<p style="color:#94a3b8;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+        case 'notif_contact':
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Nouveau message de contact',
+                'description' => '<p>Bonjour,</p>'
+                    . '<p>Un nouveau message a ete envoye depuis le <strong>formulaire de contact</strong> du site.</p>'
+                    . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
+                    . '<tr><td style="padding:14px 18px;background:#f1f5f9;border-radius:8px;border-left:3px solid #F42182;">'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Nom :</strong> Marie Martin</p>'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Email :</strong> marie.martin@exemple.fr</p>'
+                    . '<p style="margin:0 0 8px;font-size:13px;"><strong>Sujet :</strong> Demande d\'informations</p>'
+                    . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
+                    . '</td></tr></table>'
+                    . '<p style="padding:14px 18px;background:#fdf2f8;border-radius:8px;color:#475569;margin:16px 0;">'
+                    . 'Bonjour, je souhaiterais obtenir plus d\'informations concernant votre prochaine course caritative. '
+                    . 'Est-il possible de s\'inscrire en equipe ? Merci d\'avance pour votre retour.</p>'
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -983,6 +1006,9 @@ $jsConfig = json_encode([
       <button type="button" class="preview-btn" data-preview="notif_lock" style="width:100%;margin-bottom:8px">
         <span style="font-weight:600">Verrouillage compte</span><br><span style="font-size:11px;color:#94a3b8">3 tentatives echouees</span>
       </button>
+      <button type="button" class="preview-btn" data-preview="notif_contact" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Demande de contact</span><br><span style="font-size:11px;color:#94a3b8">Message du formulaire contact</span>
+      </button>
       <button type="button" class="preview-btn" data-preview="editor" style="width:100%;margin-top:8px;background:#f1f5f9;font-weight:600">
         &#8592; Retour éditeur
       </button>
@@ -1346,6 +1372,16 @@ $jsConfig = json_encode([
                   <i class="bi bi-lock text-primary me-1"></i>
                   <strong>Verrouillage de compte</strong>
                   <small class="d-block text-muted">Quand un compte est verrouille apres 3 tentatives echouees</small>
+                </div>
+              </label>
+              <label class="list-group-item d-flex align-items-center gap-3" style="cursor:pointer;">
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="notify_contact" id="notify_contact" <?= !empty($notify_toggles['contact']) ? 'checked' : '' ?>>
+                </div>
+                <div>
+                  <i class="bi bi-envelope-paper text-primary me-1"></i>
+                  <strong>Demande de contact</strong>
+                  <small class="d-block text-muted">Quand un message est envoye via le formulaire de contact</small>
                 </div>
               </label>
             </div>
