@@ -54,8 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mailConfigured = !empty($clientID) && !empty($clientSecret) && file_exists(__DIR__ . '/../config/token.json');
         }
 
-        // Destinataire : destinataires de notification, fallback mail_email / smtp_from_email
-        $recipients = getNotifyRecipients($pdo);
+        // Destinataires : notify_recipients si toggle activé, sinon fallback mail_email / smtp_from_email
+        // pour ne jamais perdre le message du visiteur meme si la notification admin est desactivee
+        $recipients = isNotifyEnabled($pdo, 'contact') ? getNotifyRecipients($pdo) : [];
         if (empty($recipients)) {
             $fallback = $data['mail_email'] ?? $data['smtp_from_email'] ?? '';
             if ($fallback) $recipients = [$fallback];

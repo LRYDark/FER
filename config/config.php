@@ -912,7 +912,7 @@ function isNotifyEnabled(PDO $pdo, string $type): bool {
         $stmt->execute();
         $raw = $stmt->fetchColumn();
         $toggles = $raw ? json_decode($raw, true) : [];
-        $toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'twofa' => true, 'lock' => true];
+        $toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'twofa' => true, 'lock' => true, 'contact' => true];
     }
     return !empty($toggles[$type]);
 }
