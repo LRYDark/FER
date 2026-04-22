@@ -289,6 +289,81 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
           </tr>
           <?php endforeach; ?>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">
+            Onglets des Réglages (sous-permissions)
+            <span class="text-muted fw-normal text-lowercase" style="font-size:11px;">
+              — nécessite <strong>« Modifier les Réglages »</strong> coché ci-dessus
+            </span>
+          </td></tr>
+
+          <?php
+          $settingsTabActions = [
+            'settings.tab.personnalisation' => 'Personnalisation',
+            'settings.tab.accueil'          => 'Accueil',
+            'settings.tab.inscription'      => 'Inscription',
+            'settings.tab.parcours'         => 'Parcours',
+            'settings.tab.reglementation'   => 'Reglementation',
+            'settings.tab.formulaire'       => 'Formulaire',
+            'settings.tab.import'           => 'Import Excel',
+            'settings.tab.maintenance'      => 'Maintenance',
+          ];
+          foreach ($settingsTabActions as $k => $label): ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">
+            Cartes de l'onglet Accueil
+            <span class="text-muted fw-normal text-lowercase" style="font-size:11px;">
+              — nécessite <strong>« Modifier les Réglages »</strong> + <strong>« Accueil »</strong> cochés
+            </span>
+          </td></tr>
+
+          <?php
+          $accueilCardActions = [
+            'settings.accueil.hero'   => 'Titre / Image sur la vidéo',
+            'settings.accueil.params' => 'Paramètres page accueil (liens, date, Flash Info)',
+            'settings.accueil.video'  => 'Vidéo d\'accueil',
+            'settings.accueil.custom' => 'Contenu personnalisé',
+          ];
+          foreach ($accueilCardActions as $k => $label): ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">
+            Cartes de l'onglet Inscription
+            <span class="text-muted fw-normal text-lowercase" style="font-size:11px;">
+              — nécessite <strong>« Modifier les Réglages »</strong> + <strong>« Inscription »</strong> cochés
+            </span>
+          </td></tr>
+
+          <?php
+          $inscriptionCardActions = [
+            'settings.inscription.header'      => 'En-tête du site d\'inscription',
+            'settings.inscription.params'      => 'Paramètres d\'inscription',
+            'settings.inscription.assoconnect' => 'Liaison AssoConnect',
+          ];
+          foreach ($inscriptionCardActions as $k => $label): ?>
+          <tr>
+            <td><?= $label ?></td>
+            <?= permCell('admin',  'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', $k, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
         </tbody>
       </table>
       <p class="text-muted small mt-2 mb-0">
@@ -582,6 +657,24 @@ const ALL_ACTIONS = [
   { key: 'qrcode.write',                  label: 'Cr\u00e9er/supprimer QR',        group: 'admin' },
   { key: 'connexions.write',              label: 'G\u00e9rer connexions',          group: 'admin' },
   { key: 'logs.write',                    label: 'Vider les logs',                 group: 'admin' },
+  // Sous-onglets des Réglages
+  { key: 'settings.tab.personnalisation', label: 'Réglages : Personnalisation', group: 'settings' },
+  { key: 'settings.tab.accueil',          label: 'Réglages : Accueil',           group: 'settings' },
+  { key: 'settings.tab.inscription',      label: 'Réglages : Inscription',       group: 'settings' },
+  { key: 'settings.tab.parcours',         label: 'Réglages : Parcours',          group: 'settings' },
+  { key: 'settings.tab.reglementation',   label: 'Réglages : Reglementation',    group: 'settings' },
+  { key: 'settings.tab.formulaire',       label: 'Réglages : Formulaire',        group: 'settings' },
+  { key: 'settings.tab.import',           label: 'Réglages : Import Excel',      group: 'settings' },
+  { key: 'settings.tab.maintenance',      label: 'Réglages : Maintenance',       group: 'settings' },
+  // Cartes de l'onglet Accueil
+  { key: 'settings.accueil.hero',         label: 'Accueil : Titre / Image sur la vidéo', group: 'settings' },
+  { key: 'settings.accueil.params',       label: 'Accueil : Paramètres page',    group: 'settings' },
+  { key: 'settings.accueil.video',        label: 'Accueil : Vidéo d\'accueil', group: 'settings' },
+  { key: 'settings.accueil.custom',       label: 'Accueil : Contenu personnalisé', group: 'settings' },
+  // Cartes de l'onglet Inscription
+  { key: 'settings.inscription.header',      label: 'Inscription : En-tête du site', group: 'settings' },
+  { key: 'settings.inscription.params',      label: 'Inscription : Paramètres d\'inscription', group: 'settings' },
+  { key: 'settings.inscription.assoconnect', label: 'Inscription : Liaison AssoConnect',   group: 'settings' },
 ];
 // Initialisé depuis PHP avec les vrais défauts (BDD ou hardcodés) — mis à jour en live
 // quand l'admin modifie le tableau "Droits par rôle".

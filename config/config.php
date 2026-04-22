@@ -275,6 +275,14 @@ function permCatalog(): array
             'albums.create','albums.edit','albums.delete',
             // Pages d'administration (write actions)
             'settings.write','mail.write','mail.send','qrcode.write','connexions.write','logs.write',
+            // Sous-onglets des Réglages (granularité par onglet)
+            'settings.tab.personnalisation','settings.tab.accueil','settings.tab.inscription',
+            'settings.tab.parcours','settings.tab.reglementation','settings.tab.formulaire',
+            'settings.tab.import','settings.tab.maintenance',
+            // Cartes de l'onglet Accueil
+            'settings.accueil.hero','settings.accueil.params','settings.accueil.video','settings.accueil.custom',
+            // Cartes de l'onglet Inscription
+            'settings.inscription.header','settings.inscription.params','settings.inscription.assoconnect',
         ],
     ];
 }

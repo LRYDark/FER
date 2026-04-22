@@ -15,12 +15,69 @@ $role = currentRole();
 $canWrite     = canDoAction('settings.write');
 $pageReadOnly = !$canWrite;
 
+// ── Helpers de sous-permissions (admin a tout via canDoAction) ─────────────────
+$canTab  = function(string $tab): bool { return canDoAction('settings.tab.' . $tab); };
+$canCard = function(string $tab, string $card): bool {
+    return canDoAction('settings.' . $tab . '.' . $card);
+};
+
+// Mapping des save-buttons POST → (tab, card) pour blocage serveur
+$postCardMap = [
+    // Personnalisation
+    'save_navbar_logo'    => ['personnalisation', null],
+    'save_footer_logo'    => ['personnalisation', null],
+    'save_theme'          => ['personnalisation', null],
+    'reset_theme'         => ['personnalisation', null],
+    'save_flash_colors'   => ['personnalisation', null],
+    'reset_flash_colors'  => ['personnalisation', null],
+    // Accueil
+    'save_hero'               => ['accueil', 'hero'],
+    'save_accueil_params'     => ['accueil', 'params'],
+    'delete_picture_partner'  => ['accueil', 'params'],
+    'save_video_accueil'      => ['accueil', 'video'],
+    'save_custom_content'     => ['accueil', 'custom'],
+    // Inscription
+    'save_header'              => ['inscription', 'header'],
+    'save_inscription_params'  => ['inscription', 'params'],
+    'LinkAssoConnect'          => ['inscription', 'assoconnect'],
+    // Parcours
+    'parcours'                 => ['parcours', null],
+    'uploadGalerie'            => ['parcours', null],
+    'delete_picture_parcours'  => ['parcours', null],
+    'delete_picture_gradient'  => ['parcours', null],
+    // Reglementation
+    'reglementation'           => ['reglementation', null],
+    // Formulaire
+    'save_fields'              => ['formulaire', null],
+    'add_custom_field'         => ['formulaire', null],
+    'delete_field_id'          => ['formulaire', null],
+    // Import
+    'importExcel'              => ['import', null],
+    // Maintenance
+    'save_maintenance'         => ['maintenance', null],
+];
+
 // Bloquer toute action POST si pas le droit d'écriture
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
     http_response_code(403);
     $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (lecture seule).'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
+}
+
+// Bloquer aussi si la sous-permission (onglet ou carte) manque
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canWrite) {
+    foreach ($postCardMap as $postKey => [$tab, $card]) {
+        if (!isset($_POST[$postKey])) continue;
+        $allowed = $canTab($tab) && ($card === null || $canCard($tab, $card));
+        if (!$allowed) {
+            http_response_code(403);
+            $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (permission manquante).'];
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit;
+        }
+        break; // un seul bouton soumis à la fois
+    }
 }
 
 require 'navbar-data.php';
@@ -1045,23 +1102,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance'])) {
     $activeTab = $_GET['tab'];
 }
+
+// Si l'onglet actif n'est pas accessible, basculer sur le premier accessible
+$allTabs = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance'];
+if (!$canTab($activeTab)) {
+    $activeTab = '';
+    foreach ($allTabs as $t) { if ($canTab($t)) { $activeTab = $t; break; } }
+}
 ?>
 
 <h1 class="mb-3 fw-bold"><i class="bi bi-gear me-2"></i>Réglages</h1>
 
 <!-- Settings Navigation Tabs -->
 <ul class="nav settings-tabs" id="settingsTabs">
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" href="#" data-tab="personnalisation">Personnalisation</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'accueil' ? 'active' : '' ?>" href="#" data-tab="accueil">Accueil</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'inscription' ? 'active' : '' ?>" href="#" data-tab="inscription">Inscription</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeTab === 'maintenance' ? 'active' : '' ?>" href="#" data-tab="maintenance">Maintenance</a></li>
+  <?php if ($canTab('personnalisation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" href="#" data-tab="personnalisation">Personnalisation</a></li><?php endif; ?>
+  <?php if ($canTab('accueil')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'accueil' ? 'active' : '' ?>" href="#" data-tab="accueil">Accueil</a></li><?php endif; ?>
+  <?php if ($canTab('inscription')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'inscription' ? 'active' : '' ?>" href="#" data-tab="inscription">Inscription</a></li><?php endif; ?>
+  <?php if ($canTab('parcours')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li><?php endif; ?>
+  <?php if ($canTab('reglementation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li><?php endif; ?>
+  <?php if ($canTab('formulaire')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li><?php endif; ?>
+  <?php if ($canTab('import')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li><?php endif; ?>
+  <?php if ($canTab('maintenance')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'maintenance' ? 'active' : '' ?>" href="#" data-tab="maintenance">Maintenance</a></li><?php endif; ?>
 </ul>
+<?php if ($activeTab === ''): ?>
+<div class="alert alert-warning mt-3"><i class="bi bi-exclamation-triangle me-2"></i>Vous n'avez accès à aucun onglet des Réglages.</div>
+<?php endif; ?>
 
 <!-- ═══ TAB: Personnalisation ═══ -->
+<?php if ($canTab('personnalisation')): ?>
 <div class="settings-section <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" id="tab-personnalisation">
   <div class="row g-4">
 
@@ -1326,12 +1394,15 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
 
   </div><!-- /row -->
 </div><!-- /tab-personnalisation -->
+<?php endif; // canTab('personnalisation') ?>
 
 <!-- ═══ TAB: Accueil ═══ -->
+<?php if ($canTab('accueil')): ?>
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
   <div class="row g-4">
 
     <!-- Carte 1 : Titre / Image sur la vidéo -->
+    <?php if ($canCard('accueil', 'hero')): ?>
     <div class="col-12">
       <div class="setting-card">
         <h2>Titre / Image sur la vidéo</h2>
@@ -1382,8 +1453,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         </form>
       </div>
     </div><!-- /col-12 -->
+    <?php endif; // canCard('accueil','hero') ?>
 
     <!-- Carte 2 : Paramètres page accueil -->
+    <?php if ($canCard('accueil', 'params')): ?>
     <div class="col-12">
       <div class="setting-card">
         <h2>Paramètres page accueil</h2>
@@ -1431,8 +1504,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         </form>
       </div>
     </div><!-- /col-12 -->
+    <?php endif; // canCard('accueil','params') ?>
 
     <!-- Carte 3 : Vidéo d'accueil -->
+    <?php if ($canCard('accueil', 'video')): ?>
     <div class="col-12">
       <div class="setting-card">
         <h2>Vidéo d'accueil</h2>
@@ -1465,8 +1540,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         </form>
       </div>
     </div><!-- /col-12 -->
+    <?php endif; // canCard('accueil','video') ?>
 
     <!-- Carte 4 : Contenu personnalisé -->
+    <?php if ($canCard('accueil', 'custom')): ?>
     <div class="col-12">
       <div class="setting-card">
         <h2><i class="bi bi-text-paragraph me-2"></i>Contenu personnalisé</h2>
@@ -1491,13 +1568,17 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         </form>
       </div>
     </div><!-- /col-12 -->
+    <?php endif; // canCard('accueil','custom') ?>
 
   </div><!-- /row -->
 </div><!-- /tab-accueil -->
+<?php endif; // canTab('accueil') ?>
 
 <!-- ═══ TAB: Inscription ═══ -->
+<?php if ($canTab('inscription')): ?>
 <div class="settings-section <?= $activeTab === 'inscription' ? 'active' : '' ?>" id="tab-inscription">
   <div class="row g-4">
+    <?php if ($canCard('inscription', 'header')): ?>
     <div class="col-12">
       <div class="setting-card">
         <h2>En-tête du site d'inscription</h2>
@@ -1538,7 +1619,9 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         </form>
       </div>
     </div><!-- /col-12 -->
+    <?php endif; // canCard('inscription','header') ?>
 
+    <?php if ($canCard('inscription', 'params')): ?>
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Paramètres d'inscription</h2>
@@ -1582,7 +1665,9 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
         </form>
       </div>
     </div><!-- /col-lg-6 -->
+    <?php endif; // canCard('inscription','params') ?>
 
+    <?php if ($canCard('inscription', 'assoconnect')): ?>
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Liaison AssoConnect</h2>
@@ -1615,11 +1700,14 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
                     </form>
       </div><!-- /setting-card asso -->
     </div><!-- /col-lg-6 -->
+    <?php endif; // canCard('inscription','assoconnect') ?>
 
   </div><!-- /row -->
 </div><!-- /tab-inscription -->
+<?php endif; // canTab('inscription') ?>
 
 <!-- ═══ TAB: Parcours ═══ -->
+<?php if ($canTab('parcours')): ?>
 <div class="settings-section <?= $activeTab === 'parcours' ? 'active' : '' ?>" id="tab-parcours">
   <div class="row g-4">
     <div class="col-12">
@@ -1799,8 +1887,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
     </div>
   </div>
 </div><!-- /tab-parcours -->
+<?php endif; // canTab('parcours') ?>
 
 <!-- ═══ TAB: Reglementation ═══ -->
+<?php if ($canTab('reglementation')): ?>
 <div class="settings-section <?= $activeTab === 'reglementation' ? 'active' : '' ?>" id="tab-reglementation">
   <style>
     .tox-tinymce { border-radius: 0.375rem !important; }
@@ -1833,8 +1923,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
     });
   </script>
 </div><!-- /tab-reglementation -->
+<?php endif; // canTab('reglementation') ?>
 
 <!-- ═══ TAB: Formulaire ═══ -->
+<?php if ($canTab('formulaire')): ?>
 <div class="settings-section <?= $activeTab === 'formulaire' ? 'active' : '' ?>" id="tab-formulaire">
   <div class="row g-4">
     <div class="col-12">
@@ -1971,8 +2063,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
 
   </div><!-- /row -->
 </div><!-- /tab-formulaire -->
+<?php endif; // canTab('formulaire') ?>
 
 <!-- ═══ TAB: Import Excel ═══ -->
+<?php if ($canTab('import')): ?>
 <div class="settings-section <?= $activeTab === 'import' ? 'active' : '' ?>" id="tab-import">
   <div class="row g-4">
     <div class="col-12">
@@ -2021,8 +2115,10 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
     </div><!-- /col-12 -->
   </div><!-- /row -->
 </div><!-- /tab-import -->
+<?php endif; // canTab('import') ?>
 
 <!-- ═══ TAB: Maintenance ═══ -->
+<?php if ($canTab('maintenance')): ?>
 <div class="settings-section <?= $activeTab === 'maintenance' ? 'active' : '' ?>" id="tab-maintenance">
   <div class="row g-4">
     <div class="col-12">
@@ -2056,6 +2152,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil',
     </div><!-- /col-12 -->
   </div><!-- /row -->
 </div><!-- /tab-maintenance -->
+<?php endif; // canTab('maintenance') ?>
 
 <!-- Paramètres mail déplacé vers mail-settings.php -->
 
