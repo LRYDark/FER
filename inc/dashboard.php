@@ -747,25 +747,12 @@ $('#fAdd').on('submit',e=>{
   .then(r=>r.json()).then(j=>{
     if(j.inscription_no){
       tbl.ajax.reload(); e.target.reset();
-      showToast('Inscription n°' + j.inscription_no + ' enregistrée !');
+      showToast('Inscription n°' + j.inscription_no + ' enregistrée !', 'success');
       $('#fAdd [name="nom"]').focus();
     }
   });
 });
 
-/* ══ TOAST ════ */
-function showToast(msg) {
-  let t = document.getElementById('ocToast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'ocToast';
-    t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:14px 24px;border-radius:10px;font-size:14px;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .3s;display:flex;align-items:center;gap:10px;';
-    document.body.appendChild(t);
-  }
-  t.innerHTML = '<span style="color:#22c55e;font-size:18px;">&#10003;</span> ' + msg;
-  t.style.opacity = '1';
-  setTimeout(() => { t.style.opacity = '0'; }, 3500);
-}
 
 /* ══ ÉDITION ════ */
 $('#tbl').on('click','button.edit',function(){

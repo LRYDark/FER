@@ -666,8 +666,10 @@ if ($migrationDone) {
     padding: 1rem 1.25rem;
     margin-bottom: 0.75rem;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
     transition: box-shadow .15s;
   }
   .year-list-item:hover {
@@ -675,12 +677,16 @@ if ($migrationDone) {
   }
   .year-list-item .year-info {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .year-list-item .year-info .year-name {
     font-weight: 700;
     font-size: 1.05rem;
+    word-break: break-word;
   }
   .album-count-badge {
     font-size: 0.75rem;
@@ -696,6 +702,20 @@ if ($migrationDone) {
   /* Drag-and-drop albums */
   .drag-handle-album:hover { color: #F42182 !important; }
   .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
+
+  /* Sur PC : checkbox "Supprimer" hors flux + alignement vertical des icônes/boutons */
+  @media (min-width: 576px) {
+    .sortable-album-item { padding-bottom: 28px !important; }
+    .album-cover-col { position: relative; }
+    .album-delete-img-check {
+      position: absolute;
+      top: 100%;
+      margin-top: 3px;
+      left: 0;
+      white-space: nowrap;
+    }
+    .album-align-col { padding-top: 26px; }
+  }
 </style>
 </head>
 
@@ -878,7 +898,7 @@ if ($migrationDone) {
 
               <!-- Modal de modification année -->
               <div class="modal fade" id="modalYear<?= $year['id'] ?>" tabindex="-1">
-                <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+                <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
                 <div class="modal-content p-4">
                     <div class="modal-header">
                     <h5 class="modal-title">Modifier l'année <?= htmlspecialchars($year['year']) ?></h5>
@@ -889,16 +909,16 @@ if ($migrationDone) {
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-3">
-                          <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
+                          <div class="col-12 <?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                               <label class="form-label">Année</label>
                               <input type="number" name="year" class="form-control" value="<?= htmlspecialchars($year['year']) ?>">
                           </div>
-                          <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
+                          <div class="col-12 <?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                               <label class="form-label">Titre</label>
                               <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($year['title']) ?>">
                           </div>
                           <?php if ($hasStatusCol): ?>
-                          <div class="col-md-4">
+                          <div class="col-12 col-md-4">
                             <label class="form-label">Statut</label>
                             <select name="status" class="form-select">
                               <option value="draft" <?= ($year['status'] ?? 'draft') === 'draft' ? 'selected' : '' ?>>Brouillon</option>
@@ -929,15 +949,15 @@ if ($migrationDone) {
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-2 align-items-end">
-                          <div class="col-md-4">
+                          <div class="col-12 col-md-4">
                             <label class="form-label" style="font-size:12px">Titre</label>
                             <input type="text" name="album_title" class="form-control" placeholder="Titre" required>
                           </div>
-                          <div class="col-md-3">
+                          <div class="col-12 col-md-3">
                             <label class="form-label" style="font-size:12px">Image</label>
                             <input type="file" name="album_img" class="form-control" required>
                           </div>
-                          <div class="col-md-4">
+                          <div class="col-12 col-md-4">
                             <label class="form-label" style="font-size:12px">Description</label>
                             <input type="text" name="album_desc" class="form-control" placeholder="Description">
                           </div>
@@ -957,29 +977,29 @@ if ($migrationDone) {
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
-                            <div class="row g-2 align-items-end flex-nowrap">
-                              <div class="col-auto d-flex align-items-center" style="min-width:30px">
+                            <div class="row g-2 align-items-center flex-wrap">
+                              <div class="col-auto d-flex align-items-center album-align-col" style="min-width:30px">
                                 <span class="drag-handle-album" style="cursor:grab;color:#94a3b8;font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
                               </div>
-                              <div class="col">
+                              <div class="col-12 col-sm">
                                 <label class="form-label" style="font-size:12px">Titre</label>
                                 <input type="text" name="album_title" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_title']) ?>">
                               </div>
-                              <div class="col-auto" style="min-width:140px">
+                              <div class="col-12 col-sm-auto album-cover-col" style="min-width:140px">
                                 <label class="form-label" style="font-size:12px">Image</label>
                                 <input type="file" name="album_img" class="form-control form-control-sm">
                                 <?php if (!empty($album['album_img'])): ?>
-                                <div class="form-check mt-1">
+                                <div class="form-check mt-1 album-delete-img-check">
                                   <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImgPartner<?= $album['id'] ?>">
                                   <label class="form-check-label text-danger" style="font-size:11px" for="delImgPartner<?= $album['id'] ?>">Supprimer</label>
                                 </div>
                                 <?php endif; ?>
                               </div>
-                              <div class="col">
+                              <div class="col-12 col-sm">
                                 <label class="form-label" style="font-size:12px">Description</label>
                                 <input type="text" name="album_desc" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_desc']) ?>">
                               </div>
-                              <div class="col-auto text-end">
+                              <div class="col-12 col-sm-auto text-end album-align-col">
                                 <div class="d-flex gap-1">
                                   <?php if ($canEdit): ?>
                                   <button type="submit" name="update_album" class="btn btn-sm btn-success" title="Enregistrer"><i class="bi bi-check-lg"></i></button>
@@ -1006,7 +1026,7 @@ if ($migrationDone) {
             <?php if (!$isTrashed): ?>
             <!-- Modal ajout année -->
             <div class="modal fade" id="modalAddYear" tabindex="-1">
-            <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+            <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
                 <div class="modal-content p-4">
                 <div class="modal-header">
                     <h5 class="modal-title">Ajouter une Année</h5>
@@ -1014,16 +1034,16 @@ if ($migrationDone) {
                 </div>
                 <form method="post" class="modal-body row g-3">
                     <?= csrf_field() ?>
-                    <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
+                    <div class="col-12 <?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                     <label class="form-label">Année</label>
                     <input type="number" name="year" class="form-control" required>
                     </div>
-                    <div class="<?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
+                    <div class="col-12 <?= $hasStatusCol ? 'col-md-4' : 'col-md-6' ?>">
                     <label class="form-label">Titre</label>
                     <input type="text" name="title" class="form-control" required>
                     </div>
                     <?php if ($hasStatusCol): ?>
-                    <div class="col-md-4">
+                    <div class="col-12 col-md-4">
                       <label class="form-label">Statut</label>
                       <select name="status" class="form-select">
                         <option value="draft" selected>Brouillon</option>

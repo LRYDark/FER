@@ -85,21 +85,23 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
       </div>
     </div>
 
-      <table id="qrTable" class="table table-striped" style="width:100%">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Organisation</th>
-            <th>Token</th>
-            <th>URL</th>
-            <th>Description</th>
-            <th>Statut</th>
-            <th>Cree le</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-responsive">
+        <table id="qrTable" class="table table-striped" style="width:100%">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Organisation</th>
+              <th>Token</th>
+              <th>URL</th>
+              <th>Description</th>
+              <th>Statut</th>
+              <th>Cree le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
   </div>
 
 <!-- Modal Création QR Code -->

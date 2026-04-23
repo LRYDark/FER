@@ -775,9 +775,19 @@ $jsConfig = json_encode([
 .prev-sec:hover .drag-bar:hover{opacity:1}
 
 @media(max-width:900px){
-  .ed-wrap{flex-direction:column;height:auto}
-  .ed-sidebar{width:100%;min-width:0;max-height:40vh;border-right:0;border-bottom:1px solid #e2e8f0}
-  .ed-preview-area{padding:16px}
+  .ed-wrap{height:auto;overflow:visible}
+  .ed-sidebar{
+    position:static;
+    width:100%;min-width:0;
+    max-height:50vh;overflow-y:auto;
+    border-right:0;border-bottom:1px solid #e2e8f0;
+    border-radius:12px 12px 0 0;box-shadow:none;
+  }
+  .ed-preview-area{
+    position:static;
+    padding:16px;
+    border-radius:0 0 12px 12px;
+  }
   .prev-email{width:100%}
 }
 </style>

@@ -315,11 +315,11 @@ foreach ($items as $item) {
   .drag-handle:hover { color: #F42182; }
 
   /* Image position dragger — same ratio as card (480×180) */
-  .img-positioner{position:relative;width:100%;max-width:480px;aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed #e2e8f0;cursor:grab;background:#f1f5f9;user-select:none}
+  .img-positioner{position:relative;width:100%;max-width:min(480px, 100%);aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed #e2e8f0;cursor:grab;background:#f1f5f9;user-select:none}
   .img-positioner:active{cursor:grabbing}
   .img-positioner img{position:absolute;top:0;left:0;pointer-events:none;user-select:none;-webkit-user-drag:none;transform-origin:0 0}
   .img-positioner .pos-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 12px;border-radius:20px;pointer-events:none;white-space:nowrap;z-index:2}
-  .img-pos-controls{display:flex;align-items:center;gap:10px;margin-top:8px;max-width:480px}
+  .img-pos-controls{display:flex;align-items:center;gap:10px;margin-top:8px;max-width:min(480px, 100%)}
   .img-pos-controls label{font-size:12px;color:#64748b;font-weight:600;white-space:nowrap}
   .img-pos-controls input[type=range]{flex:1;accent-color:#F42182}
 
@@ -361,7 +361,7 @@ foreach ($items as $item) {
         </script>
         <?php endif; ?>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
           <h1 class="mb-3 fw-bold"><i class="bi bi-clock-history me-2"></i>Gestion de la Timeline</h1>
           <?php if (!$isTrashed && $canCreate): ?>
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddItem">
@@ -492,7 +492,7 @@ foreach ($items as $item) {
 
             <!-- Edit Modal for item <?= $item['id'] ?> -->
             <div class="modal fade" id="modalEditItem<?= $item['id'] ?>" tabindex="-1">
-              <div class="modal-dialog modal-lg">
+              <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
                 <div class="modal-content">
                   <form method="post" enctype="multipart/form-data">
                     <?= csrf_field() ?>
@@ -502,15 +502,15 @@ foreach ($items as $item) {
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body row g-3">
-                      <div class="col-md-6">
+                      <div class="col-12 col-md-6">
                         <label class="form-label">Titre (kicker rose)</label>
                         <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($item['title']) ?>" required>
                       </div>
-                      <div class="col-md-6">
+                      <div class="col-12 col-md-6">
                         <label class="form-label">Contenu (montant / texte principal)</label>
                         <input type="text" name="content" class="form-control" value="<?= htmlspecialchars($item['content']) ?>" required>
                       </div>
-                      <div class="col-md-6">
+                      <div class="col-12 col-md-6">
                         <label class="form-label">Image</label>
                         <input type="file" name="image" class="form-control" accept="image/*">
                         <?php if (!empty($item['image'])): ?>
@@ -520,12 +520,12 @@ foreach ($items as $item) {
                         </div>
                         <?php endif; ?>
                       </div>
-                      <div class="col-md-6">
+                      <div class="col-12 col-md-6">
                         <label class="form-label">Tags / Éléments (séparés par virgule)</label>
                         <input type="text" name="elements" class="form-control" value="<?= htmlspecialchars($elString) ?>">
                       </div>
                       <?php if ($hasStatusCol): ?>
-                      <div class="col-md-6">
+                      <div class="col-12 col-md-6">
                         <label class="form-label">Statut</label>
                         <select name="status" class="form-select">
                           <option value="draft" <?= ($item['status'] ?? 'draft') === 'draft' ? 'selected' : '' ?>>Brouillon</option>
@@ -567,7 +567,7 @@ foreach ($items as $item) {
 
 <!-- Add Modal -->
 <div class="modal fade" id="modalAddItem" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
     <div class="modal-content">
       <form method="post" enctype="multipart/form-data">
         <?= csrf_field() ?>
@@ -576,24 +576,24 @@ foreach ($items as $item) {
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body row g-3">
-          <div class="col-md-6">
+          <div class="col-12 col-md-6">
             <label class="form-label">Titre (kicker rose)</label>
             <input type="text" name="title" class="form-control" placeholder="Ex: Edition 2025" required>
           </div>
-          <div class="col-md-6">
+          <div class="col-12 col-md-6">
             <label class="form-label">Contenu (montant / texte principal)</label>
             <input type="text" name="content" class="form-control" placeholder="Ex: 16 000 €" required>
           </div>
-          <div class="col-md-6">
+          <div class="col-12 col-md-6">
             <label class="form-label">Image</label>
             <input type="file" name="image" class="form-control" accept="image/*" data-action="preview-new-image" data-positioner="addItemPositioner" data-imgpos="imgpos_new">
           </div>
-          <div class="col-md-6">
+          <div class="col-12 col-md-6">
             <label class="form-label">Tags / Éléments (séparés par virgule)</label>
             <input type="text" name="elements" class="form-control" placeholder="05-08 sept., Les Bureaux du Cœur">
           </div>
           <?php if ($hasStatusCol): ?>
-          <div class="col-md-6">
+          <div class="col-12 col-md-6">
             <label class="form-label">Statut</label>
             <select name="status" class="form-select">
               <option value="draft" selected>Brouillon</option>

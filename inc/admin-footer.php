@@ -57,6 +57,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // ── Profil ──
+  var profileLink = document.getElementById('ocProfileLink');
+  if (profileLink) {
+    profileLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (dropdown) dropdown.classList.remove('show');
+      openProfileModal();
+    });
+  }
+
   // ── Mode toggle (dashboard only) ──
   var modeToggle = document.getElementById('ocModeToggle');
   if (modeToggle) {
@@ -86,6 +96,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btn && !confirm(btn.dataset.confirm)) e.preventDefault();
   });
 
+  // ── Open profile modal from toast or any data-action="open-profile" ──
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action="open-profile"]');
+    if (el) { e.preventDefault(); if (typeof openProfileModal === 'function') openProfileModal(); }
+  });
+
   // ── Generic data-action handlers ──
   document.addEventListener('change', function(e) {
     var el = e.target.closest('[data-action]');
@@ -112,4 +128,395 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+</script>
+
+<!-- ═══════ MODAL PROFIL — JAVASCRIPT ═══════ -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function() {
+'use strict';
+
+var _pfCsrf = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
+
+/* ── Helpers API ── */
+function apiPost(route, data) {
+  return fetch('../config/api.php?route=' + route, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _pfCsrf },
+    body: JSON.stringify(data)
+  }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, json: j }; }); });
+}
+function apiGet(route) {
+  return fetch('../config/api.php?route=' + route, { headers: { 'X-CSRF-TOKEN': _pfCsrf } })
+    .then(function(r) { return r.json(); });
+}
+function showMsg(el, msg, type) {
+  if (!el) return;
+  el.textContent = msg; el.className = 'pf-msg ' + type; el.style.display = '';
+  if (type === 'success') setTimeout(function() { el.style.display = 'none'; }, 5000);
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function b64urlDecode(s) {
+  var pad = s.length % 4; if (pad) s += '==='.slice(0, 4 - pad);
+  return atob(s.replace(/-/g,'+').replace(/_/g,'/'));
+}
+function b64urlEncode(buf) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function strToUint8(s) { return Uint8Array.from(s, function(c) { return c.charCodeAt(0); }); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   OUVERTURE / FERMETURE
+═════════════════════════════════════════════════════════════════════════ */
+var overlay      = document.getElementById('profileModalOverlay');
+var _profileData = null;
+
+function openProfileModal() {
+  if (!overlay) return;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  switchTab('password');
+  loadProfileData();
+}
+function closeProfileModal() {
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  var f = document.getElementById('pfPwdForm');
+  if (f) { f.reset(); updatePwdChecks('', ''); }
+  showTotpStatusView();
+  ['pfPwdMsg','pfTotpMsg','pfTotpSetupMsg','pfPasskeyMsg'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+}
+
+var pfCloseBtn = document.getElementById('pfClose');
+if (pfCloseBtn) pfCloseBtn.addEventListener('click', closeProfileModal);
+if (overlay)    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeProfileModal(); });
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && overlay && overlay.classList.contains('open')) closeProfileModal(); });
+
+/* ════════════════════════════════════════════════════════════════════════
+   ONGLETS
+═════════════════════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  document.querySelectorAll('.pf-tab').forEach(function(btn) {
+    var on = btn.dataset.tab === tab;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.pf-panel').forEach(function(panel) {
+    panel.classList.toggle('active', panel.dataset.panel === tab);
+  });
+}
+document.querySelectorAll('.pf-tab').forEach(function(btn) {
+  btn.addEventListener('click', function() { switchTab(btn.dataset.tab); });
+});
+
+/* ── Œil mot de passe ── */
+document.querySelectorAll('.pf-eye').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var inp = document.getElementById(btn.dataset.target);
+    if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   CHARGEMENT DONNÉES PROFIL
+═════════════════════════════════════════════════════════════════════════ */
+function loadProfileData() {
+  apiGet('profile-info').then(function(j) {
+    if (!j.ok) return;
+    _profileData = j;
+    updateTotpView(j.totp_enabled);
+    renderPasskeys(j.passkeys || []);
+    updateDefaultMethodSection(j);
+  }).catch(function() {});
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOT DE PASSE
+═════════════════════════════════════════════════════════════════════════ */
+function updatePwdChecks(pwd, confirm) {
+  var checks = {
+    'pfck-len':   pwd.length >= 14,
+    'pfck-upper': /[A-Z]/.test(pwd),
+    'pfck-digit': /[0-9]/.test(pwd),
+    'pfck-spec':  /[^a-zA-Z0-9]/.test(pwd),
+    'pfck-match': pwd.length > 0 && pwd === confirm
+  };
+  var allOk = true;
+  Object.keys(checks).forEach(function(id) {
+    var li = document.getElementById(id); if (!li) return;
+    li.classList.toggle('ok', checks[id]);
+    if (!checks[id]) allOk = false;
+  });
+  var btn = document.getElementById('pfPwdBtn'); if (btn) btn.disabled = !allOk;
+}
+
+var pfNewPwd     = document.getElementById('pfNewPwd');
+var pfConfirmPwd = document.getElementById('pfConfirmPwd');
+if (pfNewPwd)     pfNewPwd.addEventListener('input',     function() { updatePwdChecks(pfNewPwd.value, pfConfirmPwd ? pfConfirmPwd.value : ''); });
+if (pfConfirmPwd) pfConfirmPwd.addEventListener('input', function() { updatePwdChecks(pfNewPwd ? pfNewPwd.value : '', pfConfirmPwd.value); });
+
+var pfPwdForm = document.getElementById('pfPwdForm');
+if (pfPwdForm) {
+  pfPwdForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var msg = document.getElementById('pfPwdMsg');
+    var btn = document.getElementById('pfPwdBtn');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    apiPost('profile-change-password', {
+      old_password:     document.getElementById('pfOldPwd').value,
+      new_password:     pfNewPwd.value,
+      confirm_password: pfConfirmPwd.value
+    }).then(function(res) {
+      btn.textContent = 'Enregistrer le nouveau mot de passe';
+      if (!res.ok || !res.json.ok) {
+        var errMsg = res.json.err || (res.json.errors ? res.json.errors.join(' ') : '') || 'Erreur.';
+        showMsg(msg, errMsg, 'error'); btn.disabled = false; return;
+      }
+      showMsg(msg, 'Mot de passe modifié avec succès.', 'success');
+      pfPwdForm.reset(); updatePwdChecks('', '');
+    }).catch(function() {
+      btn.textContent = 'Enregistrer le nouveau mot de passe'; btn.disabled = false;
+      showMsg(msg, 'Erreur de communication.', 'error');
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TOTP
+═════════════════════════════════════════════════════════════════════════ */
+function updateTotpView(enabled) {
+  var badge      = document.getElementById('pfTotpBadge');
+  var setupBtn   = document.getElementById('pfTotpSetupBtn');
+  var disableBtn = document.getElementById('pfTotpDisableBtn');
+  if (!badge) return;
+  badge.textContent = enabled ? 'Activé' : 'Désactivé';
+  badge.className   = 'pf-badge ' + (enabled ? 'pf-badge-on' : 'pf-badge-off');
+  if (setupBtn)   setupBtn.style.display   = enabled ? 'none' : '';
+  if (disableBtn) disableBtn.style.display = enabled ? '' : 'none';
+}
+
+function showTotpStatusView() {
+  var s = document.getElementById('pfTotpStatus'); if (s) s.style.display = '';
+  var u = document.getElementById('pfTotpSetup');  if (u) u.style.display = 'none';
+  var c = document.getElementById('pfTotpCode');   if (c) c.value = '';
+  var qr = document.getElementById('pfQrCode');    if (qr) qr.innerHTML = '';
+}
+
+var pfTotpSetupBtn = document.getElementById('pfTotpSetupBtn');
+if (pfTotpSetupBtn) {
+  pfTotpSetupBtn.addEventListener('click', function() {
+    var self = this;
+    self.disabled = true; self.textContent = 'Chargement…';
+    loadQRLib(function() {
+      apiPost('profile-setup-totp', {}).then(function(res) {
+        self.disabled = false; self.textContent = 'Configurer';
+        if (!res.ok || !res.json.ok) {
+          showMsg(document.getElementById('pfTotpMsg'), res.json.err || 'Erreur.', 'error'); return;
+        }
+        document.getElementById('pfTotpStatus').style.display = 'none';
+        document.getElementById('pfTotpSetup').style.display  = '';
+        document.getElementById('pfTotpSecretDisplay').textContent = res.json.secret;
+        var qrEl = document.getElementById('pfQrCode');
+        if (qrEl) {
+          qrEl.innerHTML = '';
+          if (typeof QRCode !== 'undefined') {
+            new QRCode(qrEl, { text: res.json.qr_uri, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+          } else {
+            qrEl.innerHTML = '<p style="font-size:12px;color:#6b7280;padding:8px">Copiez le secret manuellement.</p>';
+          }
+        }
+        document.getElementById('pfTotpCode').focus();
+      }).catch(function() {
+        self.disabled = false; self.textContent = 'Configurer';
+        showMsg(document.getElementById('pfTotpMsg'), 'Erreur de communication.', 'error');
+      });
+    });
+  });
+  pfTotpSetupBtn.addEventListener('mouseenter', function() { loadQRLib(function() {}); }, { once: true });
+}
+
+var pfTotpVerifyBtn = document.getElementById('pfTotpVerifyBtn');
+if (pfTotpVerifyBtn) {
+  pfTotpVerifyBtn.addEventListener('click', function() {
+    var code = (document.getElementById('pfTotpCode').value || '').trim();
+    var msg  = document.getElementById('pfTotpSetupMsg');
+    if (!/^[0-9]{6}$/.test(code)) { showMsg(msg, 'Code à 6 chiffres requis.', 'error'); return; }
+    this.disabled = true; this.textContent = 'Vérification…';
+    var self = this;
+    apiPost('profile-verify-totp', { code: code }).then(function(res) {
+      self.textContent = 'Activer';
+      if (!res.ok || !res.json.ok) { showMsg(msg, res.json.err || 'Code invalide.', 'error'); self.disabled = false; return; }
+      showTotpStatusView();
+      if (_profileData) _profileData.totp_enabled = true;
+      updateTotpView(true);
+      updateDefaultMethodSection(Object.assign({}, _profileData, { totp_enabled: true }));
+      showMsg(document.getElementById('pfTotpMsg'), 'Authentificateur activé avec succès.', 'success');
+    }).catch(function() { self.textContent = 'Activer'; self.disabled = false; showMsg(document.getElementById('pfTotpSetupMsg'), 'Erreur de communication.', 'error'); });
+  });
+}
+
+var pfTotpCancelBtn = document.getElementById('pfTotpCancelBtn');
+if (pfTotpCancelBtn) pfTotpCancelBtn.addEventListener('click', showTotpStatusView);
+
+var pfTotpDisableBtn = document.getElementById('pfTotpDisableBtn');
+if (pfTotpDisableBtn) {
+  pfTotpDisableBtn.addEventListener('click', function() {
+    if (!confirm('Désactiver l\'authentificateur TOTP ? Vous devrez le reconfigurer pour l\'utiliser à nouveau.')) return;
+    var self = this; self.disabled = true;
+    apiPost('profile-disable-totp', {}).then(function(res) {
+      self.disabled = false;
+      if (!res.ok || !res.json.ok) { showMsg(document.getElementById('pfTotpMsg'), res.json.err || 'Erreur.', 'error'); return; }
+      if (_profileData) _profileData.totp_enabled = false;
+      updateTotpView(false);
+      var updated = Object.assign({}, _profileData, { totp_enabled: false });
+      updateDefaultMethodSection(updated);
+      showMsg(document.getElementById('pfTotpMsg'), 'Authentificateur désactivé.', 'success');
+    }).catch(function() { self.disabled = false; showMsg(document.getElementById('pfTotpMsg'), 'Erreur de communication.', 'error'); });
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PASSKEYS
+═════════════════════════════════════════════════════════════════════════ */
+function renderPasskeys(list) {
+  var container = document.getElementById('pfPasskeyList');
+  if (!container) return;
+  if (!list || list.length === 0) {
+    container.innerHTML = '<p class="pf-pk-empty">Aucune clé d\'accès enregistrée.</p>'; return;
+  }
+  container.innerHTML = '';
+  list.forEach(function(pk) {
+    var dateStr  = pk.created_at ? new Date(pk.created_at).toLocaleDateString('fr-FR') : '—';
+    var lastUsed = pk.last_used   ? new Date(pk.last_used).toLocaleDateString('fr-FR')   : 'jamais';
+    var item = document.createElement('div');
+    item.className = 'pf-pk-item';
+    item.innerHTML =
+      '<div class="pf-pk-icon"><svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg></div>'
+      + '<div class="pf-pk-item-info">'
+      + '<span class="pf-pk-name">' + escHtml(pk.name) + '</span>'
+      + '<span class="pf-pk-date">Ajoutée le ' + escHtml(dateStr) + ' · Dernière utilisation : ' + escHtml(lastUsed) + '</span>'
+      + '</div>'
+      + '<button class="pf-pk-delete" title="Supprimer cette clé" data-id="' + escHtml(String(pk.id)) + '">'
+      + '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>';
+    container.appendChild(item);
+  });
+  container.querySelectorAll('.pf-pk-delete').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (!confirm('Supprimer cette clé d\'accès ? Cette action est irréversible.')) return;
+      deletePasskey(parseInt(this.dataset.id, 10));
+    });
+  });
+}
+
+function deletePasskey(id) {
+  var msg = document.getElementById('pfPasskeyMsg');
+  apiPost('webauthn-delete-passkey', { id: id }).then(function(res) {
+    if (!res.ok || !res.json.ok) { showMsg(msg, res.json.err || 'Erreur suppression.', 'error'); return; }
+    loadProfileData();
+  }).catch(function() { showMsg(msg, 'Erreur de communication.', 'error'); });
+}
+
+var pfAddPasskeyBtn = document.getElementById('pfAddPasskeyBtn');
+if (pfAddPasskeyBtn) {
+  pfAddPasskeyBtn.addEventListener('click', async function() {
+    var msg = document.getElementById('pfPasskeyMsg');
+    msg.style.display = 'none';
+    if (!window.PublicKeyCredential) { showMsg(msg, 'Votre navigateur ne supporte pas les clés d\'accès.', 'error'); return; }
+    this.disabled = true;
+    var self = this;
+    try {
+      var optRes = await apiPost('webauthn-register-options', {});
+      if (!optRes.ok || !optRes.json.ok) { showMsg(msg, optRes.json.err || 'Erreur.', 'error'); self.disabled = false; return; }
+      var opts = optRes.json.options;
+      var credential = await navigator.credentials.create({
+        publicKey: {
+          challenge:              strToUint8(b64urlDecode(opts.challenge)),
+          rp:                     opts.rp,
+          user:                   { id: strToUint8(b64urlDecode(opts.user.id)), name: opts.user.name, displayName: opts.user.displayName },
+          pubKeyCredParams:       opts.pubKeyCredParams,
+          excludeCredentials:     (opts.excludeCredentials || []).map(function(c) { return { type: c.type, id: strToUint8(b64urlDecode(c.id)) }; }),
+          authenticatorSelection: opts.authenticatorSelection || {},
+          timeout:                opts.timeout || 60000,
+          attestation:            opts.attestation || 'none'
+        }
+      });
+      var name = prompt('Nommez cette clé d\'accès (ex : MacBook, iPhone…)', 'Ma clé d\'accès');
+      if (name === null) { self.disabled = false; return; }
+      name = name.trim() || 'Ma clé d\'accès';
+      var verRes = await apiPost('webauthn-register-verify', {
+        name: name,
+        credential: {
+          clientDataJSON:    b64urlEncode(credential.response.clientDataJSON),
+          attestationObject: b64urlEncode(credential.response.attestationObject)
+        }
+      });
+      if (!verRes.ok || !verRes.json.ok) { showMsg(msg, verRes.json.err || 'Enregistrement échoué.', 'error'); self.disabled = false; return; }
+      showMsg(msg, 'Clé d\'accès ajoutée avec succès.', 'success');
+      loadProfileData();
+    } catch (err) {
+      if (err.name !== 'NotAllowedError') showMsg(msg, err.message || 'Erreur lors de l\'ajout.', 'error');
+    }
+    self.disabled = false;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MÉTHODE PAR DÉFAUT
+═════════════════════════════════════════════════════════════════════════ */
+function updateDefaultMethodSection(data) {
+  if (!data) return;
+  var section  = document.getElementById('pfDefaultMethodSection');
+  var btnsCont = document.getElementById('pfDefaultBtns');
+  if (!section || !btnsCont) return;
+
+  var available = [];
+  if (data.mail_available)         available.push('email');
+  if (data.totp_enabled)           available.push('totp');
+  if ((data.passkeys || []).length) available.push('passkey');
+
+  if (available.length < 2) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  var labels = {
+    email:   { label: 'Email',           icon: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' },
+    totp:    { label: 'Authentificateur', icon: '<path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>' },
+    passkey: { label: 'Clé d\'accès',    icon: '<path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>' }
+  };
+
+  btnsCont.innerHTML = '';
+  available.forEach(function(m) {
+    var btn = document.createElement('button');
+    btn.className   = 'pf-default-btn' + (m === data.default_2fa_method ? ' active' : '');
+    btn.type        = 'button';
+    btn.dataset.method = m;
+    btn.innerHTML   = '<svg viewBox="0 0 24 24">' + labels[m].icon + '</svg>' + labels[m].label;
+    btn.addEventListener('click', function() {
+      apiPost('profile-set-default-2fa', { method: m }).then(function(res) {
+        if (!res.ok || !res.json.ok) return;
+        if (_profileData) _profileData.default_2fa_method = m;
+        btnsCont.querySelectorAll('.pf-default-btn').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.method === m);
+        });
+      });
+    });
+    btnsCont.appendChild(btn);
+  });
+}
+
+/* ── QRCode lib (lazy) ── */
+function loadQRLib(cb) {
+  if (typeof QRCode !== 'undefined') { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+  s.onload = cb;
+  s.onerror = cb;
+  document.head.appendChild(s);
+}
+
+window.openProfileModal = openProfileModal;
+})();
 </script>

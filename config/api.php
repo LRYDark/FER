@@ -3,11 +3,22 @@ require 'config.php';
 require_once __DIR__ . '/csrf.php';
 header('Content-Type: application/json; charset=utf-8');
 
+// ─── Garde-fou global : toute exception non attrapée renvoie du JSON propre ───
+// Évite les réponses vides ou HTML qui causent "Erreur de communication" côté client.
+set_exception_handler(function(\Throwable $e) {
+    while (ob_get_level() > 0) ob_end_clean();
+    if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
+    error_log('[API uncaught] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'err' => 'Erreur interne du serveur. Si le problème persiste, exécutez update.php pour appliquer les migrations de base de données.']);
+    exit;
+});
+
 $route = $_GET['route'] ?? '';
 
 // ─── CSRF check for state-changing API requests (skip public/pre-auth routes) ───
 // 🔒 [FIX-13] logout retiré des routes CSRF-exempt — force-logout via CSRF impossible (CWE-352)
-$csrfExemptRoutes = ['login', 'validate-2fa', 'forgot-password', 'reset-password-confirm', 'partner-request'];
+$csrfExemptRoutes = ['login', 'login-check-email', 'validate-2fa', 'resend-2fa', 'validate-totp', 'webauthn-auth-verify', 'switch-2fa-method', 'forgot-password', 'reset-password-confirm', 'partner-request'];
 if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE']) && !in_array($route, $csrfExemptRoutes)) {
     if (!csrf_verify()) {
         http_response_code(403);
@@ -92,6 +103,22 @@ function createTrustedDevice($pdo, $userId) {
     } catch (\Throwable $e) {}
 }
 
+function maybeQueueMfaHint($pdo, $uid): void {
+    try {
+        $r = $pdo->prepare('SELECT totp_enabled FROM users WHERE id = ?');
+        $r->execute([$uid]); $row = $r->fetch();
+        if (!empty($row['totp_enabled'])) return;
+        $stPk = $pdo->prepare('SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?');
+        $stPk->execute([$uid]);
+        if ((int)$stPk->fetchColumn() > 0) return;
+        $_SESSION['toasts'][] = [
+            'msg'   => 'Connectez-vous plus rapidement ! Ajoutez une <strong>clé d\'accès</strong> ou une <strong>app TOTP</strong> depuis votre <a href="#" data-action="open-profile" style="color:inherit;font-weight:700;text-decoration:underline;">profil</a> pour ne plus saisir de mot de passe.',
+            'type'  => 'info',
+            'delay' => 15000,
+        ];
+    } catch (\Throwable $e) {}
+}
+
 function isMailConfigured(): bool {
     try {
         global $pdo;
@@ -111,10 +138,17 @@ function isMailConfigured(): bool {
 }
 
 function send2faCode($pdo, $user) {
-    require_once __DIR__ . '/googleMail.php';
+    try {
+        require_once __DIR__ . '/googleMail.php';
+    } catch (\Throwable $e) {
+        error_log('send2faCode: impossible de charger googleMail.php — ' . $e->getMessage());
+        return false;
+    }
     $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    $pdo->prepare('UPDATE users SET twofa_code = ?, twofa_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?')
-        ->execute([$code, $user['id']]);
+    try {
+        $pdo->prepare('UPDATE users SET twofa_code = ?, twofa_expires = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?')
+            ->execute([$code, $user['id']]);
+    } catch (\Throwable $e) { return false; }
     try {
         sendMail(
             $user['email'],
@@ -210,6 +244,82 @@ function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 144
     } catch (\Throwable $e) { error_log('IP ban notification mail error: ' . $e->getMessage()); }
 }
 
+/* ───── LOGIN ÉTAPE 1 — vérification email ──────── */
+if ($route==='login-check-email' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $ip = getClientIp();
+
+    $banInfo = getIpBanInfo($pdo, $ip);
+    if ($banInfo) {
+        http_response_code(403);
+        echo json_encode(['ok'=>false, 'err'=>'Adresse IP bloquée.']); exit;
+    }
+
+    $email = trim($d['email'] ?? '');
+    if (!$email) { http_response_code(400); echo json_encode(['ok'=>false, 'err'=>'Email requis.']); exit; }
+
+    $st = $pdo->prepare('SELECT id, role, email, is_active, totp_enabled, default_2fa_method FROM users WHERE email = ? LIMIT 1');
+    $st->execute([$email]); $u = $st->fetch();
+
+    // Utilisateur inconnu ou inactif → mot de passe requis (échec différé)
+    if (!$u || !$u['is_active']) {
+        echo json_encode(['ok'=>true, 'needs_password'=>true]); exit;
+    }
+
+    // Vérifier méthodes fortes (TOTP / passkey)
+    $totpEnabled  = !empty($u['totp_enabled']);
+    $passkeyIds   = [];
+    $defaultMethod = $u['default_2fa_method'] ?? 'email';
+
+    try {
+        $stPk = $pdo->prepare('SELECT credential_id FROM user_passkeys WHERE user_id = ?');
+        $stPk->execute([$u['id']]);
+        $passkeyIds = $stPk->fetchAll(PDO::FETCH_COLUMN);
+    } catch (\Throwable $e) {}
+
+    $hasStrongMethod = $totpEnabled || !empty($passkeyIds);
+
+    // Pas de méthode forte → mot de passe requis
+    if (!$hasStrongMethod) {
+        echo json_encode(['ok'=>true, 'needs_password'=>true]); exit;
+    }
+
+    // Méthode forte disponible → stocker la session pending et retourner la méthode 2FA
+    $mailOk = isMailConfigured() && filter_var($u['email'], FILTER_VALIDATE_EMAIL);
+    $availableMethods = [];
+    if ($mailOk)             $availableMethods[] = 'email';
+    if ($totpEnabled)        $availableMethods[] = 'totp';
+    if (!empty($passkeyIds)) $availableMethods[] = 'passkey';
+
+    $_SESSION['pending_2fa_uid']     = $u['id'];
+    $_SESSION['pending_2fa_role']    = $u['role'];
+    $_SESSION['pending_2fa_email']   = $u['email'];
+    $_SESSION['pending_2fa_methods'] = $availableMethods;
+    $_SESSION['twofa_attempts']      = 0;
+
+    if (!in_array($defaultMethod, $availableMethods)) $defaultMethod = $availableMethods[0];
+
+    if (count($availableMethods) === 1) {
+        if ($availableMethods[0] === 'totp') {
+            echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'totp']); exit;
+        }
+        if ($availableMethods[0] === 'passkey') {
+            require_once __DIR__ . '/webauthn.php';
+            $wa   = new WebAuthn(getWebAuthnRpId());
+            $opts = $wa->authOptions($passkeyIds);
+            echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'passkey', 'options'=>$opts]); exit;
+        }
+    }
+
+    $extra = [];
+    if ($defaultMethod === 'passkey') {
+        require_once __DIR__ . '/webauthn.php';
+        $wa = new WebAuthn(getWebAuthnRpId());
+        $extra['passkey_options'] = $wa->authOptions($passkeyIds);
+    }
+    echo json_encode(array_merge(['ok'=>true, 'requires_2fa'=>true, 'method'=>'select', 'methods'=>$availableMethods, 'default'=>$defaultMethod], $extra)); exit;
+}
+
 /* ───── LOGIN / LOGOUT ───────────────────────── */
 if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     $d = json_decode(file_get_contents('php://input'), true);
@@ -225,10 +335,45 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok'=>false, 'err'=>$msg]); exit;
     }
 
-    $st=$pdo->prepare('SELECT id,email,password_hash,role,must_change_password,is_active,failed_attempts,locked_at FROM users WHERE email=?');
-    $st->execute([$d['email'] ?? '']); $u=$st->fetch();
+    try {
+        $st=$pdo->prepare('SELECT id,email,password_hash,role,must_change_password,is_active,failed_attempts,locked_at FROM users WHERE email=?');
+        $st->execute([$d['email'] ?? '']); $u=$st->fetch();
+    } catch (\Throwable $e) {
+        // Fallback avant migration : colonnes optionnelles absentes
+        try {
+            $st=$pdo->prepare('SELECT id,email,password_hash,role,is_active FROM users WHERE email=?');
+            $st->execute([$d['email'] ?? '']); $raw=$st->fetch();
+            $u = $raw ? array_merge(['must_change_password'=>0,'failed_attempts'=>0,'locked_at'=>null], $raw) : false;
+        } catch (\Throwable $e2) {
+            echo json_encode(['ok'=>false,'err'=>'Erreur de base de données. Exécutez update.php pour mettre à jour le schéma.']); exit;
+        }
+    }
 
-    if($u && password_verify($d['password'] ?? '',$u['password_hash'])){
+    // Si l'utilisateur vient du flux passwordless (pending_2fa_uid déjà défini) et a choisi "Mot de passe",
+    // il faut toujours vérifier le mot de passe, même s'il a TOTP/passkey.
+    $pendingPasswordFlow = $u && !empty($_SESSION['pending_2fa_uid']) && (int)$_SESSION['pending_2fa_uid'] === (int)$u['id'];
+
+    // Si TOTP ou passkey configuré → pas besoin de mot de passe (sauf si flux password explicite)
+    $hasStrongMethod = false;
+    if ($u && !$pendingPasswordFlow) {
+        try {
+            $r2 = $pdo->prepare('SELECT totp_enabled FROM users WHERE id = ?');
+            $r2->execute([$u['id']]); $r2 = $r2->fetch();
+            if (!empty($r2['totp_enabled'])) $hasStrongMethod = true;
+        } catch (\Throwable $e) {}
+        if (!$hasStrongMethod) {
+            try {
+                $stPk2 = $pdo->prepare('SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?');
+                $stPk2->execute([$u['id']]);
+                if ((int)$stPk2->fetchColumn() > 0) $hasStrongMethod = true;
+            } catch (\Throwable $e) {}
+        }
+    }
+
+    // Vérification explicite du mot de passe (séparée pour ne réinitialiser failed_attempts que si vérifié)
+    $passwordVerified = !$hasStrongMethod && password_verify($d['password'] ?? '', $u['password_hash']);
+
+    if($u && ($hasStrongMethod || $passwordVerified)){
         if(!$u['is_active']){
             $reason = $u['locked_at'] ? 'Compte verrouille (3 echecs)' : 'Compte desactive';
             logLoginAttempt($pdo, $u['id'], $u['email'], false, $reason);
@@ -238,8 +383,8 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 : 'Compte desactive. Contactez un administrateur.';
             echo json_encode(['ok'=>false, 'err'=>$msg]); exit;
         }
-        // Reset failed attempts
-        if ($u['failed_attempts'] > 0) {
+        // Reset failed attempts uniquement si le mot de passe a été vérifié
+        if ($passwordVerified && $u['failed_attempts'] > 0) {
             $pdo->prepare('UPDATE users SET failed_attempts = 0 WHERE id = ?')->execute([$u['id']]);
         }
 
@@ -251,54 +396,119 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             echo json_encode(['ok'=>true, 'role'=>$u['role'], 'must_change_password'=>true]); exit;
         }
 
-        // Check if 2FA is needed (only if user email is a valid email)
-        $mailOk = isMailConfigured();
-        $has2faCols = true;
-        try { $pdo->query('SELECT twofa_code FROM users LIMIT 0'); } catch (\Throwable $e) { $has2faCols = false; }
-        $userHasEmail = filter_var($u['email'], FILTER_VALIDATE_EMAIL);
-
-        if ($mailOk && $has2faCols && $userHasEmail) {
-            // Check trusted device
-            if (checkTrustedDevice($pdo, $u['id'])) {
-                // Trusted → login direct
-                session_regenerate_id(true);
-                $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
-                logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Appareil de confiance');
-                echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
-            }
-
-            // Send 2FA code
-            $sent = send2faCode($pdo, $u);
-            if ($sent) {
-                $_SESSION['pending_2fa_uid'] = $u['id'];
-                $_SESSION['pending_2fa_role'] = $u['role'];
-                $_SESSION['pending_2fa_email'] = $u['email'];
-                echo json_encode(['ok'=>true, 'requires_2fa'=>true]); exit;
-            }
-            // 🔒 Fallback sécurisé : si envoi 2FA échoue, connexion directe + alerte admin
-            logLoginAttempt($pdo, $u['id'], $u['email'], true, '2FA skip - envoi code impossible');
+        // Vérifier appareil de confiance — uniquement si connexion par mot de passe
+        if (!$hasStrongMethod && checkTrustedDevice($pdo, $u['id'])) {
             session_regenerate_id(true);
             $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
-            // Alerter les admins
-            try {
-                $admins = isNotifyEnabled($pdo, 'twofa') ? getNotifyRecipients($pdo) : [];
-                if (!empty($admins) && function_exists('sendMail')) {
-                    foreach ($admins as $adminEmail) {
-                        @sendMail($adminEmail, 'Alerte 2FA - Forbach en Rose', 'Connexion sans 2FA',
-                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> s\'est connecte sans verification 2FA car l\'envoi du code a echoue.</p>'
-                            . '<p>Verifiez la configuration Gmail dans les parametres.</p>',
-                            null, null, 'info', null, 'test');
-                    }
-                }
-            } catch (\Throwable $e) {}
+            maybeQueueMfaHint($pdo, $u['id']);
+            logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Appareil de confiance');
             echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
         }
 
-        // No 2FA needed (mail not configured or columns absent) → login direct
-        session_regenerate_id(true);
-        $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
-        logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Connexion directe');
-        echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
+        // Collecter les méthodes 2FA disponibles pour cet utilisateur
+        $mailOk       = isMailConfigured() && filter_var($u['email'], FILTER_VALIDATE_EMAIL);
+        $totpEnabled  = false;
+        $passkeyIds   = [];
+        $defaultMethod = 'email';
+
+        try {
+            $row2 = $pdo->prepare('SELECT totp_enabled, default_2fa_method FROM users WHERE id = ?');
+            $row2->execute([$u['id']]); $row2 = $row2->fetch();
+            $totpEnabled   = !empty($row2['totp_enabled']);
+            $defaultMethod = $row2['default_2fa_method'] ?? 'email';
+        } catch (\Throwable $e) {}
+
+        try {
+            $stPk = $pdo->prepare('SELECT credential_id FROM user_passkeys WHERE user_id = ?');
+            $stPk->execute([$u['id']]);
+            $passkeyIds = $stPk->fetchAll(PDO::FETCH_COLUMN);
+        } catch (\Throwable $e) {}
+
+        $availableMethods = [];
+        if ($pendingPasswordFlow) {
+            // Flux password explicite : seul le code email est proposé en second facteur
+            if ($mailOk) $availableMethods[] = 'email';
+        } else {
+            if ($mailOk)             $availableMethods[] = 'email';
+            if ($totpEnabled)        $availableMethods[] = 'totp';
+            if (!empty($passkeyIds)) $availableMethods[] = 'passkey';
+        }
+
+        // Aucune méthode 2FA → connexion directe
+        if (empty($availableMethods)) {
+            session_regenerate_id(true);
+            $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+            maybeQueueMfaHint($pdo, $u['id']);
+            logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Connexion directe');
+            echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
+        }
+
+        // Stocker en session pour les étapes suivantes
+        $_SESSION['pending_2fa_uid']     = $u['id'];
+        $_SESSION['pending_2fa_role']    = $u['role'];
+        $_SESSION['pending_2fa_email']   = $u['email'];
+        $_SESSION['pending_2fa_methods'] = $availableMethods;
+        $_SESSION['twofa_attempts']      = 0;
+
+        // Choisir la méthode par défaut effective (la méthode préférée si disponible, sinon première dispo)
+        if (!in_array($defaultMethod, $availableMethods)) $defaultMethod = $availableMethods[0];
+
+        // Une seule méthode disponible
+        if (count($availableMethods) === 1) {
+            if ($availableMethods[0] === 'email') {
+                try { $sent = send2faCode($pdo, $u); } catch (\Throwable $e) { $sent = false; }
+                if (!$sent) {
+                    // Fallback : connexion directe + alerte admin
+                    unset($_SESSION['pending_2fa_uid'], $_SESSION['pending_2fa_role'], $_SESSION['pending_2fa_email'], $_SESSION['pending_2fa_methods']);
+                    logLoginAttempt($pdo, $u['id'], $u['email'], true, '2FA skip - envoi code impossible');
+                    session_regenerate_id(true);
+                    $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+                    try {
+                        $admins = isNotifyEnabled($pdo, 'twofa') ? getNotifyRecipients($pdo) : [];
+                        if (!empty($admins) && function_exists('sendMail')) {
+                            foreach ($admins as $adminEmail) {
+                                @sendMail($adminEmail, 'Alerte 2FA - Forbach en Rose', 'Connexion sans 2FA',
+                                    '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> s\'est connecte sans verification 2FA car l\'envoi du code a echoue.</p>',
+                                    null, null, 'info', null, 'test');
+                            }
+                        }
+                    } catch (\Throwable $e) {}
+                    echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
+                }
+                echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'email']); exit;
+            }
+            if ($availableMethods[0] === 'totp') {
+                echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'totp']); exit;
+            }
+            if ($availableMethods[0] === 'passkey') {
+                try {
+                    require_once __DIR__ . '/webauthn.php';
+                    $wa = new WebAuthn(getWebAuthnRpId());
+                    $opts = $wa->authOptions($passkeyIds);
+                    echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'passkey', 'options'=>$opts]); exit;
+                } catch (\Throwable $e) {
+                    // Passkey non disponible → connexion directe
+                    session_regenerate_id(true);
+                    $_SESSION['uid']=$u['id']; $_SESSION['role']=$u['role']; $_SESSION['email']=$u['email'];
+                    echo json_encode(['ok'=>true, 'role'=>$u['role']]); exit;
+                }
+            }
+        }
+
+        // Plusieurs méthodes → laisser l'utilisateur choisir (méthode par défaut présélectionnée)
+        $extra = [];
+        if ($defaultMethod === 'passkey') {
+            try {
+                require_once __DIR__ . '/webauthn.php';
+                $wa = new WebAuthn(getWebAuthnRpId());
+                $extra['passkey_options'] = $wa->authOptions($passkeyIds);
+            } catch (\Throwable $e) {
+                // Passkey non disponible → retirer de la liste et choisir la prochaine méthode
+                $availableMethods = array_values(array_diff($availableMethods, ['passkey']));
+                $defaultMethod = $availableMethods[0] ?? 'email';
+            }
+        }
+        echo json_encode(array_merge(['ok'=>true, 'requires_2fa'=>true, 'method'=>'select', 'methods'=>$availableMethods, 'default'=>$defaultMethod], $extra)); exit;
     }
 
     // Failed login
@@ -308,10 +518,14 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     autoBanIpIfNeeded($pdo, $ip);
 
     if ($u) {
-        $attempts = $u['failed_attempts'] + 1;
+        $attempts = ($u['failed_attempts'] ?? 0) + 1;
         if ($attempts >= 3) {
-            $pdo->prepare('UPDATE users SET failed_attempts = ?, is_active = 0, locked_at = NOW() WHERE id = ?')
-                ->execute([$attempts, $u['id']]);
+            try {
+                $pdo->prepare('UPDATE users SET failed_attempts = ?, is_active = 0, locked_at = NOW() WHERE id = ?')
+                    ->execute([$attempts, $u['id']]);
+            } catch (\Throwable $e) {
+                try { $pdo->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$u['id']]); } catch (\Throwable $e2) {}
+            }
             try {
                 require_once __DIR__ . '/googleMail.php';
                 if (isMailConfigured() && isNotifyEnabled($pdo, 'lock')) {
@@ -326,7 +540,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             http_response_code(403);
             echo json_encode(['ok'=>false, 'err'=>'Compte verrouille apres 3 tentatives echouees. Utilisez "Mot de passe oublie" pour reactiver votre compte.']); exit;
         } else {
-            $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]);
+            try { $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]); } catch (\Throwable $e) {}
             $remaining = 3 - $attempts;
             http_response_code(401);
             echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects. Il vous reste ' . $remaining . ' tentative(s) avant blocage du compte.']); exit;
@@ -385,6 +599,9 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
         createTrustedDevice($pdo, $uid);
     }
 
+    // Hint MFA : les utilisateurs qui passent par le code email n'ont pas de TOTP/passkey
+    maybeQueueMfaHint($pdo, $uid);
+
     echo json_encode(['ok'=>true, 'role'=>$_SESSION['role'], 'csrf_token'=>csrf_token()]); exit;
 }
 
@@ -428,6 +645,146 @@ if ($route==='logout'){
     session_destroy();
     echo json_encode(['ok'=>true]);
     exit;
+}
+
+/* ───── SWITCH 2FA METHOD (pré-auth) ─────────── */
+if ($route==='switch-2fa-method' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $method = $d['method'] ?? '';
+
+    if (!isset($_SESSION['pending_2fa_uid'])) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Session 2FA expirée. Reconnectez-vous.']); exit;
+    }
+    $availMethods = $_SESSION['pending_2fa_methods'] ?? [];
+    if (!in_array($method, $availMethods, true)) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Méthode non disponible.']); exit;
+    }
+
+    $uid = $_SESSION['pending_2fa_uid'];
+    if ($method === 'email') {
+        $u = $pdo->prepare('SELECT id, email FROM users WHERE id = ?');
+        $u->execute([$uid]); $u = $u->fetch();
+        $sent = $u ? send2faCode($pdo, $u) : false;
+        if (!$sent) { http_response_code(500); echo json_encode(['ok'=>false, 'err'=>'Erreur envoi code email.']); exit; }
+        $_SESSION['twofa_attempts'] = 0;
+        echo json_encode(['ok'=>true, 'method'=>'email']); exit;
+    }
+    if ($method === 'totp') {
+        $_SESSION['twofa_attempts'] = 0;
+        echo json_encode(['ok'=>true, 'method'=>'totp']); exit;
+    }
+    if ($method === 'passkey') {
+        require_once __DIR__ . '/webauthn.php';
+        $stPk = $pdo->prepare('SELECT credential_id FROM user_passkeys WHERE user_id = ?');
+        $stPk->execute([$uid]);
+        $ids = $stPk->fetchAll(PDO::FETCH_COLUMN);
+        if (empty($ids)) { http_response_code(400); echo json_encode(['ok'=>false, 'err'=>'Aucune clé d\'accès enregistrée.']); exit; }
+        $wa = new WebAuthn(getWebAuthnRpId());
+        $opts = $wa->authOptions($ids);
+        echo json_encode(['ok'=>true, 'method'=>'passkey', 'options'=>$opts]); exit;
+    }
+    http_response_code(400);
+    echo json_encode(['ok'=>false, 'err'=>'Méthode inconnue.']); exit;
+}
+
+/* ───── VALIDATE TOTP (pré-auth) ─────────────── */
+if ($route==='validate-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $code        = trim($d['code'] ?? '');
+    $trustDevice = !empty($d['trust_device']);
+
+    if (!isset($_SESSION['pending_2fa_uid'])) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Session 2FA expirée. Reconnectez-vous.']); exit;
+    }
+
+    $_SESSION['twofa_attempts'] = ($_SESSION['twofa_attempts'] ?? 0) + 1;
+    if ($_SESSION['twofa_attempts'] > 5) {
+        session_unset(); session_destroy();
+        http_response_code(429);
+        echo json_encode(['ok'=>false, 'err'=>'Trop de tentatives. Veuillez vous reconnecter.']); exit;
+    }
+
+    $uid = $_SESSION['pending_2fa_uid'];
+    require_once __DIR__ . '/totp.php';
+    $row = $pdo->prepare('SELECT totp_secret FROM users WHERE id = ? AND totp_enabled = 1');
+    $row->execute([$uid]); $row = $row->fetch();
+
+    $matchedCounter = $row ? TOTP::verify($row['totp_secret'] ?? '', $code) : false;
+    if ($matchedCounter === false) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Code invalide.']); exit;
+    }
+    // 🔒 Anti-replay : rejeter un code déjà utilisé dans cette session pending
+    $lastUsedCounter = $_SESSION['totp_used_counter'] ?? PHP_INT_MIN;
+    if ($matchedCounter <= $lastUsedCounter) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Code invalide.']); exit;
+    }
+    $_SESSION['totp_used_counter'] = $matchedCounter;
+
+    unset($_SESSION['twofa_attempts']);
+    session_regenerate_id(true);
+    $_SESSION['uid']   = $uid;
+    $_SESSION['role']  = $_SESSION['pending_2fa_role'];
+    $_SESSION['email'] = $_SESSION['pending_2fa_email'];
+    unset($_SESSION['pending_2fa_uid'], $_SESSION['pending_2fa_role'], $_SESSION['pending_2fa_email'], $_SESSION['pending_2fa_methods']);
+
+    logLoginAttempt($pdo, $uid, $_SESSION['email'], true, 'TOTP validé');
+    echo json_encode(['ok'=>true, 'role'=>$_SESSION['role'], 'csrf_token'=>csrf_token()]); exit;
+}
+
+/* ───── WEBAUTHN AUTH VERIFY (pré-auth) ─────── */
+if ($route==='webauthn-auth-verify' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d = json_decode(file_get_contents('php://input'), true);
+    $trustDevice = !empty($d['trust_device']);
+
+    if (!isset($_SESSION['pending_2fa_uid'])) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Session 2FA expirée. Reconnectez-vous.']); exit;
+    }
+
+    // 🔒 Rate-limit : 5 tentatives max (identique TOTP / email 2FA)
+    $_SESSION['twofa_attempts'] = ($_SESSION['twofa_attempts'] ?? 0) + 1;
+    if ($_SESSION['twofa_attempts'] > 5) {
+        session_unset(); session_destroy();
+        http_response_code(429);
+        echo json_encode(['ok'=>false, 'err'=>'Trop de tentatives. Veuillez vous reconnecter.']); exit;
+    }
+
+    $uid = $_SESSION['pending_2fa_uid'];
+    $credIdB64 = $d['credential_id'] ?? '';
+
+    require_once __DIR__ . '/webauthn.php';
+    $stPk = $pdo->prepare('SELECT id, public_key, sign_count FROM user_passkeys WHERE user_id = ? AND credential_id = ?');
+    $stPk->execute([$uid, $credIdB64]);
+    $passkey = $stPk->fetch();
+
+    if (!$passkey) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Clé d\'accès inconnue.']); exit;
+    }
+
+    try {
+        $wa = new WebAuthn(getWebAuthnRpId());
+        $newCount = $wa->verifyAuthentication($d, $passkey['public_key'], (int)$passkey['sign_count']);
+        $pdo->prepare('UPDATE user_passkeys SET sign_count = ?, last_used = NOW() WHERE id = ?')
+            ->execute([$newCount, $passkey['id']]);
+    } catch (\Throwable $e) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Authentification par clé d\'accès échouée : ' . $e->getMessage()]); exit;
+    }
+
+    session_regenerate_id(true);
+    $_SESSION['uid']   = $uid;
+    $_SESSION['role']  = $_SESSION['pending_2fa_role'];
+    $_SESSION['email'] = $_SESSION['pending_2fa_email'];
+    unset($_SESSION['pending_2fa_uid'], $_SESSION['pending_2fa_role'], $_SESSION['pending_2fa_email'], $_SESSION['pending_2fa_methods'], $_SESSION['wa_auth_challenge']);
+
+    logLoginAttempt($pdo, $uid, $_SESSION['email'], true, 'Clé d\'accès validée');
+    echo json_encode(['ok'=>true, 'role'=>$_SESSION['role'], 'csrf_token'=>csrf_token()]); exit;
 }
 
 /* ───── FORGOT PASSWORD (public) ────────────── */
@@ -520,6 +877,169 @@ if ($route==='change-password' && $_SERVER['REQUEST_METHOD']==='POST'){
     $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
         ->execute([password_hash($password, PASSWORD_DEFAULT), $_SESSION['uid']]);
     echo json_encode(['ok' => true]); exit;
+}
+
+/* ───── PROFILE: CHANGE PASSWORD (authentifié) ── */
+if ($route==='profile-change-password' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $d = json_decode(file_get_contents('php://input'), true);
+    $old     = $d['old_password']     ?? '';
+    $new     = $d['new_password']     ?? '';
+    $confirm = $d['confirm_password'] ?? '';
+
+    $row = $pdo->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $row->execute([$_SESSION['uid']]); $row = $row->fetch();
+
+    if (!$row || !password_verify($old, $row['password_hash'])) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Ancien mot de passe incorrect.']); exit;
+    }
+    if ($new !== $confirm) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Les mots de passe ne correspondent pas.']); exit;
+    }
+    if (password_verify($new, $row['password_hash'])) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Le nouveau mot de passe doit être différent de l\'ancien.']); exit;
+    }
+    $errors = validatePasswordPolicy($new);
+    if (!empty($errors)) { http_response_code(400); echo json_encode(['ok'=>false, 'errors'=>$errors]); exit; }
+
+    $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
+        ->execute([password_hash($new, PASSWORD_DEFAULT), $_SESSION['uid']]);
+    echo json_encode(['ok'=>true]); exit;
+}
+
+/* ───── PROFILE: INFOS (authentifié) ─────────── */
+if ($route==='profile-info' && $_SERVER['REQUEST_METHOD']==='GET'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $row = $pdo->prepare('SELECT totp_enabled, default_2fa_method FROM users WHERE id = ?');
+    $row->execute([$_SESSION['uid']]); $row = $row->fetch();
+
+    $passkeys = [];
+    try {
+        $stPk = $pdo->prepare('SELECT id, name, created_at, last_used FROM user_passkeys WHERE user_id = ? ORDER BY created_at ASC');
+        $stPk->execute([$_SESSION['uid']]);
+        $passkeys = $stPk->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {}
+
+    echo json_encode([
+        'ok'               => true,
+        'totp_enabled'     => !empty($row['totp_enabled']),
+        'default_2fa_method' => $row['default_2fa_method'] ?? 'email',
+        'mail_available'   => isMailConfigured(),
+        'passkeys'         => $passkeys,
+    ]); exit;
+}
+
+/* ───── PROFILE: SETUP TOTP ────────────────────── */
+if ($route==='profile-setup-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    require_once __DIR__ . '/totp.php';
+    $secret = TOTP::generateSecret();
+    $pdo->prepare('UPDATE users SET totp_pending_secret = ? WHERE id = ?')
+        ->execute([$secret, $_SESSION['uid']]);
+    $qrUri = TOTP::getQRUri($secret, $_SESSION['email'] ?? '');
+    echo json_encode(['ok'=>true, 'secret'=>$secret, 'qr_uri'=>$qrUri]); exit;
+}
+
+/* ───── PROFILE: VERIFY TOTP SETUP ─────────────── */
+if ($route==='profile-verify-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $d = json_decode(file_get_contents('php://input'), true);
+    $code = trim($d['code'] ?? '');
+    require_once __DIR__ . '/totp.php';
+    $row = $pdo->prepare('SELECT totp_pending_secret FROM users WHERE id = ?');
+    $row->execute([$_SESSION['uid']]); $row = $row->fetch();
+    if (!$row || empty($row['totp_pending_secret']) || !TOTP::verify($row['totp_pending_secret'], $code)) {
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Code invalide. Assurez-vous que votre application est bien synchronisée.']); exit;
+    }
+    $pdo->prepare('UPDATE users SET totp_secret = totp_pending_secret, totp_pending_secret = NULL, totp_enabled = 1 WHERE id = ?')
+        ->execute([$_SESSION['uid']]);
+    echo json_encode(['ok'=>true]); exit;
+}
+
+/* ───── PROFILE: DISABLE TOTP ───────────────────── */
+if ($route==='profile-disable-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $pdo->prepare('UPDATE users SET totp_secret = NULL, totp_pending_secret = NULL, totp_enabled = 0 WHERE id = ?')
+        ->execute([$_SESSION['uid']]);
+    // Réinitialiser default si c'était totp
+    $pdo->prepare("UPDATE users SET default_2fa_method = 'email' WHERE id = ? AND default_2fa_method = 'totp'")
+        ->execute([$_SESSION['uid']]);
+    echo json_encode(['ok'=>true]); exit;
+}
+
+/* ───── PROFILE: SET DEFAULT 2FA ────────────────── */
+if ($route==='profile-set-default-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $d      = json_decode(file_get_contents('php://input'), true);
+    $method = $d['method'] ?? '';
+    $allowed = ['email','totp','passkey'];
+    if (!in_array($method, $allowed, true)) { http_response_code(400); echo json_encode(['ok'=>false, 'err'=>'Méthode invalide.']); exit; }
+    $pdo->prepare('UPDATE users SET default_2fa_method = ? WHERE id = ?')
+        ->execute([$method, $_SESSION['uid']]);
+    echo json_encode(['ok'=>true]); exit;
+}
+
+/* ───── WEBAUTHN: REGISTER OPTIONS ──────────────── */
+if ($route==='webauthn-register-options' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    require_once __DIR__ . '/webauthn.php';
+    $existingIds = [];
+    try {
+        $stPk = $pdo->prepare('SELECT credential_id FROM user_passkeys WHERE user_id = ?');
+        $stPk->execute([$_SESSION['uid']]);
+        $existingIds = $stPk->fetchAll(PDO::FETCH_COLUMN);
+    } catch (\Throwable $e) {}
+    $wa   = new WebAuthn(getWebAuthnRpId());
+    $opts = $wa->registrationOptions((int)$_SESSION['uid'], $_SESSION['email'] ?? '', $existingIds);
+    echo json_encode(['ok'=>true, 'options'=>$opts]); exit;
+}
+
+/* ───── WEBAUTHN: REGISTER VERIFY ───────────────── */
+if ($route==='webauthn-register-verify' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $d    = json_decode(file_get_contents('php://input'), true);
+    $name = mb_substr(trim($d['name'] ?? 'Ma clé d\'accès'), 0, 100);
+    require_once __DIR__ . '/webauthn.php';
+    try {
+        $wa   = new WebAuthn(getWebAuthnRpId());
+        $cred = $wa->verifyRegistration($d['credential'] ?? []);
+    } catch (\Throwable $e) {
+        http_response_code(400);
+        echo json_encode(['ok'=>false, 'err'=>'Enregistrement échoué : ' . $e->getMessage()]); exit;
+    }
+    try {
+        $pdo->prepare('INSERT INTO user_passkeys (user_id, credential_id, public_key, sign_count, name) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$_SESSION['uid'], $cred['credential_id'], $cred['public_key'], $cred['sign_count'], $name]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok'=>false, 'err'=>'Erreur sauvegarde clé.']); exit;
+    }
+    echo json_encode(['ok'=>true]); exit;
+}
+
+/* ───── WEBAUTHN: DELETE PASSKEY ────────────────── */
+if ($route==='webauthn-delete-passkey' && $_SERVER['REQUEST_METHOD']==='POST'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+    $d  = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($d['id'] ?? 0);
+    try {
+        $pdo->prepare('DELETE FROM user_passkeys WHERE id = ? AND user_id = ?')->execute([$id, $_SESSION['uid']]);
+        // Si plus aucune passkey et default = passkey → reset
+        $cnt = $pdo->prepare('SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?');
+        $cnt->execute([$_SESSION['uid']]); $cnt = (int)$cnt->fetchColumn();
+        if ($cnt === 0) {
+            $pdo->prepare("UPDATE users SET default_2fa_method = 'email' WHERE id = ? AND default_2fa_method = 'passkey'")
+                ->execute([$_SESSION['uid']]);
+        }
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok'=>false, 'err'=>'Erreur suppression.']); exit;
+    }
+    echo json_encode(['ok'=>true]); exit;
 }
 
 /* ───── RESET PASSWORD CONFIRM (token) ───────── */

@@ -580,7 +580,7 @@ if ($migrationDone) {
       <?php if (!$isTrashed): ?>
       <!-- Modal Modifier -->
       <div class="modal fade" id="modalEditNews<?= $n['id'] ?>" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
           <div class="modal-content p-4">
             <div class="modal-header">
               <h5 class="modal-title">Modifier l'article</h5>
@@ -598,11 +598,11 @@ if ($migrationDone) {
                     <?= csrf_field() ?>
                     <input type="hidden" name="news_id" value="<?= $n['id'] ?>">
                     <div class="row g-3">
-                      <div class="<?= $migrationDone ? 'col-md-6' : 'col-md-6' ?>">
+                      <div class="col-12 <?= $migrationDone ? 'col-md-6' : 'col-md-6' ?>">
                         <label>Titre</label>
                         <input type="text" name="title_article" class="form-control" value="<?= htmlspecialchars($n['title_article']) ?>" required>
                       </div>
-                      <div class="<?= $migrationDone ? 'col-md-3' : 'col-md-6' ?>">
+                      <div class="col-12 <?= $migrationDone ? 'col-md-3' : 'col-md-6' ?>">
                         <label>Image (laisser vide pour conserver)</label>
                         <input type="file" name="img_article" class="form-control">
                         <?php if (!empty($n['img_article'])): ?>
@@ -613,7 +613,7 @@ if ($migrationDone) {
                         <?php endif; ?>
                       </div>
                       <?php if ($migrationDone): ?>
-                      <div class="col-md-3">
+                      <div class="col-12 col-md-3">
                         <label>Statut</label>
                         <select name="status" class="form-select">
                           <option value="draft" <?= $n['status'] === 'draft' ? 'selected' : '' ?>>Brouillon</option>
@@ -693,7 +693,7 @@ if ($migrationDone) {
 
   <!-- Modal Ajouter -->
   <div class="modal fade" id="modalAddNews" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+    <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
       <div class="modal-content p-4">
         <form method="post" enctype="multipart/form-data">
           <?= csrf_field() ?>
@@ -702,16 +702,16 @@ if ($migrationDone) {
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body row g-3">
-            <div class="<?= $migrationDone ? 'col-md-5' : 'col-md-6' ?>">
+            <div class="col-12 <?= $migrationDone ? 'col-md-5' : 'col-md-6' ?>">
               <label>Titre</label>
               <input type="text" name="title_article" class="form-control" required>
             </div>
-            <div class="<?= $migrationDone ? 'col-md-4' : 'col-md-6' ?>">
+            <div class="col-12 <?= $migrationDone ? 'col-md-4' : 'col-md-6' ?>">
               <label>Image</label>
               <input type="file" name="img_article" class="form-control">
             </div>
             <?php if ($migrationDone): ?>
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
               <label>Statut</label>
               <select name="status" class="form-select">
                 <option value="draft" selected>Brouillon</option>

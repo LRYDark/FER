@@ -41,6 +41,9 @@ ErrorDocument 404 /errors/404.php
 ErrorDocument 500 /errors/500.php
 ErrorDocument 503 /errors/503.php
 
+# Favicon
+RewriteRule ^favicon\.ico$ files/_logos/logo_fer_rose.png [L,R=302]
+
 # URLs propres : permet d'accéder sans .php
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f

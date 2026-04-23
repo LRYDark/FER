@@ -82,29 +82,43 @@ if (!empty($GLOBALS['debogage']) || (!empty($data) && !empty($data['debogage']))
 </style>
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+function _ferToastDismiss(toast) {
+  toast.classList.add('toast-out');
+  setTimeout(function() { toast.remove(); }, 300);
+}
 window.showToast = function(message, type, duration) {
   type = type || 'success';
   duration = duration || 4000;
-  var icons = {
-    success: '&#10003;',
-    danger: '&#10007;',
-    warning: '&#9888;',
-    info: '&#8505;'
-  };
+  var icons = { success: '&#10003;', danger: '&#10007;', warning: '&#9888;', info: '&#8505;' };
   var container = document.getElementById('toastContainer');
   var toast = document.createElement('div');
   toast.className = 'fer-toast fer-toast-' + type;
   toast.style.setProperty('--toast-duration', duration + 'ms');
-  toast.innerHTML =
-    '<span class="fer-toast-icon">' + (icons[type] || '') + '</span>' +
-    '<span class="fer-toast-body">' + message + '</span>' +
-    '<button class="fer-toast-close" onclick="this.parentElement.classList.add(\'toast-out\');setTimeout(function(){this.parentElement.remove()}.bind(this),300)">&times;</button>' +
-    '<div class="fer-toast-progress"></div>';
+
+  var icon  = document.createElement('span');
+  icon.className = 'fer-toast-icon';
+  icon.innerHTML = icons[type] || '';
+
+  var body  = document.createElement('span');
+  body.className = 'fer-toast-body';
+  body.innerHTML = message;
+
+  var close = document.createElement('button');
+  close.className = 'fer-toast-close';
+  close.innerHTML = '&times;';
+  close.setAttribute('aria-label', 'Fermer');
+  close.addEventListener('click', function() { _ferToastDismiss(toast); });
+
+  var progress = document.createElement('div');
+  progress.className = 'fer-toast-progress';
+
+  toast.appendChild(icon);
+  toast.appendChild(body);
+  toast.appendChild(close);
+  toast.appendChild(progress);
   container.appendChild(toast);
-  setTimeout(function() {
-    toast.classList.add('toast-out');
-    setTimeout(function() { toast.remove(); }, 300);
-  }, duration);
+
+  setTimeout(function() { _ferToastDismiss(toast); }, duration);
 };
 </script>
 

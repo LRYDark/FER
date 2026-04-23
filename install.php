@@ -617,6 +617,10 @@ function getCreateTableStatements(): array
           `locked_at` DATETIME DEFAULT NULL,
           `twofa_code` VARCHAR(6) DEFAULT NULL,
           `twofa_expires` DATETIME DEFAULT NULL,
+          `totp_secret` VARCHAR(64) DEFAULT NULL,
+          `totp_pending_secret` VARCHAR(64) DEFAULT NULL,
+          `totp_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          `default_2fa_method` ENUM('email','totp','passkey') NOT NULL DEFAULT 'email',
           `permissions` TEXT DEFAULT NULL,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`),
@@ -873,6 +877,19 @@ function getCreateTableStatements(): array
           UNIQUE KEY `idx_token` (`token`),
           INDEX `idx_user` (`user_id`),
           INDEX `idx_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `user_passkeys` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `user_id` INT NOT NULL,
+          `credential_id` VARCHAR(1024) NOT NULL,
+          `public_key` TEXT NOT NULL,
+          `sign_count` INT UNSIGNED NOT NULL DEFAULT 0,
+          `name` VARCHAR(100) NOT NULL DEFAULT 'Ma clé d\'accès',
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `last_used` DATETIME DEFAULT NULL,
+          UNIQUE KEY `idx_cred` (credential_id(255)),
+          INDEX `idx_user` (`user_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
         "CREATE TABLE IF NOT EXISTS `page_visits` (

@@ -2,247 +2,214 @@
 require '../config/config.php';
 require_once '../config/csrf.php';
 require 'navbar-data.php';
-requireRole(['saisie']);           // page dédiée au rôle saisie
+requireRole(['saisie']);
 
-// Cohérence avec le système de permissions : si l'admin a retiré
-// dashboard.create_registration au rôle saisie, on ne montre pas le formulaire
 $canCreateReg = canDoAction('dashboard.create_registration');
-$stmt = $pdo->prepare(
-    'SELECT *
-       FROM setting
-      WHERE id = :id
-      LIMIT 1');
-$stmt->execute(['id' => 1]);
 
+$stmt = $pdo->prepare('SELECT * FROM setting WHERE id = :id LIMIT 1');
+$stmt->execute(['id' => 1]);
 $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$assoconnectJs      = $data['assoconnect_js']     ?? null;
-$assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
-$title  = $data['title']   ?? '';
-$picture= $data['picture'] ?? '';
+$title        = $data['title']        ?? '';
 $title_mobile = $data['title_mobile'] ?? '';
 
-// Formulaire dynamique
 require_once '../config/form_fields.php';
 $formFields = getActiveFields($pdo, 'saisie');
-?>
 
+$canTshirtMode = false; // pas de mode T-shirts sur la page saisie
+?>
 <!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Saisie inscription</title>
-
-  <!-- Bootstrap -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
-  <!-- Charte Forbach en Rose -->
-  <!-- Google Fonts (déjà référencée dans le CSS) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 </head>
-
 <body>
-  <style>
-    :root{
-      --rose-500:#F42182;
-      --rose-600:#db2777;
-    }
-    body{
-      background:#fff;
-      min-height:100vh;
-      display:flex;
-      flex-direction:column;
-    }
-    .hero{
-      background:var(--rose-500);
-      color:#fff;
-      padding:1.55rem 1rem calc(1.95rem + 16px);
-      min-height:120px;
-      position:relative;
-      text-align:center;
-    }
-    .badge-donation{
-      background:#fff;
-      color:var(--rose-600);
-      border-radius:1rem;
-      padding:.4rem .9rem;
-      font-weight:600;
-    }
-    .hero-inner{max-width:800px;margin:.15rem auto 0;}
-    .demo-kicker img{
-      max-width:100% !important;
-      height:auto !important;
-      object-fit:contain;
-      display:block;
-      margin:0 auto;
-    }
-    .card-form{
-      max-width:1100px;
-      margin:calc(-.75rem - 20px) auto 12px;
-      border:0;
-      box-shadow:0 0 25px rgba(0,0,0,.1);
-    }
-    .register-page-title img{
-      max-width:100% !important;
-      height:auto !important;
-      object-fit:contain;
-    }
-    .btn-rose{
-      background:var(--rose-600);
-      color:#fff;
-      border:0;
-    }
-    .btn-rose:hover{background:#c13778;color:#fff;}
-    .form-control,
-    .form-select{border-radius:1rem;}
 
-    .hero .top-actions {
-      position: absolute;
-      top: .6rem;
-      right: .6rem;
-      display: flex;
-      gap: .5rem;
-    }
+<?php include 'navbar-admin.php'; ?>
 
-    @media (max-width:767.98px){
-      .hero{
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:flex-start;
-        padding:1rem .75rem calc(1.15rem + 10px);
-        min-height:108px;
-      }
-      .hero .top-actions{
-        position:relative;
-        top:auto;
-        right:auto;
-        align-self:flex-end;
-        margin:0 0 .5rem;
-      }
-      .hero-inner{
-        width:100%;
-        margin:0;
-        padding:0 4px;
-      }
-      .badge-donation{
-        font-size:.94rem;
-        padding:.32rem .72rem;
-      }
-      .hero p{font-size:.9rem;}
-      .card-form{
-        max-width:100%;
-        margin-top:0;
-        margin-bottom:4px;
-      }
-      .btn-rose.btn-lg{
-        font-size:1rem;
-        padding:.65rem 1rem;
-      }
-    }
-  </style>
+<style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+/* ── Saisie : pas de sidebar ── */
+#oc-sidebar  { display: none !important; }
+.oc-burger   { display: none !important; }
+.oc-overlay  { display: none !important; }
+#oc-content  {
+  border-radius: var(--oc-radius) !important;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
 
-  <!-- HERO identique à register.php -->
-<header class="hero position-relative"><!-- position:relative indispensable -->
-  <style>
-    .header-mobile{ display: none; }
-    .header-pc{ display: block; }
-    @media (max-width: 980px){
-      .header-pc{ display: none; }
-      .header-mobile{ display: block; }
-    }
-  </style>
+/* ── Wrapper ── */
+.saisie-wrapper {
+  width: 100%;
+  max-width: 820px;
+  padding: 8px 0 40px;
+}
 
-  <!-- Actions en haut à droite -->
-  <div class="top-actions">
-    <a href="#" id="logout-top" class="btn btn-outline-light btn-sm">Déconnexion</a>
+/* ── En-tête de page ── */
+.saisie-page-header {
+  margin-bottom: 20px;
+}
+.saisie-page-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 4px;
+}
+.saisie-page-header p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ── Card formulaire ── */
+.saisie-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  padding: 28px 32px 32px;
+}
+
+/* ── Champs dans la card ── */
+.saisie-card .form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+}
+.saisie-card .form-control,
+.saisie-card .form-select {
+  border-radius: 6px;
+  border: 1px solid #d4c4cb;
+  font-size: 13px;
+  height: 36px;
+  padding: 0 10px;
+  color: #1a1a2e;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.saisie-card textarea.form-control {
+  height: auto;
+  padding: 8px 10px;
+}
+.saisie-card .form-control:focus,
+.saisie-card .form-select:focus {
+  border-color: #F42182;
+  box-shadow: 0 0 0 3px rgba(196,87,122,.1);
+  outline: none;
+}
+.saisie-card .form-control::placeholder { color: #a1a1aa; }
+
+/* ── Bouton enregistrer ── */
+.btn-saisie {
+  width: 100%;
+  height: 36px;
+  background: #F42182;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-saisie:hover  { background: #a8476a; }
+.btn-saisie:active { background: #933d5c; }
+.btn-saisie:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── Message retour ── */
+#msg { font-size: 13px; border-radius: 6px; padding: 10px 14px; }
+</style>
+
+<div class="saisie-wrapper">
+
+  <div class="saisie-page-header">
+    <h1>Ajouter une inscription</h1>
+    <p>Interface saisie &mdash; <?= htmlspecialchars(currentOrganisation()) ?></p>
   </div>
 
-  <div class="hero-inner text-center">
-    <p class="mb-3">Ajoutez manuellement une inscription</p>
-    <span class="badge-donation">Interface réservée : <?= currentOrganisation();?></span>
+  <div class="saisie-card">
+
+    <div id="msg" class="alert d-none mb-3"></div>
+
+    <?php if (!$canCreateReg): ?>
+      <div class="alert alert-warning">
+        <i class="bi bi-shield-exclamation me-1"></i>
+        La permission de créer des inscriptions a été retirée à votre rôle.
+        Contactez un administrateur pour la rétablir.
+      </div>
+    <?php else: ?>
+
+    <form id="fAdd" class="row g-3">
+      <?php foreach ($formFields as $f): ?>
+        <?= renderFormField($f) ?>
+      <?php endforeach; ?>
+
+      <input type="hidden" name="origine" value="<?= htmlspecialchars(currentOrganisation()) ?>">
+
+      <div class="col-md-6">
+        <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+        <select name="paiement_mode" class="form-select" required>
+          <option value="" selected disabled hidden>Choisir&hellip;</option>
+          <option value="CB">CB</option>
+          <option value="espece">Esp&egrave;ces</option>
+          <option value="cheque">Ch&egrave;que</option>
+        </select>
+      </div>
+
+      <div class="col-12 mt-2">
+        <button type="submit" class="btn-saisie" id="btnSave">Enregistrer</button>
+      </div>
+    </form>
+
+    <?php endif; ?>
   </div>
-</header>
+</div>
 
-  <!-- Bloc formulaire -->
-    <div class="card card-form p-4 bg-white">
-      <!-- Titre TinyMCE (PC / Mobile) -->
-      <div class="header-pc">
-        <div class="register-page-title text-center mb-3" style="font-size:clamp(24px,4vw,42px);font-weight:900;"><?= $title ?></div>
-      </div>
-      <div class="header-mobile">
-        <div class="register-page-title text-center mb-3" style="font-size:clamp(24px,4vw,42px);font-weight:900;"><?= $title_mobile ?: $title ?></div>
-      </div>
-      <small class="d-block text-center text-muted mb-2" style="font-size:.85rem;">(interface saisie)</small>
-      <h2 class="text-center mb-4">Ajouter une inscription</h2>
-      <div id="msg" class="alert alert-info d-none"></div>
+<?php require 'admin-footer.php'; ?>
 
-      <?php if (!$canCreateReg): ?>
-        <div class="alert alert-warning text-center">
-          <i class="bi bi-shield-exclamation me-1"></i>
-          La permission de créer des inscriptions a été retirée à votre rôle.
-          Contactez un administrateur pour la rétablir.
-        </div>
-      <?php else: ?>
-      <form id="fAdd" class="row g-3">
-        <?php foreach ($formFields as $f): ?>
-          <?= renderFormField($f) ?>
-        <?php endforeach; ?>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+  var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-        <input type="hidden" name="origine" value="<?= currentOrganisation();?>">
+  document.getElementById('fAdd') && document.getElementById('fAdd').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    var msg = document.getElementById('msg');
+    msg.className = 'alert d-none';
 
-        <!-- Paiement obligatoire -->
-        <div class="col-md-6">
-          <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
-          <select name="paiement_mode" class="form-select" required>
-            <option value="" selected disabled hidden>Choisir…</option>
-            <option value="CB">CB</option>
-            <option value="espece">espèces</option>
-            <option value="cheque">chèque</option>
-          </select>
-        </div>
-
-        <div class="col-12 d-grid mt-3">
-          <button class="btn btn-rose btn-lg">Enregistrer</button>
-        </div>
-      </form>
-      <?php endif; ?>
-    </div>
-
-  <?php require 'admin-footer.php'; ?>
-
-  <!-- JS -->
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
-    var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-    /* Envoi du formulaire */
-    $('#fAdd').on('submit', e => {
-      e.preventDefault();
-      fetch('../config/api.php?route=registrations', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': _csrfToken},
-        body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
-      })
-      .then(r => r.json())
-      .then(j => {
-        if (j.ok) {
-          $('#msg').removeClass('d-none')
-                   .text('Inscription n° ' + j.inscription_no + ' enregistrée !');
-          e.target.reset();
-        }
-      });
+    fetch('../config/api.php?route=registrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
+      body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      btn.disabled = false; btn.textContent = 'Enregistrer';
+      if (j.ok) {
+        msg.className = 'alert alert-success';
+        msg.textContent = 'Inscription n° ' + j.inscription_no + ' enregistrée !';
+        e.target.reset();
+        setTimeout(function() { msg.className = 'alert d-none'; }, 5000);
+      } else {
+        msg.className = 'alert alert-danger';
+        msg.textContent = j.err || 'Erreur lors de l\'enregistrement.';
+      }
+    })
+    .catch(function() {
+      btn.disabled = false; btn.textContent = 'Enregistrer';
+      msg.className = 'alert alert-danger';
+      msg.textContent = 'Erreur de communication avec le serveur.';
     });
-
-    /* Déconnexion (footer + header) */
-    $('#logout, #logout-top').on('click', e => {
-      e.preventDefault();
-      fetch('../config/api.php?route=logout')
-        .then(() => location = '../login.php');
-    });
-  </script>
+  });
+</script>
 </body>
 </html>

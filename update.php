@@ -38,6 +38,22 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `accueil_custom_position` ENUM('off','after_inscrits','after_partners') NOT NULL DEFAULT 'off'",
     "ALTER TABLE `users` ADD COLUMN `permissions` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `role_permissions` TEXT DEFAULT NULL",
+    "ALTER TABLE `users` ADD COLUMN `totp_secret` VARCHAR(64) DEFAULT NULL",
+    "ALTER TABLE `users` ADD COLUMN `totp_pending_secret` VARCHAR(64) DEFAULT NULL",
+    "ALTER TABLE `users` ADD COLUMN `totp_enabled` TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE `users` ADD COLUMN `default_2fa_method` ENUM('email','totp','passkey') NOT NULL DEFAULT 'email'",
+    "CREATE TABLE IF NOT EXISTS `user_passkeys` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `user_id` INT NOT NULL,
+      `credential_id` VARCHAR(1024) NOT NULL,
+      `public_key` TEXT NOT NULL,
+      `sign_count` INT UNSIGNED NOT NULL DEFAULT 0,
+      `name` VARCHAR(100) NOT NULL DEFAULT 'Ma clé d\'accès',
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      `last_used` DATETIME DEFAULT NULL,
+      UNIQUE KEY `idx_cred` (credential_id(255)),
+      INDEX `idx_user` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 ];
 
 $results = [];
