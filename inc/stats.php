@@ -186,14 +186,16 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-3" id="cardsYear"></div>
 
   <!-- Tableau des inscriptions -->
-  <table id="tbl" class="table table-sm table-striped w-100">
-    <thead class="table-light">
-      <tr>
-        <th>#</th><th>Nom</th><th>Prénom</th><th>Tél</th><th>Email</th>
-        <th>Naissance</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th>
-      </tr>
-    </thead>
-  </table>
+  <div class="table-responsive">
+    <table id="tbl" class="table table-sm table-striped w-100">
+      <thead class="table-light">
+        <tr>
+          <th>#</th><th>Nom</th><th>Prénom</th><th>Tél</th><th>Email</th>
+          <th>Naissance</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th>
+        </tr>
+      </thead>
+    </table>
+  </div>
 </div>
 <?php include '../inc/admin-footer.php'; ?>
 

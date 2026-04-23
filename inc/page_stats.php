@@ -344,7 +344,7 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 
 <!-- Modal: Toutes les pages -->
 <div class="modal fade" id="modalAllPages" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content" style="border-radius:16px;border:none;">
       <div class="modal-header" style="border-bottom:1px solid #f0e8eb;">
         <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Toutes les pages (<?= count($activeStats['all_pages'] ?? []) ?>)</h5>
@@ -373,7 +373,7 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 
 <!-- Modal: Tous les referents -->
 <div class="modal fade" id="modalAllReferers" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content" style="border-radius:16px;border:none;">
       <div class="modal-header" style="border-bottom:1px solid #f0e8eb;">
         <h5 class="modal-title"><i class="bi bi-box-arrow-in-right me-2"></i>Tous les referents (<?= count($activeStats['all_referers'] ?? []) ?>)</h5>

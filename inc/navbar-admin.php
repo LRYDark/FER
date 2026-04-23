@@ -754,9 +754,8 @@ html, body {
     <a href="dashboard.php" style="display:flex;align-items:center">
       <img src="../files/_logos/logo_blanc.png" alt="Forbach en Rose">
     </a>
-    <a href="dashboard.php" id="oc-topbar-appname">Administration</a>
   </div>
-  <?php if (file_exists(__DIR__ . '/../update.php')): ?>
+  <?php if ($userRole === 'admin' && file_exists(__DIR__ . '/../update.php')): ?>
   <div style="flex:1;display:flex;justify-content:center;">
     <a href="../update.php" style="background:rgba(239,68,68,.15);color:#fca5a5;padding:4px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
       <i class="bi bi-exclamation-triangle-fill"></i> update.php doit être supprimé une fois la mise à jour effectuée
@@ -793,6 +792,13 @@ html, body {
           </li>
           <?php endif; ?>
           <li>
+            <a href="#" id="ocProfileLink">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Mon profil</span>
+            </a>
+          </li>
+          <hr class="oc-user-dropdown-divider">
+          <li>
             <a href="#" id="ocLogoutLink" class="oc-dropdown-danger">
               <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               <span>Deconnexion</span>
@@ -803,6 +809,8 @@ html, body {
     </div>
   </div>
 </header>
+
+<?php include __DIR__ . '/profile-modal.php'; ?>
 
 <!-- ═══════ APP CONTAINER ═══════ -->
 <div id="oc-app-container">
@@ -852,7 +860,7 @@ html, body {
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.0.4</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.0.5</div>
   </aside>
 
   <!-- ═══════ CONTENT (opened here, closed in admin-footer.php) ═══════ -->
