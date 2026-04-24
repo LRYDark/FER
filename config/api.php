@@ -287,7 +287,6 @@ if ($route==='login-check-email' && $_SERVER['REQUEST_METHOD']==='POST'){
     // Méthode forte disponible → stocker la session pending et retourner la méthode 2FA
     $mailOk = isMailConfigured() && filter_var($u['email'], FILTER_VALIDATE_EMAIL);
     $availableMethods = [];
-    if ($mailOk)             $availableMethods[] = 'email';
     if ($totpEnabled)        $availableMethods[] = 'totp';
     if (!empty($passkeyIds)) $availableMethods[] = 'passkey';
 

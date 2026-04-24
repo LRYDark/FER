@@ -725,9 +725,7 @@ $picture= $data['picture'] ?? '';
         container.appendChild(btn);
       });
       // Always add password option at end
-      var pwdSub = _2faMethods.indexOf('email') !== -1
-        ? 'Mot de passe + code par email'
-        : 'Connexion par mot de passe';
+      var pwdSub = 'Connexion par mot de passe';
       var pwdBtn = document.createElement('button');
       pwdBtn.type = 'button';
       pwdBtn.className = 'oc-method-btn';
