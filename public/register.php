@@ -4,6 +4,7 @@ require_once '../config/tracker.php';
 trackPageVisit();
 checkMaintenance();
 require_once '../config/csrf.php';
+require '../inc/navbar-data.php';
 
 // Variables d'état
 $hasGetParams = !empty($_GET);
@@ -179,284 +180,25 @@ try {
       rel="stylesheet"
       integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
       crossorigin="anonymous">
-<style>
-  :root{
-    --rose-500: var(--primary, #db2777);
-    --rose-600: var(--primary-hover, #be185d);
-  }
-  body{
-    background:#fff;
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-  }
-
-  .hero{
-    background:var(--rose-500);
-    color:#fff;
-    padding:1.55rem 1rem calc(1.95rem + 16px);
-    min-height:120px;
-    position:relative;
-    text-align:center;
-  }
-  .badge-donation{
-    background:#fff;
-    color:var(--rose-600);
-    border-radius: var(--radius-lg);
-    padding:.4rem .9rem;
-    font-weight:600;
-  }
-  .hero-inner{max-width:800px;margin:.15rem auto 0;}
-  /* Guard-rail: TinyMCE images can be resized smaller freely,
-     but never exceed container bounds */
-  .register-page-title img{
-    max-width: 100% !important;
-    object-fit: contain;
-  }
-  .hero-lead{
-    margin:0 0 .45rem;
-    font-size:1rem;
-    font-weight:500;
-  }
-  .back-link {
-    position: absolute;
-    top: .65rem;
-    left: 1rem;
-    color: white;
-    text-decoration: none;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 13px;
-    background: rgba(255,255,255,.15);
-    border-radius: 12px;
-    transition: all .2s ease;
-  }
-  .back-link:hover {
-    background: rgba(255,255,255,.25);
-    color: white;
-    transform: translateX(-4px);
-  }
-
-  .card-form{
-    max-width:1100px;
-    margin-top:calc(-.75rem - 20px);
-    margin-bottom:12px;
-    border:0;
-    box-shadow:0 0 25px rgba(0,0,0,.1);
-  }
-
-  .reglement-wrap{
-    width:min(100%,1100px);
-    margin:0 auto 8px;
-    padding:0 12px;
-    display:flex;
-    justify-content:center;
-  }
-
-  .reglement-cta{
-    display:inline-flex;
-    align-items:center;
-    gap:10px;
-    border:0;
-    border-radius:12px;
-    background:var(--rose-600);
-    color:#fff;
-    padding:12px 16px;
-    font-size:.96rem;
-    font-weight:600;
-    box-shadow:0 8px 18px rgba(219,39,119,.25);
-    transition:transform .16s ease, box-shadow .16s ease, background .16s ease;
-  }
-  .reglement-cta:hover{
-    transform:translateY(-1px);
-    box-shadow:0 12px 24px rgba(219,39,119,.32);
-    background:#c2256a;
-  }
-
-  .register-page-title{
-    color:#111827;
-    font-size:clamp(1.42rem,2.6vw,1.98rem);
-    font-weight:400;
-    letter-spacing:-.02em;
-  }
-
-  .register-online-title{
-    font-size:clamp(.98rem,1.35vw,1.16rem);
-    font-weight:400;
-  }
-  .btn-rose{
-    background:var(--rose-600);
-    border:0;
-  }
-  .btn-rose:hover{background:#c13778;}
-  .form-control,
-  .form-select{border-radius: var(--radius-lg);}
-
-  .iframe-asc-container,
-  .iframe-asc-container iframe{
-    width:1100px !important;
-    max-width:100% !important;
-  }
-  .iframe-asc-container{margin-bottom:2rem;}
-
-  @media (max-width:767.98px){
-    .hero{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:flex-start;
-      padding:1rem .75rem calc(1.15rem + 10px);
-      min-height:108px;
-    }
-    .back-link{
-      position:relative;
-      top:auto;
-      left:auto;
-      align-self:flex-start;
-      margin:0 0 .5rem;
-      padding:6px 10px;
-      font-size:.84rem;
-      gap:6px;
-      border-radius: var(--radius);
-    }
-    .back-link svg{
-      width:16px;
-      height:16px;
-    }
-    .hero-inner{
-      width:100%;
-      margin:0;
-      padding:0 4px;
-    }
-    .hero-lead{
-      font-size:.8rem;
-      line-height:1.25;
-      margin:0 0 .38rem;
-    }
-    .badge-donation{
-      font-size:.94rem;
-      padding:.32rem .72rem;
-    }
-    .hero p{font-size:.9rem;}
-    .card-form{
-      max-width:100%;
-      margin-top:0;
-      margin-bottom:4px;
-    }
-    .reglement-wrap{
-      padding:0 10px;
-      margin:0 auto 10px;
-    }
-    .reglement-cta{
-      font-size:.9rem;
-      padding:10px 14px;
-    }
-    #fPub .col-md-6{
-      flex:0 0 100%;
-      max-width:100%;
-    }
-    .btn-rose.btn-lg{
-      font-size:1rem;
-      padding:.65rem 1rem;
-    }
-  }
-
-  /* Bouton PDF */
-  .pdf-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 14px;
-    background: #fff;
-    border: 1px solid rgba(15,23,42,.12);
-    border-radius: 12px;
-    color: var(--page-text, #0f172a);
-    font-size: 14px;
-    text-decoration: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
-    transition: all .2s ease;
-    margin: 8px 0;
-  }
-  .pdf-link:hover {
-    border-color: var(--primary, #db2777);
-    box-shadow: 0 4px 16px rgba(244,33,130,.12);
-    transform: translateY(-1px);
-  }
-  .pdf-link-icon {
-    display: flex; align-items: center; justify-content: center;
-    width: 38px; height: 38px;
-    background: rgba(244,33,130,.08);
-    border-radius: var(--radius); flex-shrink: 0;
-  }
-  .pdf-link:hover .pdf-link-icon { background: rgba(244,33,130,.14); }
-  .pdf-link-icon svg { width: 20px; height: 20px; stroke: var(--primary, #db2777); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .pdf-link-info { display: flex; flex-direction: column; gap: 2px; }
-  .pdf-link-name { font-weight: 600; line-height: 1.3; color: var(--page-text, #0f172a); }
-  .pdf-link-hint { font-size: 12px; color: rgba(15,23,42,.45); }
-
-  /* Tableaux TinyMCE dans la réglementation */
-  .modal-body table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 0 0 16px;
-  }
-  .modal-body td, .modal-body th {
-    border: 1px solid #ddd;
-    padding: 8px 12px;
-  }
-
-  /* Images TinyMCE dans la réglementation */
-  .modal-body img {
-    max-width: 100%;
-    height: auto;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: transform .2s ease, box-shadow .2s ease;
-  }
-  .modal-body img:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,.12);
-  }
-
-  /* Lightbox */
-  .tiny-lightbox {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,.9); z-index: 999999;
-    align-items: center; justify-content: center; padding: 20px;
-  }
-  .tiny-lightbox.active { display: flex; }
-  .tiny-lightbox-close {
-    position: absolute; top: 30px; right: 40px;
-    font-size: 48px; color: #fff; cursor: pointer;
-    user-select: none; transition: transform .2s ease;
-  }
-  .tiny-lightbox-close:hover { transform: scale(1.1); }
-  .tiny-lightbox-img {
-    max-width: 90%; max-height: 90%;
-    border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
-  }
-</style>
+<link rel="stylesheet" href="../css/fer-modern.css">
+<link rel="stylesheet" href="../css/register.css">
 <?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 
 <body>
 
-<header class="hero">
-  <a href="accueil" class="back-link">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M19 12H5M12 19l-7-7 7-7"/>
-    </svg>
-    Retour
+<div class="register-title-bar">
+  <a href="accueil" title="Retour" class="back-btn">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.3 11.3l6.8-6.8c.4-.4.4-1 0-1.4s-1-.4-1.4 0l-7.8 7.8c-.4.4-.4 1 0 1.4l7.8 7.8c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L3.3 12.7H22c.6 0 1-.4 1-1s-.4-1-1-1H3.3z"/></svg>
   </a>
-
-  <div class="hero-inner">
-    <p class="hero-lead"><?= (int)$course_km ?> km course et marche solidaire contre le cancer du sein</p>
-    <span class="badge-donation"><?= htmlspecialchars($registration_fee) ?> € intégralement reversés</span>
+  <div class="register-title-info">
+    <h1>Inscription</h1>
+    <span class="register-subtitle"><?= (int)$course_km ?> km course et marche solidaire contre le cancer du sein</span>
   </div>
-
-</header>
+  <?php if (!empty($registration_fee)): ?>
+    <span class="register-donation-badge"><?= htmlspecialchars($registration_fee) ?> € intégralement reversés</span>
+  <?php endif; ?>
+</div>
 
 <?php if ($accueil_active === 0): ?>
   <main class="container-fluid px-0 flex-grow-1 d-flex justify-content-center">
@@ -482,7 +224,7 @@ try {
         <?= htmlspecialchars($errorMessage) ?>
       </div>
       <div class="text-center">
-        <a href="?" class="btn btn-rose">Retour à l'accueil</a>
+        <a href="?" class="btn-action-primary">Retour à l'accueil</a>
       </div>
     <?php elseif ($hasGetParams && $qrData): ?>
       <?php if ($success_message): ?>
@@ -519,7 +261,7 @@ try {
         <input type="hidden" name="paiement_mode" value="En ligne">
 
         <div class="col-12 d-grid">
-          <button class="btn btn-rose btn-lg" type="submit">
+          <button class="btn-action-primary btn-action-lg" type="submit">
             Valider l'inscription
           </button>
         </div>
@@ -621,6 +363,10 @@ try {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') lb.classList.remove('active'); });
 })();
 </script>
+
+<?php include '../inc/footer-modern.php'; ?>
+
+<script src="../js/fer-modern.js"></script>
 
 </body>
 </html>
