@@ -183,11 +183,13 @@ $isAjax = isAjaxRequest();
 // Vérifier l'état actuel de la connexion
 $isConnected = false;
 $authUrl = '#';
-try {
-    $isConnected = isGoogleConnectionValid();
-    $authUrl = getGoogleAuthUrl('setting.php');
-} catch (\Throwable $e) {
-    // Google OAuth not configured or error - ignore
+if (($data['mail_provider'] ?? 'google') !== 'smtp') {
+    try {
+        $isConnected = isGoogleConnectionValid();
+        $authUrl = getGoogleAuthUrl('setting.php');
+    } catch (\Throwable $e) {
+        // Google OAuth not configured or error - ignore
+    }
 }
 
 // Formulaire ---------------------------------------------------------------------------------
