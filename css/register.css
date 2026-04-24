@@ -11,6 +11,15 @@ body{
   flex-direction: column;
 }
 
+/* Register.php n'a pas de navbar → annuler le padding mobile
+   que fer-modern.css applique pour réserver la place du mobile-header */
+@media (max-width: 1040px){
+  body{
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+
 /* ─── Title bar (même pattern que partenaires/photos) ─── */
 .register-title-bar{
   display: flex;
