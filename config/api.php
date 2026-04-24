@@ -1573,7 +1573,8 @@ if ($route==='registrations'){
       } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['ok'=>false, 'error'=>$e->getMessage(), 'line'=>$e->getLine(), 'file'=>basename($e->getFile())]);
+        error_log('[REGISTRATIONS] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        echo json_encode(['ok'=>false, 'error'=>'Une erreur est survenue, veuillez réessayer.']);
         exit;
       }
     }
