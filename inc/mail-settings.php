@@ -51,12 +51,14 @@ $smtp_from_name  = $data['smtp_from_name'] ?? 'Forbach en Rose';
 // OAuth — chargement lazy comme setting.php
 $isConnected = false;
 $authUrl = '#';
-try {
-    require_once '../config/googleMail.php';
-    $isConnected = isGoogleConnectionValid();
-    $authUrl = getGoogleAuthUrl('mail-settings.php');
-} catch (\Throwable $e) {
-    // Google OAuth not configured or error
+if (($data['mail_provider'] ?? 'google') !== 'smtp') {
+    try {
+        require_once '../config/googleMail.php';
+        $isConnected = isGoogleConnectionValid();
+        $authUrl = getGoogleAuthUrl('mail-settings.php');
+    } catch (\Throwable $e) {
+        // Google OAuth not configured or error
+    }
 }
 
 // Mail template config
