@@ -672,13 +672,25 @@ if ($migrationDone) {
         </li>
       <?php endif; ?>
       <?php
-      $start = max(1, $page - 2);
-      $end = min($totalPages, $page + 2);
-      for ($i = $start; $i <= $end; $i++): ?>
-        <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-          <a class="page-link" href="?filter=<?= $filter ?>&page=<?= $i ?><?= $qParam ?>"><?= $i ?></a>
-        </li>
-      <?php endfor; ?>
+      // Pagination compacte type "1 ... 4 5 6 ... 12" (page courante ± 1, plus 1ère et dernière avec ellipses)
+      $pgPages = [];
+      $pgPages[] = 1;
+      if ($page - 1 > 2) $pgPages[] = '...';
+      for ($i = max(2, $page - 1); $i <= min($totalPages - 1, $page + 1); $i++) $pgPages[] = $i;
+      if ($page + 1 < $totalPages - 1) $pgPages[] = '...';
+      if ($totalPages > 1) $pgPages[] = $totalPages;
+      $pgSeen = [];
+      foreach ($pgPages as $i):
+          if ($i === '...'): ?>
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          <?php else:
+              if (isset($pgSeen[$i])) continue;
+              $pgSeen[$i] = true; ?>
+            <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+              <a class="page-link" href="?filter=<?= $filter ?>&page=<?= $i ?><?= $qParam ?>"><?= $i ?></a>
+            </li>
+          <?php endif;
+      endforeach; ?>
       <?php if ($page < $totalPages): ?>
         <li class="page-item">
           <a class="page-link" href="?filter=<?= $filter ?>&page=<?= $page + 1 ?><?= $qParam ?>">&raquo;</a>
@@ -914,16 +926,33 @@ function loadAdminComments(newsId, page, perPage, search) {
             });
             container.innerHTML = html;
 
-            // Pagination
+            // Pagination compacte type "« 1 ... 4 5 6 ... 12 »"
             if (pagination && res.pages > 1) {
                 var pHtml = '<span class="small text-muted">' + res.total + ' commentaire' + (res.total > 1 ? 's' : '') + '</span>';
                 pHtml += '<nav><ul class="pagination pagination-sm mb-0">';
-                if (res.page > 1) pHtml += '<li class="page-item"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + (res.page - 1) + '">&laquo;</a></li>';
-                var s = Math.max(1, res.page - 2), e = Math.min(res.pages, res.page + 2);
-                for (var i = s; i <= e; i++) {
-                    pHtml += '<li class="page-item ' + (i === res.page ? 'active' : '') + '"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + i + '">' + i + '</a></li>';
+                function pgItem(i, label, active) {
+                    return '<li class="page-item' + (active ? ' active' : '') + '"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + i + '">' + (label || i) + '</a></li>';
                 }
-                if (res.page < res.pages) pHtml += '<li class="page-item"><a class="page-link" href="#" data-action="comment-page" data-news-id="' + newsId + '" data-page="' + (res.page + 1) + '">&raquo;</a></li>';
+                function pgEllipsis() {
+                    return '<li class="page-item disabled"><span class="page-link">…</span></li>';
+                }
+                if (res.page > 1) pHtml += pgItem(res.page - 1, '&laquo;');
+                // Page courante ± 1, plus 1ère et dernière avec ellipses
+                var pages = [];
+                pages.push(1);
+                if (res.page - 1 > 2) pages.push('...');
+                for (var i = Math.max(2, res.page - 1); i <= Math.min(res.pages - 1, res.page + 1); i++) pages.push(i);
+                if (res.page + 1 < res.pages - 1) pages.push('...');
+                if (res.pages > 1) pages.push(res.pages);
+                // dédoublonnage simple
+                var seen = {};
+                pages.forEach(function(p) {
+                    if (p === '...') { pHtml += pgEllipsis(); return; }
+                    if (seen[p]) return;
+                    seen[p] = true;
+                    pHtml += pgItem(p, null, p === res.page);
+                });
+                if (res.page < res.pages) pHtml += pgItem(res.page + 1, '&raquo;');
                 pHtml += '</ul></nav>';
                 pagination.innerHTML = pHtml;
                 pagination.style.display = 'flex';

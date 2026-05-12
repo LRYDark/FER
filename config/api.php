@@ -1,6 +1,7 @@
 <?php
 require 'config.php';
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/captcha.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // ─── Garde-fou global : toute exception non attrapée renvoie du JSON propre ───
@@ -18,7 +19,7 @@ $route = $_GET['route'] ?? '';
 
 // ─── CSRF check for state-changing API requests (skip public/pre-auth routes) ───
 // 🔒 [FIX-13] logout retiré des routes CSRF-exempt — force-logout via CSRF impossible (CWE-352)
-$csrfExemptRoutes = ['login', 'login-check-email', 'validate-2fa', 'resend-2fa', 'validate-totp', 'webauthn-auth-verify', 'switch-2fa-method', 'forgot-password', 'reset-password-confirm', 'partner-request'];
+$csrfExemptRoutes = ['login', 'login-check-email', 'validate-2fa', 'resend-2fa', 'validate-totp', 'webauthn-auth-verify', 'switch-2fa-method', 'forgot-password', 'reset-password-confirm', 'partner-request', 'partner-captcha-init'];
 if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE']) && !in_array($route, $csrfExemptRoutes)) {
     if (!csrf_verify()) {
         http_response_code(403);
@@ -1450,7 +1451,14 @@ if ($route==='registrations'){
             echo json_encode(['error' => 'Accès refusé']);
             exit;
         }
-        $rows = $pdo->query("SELECT * FROM registrations ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC")->fetchAll();
+        // Le rôle "saisie" ne voit que ses propres inscriptions
+        if (currentRole() === 'saisie') {
+            $st = $pdo->prepare("SELECT * FROM registrations WHERE created_by = ? ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC");
+            $st->execute([currentUserId()]);
+            $rows = $st->fetchAll();
+        } else {
+            $rows = $pdo->query("SELECT * FROM registrations ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC")->fetchAll();
+        }
         echo json_encode(decryptRows($rows)); exit;
     }
 
@@ -1551,20 +1559,21 @@ if ($route==='registrations'){
         $pdo->commit();
 
         // Envoyer mail de confirmation si email renseigné
+        // (Même logique que public/register.php : appel direct sans isMailConfigured(),
+        //  les erreurs éventuelles sont loguées dans config/logs/logs_*_mails.log par sendMail/sendMailSmtp.)
         $inscEmail = trim($d['email'] ?? '');
         if ($inscEmail !== '') {
             try {
                 require_once __DIR__ . '/googleMail.php';
-                if (isMailConfigured()) {
-                    sendMail(
-                        $inscEmail,
-                        'Inscription enregistrée - Forbach en Rose',
-                        null, null,
-                        $d['nom'] ?? '', $d['prenom'] ?? '',
-                        'inscription', $no
-                    );
-                }
+                sendMail(
+                    $inscEmail,
+                    'Inscription enregistrée - Forbach en Rose',
+                    null, null,
+                    $d['nom'] ?? '', $d['prenom'] ?? '',
+                    'inscription', $no
+                );
             } catch (\Throwable $e) {
+                error_log('[REGISTRATIONS][MAIL] Exception envoi inscription ' . $no . ' : ' . $e->getMessage());
                 // Mail failure should not block inscription
             }
         }
@@ -1583,6 +1592,17 @@ if ($route==='registrations'){
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         requireAction('dashboard.delete_registration');
         parse_str(file_get_contents('php://input'), $d);    // ← on lit ici, uniquement pour DELETE
+        // Le rôle "saisie" ne peut supprimer que ses propres inscriptions
+        if (currentRole() === 'saisie') {
+            $own = $pdo->prepare('SELECT created_by FROM registrations WHERE id=?');
+            $own->execute([$d['id']]);
+            $createdBy = $own->fetchColumn();
+            if ((int)$createdBy !== (int)currentUserId()) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'err' => 'Vous ne pouvez supprimer que vos propres inscriptions.']);
+                exit;
+            }
+        }
         $pdo->prepare('DELETE FROM registrations WHERE id=?')->execute([$d['id']]);
         echo json_encode(['ok'=>true]); exit;
     }
@@ -1620,6 +1640,18 @@ if ($route==='registrations'){
             http_response_code(400);
             echo json_encode(['ok' => false, 'err' => 'id manquant']);
             exit;
+        }
+
+        /* 3. Le rôle "saisie" ne peut modifier que ses propres inscriptions */
+        if (currentRole() === 'saisie') {
+            $own = $pdo->prepare('SELECT created_by FROM registrations WHERE id=?');
+            $own->execute([$d['id']]);
+            $createdBy = $own->fetchColumn();
+            if ((int)$createdBy !== (int)currentUserId()) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'err' => 'Vous ne pouvez modifier que vos propres inscriptions.']);
+                exit;
+            }
         }
 
         /* 4. Champs autorisés dynamiques depuis la table forms + champs système */
@@ -2415,6 +2447,59 @@ if ($route === 'validate-qr-token') {
     exit;
 }
 
+/* ───── CAPTCHA — init (public, partagé entre formulaires) ─────────────────── */
+if ($route === 'partner-captcha-init') {
+    $fallback = !empty($_GET['fallback']);
+    echo json_encode(issuePublicCaptcha($pdo, $fallback));
+    exit;
+}
+
+/* ───── TURNSTILE — test interactif des 2 clés (admin) ────────────────────── */
+if ($route === 'turnstile-test' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!canAccessPage('setting') || !canDoAction('settings.write')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'forbidden', 'msg' => 'Accès refusé']);
+        exit;
+    }
+    $d = json_decode(file_get_contents('php://input'), true) ?: [];
+    $token  = trim((string)($d['token']  ?? ''));
+    // Secret prioritaire : ce qui est saisi dans le form ; sinon celui en BDD
+    $secret = trim((string)($d['secret'] ?? ''));
+    if ($secret === '') {
+        $cfg = getTurnstileConfig($pdo);
+        $secret = $cfg['secret'];
+    }
+    if ($secret === '') { echo json_encode(['ok' => false, 'err' => 'no_secret', 'msg' => 'Aucune clé secrète disponible.']); exit; }
+    if ($token  === '') { echo json_encode(['ok' => false, 'err' => 'no_token',  'msg' => 'Token manquant — complétez le widget.']); exit; }
+
+    // Appel direct siteverify pour récupérer les error-codes détaillés
+    $payload = http_build_query(['secret' => $secret, 'response' => $token, 'remoteip' => getClientIp()]);
+    $ctx = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+        'content' => $payload,
+        'timeout' => 8,
+        'ignore_errors' => true,
+    ]]);
+    $body = @file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, $ctx);
+    if ($body === false) { echo json_encode(['ok' => false, 'err' => 'unreachable', 'msg' => 'Cloudflare injoignable.']); exit; }
+    $j = json_decode($body, true) ?: [];
+
+    if (!empty($j['success'])) {
+        $host = $j['hostname'] ?? '';
+        echo json_encode(['ok' => true, 'msg' => 'Site Key et Secret valides — Cloudflare a confirmé' . ($host ? " (hostname: $host)" : '') . '.']);
+        exit;
+    }
+    $codes = $j['error-codes'] ?? [];
+    $msg = 'Vérification refusée par Cloudflare';
+    if (in_array('invalid-input-secret', $codes, true))  $msg = 'Clé secrète invalide.';
+    elseif (in_array('invalid-input-response', $codes, true)) $msg = 'Token invalide (sitekey/domaine incompatible ?).';
+    elseif (in_array('timeout-or-duplicate', $codes, true))   $msg = 'Token expiré ou déjà utilisé — rechargez et réessayez.';
+    elseif (!empty($codes)) $msg .= ' (' . implode(', ', $codes) . ')';
+    echo json_encode(['ok' => false, 'err' => 'invalid', 'msg' => $msg, 'codes' => $codes]);
+    exit;
+}
+
 /* ───── DEMANDE PARTENARIAT (public) ─────────────────────── */
 if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $d = json_decode(file_get_contents('php://input'), true);
@@ -2424,6 +2509,13 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         http_response_code(400);
         echo json_encode(['ok' => false, 'err' => 'Adresse email invalide.']);
+        exit;
+    }
+
+    // ───── Vérification anti-bot (Turnstile prioritaire, sinon maths) ─────
+    if (!verifyPublicCaptcha($d, $pdo)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'captcha']);
         exit;
     }
 

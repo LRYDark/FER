@@ -105,32 +105,35 @@
     .ncards {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
+      grid-auto-rows: 1fr;       /* toutes les rangées font la même hauteur */
       gap: 1.25rem 1.5rem;
       margin-top: 2rem;
+      align-items: stretch;      /* cards stretchent à la hauteur de la rangée */
     }
     .ncard {
       display: flex;
-      align-items: flex-start;
-      gap: 0.875rem;
-      padding: 0.875rem;
+      align-items: stretch;
+      gap: 0;             /* pas d'espace entre image et body */
+      padding: 0;         /* pas de padding sur la card → image flush */
       background: #fff;
       border-radius: var(--radius);
+      overflow: hidden;   /* clip l'image aux coins arrondis gauches */
       text-decoration: none;
       color: var(--page-text);
       transition: background .18s ease;
+      position: relative;
+      height: 100%;       /* fill la cell de grille (combiné avec grid-auto-rows:1fr) */
     }
     .ncard:hover {
       background: rgba(15,23,42,.04);
     }
-    .ncard {
-      position: relative;
-    }
     .ncard-img {
-      flex: 0 0 160px;
-      height: 7.5rem;
-      border-radius: var(--radius);
+      flex: 0 0 190px;        /* un poil plus large (était 160px) → moins carré */
+      align-self: stretch;    /* fill la hauteur de la card */
       overflow: hidden;
       background: rgba(15,23,42,.06);
+      /* Coins droits arrondis (les gauches sont clippés par card overflow:hidden) */
+      border-radius: 0 var(--radius) var(--radius) 0;
     }
     .ncard-badge-new {
       position: absolute;
@@ -169,6 +172,7 @@
       flex: 1; min-width: 0;
       display: flex; flex-direction: column;
       gap: 0.3125rem;
+      padding: 0.875rem 1rem; /* padding interne (la card n'a plus de padding global) */
     }
     .ncard-title {
       margin: 0;
@@ -239,7 +243,7 @@
     }
     @media (max-width: 640px) {
       .ncards { grid-template-columns: 1fr; gap: 0.625rem; }
-      .ncard-img { flex: 0 0 110px; height: 5.625rem; }
+      .ncard-img { flex: 0 0 130px; } /* height géré par align-self:stretch */
     }
 
     /* ─── Pagination ─── */

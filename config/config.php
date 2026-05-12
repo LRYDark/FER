@@ -755,11 +755,17 @@ function getTinyMceConfig(PDO $pdo, array $overrides = []): string {
     $googleFontsUrl = getTinyMceGoogleFontsUrl();
     $csrfToken = function_exists('csrf_token') ? csrf_token() : '';
 
+    // Mode permissif : autorise l'admin à coller du HTML/CSS/JS quelconque
+    // (utilisé pour les blocs custom de l'accueil par exemple). À NE PAS activer
+    // pour des éditeurs accessibles à des utilisateurs non-admin.
+    $permissive = !empty($overrides['permissive_html']);
+    unset($overrides['permissive_html']);
+
     $defaults = [
         'license_key' => 'gpl',
         'language' => 'fr_FR',
-        'plugins' => 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount code',
-        'toolbar' => 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat | code',
+        'plugins' => 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
+        'toolbar' => 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat',
         'height' => 400,
         'menubar' => false,
         'branding' => false,
@@ -1177,12 +1183,12 @@ header(
     "Content-Security-Policy: " .
     "default-src 'self'; " .
     "script-src 'self' 'nonce-" . $GLOBALS['csp_nonce'] . "' " .
-        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net https://*.assoconnect.com; " .
+        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net https://*.assoconnect.com https://challenges.cloudflare.com; " .
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net 'unsafe-inline'; " .
     "img-src 'self' data: blob: https:; " .
     "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://cdn.datatables.net; " .
-    "frame-src 'self' https://*.assoconnect.com; " .
-    "connect-src 'self' https://*.assoconnect.com https://cdn.jsdelivr.net; " .
+    "frame-src 'self' https://*.assoconnect.com https://challenges.cloudflare.com; " .
+    "connect-src 'self' https://*.assoconnect.com https://cdn.jsdelivr.net https://challenges.cloudflare.com; " .
     "object-src 'none'; " .
     "base-uri 'self';"
 );

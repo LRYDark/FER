@@ -686,6 +686,9 @@ const DEFAULT_PERMS = <?= json_encode([
 ]) ?>;
 
 /* ══ Users DataTable (init immediately) ════ */
+// Pagination compacte type "1 ... 4 5 6 ... 12"
+$.fn.dataTable.ext.pager.numbers_length = 7;
+
 let usrTbl = $('#tblUsers').DataTable({
   ajax:{url:'../config/api.php?route=users',dataSrc:''},
   columns: [

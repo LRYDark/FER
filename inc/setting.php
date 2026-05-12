@@ -35,7 +35,7 @@ $postCardMap = [
     'save_accueil_params'     => ['accueil', 'params'],
     'delete_picture_partner'  => ['accueil', 'params'],
     'save_video_accueil'      => ['accueil', 'video'],
-    'save_custom_content'     => ['accueil', 'custom'],
+    // 'save_accueil_layout' arrive en JSON (pas dans $_POST) → permission vérifiée plus bas dans le handler dédié
     // Inscription
     'save_header'              => ['inscription', 'header'],
     'save_inscription_params'  => ['inscription', 'params'],
@@ -130,8 +130,6 @@ $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $debogage = !empty($data['debogage']) ? 1 : 0;
 $video_accueil = $data['video_accueil'] ?? 'FER.mp4';
-$accueil_custom_content = $data['accueil_custom_content'] ?? '';
-$accueil_custom_position = $data['accueil_custom_position'] ?? 'off';
 $maintenance_mode = !empty($data['maintenance_mode']) ? 1 : 0;
 $maintenance_message = $data['maintenance_message'] ?? '';
 
@@ -176,6 +174,334 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
 }
 
 $isAjax = isAjaxRequest();
+
+// ─── Handler AJAX : PUBLIER le brouillon de l'accueil ───
+// Copie tous les champs *_draft vers les champs publiés, puis vide le brouillon.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['publish_accueil'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    try {
+        require_once __DIR__ . '/../config/accueil_layout.php';
+        publishAccueilDraft($pdo);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[PUBLISH_ACCUEIL] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+// ─── Handler AJAX : DISCARD le brouillon (annuler modifications non publiées) ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['discard_accueil_draft'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    try {
+        require_once __DIR__ . '/../config/accueil_layout.php';
+        discardAccueilDraft($pdo);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[DISCARD_ACCUEIL_DRAFT] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+// ─── Handler dédié AJAX : sauvegarde d'un champ individuel d'une section accueil ───
+// Appelé depuis l'éditeur visuel WYSIWYG quand l'utilisateur édite un champ inline
+// (titre, sous-titre, image, vidéo, etc.). Le champ doit être whitelisté pour des
+// raisons de sécurité.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_field'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']);
+        exit;
+    }
+    // Whitelist des champs modifiables via cet endpoint
+    $allowedFields = [
+        'titleAccueil'            => ['type' => 'tinymce'],
+        'titleAccueil_mobile'     => ['type' => 'tinymce'],
+        'subtitle_accueil'        => ['type' => 'text', 'maxlen' => 500],
+        'subtitle_accueil_mobile' => ['type' => 'text', 'maxlen' => 500],
+        'video_accueil'           => ['type' => 'file', 'dir' => '../files/', 'accept' => ['mp4','webm','ogg']],
+        'picture_partner'         => ['type' => 'file', 'dir' => '../files/_pictures/', 'accept' => ['jpg','jpeg','png','gif','webp']],
+    ];
+    $field = (string)($_POST['field'] ?? '');
+    if (!isset($allowedFields[$field])) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'Champ non autorisé.']);
+        exit;
+    }
+    $meta = $allowedFields[$field];
+    try {
+        if ($meta['type'] === 'file') {
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'err' => 'Fichier invalide ou absent.']);
+                exit;
+            }
+            $ext = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, $meta['accept'], true)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'err' => 'Extension non autorisée. Accepté : ' . implode(', ', $meta['accept'])]);
+                exit;
+            }
+            $newName = bin2hex(random_bytes(8)) . '.' . $ext;
+            $destPath = $meta['dir'] . $newName;
+            if (!move_uploaded_file($_FILES['file']['tmp_name'], $destPath)) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'err' => 'Échec de l\'enregistrement du fichier.']);
+                exit;
+            }
+            $value = $newName;
+        } elseif ($meta['type'] === 'tinymce') {
+            $value = sanitizeHtml((string)($_POST['value'] ?? ''));
+        } else { // text
+            $value = trim((string)($_POST['value'] ?? ''));
+            if (isset($meta['maxlen'])) $value = mb_substr($value, 0, $meta['maxlen']);
+        }
+        $pdo->prepare("UPDATE setting SET `{$field}` = :v WHERE id = 1")->execute(['v' => $value]);
+        echo json_encode(['ok' => true, 'value' => $value]);
+    } catch (\Throwable $e) {
+        error_log('[SAVE_ACCUEIL_FIELD] ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+// ─── Handler AJAX : sauvegarde de la géométrie (x/y/w/h) d'un élément éditable ───
+// Utilisé pour drag libre + resize 4-coins de certains éléments (image partenaires, timer Hero, etc.)
+// ─── Handler AJAX : reset (suppression) de la géométrie d'un champ hero ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_accueil_geometry'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $allowedResetFields = [
+        'picture_partner', 'hero_timer',
+        'titleAccueil', 'titleAccueil_mobile',
+        'subtitle_accueil', 'subtitle_accueil_mobile',
+    ];
+    $field = (string)($_POST['field'] ?? '');
+    if (!in_array($field, $allowedResetFields, true)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Champ non autorisé.']); exit;
+    }
+    try {
+        // Lit le brouillon en cours (avec fallback sur la version publiée)
+        $row = $pdo->query('SELECT COALESCE(accueil_geometry_draft, accueil_geometry) AS g FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $all = [];
+        if ($row && !empty($row['g'])) {
+            $decoded = json_decode($row['g'], true);
+            if (is_array($decoded)) $all = $decoded;
+        }
+        unset($all[$field]);
+        // Écrit dans le BROUILLON (pas direct en prod)
+        $pdo->prepare('UPDATE setting SET accueil_geometry_draft = :g, accueil_draft_updated_at = NOW() WHERE id = 1')
+            ->execute(['g' => $all ? json_encode($all, JSON_UNESCAPED_UNICODE) : '']);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[RESET_ACCUEIL_GEOMETRY] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_geometry'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $allowedFields = [
+        'picture_partner', 'hero_timer',
+        'titleAccueil', 'titleAccueil_mobile',
+        'subtitle_accueil', 'subtitle_accueil_mobile',
+    ];
+    $field = (string)($_POST['field'] ?? '');
+    if (!in_array($field, $allowedFields, true)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Champ non autorisé.']); exit;
+    }
+    $rawGeom = $_POST['geometry'] ?? '';
+    $geom = is_string($rawGeom) ? json_decode($rawGeom, true) : (is_array($rawGeom) ? $rawGeom : null);
+    if (!is_array($geom)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Géométrie invalide.']); exit;
+    }
+    $clean = [
+        'x' => max(-2000, min(2000, (int)($geom['x'] ?? 0))),
+        'y' => max(-2000, min(2000, (int)($geom['y'] ?? 0))),
+        'w' => max(20,    min(2000, (int)($geom['w'] ?? 100))),
+        'h' => max(20,    min(2000, (int)($geom['h'] ?? 100))),
+    ];
+    // Préserve le scale (slider de taille) — sinon, à chaque sauvegarde de drag/resize,
+    // l'élément reprenait sa taille d'origine au rechargement.
+    if (isset($geom['scale'])) {
+        $sc = (float)$geom['scale'];
+        if ($sc > 0.1 && $sc < 10) $clean['scale'] = round($sc, 4);
+    }
+    try {
+        $row = $pdo->query('SELECT COALESCE(accueil_geometry_draft, accueil_geometry) AS g FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $all = [];
+        if ($row && !empty($row['g'])) {
+            $decoded = json_decode($row['g'], true);
+            if (is_array($decoded)) $all = $decoded;
+        }
+        $all[$field] = $clean;
+        $pdo->prepare('UPDATE setting SET accueil_geometry_draft = :g, accueil_draft_updated_at = NOW() WHERE id = 1')
+            ->execute(['g' => json_encode($all, JSON_UNESCAPED_UNICODE)]);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[SAVE_ACCUEIL_GEOMETRY] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+// ─── Handler AJAX : sauvegarde d'un texte éditable hardcodé ───
+// Pour les textes des sections (Vérifier mon inscription, Déjà inscrits, etc.)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_text'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    require_once __DIR__ . '/../config/accueil_sections.php';
+    $allowed = accueilEditableTexts();
+    $key = (string)($_POST['textKey'] ?? '');
+    $val = trim((string)($_POST['textValue'] ?? ''));
+    if (!isset($allowed[$key])) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Clé non autorisée.']); exit;
+    }
+    if (mb_strlen($val) > 2000) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Texte trop long (max 2000).']); exit;
+    }
+    try {
+        $row = $pdo->query('SELECT COALESCE(accueil_texts_draft, accueil_texts) AS t FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $texts = [];
+        if ($row && !empty($row['t'])) {
+            $decoded = json_decode($row['t'], true);
+            if (is_array($decoded)) $texts = $decoded;
+        }
+        if ($val === '') {
+            unset($texts[$key]); // valeur vide = on retire l'override (revient au défaut)
+        } else {
+            $texts[$key] = $val;
+        }
+        $json = json_encode($texts, JSON_UNESCAPED_UNICODE);
+        $pdo->prepare('UPDATE setting SET accueil_texts_draft = :t, accueil_draft_updated_at = NOW() WHERE id = 1')->execute(['t' => $json]);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[SAVE_ACCUEIL_TEXT] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+// ─── Handler AJAX : sauvegarde d'un style (taille) d'un élément du Hero ───
+// Le champ 'sizeKey' doit être whitelisté ; valeur en pourcent (50-250).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $allowedSizeKeys  = ['titleAccueil_size', 'subtitle_accueil_size', 'hero_timer_size'];
+    // Options (enum) : clé → valeurs autorisées
+    $allowedOptionKeys = [
+        'news.card_style' => ['simple', 'with-image', 'with-image-side'],
+    ];
+    $key = (string)($_POST['sizeKey'] ?? '');
+    $rawVal = $_POST['sizeValue'] ?? '';
+    $isSize   = in_array($key, $allowedSizeKeys, true);
+    $isAlign  = strpos($key, 'text_align__') === 0;
+    $isOption = isset($allowedOptionKeys[$key]);
+    if (!$isSize && !$isAlign && !$isOption) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Clé non autorisée.']); exit;
+    }
+    if ($isSize) {
+        $val = (int)$rawVal;
+        if ($val < 50 || $val > 300) {
+            http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Taille hors limites (50-300).']); exit;
+        }
+    } elseif ($isAlign) {
+        $val = (string)$rawVal;
+        if (!in_array($val, ['left','center','right'], true)) {
+            http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Alignement invalide.']); exit;
+        }
+    } else { // isOption
+        $val = (string)$rawVal;
+        if (!in_array($val, $allowedOptionKeys[$key], true)) {
+            http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Valeur option invalide.']); exit;
+        }
+    }
+    try {
+        $row = $pdo->query('SELECT COALESCE(accueil_styles_draft, accueil_styles) AS s FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $styles = [];
+        if ($row && !empty($row['s'])) {
+            $decoded = json_decode($row['s'], true);
+            if (is_array($decoded)) $styles = $decoded;
+        }
+        $styles[$key] = $val;
+        $json = json_encode($styles, JSON_UNESCAPED_UNICODE);
+        $pdo->prepare('UPDATE setting SET accueil_styles_draft = :s, accueil_draft_updated_at = NOW() WHERE id = 1')->execute(['s' => $json]);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[SAVE_ACCUEIL_STYLE] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
+// ─── Handler dédié AJAX : sauvegarde du layout de l'accueil (JSON body) ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+    && (($_SERVER['CONTENT_TYPE'] ?? '') === 'application/json' || stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') === 0)) {
+    $rawBody = file_get_contents('php://input');
+    $jsonIn  = $rawBody ? json_decode($rawBody, true) : null;
+    if (is_array($jsonIn) && !empty($jsonIn['save_accueil_layout'])) {
+        header('Content-Type: application/json');
+        if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']);
+            exit;
+        }
+        $incoming = $jsonIn['layout'] ?? null;
+        if (!is_array($incoming)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Layout invalide.']);
+            exit;
+        }
+        // Sanitisation conditionnelle des blocs custom :
+        // - kind='text' (TinyMCE WYSIWYG) → sanitizeHtml() classique (XSS protection)
+        // - kind='html' (bloc code brut, admin-only) → contenu brut préservé tel quel
+        foreach ($incoming as &$row) {
+            if (!is_array($row) || empty($row['columns']) || !is_array($row['columns'])) continue;
+            foreach ($row['columns'] as &$col) {
+                if (!is_array($col) || !isset($col['section']) || !is_array($col['section'])) continue;
+                if (($col['section']['type'] ?? '') !== 'custom') continue;
+                if (!isset($col['section']['content'])) continue;
+                $kind = (string)($col['section']['kind'] ?? 'text');
+                if ($kind === 'text') {
+                    $col['section']['content'] = sanitizeHtml((string)$col['section']['content']);
+                }
+                // html → préservé tel quel
+            }
+            unset($col);
+        }
+        unset($row);
+        unset($row);
+        require_once __DIR__ . '/../config/accueil_layout.php';
+        try {
+            saveAccueilLayout($pdo, $incoming);
+            echo json_encode(['ok' => true]);
+        } catch (\Throwable $e) {
+            error_log('[ACCUEIL_LAYOUT] save error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'err' => 'Erreur enregistrement.']);
+        }
+        exit;
+    }
+}
 
 // decodeHtmlField() est dans config.php
 
@@ -536,26 +862,6 @@ if (isset($_POST['save_accueil_params'])) {
     addToast('success', 'Paramètres enregistrés !');
     $picture_partner = $newPicturePartner;
     $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
-}
-
-/* --------------------------------------------------------------------------
-   Accueil — Contenu personnalisé
--------------------------------------------------------------------------- */
-if (isset($_POST['save_custom_content'])) {
-    $rawContent = $_POST['accueil_custom_content'] ?? '';
-    $accueil_custom_content = sanitizeHtml(trim($isAjax ? decodeHtmlField($rawContent) : $rawContent));
-    $accueil_custom_position = $_POST['accueil_custom_position'] ?? 'off';
-    if (!in_array($accueil_custom_position, ['off', 'after_inscrits', 'after_partners'], true)) {
-        $accueil_custom_position = 'off';
-    }
-    $pdo->prepare('UPDATE setting SET accueil_custom_content = :c, accueil_custom_position = :p WHERE id = 1')
-        ->execute(['c' => $accueil_custom_content, 'p' => $accueil_custom_position]);
-    addToast('success', 'Contenu personnalisé enregistré !');
-    if ($isAjax) {
-        header('Content-Type: application/json');
-        echo json_encode(['ok' => true]);
-        exit;
-    }
 }
 
 /* --------------------------------------------------------------------------
@@ -1028,11 +1334,23 @@ if (isset($_POST['deleteImage'])) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 <title>Réglages</title>
 
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<?php if ($canCard('accueil', 'custom')): ?>
+<!-- accueil.css : chargé pour le rendu réel des sections dans l'éditeur "Mise en page" -->
+<link href="../css/accueil.css" rel="stylesheet">
+<!-- CodeMirror 5 : éditeur de code pour les blocs HTML/CSS/JS custom -->
+<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/eclipse.min.css" rel="stylesheet">
+<style>
+  /* Override CodeMirror pour qu'il fill son container */
+  .CodeMirror { height: 100% !important; font-size: 13px; font-family: 'SF Mono', 'Consolas', monospace; }
+</style>
+<?php endif; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -1085,6 +1403,658 @@ document.addEventListener('DOMContentLoaded', function() {
   .theme-mode-tab:hover { background: #e2e8f0; color: #1e293b; }
   .theme-mode-tab.active[data-mode="light"] { background: #ffffff; color: #1e293b; border-color: #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   .theme-mode-tab.active[data-mode="dark"] { background: #0f172a; color: #e2e8f0; border-color: #334155; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+
+  /* ─────────────────────────────────────────────
+     ÉDITEUR VISUEL « Mise en page accueil »
+     ───────────────────────────────────────────── */
+  .layout-editor {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .le-rows { display: flex; flex-direction: column; gap: 12px; }
+  .le-row {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    overflow: hidden; transition: box-shadow .15s, border-color .15s;
+  }
+  .le-row:hover { border-color: #F42182; }
+  .le-row.le-row-ghost { opacity: 0.4; background: #fce7f3; border-style: dashed; }
+  .le-row.le-row-chosen { box-shadow: 0 4px 14px rgba(244,33,130,.25); }
+  .le-row-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0; font-size: 12px;
+  }
+  .le-row-info { color: #64748b; font-weight: 500; }
+  .le-row-cols {
+    display: flex; gap: 8px; padding: 8px;
+    align-items: stretch; min-height: 80px;
+  }
+  .le-col {
+    flex: var(--col-flex, 12) 0 0;
+    min-width: 0;
+    background: #fdf8fa; border: 1px solid #f0e8eb; border-radius: 8px;
+    display: flex; flex-direction: column;
+    transition: opacity .15s, border-color .15s;
+  }
+  .le-col.is-hidden { opacity: 0.5; background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 8px, #fdf2f8 8px, #fdf2f8 16px); }
+  .le-col.le-col-ghost { opacity: 0.4; border-style: dashed; }
+  .le-col.le-col-chosen { box-shadow: 0 2px 8px rgba(244,33,130,.25); }
+  .le-col-toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border-bottom: 1px solid #f0e8eb;
+    font-size: 12px;
+  }
+  .le-col-preview { padding: 10px; flex: 1; min-height: 60px; }
+
+  .le-handle { cursor: grab; color: #94a3b8; padding: 2px; user-select: none; }
+  .le-handle:hover { color: #F42182; }
+  .le-handle.le-row-handle { font-size: 16px; }
+  .le-handle.le-col-handle { font-size: 14px; }
+
+  /* ── Conteneur d'aperçu réel des sections (sans scroll, taille naturelle comme la page réelle) ── */
+  .accueil-edit-preview {
+    background: #fff;
+    border-radius: 6px;
+    pointer-events: none;
+    user-select: none;
+    overflow: visible;
+  }
+  .accueil-edit-preview img { max-width: 100%; height: auto; }
+  .accueil-edit-preview .demo-card,
+  .accueil-edit-preview .timeline-wrap { max-width: 100%; }
+
+  /* ── Layout 2 colonnes : SIDEBAR À GAUCHE + main (preview) à droite ── */
+  .layout-editor.le-with-sidebar {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex-direction: row-reverse; /* main à droite, sidebar à gauche */
+  }
+  .le-main { flex: 1; min-width: 0; }
+  .le-sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+  }
+  .le-sb-tabs { display: flex; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+  .le-sb-tab {
+    flex: 1; padding: 10px 8px; border: 0; background: transparent;
+    font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .le-sb-tab:hover { color: #0f172a; }
+  .le-sb-tab.active { color: #F42182; border-bottom-color: #F42182; }
+  .le-sb-content { padding: 14px; flex: 1; overflow-y: auto; }
+  .le-sb-pane { display: none; }
+  .le-sb-pane.active { display: block; }
+  .le-sb-empty {
+    text-align: center; color: #94a3b8; font-size: 13px;
+    padding: 32px 8px;
+  }
+  .le-sb-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    font-weight: 700; color: #94a3b8; margin: 0 0 10px;
+  }
+  .le-sb-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 10px; font-size: 13px;
+  }
+  .le-sb-row label { color: #475569; font-size: 12px; flex-shrink: 0; }
+  .le-sb-row select { width: auto; min-width: 80px; }
+  .le-sb-add-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 10px 12px; margin-bottom: 6px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    text-align: left; cursor: pointer; transition: .15s;
+  }
+  .le-sb-add-btn:hover { border-color: #F42182; background: #fdf2f8; }
+  .le-sb-add-btn i { font-size: 18px; color: #9d174d; flex-shrink: 0; }
+  .le-sb-add-btn strong { display: block; font-size: 13px; color: #1e293b; }
+  .le-sb-add-btn small { font-size: 11px; color: #64748b; }
+
+  /* ── Bouton "+" entre les rows ── */
+  .le-add-row {
+    display: flex; justify-content: center; align-items: center;
+    height: 24px; margin: 2px 0; position: relative;
+  }
+  .le-add-row button {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px dashed #cbd5e1; background: #fff;
+    color: #94a3b8; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0.4; transition: .15s;
+  }
+  .le-add-row:hover button { opacity: 1; border-color: #F42182; color: #F42182; border-style: solid; }
+
+  /* ── Section sélectionnée (par clic) ── */
+  .le-col.is-selected,
+  .le-section-block.is-selected {
+    outline: 3px solid #F42182;
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     IFRAME EDITOR (ife-*) — nouvelle architecture WYSIWYG
+     ════════════════════════════════════════════════════════════ */
+  .ife-layout {
+    display: flex; gap: 16px; align-items: stretch;
+    min-height: 70vh;
+  }
+  .ife-sidebar {
+    width: 300px; flex-shrink: 0;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    display: flex; flex-direction: column;
+    max-height: 80vh; position: sticky; top: 12px;
+  }
+  .ife-sb-tabs { display: flex; border-bottom: 1px solid #e2e8f0; }
+  .ife-sb-tab {
+    flex: 1; padding: 10px 8px; border: 0; background: transparent;
+    font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .ife-sb-tab:hover { color: #0f172a; }
+  .ife-sb-tab.active { color: #F42182; border-bottom-color: #F42182; }
+  .ife-sb-content { padding: 14px; flex: 1; overflow-y: auto; }
+  .ife-sb-pane { display: none; }
+  .ife-sb-pane.active { display: block; }
+  .ife-sb-empty { text-align: center; color: #94a3b8; font-size: 13px; padding: 32px 8px; }
+  .ife-sb-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    font-weight: 700; color: #94a3b8; margin: 0 0 10px;
+  }
+  .ife-sb-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 10px; font-size: 13px;
+  }
+  .ife-sb-row label { color: #475569; font-size: 12px; }
+  .ife-sb-row select { min-width: 90px; padding-right: 28px; }
+  /* Tableau de la ligne (multi-col) */
+  .ife-sb-grid-label {
+    display: block; color: #475569; font-size: 12px;
+    margin: 6px 0 6px;
+  }
+  .ife-sb-grid {
+    display: flex; gap: 4px; margin-bottom: 8px;
+    border: 1px dashed #cbd5e1; border-radius: 6px;
+    padding: 4px; background: #f8fafc; overflow: hidden;
+  }
+  .ife-sb-grid-cell {
+    flex: 1 1 auto;
+    background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 4px; padding: 6px 4px;
+    display: flex; flex-direction: column; gap: 4px;
+    text-align: center; min-width: 0;
+    transition: border-color .15s;
+  }
+  .ife-sb-grid-cell:hover { border-color: #F42182; }
+  .ife-sb-grid-cell .label {
+    font-size: 10px; color: #64748b;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ife-sb-grid-cell input {
+    width: 100%; border: 0; background: #f8fafc;
+    border-radius: 3px; text-align: center;
+    font-size: 12px; font-weight: 600; color: #0f172a;
+    padding: 2px;
+  }
+  .ife-sb-grid-cell input:focus { outline: 2px solid #F42182; }
+  .ife-sb-grid-cell.is-overflow { border-color: #ef4444; background: #fef2f2; }
+  .ife-sb-grid-cell.is-hidden { opacity: 0.55; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(148,163,184,.08) 6px, rgba(148,163,184,.08) 12px); }
+  /* Cellule en cours de drag (Sortable) */
+  .ife-sb-grid-cell.is-dragging { opacity: .5; }
+  .ife-sb-grid-cell .drag-handle {
+    font-size: 11px; color: #94a3b8; cursor: grab;
+    line-height: 1;
+  }
+  .ife-sb-grid-cell .drag-handle:active { cursor: grabbing; }
+  /* Boutons d'action par cellule (edit / delete / hide) */
+  .ife-sb-grid-cell .cell-actions {
+    display: flex; gap: 2px; justify-content: center;
+    margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 4px;
+  }
+  .ife-sb-grid-cell .cell-btn {
+    border: 0; background: transparent; padding: 3px 5px;
+    border-radius: 4px; color: #64748b; cursor: pointer;
+    font-size: 12px; line-height: 1;
+    transition: background .12s, color .12s;
+  }
+  .ife-sb-grid-cell .cell-btn:hover { background: #f1f5f9; color: #0f172a; }
+  .ife-sb-grid-cell .cell-btn-danger:hover { background: #fef2f2; color: #ef4444; }
+  .ife-sb-grid-presets {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
+  }
+  .ife-sb-grid-presets .btn { font-size: 11px; padding: 2px 8px; }
+  .ife-sb-align-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin: 6px 0 12px; font-size: 12px;
+  }
+  .ife-sb-align-row label { color: #475569; font-size: 12px; }
+  .ife-sb-align-row .btn { padding: 2px 8px; }
+  .ife-sb-align-row .btn.active { background: #F42182; color: #fff; border-color: #F42182; }
+  /* Labels de section dans la sidebar (clarifient ce qui suit) */
+  .ife-sb-section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    font-weight: 700; color: #94a3b8;
+    margin: 12px 0 6px; padding-top: 8px; border-top: 1px solid #e2e8f0;
+  }
+  .ife-sb-section-label:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+  /* Icône info à côté d'un label de section : déclenche un tooltip Bootstrap */
+  .ife-sb-info-icon {
+    color: #94a3b8; font-size: 12px; margin-left: 4px;
+    cursor: help; vertical-align: middle;
+    transition: color .12s;
+  }
+  .ife-sb-info-icon:hover, .ife-sb-info-icon:focus { color: #F42182; outline: none; }
+  /* Tooltip personnalisé (plus large + texte lisible) */
+  .ife-sb-tooltip .tooltip-inner {
+    max-width: 280px; text-align: left;
+    background: #0f172a; color: #fff;
+    padding: 8px 12px; font-size: 12px; line-height: 1.4;
+  }
+  .ife-sb-tooltip .tooltip-inner strong { color: #fdf2f8; }
+  .ife-sb-tooltip .tooltip-inner em { color: #fbcfe8; font-style: italic; }
+  .ife-sb-tooltip.bs-tooltip-end .tooltip-arrow::before { border-right-color: #0f172a; }
+  .ife-sb-tooltip.bs-tooltip-start .tooltip-arrow::before { border-left-color: #0f172a; }
+  .ife-sb-tooltip.bs-tooltip-top .tooltip-arrow::before { border-top-color: #0f172a; }
+  .ife-sb-tooltip.bs-tooltip-bottom .tooltip-arrow::before { border-bottom-color: #0f172a; }
+  /* Espacement de ligne (margin haut/bas) */
+  .ife-sb-spacing-row { margin: 8px 0; }
+  .ife-sb-spacing-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .ife-sb-spacing-grid label { font-size: 11px; display: block; margin-bottom: 2px; }
+  /* Badge "Modifications non publiées" affiché au-dessus du bouton Publier */
+  .ife-draft-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: #fef3c7; border: 1px solid #fcd34d; color: #92400e;
+    padding: 8px 12px; border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    margin-bottom: 10px;
+    animation: ife-draft-pulse 2s ease-in-out infinite;
+  }
+  .ife-draft-badge i {
+    color: #f59e0b; font-size: 10px;
+    animation: ife-draft-blink 1.5s ease-in-out infinite;
+  }
+  @keyframes ife-draft-blink {
+    50% { opacity: .3; }
+  }
+  @keyframes ife-draft-pulse {
+    50% { background: #fde68a; }
+  }
+
+  /* Liste des éléments éditables dans la sidebar (sous les contrôles d'une row) */
+  .ife-sb-editable-list { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  .ife-sb-editable-head {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    font-weight: 700; color: #94a3b8; margin: 0 0 8px;
+  }
+  .ife-sb-editable-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 10px; margin-bottom: 4px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    text-align: left; cursor: pointer; transition: .12s;
+    font-size: 13px;
+  }
+  .ife-sb-editable-btn:hover { border-color: #F42182; background: #fdf2f8; }
+  .ife-sb-editable-btn > i:first-child { color: #F42182; font-size: 16px; flex-shrink: 0; }
+  .ife-sb-editable-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .ife-sb-editable-info strong { font-size: 12px; color: #0f172a; font-weight: 600; }
+  .ife-sb-editable-kind { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+  .ife-sb-editable-preview {
+    font-size: 11px; color: #64748b; font-style: italic;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ife-sb-editable-chev { color: #cbd5e1; font-size: 12px; flex-shrink: 0; }
+  /* Options spécifiques d'une section (ex: news.card_style) */
+  .ife-sb-section-options { margin-top: 12px; }
+  .ife-sb-toggle-row {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 8px;
+  }
+  .ife-sb-toggle-row label {
+    font-size: 12px; color: #475569; font-weight: 600;
+  }
+  .ife-sb-toggle-row .btn-group .btn {
+    font-size: 12px; padding: 6px 10px;
+  }
+  .ife-sb-toggle-row .btn-group .btn.active {
+    background: #F42182; color: #fff; border-color: #F42182;
+  }
+  .ife-sb-toggle-row .btn-group .btn i { margin-right: 4px; font-size: 12px; }
+  /* Barre d'alignement (6 boutons) sous une entry de bloc HTML */
+  .ife-sb-html-align-bar {
+    margin: -2px 0 6px 0; padding: 8px 10px;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-top: 0;
+    border-radius: 0 0 8px 8px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .ife-sb-html-align-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .ife-sb-html-align-label {
+    font-size: 11px; color: #64748b; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .ife-sb-html-align-bar .btn { padding: 2px 6px; font-size: 11px; }
+  .ife-sb-html-align-bar .btn.active { background: #F42182; color: #fff; border-color: #F42182; }
+
+  .ife-sb-add-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 10px 12px; margin-bottom: 6px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    text-align: left; cursor: pointer; transition: .15s;
+  }
+  .ife-sb-add-btn:hover { border-color: #F42182; background: #fdf2f8; }
+  .ife-sb-add-btn i { font-size: 18px; color: #9d174d; flex-shrink: 0; }
+  .ife-sb-add-btn strong { display: block; font-size: 13px; color: #1e293b; }
+  .ife-sb-add-btn small { font-size: 11px; color: #64748b; }
+  .ife-sb-footer { padding: 12px; border-top: 1px solid #e2e8f0; }
+
+  /* ── Aperçu iframe + overlay ── */
+  .ife-preview-wrap {
+    flex: 1; min-width: 0;
+    position: relative;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    overflow: hidden;
+  }
+  .ife-preview-wrap iframe {
+    display: block; width: 100%; min-height: 600px;
+    border: 0; background: #fff;
+    /* La hauteur est ajustée dynamiquement par JS au contenu réel */
+  }
+  .ife-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    z-index: 10;
+  }
+  /* outline (et pas border) : ne prend AUCUN espace dans le layout, donc le rail
+     de drag ne se décale plus au hover → plus de clignotement infini */
+  .ife-row-overlay {
+    position: absolute; pointer-events: none;
+    outline: 2px dashed transparent; outline-offset: -2px; border-radius: 4px;
+    transition: outline-color .15s;
+  }
+  .ife-row-overlay:hover { outline-color: rgba(244,33,130,.5); }
+  .ife-row-overlay.is-selected { outline-color: #F42182; }
+  /* Rail de drag visible toujours à gauche pour pouvoir glisser la section */
+  .ife-row-drag-rail {
+    position: absolute;
+    left: 0; top: 0; bottom: 0; width: 14px;
+    background: rgba(244,33,130,0.15);
+    border-radius: 4px 0 0 4px;
+    cursor: grab;
+    pointer-events: auto;
+    z-index: 11;
+    transition: background .15s, width .15s;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(244,33,130,0.6);
+    font-size: 14px;
+  }
+  .ife-row-drag-rail:hover, .ife-row-drag-rail:active {
+    background: rgba(244,33,130,0.45); width: 22px;
+    color: #fff;
+  }
+  .ife-row-drag-rail:active { cursor: grabbing; }
+  .ife-row-actions {
+    position: absolute; top: 4px; right: 4px;
+    pointer-events: auto;
+    display: none; gap: 4px;
+    background: #fff; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    padding: 2px; z-index: 12;
+  }
+  .ife-row-overlay:hover .ife-row-actions,
+  .ife-row-overlay.is-selected .ife-row-actions { display: flex; }
+  .ife-row-actions button {
+    width: 28px; height: 28px; border: 0; background: transparent;
+    border-radius: 6px; cursor: pointer; color: #475569; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ife-row-actions button:hover { background: #f1f5f9; }
+  .ife-row-actions button.danger:hover { background: #fef2f2; color: #ef4444; }
+  .ife-row-actions .ife-handle { cursor: grab; color: #94a3b8; }
+  .ife-add-marker {
+    position: absolute; pointer-events: auto;
+    height: 28px; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 11;
+  }
+  .ife-add-marker button {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px dashed #cbd5e1; background: #fff;
+    color: #94a3b8; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: .15s;
+  }
+  .ife-add-marker:hover button { opacity: 1; border-color: #F42182; color: #F42182; border-style: solid; }
+  .ife-overlay:hover .ife-add-marker button { opacity: 0.4; }
+
+  /* Menu contextuel (clic droit) flottant au-dessus de l'iframe */
+  .ife-ctx-menu {
+    position: fixed; z-index: 10000;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    box-shadow: 0 10px 32px rgba(0,0,0,.18);
+    padding: 4px;
+    min-width: 220px;
+    font-size: 13px;
+    animation: ife-ctx-in .12s ease-out;
+  }
+  @keyframes ife-ctx-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .ife-ctx-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 12px;
+    background: transparent; border: 0; border-radius: 6px;
+    text-align: left; cursor: pointer; color: #0f172a;
+    font-size: 13px;
+  }
+  .ife-ctx-item i { color: #64748b; font-size: 14px; }
+  .ife-ctx-item:hover { background: #f1f5f9; }
+  .ife-ctx-item.is-danger:hover { background: #fef2f2; color: #ef4444; }
+  .ife-ctx-item.is-danger:hover i { color: #ef4444; }
+  .ife-ctx-sep {
+    height: 1px; background: #e2e8f0; margin: 4px 6px;
+  }
+
+  /* Drop overlay (full-screen fixed, contient as-col + new-row) */
+  .ife-drop-overlay { pointer-events: none; }
+
+  /* Drop slots verticaux (as-col) — insérer comme colonne dans la ligne */
+  .ife-drop-slot {
+    pointer-events: none;
+    border: 2px dashed rgba(244,33,130,0.75);
+    background: rgba(244,33,130,0.18);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .12s, border-color .12s, transform .12s;
+    box-sizing: border-box;
+  }
+  .ife-drop-slot span {
+    font-size: 12px; color: #fff; font-weight: 700;
+    background: #F42182; padding: 6px 14px; border-radius: 14px;
+    box-shadow: 0 4px 12px rgba(244,33,130,.4);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  .ife-drop-slot.is-hot {
+    background: rgba(244,33,130,0.38);
+    border-color: #F42182; border-style: solid; border-width: 3px;
+    transform: scale(1.01);
+  }
+  .ife-drop-slot.is-hot span {
+    background: #be185d;
+    transform: scale(1.08);
+  }
+
+  /* Drop bands horizontales (new-row) — insérer comme nouvelle ligne */
+  .ife-drop-band {
+    pointer-events: none;
+    background: #6366f1;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .12s, transform .12s, box-shadow .12s;
+    box-sizing: border-box;
+    box-shadow: 0 0 0 1px rgba(99,102,241,.4);
+  }
+  .ife-drop-band span {
+    font-size: 11px; color: #fff; font-weight: 700;
+    background: #6366f1; padding: 5px 12px; border-radius: 14px;
+    box-shadow: 0 3px 10px rgba(99,102,241,.5);
+    white-space: nowrap;
+    position: relative; top: 0;
+  }
+  .ife-drop-band.is-hot {
+    background: #4338ca;
+    transform: scaleY(2);
+    box-shadow: 0 0 0 2px #4338ca, 0 6px 20px rgba(67,56,202,.5);
+  }
+  .ife-drop-band.is-hot span {
+    background: #4338ca;
+    transform: scale(1.15);
+  }
+
+  /* Drop zone "merge en colonnes" pendant le drag */
+  .ife-merge-hint {
+    position: absolute; inset: 4px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(244,33,130,0.85);
+    color: #fff; font-weight: 700; font-size: 13px;
+    border-radius: 6px;
+    pointer-events: none; z-index: 30;
+    text-shadow: 0 1px 2px rgba(0,0,0,.4);
+    animation: ife-merge-pulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes ife-merge-pulse {
+    from { background: rgba(244,33,130,0.7); }
+    to   { background: rgba(244,33,130,0.95); }
+  }
+  .ife-row-overlay.is-merge-target { box-shadow: 0 0 0 4px #F42182; }
+
+  /* ════════════════════════════════════════════════════════════
+     ANCIEN ÉDITEUR (le-*) — DEAD CODE après refonte iframe
+     ════════════════════════════════════════════════════════════ */
+
+  /* Contenairs : transparents, pas de bordure visible */
+  .le-row, .le-section-block, .le-col {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    position: relative;
+    border-radius: 4px;
+  }
+  .le-rows { gap: 8px; display: flex; flex-direction: column; }
+  .le-row-cols { padding: 0 !important; gap: 8px !important; display: flex; align-items: stretch; }
+  .le-col-preview { padding: 0 !important; }
+
+  /* Outline au hover/select */
+  .le-row, .le-section-block {
+    outline: 2px solid transparent; outline-offset: 4px;
+    transition: outline .12s;
+  }
+  .le-row:hover, .le-section-block:hover { outline-color: rgba(244,33,130,.35); }
+  .le-row.is-selected, .le-section-block.is-selected { outline-color: #F42182 !important; outline-offset: 6px; }
+
+  .le-col {
+    outline: 2px dashed transparent; outline-offset: 2px;
+    transition: outline .12s;
+  }
+  .le-col:hover { outline-color: rgba(244,33,130,.35); }
+  .le-col.is-selected { outline-color: #F42182 !important; outline-style: solid; }
+
+  /* Toolbars : mini-float top-right INTERNE (style sec-actions du mail editor) */
+  .le-row-toolbar, .le-section-toolbar, .le-col-toolbar {
+    position: absolute;
+    top: -14px; right: -8px; z-index: 20;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    padding: 2px;
+  }
+  .le-row:hover > .le-row-toolbar,
+  .le-row.is-selected > .le-row-toolbar,
+  .le-section-block:hover > .le-section-toolbar,
+  .le-section-block.is-selected > .le-section-toolbar,
+  .le-col:hover > .le-col-toolbar,
+  .le-col.is-selected > .le-col-toolbar { display: flex; }
+
+  /* Boutons mini dans les toolbars */
+  .le-row-toolbar button,
+  .le-section-toolbar button,
+  .le-col-toolbar button {
+    width: 26px; height: 26px;
+    border: 0; background: transparent; border-radius: 6px;
+    cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    color: #475569; transition: .1s;
+    padding: 0;
+  }
+  .le-row-toolbar button:hover,
+  .le-section-toolbar button:hover,
+  .le-col-toolbar button:hover { background: #f1f5f9; }
+  .le-row-toolbar button.btn-outline-danger,
+  .le-col-toolbar button.btn-outline-danger { color: #ef4444; }
+  .le-row-toolbar button.btn-outline-danger:hover,
+  .le-col-toolbar button.btn-outline-danger:hover { background: #fef2f2; }
+
+  /* Cache les éléments décoratifs anciens : tag/hint/info */
+  .le-section-hint, .le-row-info, .le-section-tag { display: none !important; }
+  /* Cache les selects de largeur dans le toolbar (la largeur se règle dans la sidebar maintenant) */
+  .le-row-toolbar .le-width-select,
+  .le-col-toolbar .le-width-select { display: none; }
+  /* Drag handle : petit, en haut-gauche du toolbar, déclenche le drag Sortable */
+  .le-row-toolbar .le-handle,
+  .le-col-toolbar .le-handle {
+    color: #94a3b8; cursor: grab; padding: 4px 6px;
+    font-size: 14px; line-height: 1;
+  }
+  .le-row-toolbar .le-handle:hover,
+  .le-col-toolbar .le-handle:hover { color: #F42182; }
+  .le-row-toolbar .ms-auto, .le-col-toolbar .ms-auto { margin-left: 0 !important; }
+
+  /* ── Éléments éditables (cliquables dans l'aperçu) ── */
+  .accueil-edit-preview [data-edit-field] {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    transition: outline .15s;
+    outline: 2px dashed transparent;
+    outline-offset: 2px;
+  }
+  .accueil-edit-preview [data-edit-field]:hover {
+    outline-color: #F42182;
+  }
+  .accueil-edit-preview [data-edit-field]::after {
+    content: "✏️"; position: absolute; top: 4px; right: 4px;
+    background: #F42182; color: #fff; padding: 2px 6px;
+    border-radius: 999px; font-size: 11px; opacity: 0;
+    transition: .15s; pointer-events: none;
+  }
+  .accueil-edit-preview [data-edit-field]:hover::after { opacity: 1; }
+  .accueil-edit-preview [data-edit-field][data-edit-kind="image"],
+  .accueil-edit-preview [data-edit-field][data-edit-kind="video"] {
+    position: relative;
+  }
+  .accueil-edit-preview [data-edit-field].le-edit-selected {
+    outline: 3px solid #F42182 !important;
+    outline-offset: 4px;
+    background: rgba(244,33,130,0.05);
+  }
 </style>
 
 <?php
@@ -1403,59 +2373,7 @@ if (!$canTab($activeTab)) {
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
   <div class="row g-4">
 
-    <!-- Carte 1 : Titre / Image sur la vidéo -->
-    <?php if ($canCard('accueil', 'hero')): ?>
-    <div class="col-12">
-      <div class="setting-card">
-        <h2>Titre / Image sur la vidéo</h2>
-        <?php $heroSubTab = $_POST['hero_subtab'] ?? 'heroPC'; ?>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-          <?= csrf_field() ?>
-          <input type="hidden" name="hero_subtab" id="hero_subtab" value="<?= htmlspecialchars($heroSubTab) ?>">
-
-          <!-- Sous-onglets PC / Mobile -->
-          <div class="col-12">
-            <ul class="nav nav-tabs" role="tablist" id="heroTabs">
-              <li class="nav-item"><a class="nav-link <?= $heroSubTab === 'heroPC' ? 'active' : '' ?>" data-bs-toggle="tab" href="#heroPC" role="tab">PC</a></li>
-              <li class="nav-item"><a class="nav-link <?= $heroSubTab === 'heroMobile' ? 'active' : '' ?>" data-bs-toggle="tab" href="#heroMobile" role="tab">Mobile</a></li>
-            </ul>
-            <div class="tab-content pt-3">
-              <!-- PC -->
-              <div class="tab-pane fade <?= $heroSubTab === 'heroPC' ? 'show active' : '' ?>" id="heroPC" role="tabpanel">
-                <div class="col-12">
-                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
-                  <textarea class="form-control" id="titleAccueilEditor" name="titleAccueil" rows="3"><?= htmlspecialchars($titleAccueil) ?></textarea>
-                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
-                </div>
-                <div class="col-12 mt-3">
-                  <label class="form-label">Sous-titre</label>
-                  <input type="text" class="form-control" name="subtitle_accueil" maxlength="255" placeholder="Ex : Course et marche solidaires contre le cancer." value="<?= htmlspecialchars($subtitle_accueil, ENT_QUOTES, 'UTF-8') ?>">
-                  <small class="text-muted">Texte affiché sous le contenu principal. Laissez vide pour ne rien afficher.</small>
-                </div>
-              </div>
-              <!-- Mobile -->
-              <div class="tab-pane fade <?= $heroSubTab === 'heroMobile' ? 'show active' : '' ?>" id="heroMobile" role="tabpanel">
-                <div class="col-12">
-                  <label class="form-label">Contenu (texte, image, ou les deux)</label>
-                  <textarea class="form-control" id="titleAccueilMobileEditor" name="titleAccueil_mobile" rows="3"><?= htmlspecialchars($titleAccueil_mobile) ?></textarea>
-                  <small class="text-muted">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc.</small>
-                </div>
-                <div class="col-12 mt-3">
-                  <label class="form-label">Sous-titre</label>
-                  <input type="text" class="form-control" name="subtitle_accueil_mobile" maxlength="255" placeholder="Ex : Course et marche solidaires contre le cancer." value="<?= htmlspecialchars($subtitle_accueil_mobile, ENT_QUOTES, 'UTF-8') ?>">
-                  <small class="text-muted">Texte affiché sous le contenu principal sur mobile. Laissez vide pour ne rien afficher.</small>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-12 text-end">
-            <button type="submit" name="save_hero" class="btn btn-primary w-auto">Sauvegarder</button>
-          </div>
-        </form>
-      </div>
-    </div><!-- /col-12 -->
-    <?php endif; // canCard('accueil','hero') ?>
+    <!-- Carte 1 : Titre / Image sur la vidéo (SUPPRIMÉE — édition désormais via l'éditeur visuel "Mise en page de l'accueil" plus bas) -->
 
     <!-- Carte 2 : Paramètres page accueil -->
     <?php if ($canCard('accueil', 'params')): ?>
@@ -1474,16 +2392,7 @@ if (!$canTab($activeTab)) {
           <div class="col-md-6"><label class="form-label">Lien de la Ligue contre le cancer</label>
             <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la Ligue contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
           </div>
-          <div class="col-md-6"><label class="form-label">Image des partenaires</label>
-            <input type="file" class="form-control" id="picture_partner" name="picture_partner" accept="image/*">
-            <?php if ($picture_partner) : ?>
-              <small class="text-muted">Image actuelle : <?= htmlspecialchars($picture_partner) ?></small>
-              <div class="mb-2">
-                <img src="../files/_pictures/<?= rawurlencode($picture_partner) ?>" alt="Image actuelle" class="img-thumbnail" style="max-width:145px;">
-              </div>
-              <button type="submit" name="delete_picture_partner" value="1" class="btn btn-danger btn-sm">Supprimer l'image</button>
-            <?php endif; ?>
-          </div>
+          <!-- Image des partenaires : SUPPRIMÉ — édition désormais via clic sur l'image dans l'éditeur "Mise en page de l'accueil" -->
           <div class="col-md-6">
             <label class="form-label">Date de la course</label>
             <input type="date" class="form-control" name="date_course" value="<?= htmlspecialchars($date_formatted, ENT_QUOTES, 'UTF-8'); ?>">
@@ -1508,68 +2417,311 @@ if (!$canTab($activeTab)) {
     </div><!-- /col-12 -->
     <?php endif; // canCard('accueil','params') ?>
 
-    <!-- Carte 3 : Vidéo d'accueil -->
-    <?php if ($canCard('accueil', 'video')): ?>
+    <!-- Carte 3 : Vidéo d'accueil (SUPPRIMÉE — édition désormais via clic sur la vidéo dans l'éditeur visuel "Mise en page de l'accueil") -->
+
+    <!-- Carte 4 : Mise en page de l'accueil (éditeur visuel WYSIWYG) -->
+    <?php if ($canCard('accueil', 'custom')):
+      require_once __DIR__ . '/../config/accueil_layout.php';
+      require_once __DIR__ . '/../config/accueil_sections.php';
+      $accueilLayout = loadAccueilLayout($data);
+      $predefinedSections = accueilPredefinedSections();
+      $allowedWidths = accueilAllowedWidths();
+      // Contexte pour le rendu réel des sections (mêmes données que la home)
+      // useDraft=true → l'aperçu admin lit la version brouillon (avec fallback publié)
+      $sectionCtx = buildAccueilSectionContext($pdo, $data, $actualites ?? [], true);
+    ?>
     <div class="col-12">
       <div class="setting-card">
-        <h2>Vidéo d'accueil</h2>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-          <?= csrf_field() ?>
+        <h2><i class="bi bi-grid-3x3-gap-fill me-2"></i>Mise en page de l'accueil</h2>
+        <p class="text-muted mb-3">
+          L'aperçu ci-dessous est le <strong>vrai rendu de la page d'accueil</strong>. Survolez une section pour voir les contrôles, cliquez pour la sélectionner. Cliquez sur un texte/image éditable pour l'ouvrir dans le menu de gauche.
+        </p>
 
-          <div class="col-md-8">
-            <label class="form-label">Changer la vidéo</label>
-            <input type="file" class="form-control" name="video_accueil" accept="video/mp4,video/webm,video/ogg">
-            <small class="text-muted">Formats acceptés : MP4, WebM, OGG — Max 50 Mo. La vidéo actuelle sera remplacée.</small>
+        <div class="ife-layout">
+          <!-- ── Sidebar GAUCHE : propriétés + ajouter ── -->
+          <aside class="ife-sidebar">
+            <div class="ife-sb-tabs">
+              <button type="button" class="ife-sb-tab active" data-sb-tab="props"><i class="bi bi-sliders me-1"></i>Propriétés</button>
+              <button type="button" class="ife-sb-tab" data-sb-tab="add"><i class="bi bi-plus-circle me-1"></i>Ajouter</button>
+            </div>
+            <div class="ife-sb-content">
+              <!-- Pane PROPRIÉTÉS -->
+              <div class="ife-sb-pane active" data-sb-pane="props">
+                <div id="ifeSbEmpty" class="ife-sb-empty">
+                  <i class="bi bi-cursor" style="font-size:2rem;color:#cbd5e1;display:block;margin-bottom:8px;"></i>
+                  Cliquez sur une section dans l'aperçu pour voir ses propriétés ici.
+                </div>
+                <div id="ifeSbProps" style="display:none;">
+                  <h4 class="ife-sb-title" id="ifeSbTitle">Section</h4>
+                  <div class="ife-sb-row" id="ifeSbWidthRow">
+                    <label>Largeur (sur 12)</label>
+                    <select class="form-select form-select-sm" id="ifeSbWidth" style="width:auto;">
+                      <?php foreach ($allowedWidths as $aw): ?>
+                        <option value="<?= $aw ?>"><?= $aw ?>/12</option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <!-- Tableau de la ligne : 1 case par colonne, largeur éditable. Visible uniquement si row multi-col. -->
+                  <div id="ifeSbGridRow" style="display:none;">
+                    <label class="ife-sb-grid-label">Grille de la ligne (total = 12)</label>
+                    <div id="ifeSbGrid" class="ife-sb-grid"></div>
+                    <div class="ife-sb-grid-presets">
+                      <!-- 2 colonnes : équilibrées, puis croissantes G→D, puis miroir D→G -->
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="6,6"  title="2 colonnes égales">6/6</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="8,4"  title="Gauche large, droite étroite">8/4</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="9,3"  title="Gauche très large, droite mince">9/3</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="10,2" title="Gauche dominante, droite minuscule">10/2</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="4,8"  title="Gauche étroite, droite large">4/8</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="3,9"  title="Gauche mince, droite très large">3/9</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="2,10" title="Gauche minuscule, droite dominante">2/10</button>
+                      <!-- 3 colonnes : égales, puis grosse à gauche, puis grosse au centre, puis grosse à droite -->
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="4,4,4" title="3 colonnes égales">4/4/4</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="6,3,3" title="Grande à gauche">6/3/3</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="3,6,3" title="Grande au centre">3/6/3</button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-preset="3,3,6" title="Grande à droite">3/3/6</button>
+                    </div>
+                    <div class="ife-sb-section-label">Position des colonnes dans la ligne</div>
+                    <div class="ife-sb-align-row">
+                      <label>Horizontal</label>
+                      <div class="btn-group btn-group-sm" role="group" id="ifeSbAlignGroup">
+                        <button type="button" class="btn btn-outline-secondary" data-align="left"   title="Aligner à gauche"><i class="bi bi-align-start"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" data-align="center" title="Centrer horizontalement"><i class="bi bi-align-center"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" data-align="right"  title="Aligner à droite"><i class="bi bi-align-end"></i></button>
+                      </div>
+                    </div>
+                    <div class="ife-sb-align-row">
+                      <label>Vertical</label>
+                      <div class="btn-group btn-group-sm" role="group" id="ifeSbValignGroup">
+                        <button type="button" class="btn btn-outline-secondary" data-valign="top"    title="Aligner en haut"><i class="bi bi-align-top"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" data-valign="center" title="Centrer verticalement"><i class="bi bi-align-middle"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" data-valign="bottom" title="Aligner en bas"><i class="bi bi-align-bottom"></i></button>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Espacement vertical de la ligne (margin haut/bas indépendants) -->
+                  <div class="ife-sb-spacing-row" id="ifeSbSpacingRow">
+                    <div class="ife-sb-section-label">
+                      Espacement de la ligne (en rem)
+                      <i class="bi bi-info-circle ife-sb-info-icon"
+                         tabindex="0"
+                         data-bs-toggle="tooltip"
+                         data-bs-html="true"
+                         data-bs-placement="right"
+                         data-bs-custom-class="ife-sb-tooltip"
+                         title="<strong>Au-dessus</strong> = espace avant cette ligne. <strong>En-dessous</strong> = espace après.<br><br>L'écart visible entre 2 lignes = <em>'en-dessous' de la 1<sup>re</sup></em> + <em>'au-dessus' de la 2<sup>e</sup></em>.<br><br>Pour coller deux lignes : mettre <strong>0</strong> en bas de la 1<sup>re</sup> ET 0 en haut de la 2<sup>e</sup>."></i>
+                    </div>
+                    <div class="ife-sb-spacing-grid">
+                      <div>
+                        <label class="small text-muted">Au-dessus</label>
+                        <div class="input-group input-group-sm">
+                          <input type="number" class="form-control" id="ifeSbSpaceTop" min="0" max="20" step="0.5">
+                          <span class="input-group-text">rem</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label class="small text-muted">En-dessous</label>
+                        <div class="input-group input-group-sm">
+                          <input type="number" class="form-control" id="ifeSbSpaceBottom" min="0" max="20" step="0.5">
+                          <span class="input-group-text">rem</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-link btn-sm p-0 mt-1" id="ifeSbSpaceReset" title="Remettre aux défauts"><i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser (5 / 0 rem)</button>
+                  </div>
+                  <div class="ife-sb-row" id="ifeSbVisRow">
+                    <label for="ifeSbVis">Visible</label>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" id="ifeSbVis" checked>
+                    </div>
+                  </div>
+                  <div class="ife-sb-row" id="ifeSbSizeRow" style="display:none;">
+                    <label for="ifeSbSize">Taille</label>
+                    <input type="range" class="form-range" id="ifeSbSize" min="50" max="250" step="5" value="100" style="flex:1;">
+                    <span class="small text-muted" id="ifeSbSizeVal" style="min-width:40px;">100%</span>
+                  </div>
+                  <hr>
+                  <button type="button" class="btn btn-sm btn-primary w-100 mb-2" id="ifeSbBtnEdit" style="display:none;"><i class="bi bi-pencil me-1"></i>Modifier le contenu</button>
+                  <button type="button" class="btn btn-sm btn-outline-danger w-100" id="ifeSbBtnDelete"><i class="bi bi-trash3 me-1"></i>Supprimer</button>
+                </div>
+              </div>
+              <!-- Pane AJOUTER -->
+              <div class="ife-sb-pane" data-sb-pane="add">
+                <h4 class="ife-sb-title">Nouveau bloc</h4>
+                <button type="button" class="ife-sb-add-btn" id="btnAddCustomBlock">
+                  <i class="bi bi-text-paragraph"></i>
+                  <div><strong>Bloc texte</strong><small>Mise en page WYSIWYG : texte, images, couleurs, listes…</small></div>
+                </button>
+                <button type="button" class="ife-sb-add-btn" id="btnAddHtmlBlock">
+                  <i class="bi bi-code-slash"></i>
+                  <div><strong>Bloc HTML / CSS / JS</strong><small>Code brut avec preview live (style, button, script…)</small></div>
+                </button>
+                <h4 class="ife-sb-title mt-3">Sections pré-définies</h4>
+                <div id="restoreMenu">
+                  <?php foreach ($predefinedSections as $type => $meta): ?>
+                    <button type="button" class="ife-sb-add-btn" data-restore-type="<?= htmlspecialchars($type) ?>">
+                      <i class="bi <?= $meta['icon'] ?>"></i><div><strong><?= htmlspecialchars($meta['label']) ?></strong></div>
+                    </button>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            </div>
+            <div class="ife-sb-footer">
+              <!-- Badge "Modifications non publiées" : visible quand un brouillon existe -->
+              <div id="ifeDraftBadge" class="ife-draft-badge" style="display:none;">
+                <i class="bi bi-circle-fill"></i>
+                <span>Modifications non publiées</span>
+              </div>
+              <!-- Bouton principal : pousse le brouillon en production -->
+              <button type="button" class="btn btn-success w-100" id="btnPublishLayout">
+                <i class="bi bi-send me-1"></i>Publier sur le site
+              </button>
+              <!-- Bouton secondaire : annule le brouillon (revient à la version publiée) -->
+              <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2" id="btnDiscardDraft" style="display:none;">
+                <i class="bi bi-x-circle me-1"></i>Annuler les modifications
+              </button>
+              <div id="layoutSaveStatus" class="mt-2 small text-muted text-center" style="display:none"></div>
+            </div>
+          </aside>
+
+          <!-- ── Aperçu : iframe avec la home + overlay layer ── -->
+          <div class="ife-preview-wrap">
+            <iframe id="ifePreview" src="../public/accueil.php?editor=1" frameborder="0"></iframe>
+            <div id="ifeOverlay" class="ife-overlay"></div>
           </div>
+        </div>
 
-          <div class="col-md-4">
-            <label class="form-label">Vidéo actuelle</label>
+        <!-- État interne du layout (utilisé par JS) -->
+        <script type="application/json" id="ifeLayoutData"><?= json_encode($accueilLayout, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+      </div>
+    </div><!-- /col-12 -->
+
+    <!-- Modal universel : édition d'un champ d'une section pré-définie (titre, sous-titre, image, vidéo) -->
+    <div class="modal fade" id="fieldEditModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="fieldEditTitle">Modifier</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="fieldEditFieldName">
+            <input type="hidden" id="fieldEditKind">
+            <!-- Mode TinyMCE (pour titleAccueil + titleAccueil_mobile) -->
+            <div id="fieldEditTinymceWrap" style="display:none;">
+              <p class="text-muted small mb-2">Utilisez la barre d'outils pour ajouter du texte, des images, les aligner, etc. — ou clic sur <code>&lt;/&gt;</code> pour HTML brut.</p>
+              <textarea id="fieldEditTinymce"></textarea>
+            </div>
+            <!-- Mode texte simple (pour subtitle_accueil) -->
+            <div id="fieldEditTextWrap" style="display:none;">
+              <input type="text" class="form-control" id="fieldEditText" maxlength="500">
+              <div class="form-text">Maximum 500 caractères.</div>
+            </div>
+            <!-- Mode upload fichier (image / vidéo) -->
+            <div id="fieldEditFileWrap" style="display:none;">
+              <p id="fieldEditFileCurrent" class="text-muted small mb-2"></p>
+              <input type="file" class="form-control" id="fieldEditFile">
+              <div class="form-text" id="fieldEditFileHint"></div>
+            </div>
+            <div id="fieldEditStatus" class="mt-3 small" style="display:none;"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary" id="btnSaveField">Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal : édition d'un bloc personnalisé -->
+    <!-- data-bs-focus="false" : Bootstrap n'impose pas son focus-trap → les dialogs
+         enfants (TinyMCE windowManager, Source code, Insérer HTML) peuvent recevoir
+         le clavier et accepter input/paste -->
+    <div class="modal fade" id="customBlockModal" tabindex="-1" data-bs-focus="false">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="customBlockModalTitle">Ajouter un bloc personnalisé</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="customBlockEditId">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nom interne (facultatif)</label>
+              <input type="text" class="form-control" id="customBlockTitle" placeholder="Ex : Promo printemps, Annonce spéciale...">
+              <div class="form-text">Sert uniquement à repérer le bloc dans l'éditeur. Non affiché publiquement.</div>
+            </div>
             <div>
-              <?php if ($video_accueil && file_exists('../files/' . $video_accueil)): ?>
-                <video style="max-width:100%;max-height:150px;border-radius:8px;border:1px solid #f0e8eb;" autoplay muted loop playsinline>
-                  <source src="../files/<?= rawurlencode($video_accueil) ?>" type="video/mp4">
-                </video>
-                <div class="mt-1"><small class="text-muted"><?= htmlspecialchars($video_accueil) ?></small></div>
-              <?php else: ?>
-                <span class="text-muted">Aucune vidéo</span>
-              <?php endif; ?>
+              <label class="form-label fw-semibold">Contenu</label>
+              <p class="text-muted small mb-2">Utilisez la barre d'outils pour le contenu visuel, ou cliquez sur l'icône <code>&lt;/&gt;</code> pour saisir du HTML brut.</p>
+              <textarea id="customBlockEditor"></textarea>
             </div>
           </div>
-
-          <div class="col-12 text-end">
-            <button type="submit" name="save_video_accueil" class="btn btn-primary w-auto">Sauvegarder</button>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary" id="btnSaveCustomBlock">Valider</button>
           </div>
-        </form>
+        </div>
       </div>
-    </div><!-- /col-12 -->
-    <?php endif; // canCard('accueil','video') ?>
-
-    <!-- Carte 4 : Contenu personnalisé -->
-    <?php if ($canCard('accueil', 'custom')): ?>
-    <div class="col-12">
-      <div class="setting-card">
-        <h2><i class="bi bi-text-paragraph me-2"></i>Contenu personnalisé</h2>
-        <p class="text-muted mb-3">Ajoutez du contenu libre (texte, images, liens, tableaux...) qui sera affiché sur la page d'accueil avec un trait rose sur le côté gauche.</p>
-        <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?>
-          <div class="col-12">
-            <label class="form-label fw-semibold">Position d'affichage</label>
-            <select class="form-select" name="accueil_custom_position">
-              <option value="off" <?= $accueil_custom_position === 'off' ? 'selected' : '' ?>>Désactivé</option>
-              <option value="after_inscrits" <?= $accueil_custom_position === 'after_inscrits' ? 'selected' : '' ?>>Entre "Déjà inscrits" et le bandeau partenaires</option>
-              <option value="after_partners" <?= $accueil_custom_position === 'after_partners' ? 'selected' : '' ?>>Entre le bandeau partenaires et l'historique</option>
-            </select>
+    </div>
+    <!-- Modal : éditeur HTML/CSS/JS avec split code + preview live -->
+    <div class="modal fade" id="htmlBlockModal" tabindex="-1" data-bs-focus="false">
+      <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content" style="height:90vh;">
+          <div class="modal-header">
+            <h5 class="modal-title" id="htmlBlockModalTitle">Bloc HTML / CSS / JS</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold">Contenu</label>
-            <textarea id="accueilCustomEditor" name="accueil_custom_content"><?= htmlspecialchars($accueil_custom_content, ENT_QUOTES, 'UTF-8') ?></textarea>
+          <div class="modal-body p-0 d-flex flex-column" style="overflow:hidden;">
+            <div class="px-3 pt-3 pb-2 border-bottom">
+              <input type="hidden" id="htmlBlockEditId">
+              <div class="d-flex gap-3 align-items-end flex-wrap">
+                <div class="flex-grow-1" style="min-width:200px;">
+                  <label class="form-label fw-semibold mb-1">Nom interne (facultatif)</label>
+                  <input type="text" class="form-control form-control-sm" id="htmlBlockTitle" placeholder="Ex : Promo button, Compteur custom...">
+                </div>
+                <div>
+                  <label class="form-label fw-semibold mb-1 small">Alignement horizontal</label>
+                  <div class="btn-group btn-group-sm" role="group" id="htmlBlockAlignGroup">
+                    <button type="button" class="btn btn-outline-secondary" data-align="left"   title="Gauche"><i class="bi bi-align-start"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" data-align="center" title="Centre"><i class="bi bi-align-center"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" data-align="right"  title="Droite"><i class="bi bi-align-end"></i></button>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label fw-semibold mb-1 small">Alignement vertical</label>
+                  <div class="btn-group btn-group-sm" role="group" id="htmlBlockValignGroup">
+                    <button type="button" class="btn btn-outline-secondary" data-valign="top"    title="Haut"><i class="bi bi-align-top"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" data-valign="center" title="Milieu"><i class="bi bi-align-middle"></i></button>
+                    <button type="button" class="btn btn-outline-secondary" data-valign="bottom" title="Bas"><i class="bi bi-align-bottom"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="d-flex flex-grow-1" style="overflow:hidden;min-height:0;">
+              <div class="d-flex flex-column" style="width:50%;border-right:1px solid #e2e8f0;">
+                <div class="px-3 py-2 d-flex align-items-center justify-content-between" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                  <span class="small fw-semibold text-secondary"><i class="bi bi-code-slash me-1"></i>CODE (HTML / CSS / JS)</span>
+                  <span class="small text-muted">Modification appliquée à la preview en temps réel</span>
+                </div>
+                <div id="htmlBlockCode" style="flex:1;min-height:0;overflow:auto;"></div>
+              </div>
+              <div class="d-flex flex-column" style="width:50%;">
+                <div class="px-3 py-2 d-flex align-items-center justify-content-between" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                  <span class="small fw-semibold text-secondary"><i class="bi bi-eye me-1"></i>PREVIEW LIVE</span>
+                  <button type="button" class="btn btn-sm btn-link p-0" id="htmlBlockReloadPreview" title="Rafraîchir manuellement"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <iframe id="htmlBlockPreview" style="flex:1;min-height:0;border:0;background:#fff;width:100%;" sandbox="allow-scripts allow-same-origin"></iframe>
+              </div>
+            </div>
           </div>
-          <div class="col-12 text-end">
-            <button type="button" name="save_custom_content" class="btn btn-primary w-auto" id="btnSaveCustomContent">Sauvegarder</button>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary" id="btnSaveHtmlBlock"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
           </div>
-        </form>
+        </div>
       </div>
-    </div><!-- /col-12 -->
+    </div>
+
     <?php endif; // canCard('accueil','custom') ?>
 
   </div><!-- /row -->
@@ -2801,17 +3953,769 @@ document.addEventListener('DOMContentLoaded', function() {
         if (btn) { e.preventDefault(); ajaxSubmit(btn, ['title', 'title_mobile'], 'inscription'); }
     });
 
-    // Contenu personnalisé accueil — TinyMCE + AJAX save
-    if (document.getElementById('accueilCustomEditor')) {
-        tinymce.init({
-            selector: '#accueilCustomEditor',
-            <?= getTinyMceConfig($pdo) ?>
-        });
-    }
-    document.addEventListener('click', function(e) {
-        var btn = e.target.closest('#btnSaveCustomContent');
-        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['accueil_custom_content'], 'accueil'); }
-    });
-
 })();
 </script>
+
+<?php if ($canCard('accueil', 'custom')): ?>
+<!-- Sortable.js (drag & drop pour l'éditeur de mise en page accueil) -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<!-- CodeMirror 5 : éditeur de code pour les blocs HTML/CSS/JS -->
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/closetag.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var rowsEl = document.getElementById('leRows');
+  if (!rowsEl) return;
+  var statusEl = document.getElementById('layoutSaveStatus');
+  var modalEl  = document.getElementById('customBlockModal');
+  var modalTitle = document.getElementById('customBlockModalTitle');
+  var editIdInput = document.getElementById('customBlockEditId');
+  var titleInput = document.getElementById('customBlockTitle');
+  var bsModal = null;
+  var pendingCol = null; // colonne en cours d'édition (pour update vs add)
+
+  var PREDEF = <?= json_encode($predefinedSections, JSON_UNESCAPED_UNICODE) ?>;
+  var ALLOWED_W = <?= json_encode($allowedWidths) ?>;
+
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ── Init Sortable sur les lignes ──
+  Sortable.create(rowsEl, {
+    handle: '.le-row-handle',
+    animation: 150,
+    ghostClass: 'le-row-ghost',
+    chosenClass: 'le-row-chosen',
+  });
+
+  // ── Init Sortable sur les colonnes de chaque ligne (groupes pour permettre déplacement entre lignes) ──
+  function initColSortable(rowEl) {
+    var colsEl = rowEl.querySelector('.le-row-cols');
+    if (!colsEl || colsEl.dataset.sortableInit) return;
+    colsEl.dataset.sortableInit = '1';
+    Sortable.create(colsEl, {
+      handle: '.le-col-handle',
+      animation: 150,
+      group: 'le-cols',
+      ghostClass: 'le-col-ghost',
+      chosenClass: 'le-col-chosen',
+      onEnd: function() { refreshAllRowsInfo(); enforceRowMax(); }
+    });
+  }
+  rowsEl.querySelectorAll('.le-row').forEach(initColSortable);
+
+  function refreshAllRowsInfo() {
+    rowsEl.querySelectorAll('.le-row').forEach(function(row) {
+      var nb = row.querySelectorAll('.le-col').length;
+      var info = row.querySelector('.le-row-info-text');
+      if (info) info.textContent = 'Ligne (' + nb + ' col.)';
+      // Toggle bouton split (pas plus de 3 colonnes)
+      var splitBtn = row.querySelector('button[data-act="split"]');
+      if (splitBtn) splitBtn.style.display = nb >= 3 ? 'none' : '';
+    });
+  }
+
+  function enforceRowMax() {
+    // Supprime les lignes vides
+    rowsEl.querySelectorAll('.le-row').forEach(function(row) {
+      if (row.querySelectorAll('.le-col').length === 0) row.remove();
+    });
+  }
+
+  // ── Helpers ──
+  function newRowId() { return 'row_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
+  function newCustomId() { return 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
+
+  function makeColEl(opts) {
+    // opts = { type, width, visible, id?, title?, content? }
+    var col = document.createElement('div');
+    col.className = 'le-col' + (opts.visible === false ? ' is-hidden' : '');
+    col.dataset.sectionType = opts.type;
+    col.dataset.width = opts.width;
+    col.style.setProperty('--col-flex', opts.width);
+    if (opts.type === 'custom') {
+      col.dataset.sectionId      = opts.id || newCustomId();
+      col.dataset.sectionTitle   = opts.title || '';
+      col.dataset.sectionContent = opts.content || '';
+    }
+
+    var widthOpts = ALLOWED_W.map(function(w) {
+      return '<option value="' + w + '"' + (w == opts.width ? ' selected' : '') + '>' + w + '/12</option>';
+    }).join('');
+
+    var actions = '';
+    actions += '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="toggle-vis" title="' + (opts.visible !== false ? 'Masquer' : 'Afficher') + '">';
+    actions += '  <i class="bi ' + (opts.visible !== false ? 'bi-eye' : 'bi-eye-slash') + '"></i></button>';
+    if (opts.type === 'custom') {
+      actions += '<button type="button" class="btn btn-sm btn-outline-primary" data-act="edit" title="Modifier"><i class="bi bi-pencil"></i></button>';
+      actions += '<button type="button" class="btn btn-sm btn-outline-danger" data-act="del-col" title="Supprimer ce bloc"><i class="bi bi-trash3"></i></button>';
+    } else {
+      actions += '<button type="button" class="btn btn-sm btn-outline-danger" data-act="del-col" title="Retirer cette colonne"><i class="bi bi-x-lg"></i></button>';
+    }
+
+    col.innerHTML = ''
+      + '<div class="le-col-toolbar">'
+      + '  <span class="le-handle le-col-handle" title="Glisser"><i class="bi bi-grip-vertical"></i></span>'
+      + '  <select class="form-select form-select-sm le-width-select" title="Largeur" style="width:auto;flex-shrink:0;">' + widthOpts + '</select>'
+      + '  <div class="ms-auto d-flex gap-1">' + actions + '</div>'
+      + '</div>'
+      + '<div class="le-col-preview">' + thumbHtml(opts) + '</div>';
+    return col;
+  }
+
+  function thumbHtml(opts) {
+    // Pour les blocs custom : on rend exactement le même HTML que PHP (custom-content-section + custom-content-inner)
+    if (opts.type === 'custom') {
+      var content = opts.content || '';
+      if (content.trim() === '') {
+        return '<div style="padding:40px 20px;text-align:center;color:#94a3b8;background:#fdf8fa;border-radius:6px;">'
+             + '<i class="bi bi-text-paragraph" style="font-size:24px;display:block;margin-bottom:8px;"></i>'
+             + '<em>Bloc personnalisé vide — clic sur ✏️ pour éditer</em></div>';
+      }
+      return '<section class="custom-content-section">'
+           + '  <div class="custom-content-inner">' + content + '</div>'
+           + '</section>';
+    }
+    // Pour les pré-définis ajoutés à la volée par JS : placeholder (le rendu réel apparaîtra après save+reload)
+    var meta = PREDEF[opts.type] || { label: opts.type, icon: 'bi-square' };
+    return '<div style="padding:40px 20px;text-align:center;background:linear-gradient(135deg,#fce7f3,#fdf2f8);border-radius:6px;">'
+         + '  <i class="bi ' + meta.icon + '" style="font-size:32px;color:#9d174d;display:block;margin-bottom:8px;"></i>'
+         + '  <div style="font-weight:700;color:#1e293b;margin-bottom:4px;">' + escHtml(meta.label) + '</div>'
+         + '  <div style="font-size:11px;color:#9d174d;background:#fff;display:inline-block;padding:2px 10px;border-radius:999px;margin-top:4px;">Sauvegardez pour voir l\'aperçu réel</div>'
+         + '</div>';
+  }
+
+  function makeRowEl(cols) {
+    // cols = array of opts
+    var row = document.createElement('div');
+    row.className = 'le-row';
+    row.dataset.rowId = newRowId();
+    row.innerHTML = ''
+      + '<div class="le-row-toolbar">'
+      + '  <span class="le-handle le-row-handle" title="Réorganiser la ligne"><i class="bi bi-arrows-move"></i></span>'
+      + '  <span class="le-row-info"><i class="bi bi-layout-three-columns"></i> <span class="le-row-info-text">Ligne (' + cols.length + ' col.)</span></span>'
+      + '  <div class="ms-auto d-flex gap-1">'
+      + '    <button type="button" class="btn btn-sm btn-outline-primary" data-act="split" title="Diviser : ajouter une colonne"><i class="bi bi-layout-split"></i></button>'
+      + '    <button type="button" class="btn btn-sm btn-outline-danger" data-act="del-row" title="Supprimer la ligne"><i class="bi bi-trash3"></i></button>'
+      + '  </div>'
+      + '</div>'
+      + '<div class="le-row-cols"></div>';
+    var colsContainer = row.querySelector('.le-row-cols');
+    cols.forEach(function(c) { colsContainer.appendChild(makeColEl(c)); });
+    return row;
+  }
+
+  // ── Délégation des actions ──
+  rowsEl.addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var act = btn.dataset.act;
+    var row = btn.closest('.le-row');
+    var col = btn.closest('.le-col');
+
+    if (act === 'del-row') {
+      if (!confirm('Supprimer cette ligne entière (toutes ses colonnes) ?')) return;
+      row.remove();
+      return;
+    }
+    if (act === 'split') {
+      var nb = row.querySelectorAll('.le-col').length;
+      if (nb >= 3) return;
+      // Calcule largeur restante
+      var total = 0;
+      row.querySelectorAll('.le-col').forEach(function(c) { total += parseInt(c.dataset.width, 10) || 0; });
+      var newW = 12 - total;
+      if (newW < 3) {
+        // Réduit toutes les colonnes pour faire de la place
+        row.querySelectorAll('.le-col').forEach(function(c) {
+          var w = parseInt(c.dataset.width, 10) || 0;
+          var nw = Math.max(3, w - 3);
+          c.dataset.width = nw;
+          c.style.setProperty('--col-flex', nw);
+          var sel = c.querySelector('.le-width-select'); if (sel) sel.value = nw;
+        });
+        total = 0;
+        row.querySelectorAll('.le-col').forEach(function(c) { total += parseInt(c.dataset.width, 10) || 0; });
+        newW = Math.max(3, 12 - total);
+      }
+      var newCol = makeColEl({ type: 'custom', width: newW, visible: true, id: newCustomId(), title: '', content: '' });
+      row.querySelector('.le-row-cols').appendChild(newCol);
+      refreshAllRowsInfo();
+      return;
+    }
+    if (act === 'del-col') {
+      if (col.dataset.sectionType === 'custom') {
+        if (!confirm('Supprimer ce bloc personnalisé ?')) return;
+      }
+      col.remove();
+      enforceRowMax();
+      refreshAllRowsInfo();
+      return;
+    }
+    if (act === 'toggle-vis') {
+      var nowHidden = col.classList.toggle('is-hidden');
+      var icon = btn.querySelector('i');
+      icon.className = 'bi ' + (nowHidden ? 'bi-eye-slash' : 'bi-eye');
+      btn.title = nowHidden ? 'Afficher' : 'Masquer';
+      return;
+    }
+    if (act === 'edit') {
+      pendingCol = col;
+      modalTitle.textContent = 'Modifier le bloc personnalisé';
+      editIdInput.value = col.dataset.sectionId || '';
+      titleInput.value  = col.dataset.sectionTitle || '';
+      var content = col.dataset.sectionContent || '';
+      openModal(content);
+      return;
+    }
+  });
+
+  // ── Délégation : changement de largeur ──
+  rowsEl.addEventListener('change', function(e) {
+    var sel = e.target.closest('.le-width-select');
+    if (!sel) return;
+    var col = sel.closest('.le-col');
+    var newW = parseInt(sel.value, 10);
+    var row = col.closest('.le-row');
+    // Vérif somme ≤ 12
+    var others = 0;
+    row.querySelectorAll('.le-col').forEach(function(c) {
+      if (c !== col) others += parseInt(c.dataset.width, 10) || 0;
+    });
+    if (newW + others > 12) {
+      alert('Largeur impossible : la somme dépasserait 12. Réduisez d\'abord les autres colonnes de cette ligne.');
+      sel.value = col.dataset.width;
+      return;
+    }
+    col.dataset.width = newW;
+    col.style.setProperty('--col-flex', newW);
+  });
+
+  // ── Modal TinyMCE ──
+  function openModal(initialContent) {
+    if (!bsModal && typeof bootstrap !== 'undefined') bsModal = new bootstrap.Modal(modalEl);
+    if (bsModal) bsModal.show();
+    modalEl.addEventListener('shown.bs.modal', function once() {
+      modalEl.removeEventListener('shown.bs.modal', once);
+      initEditor(initialContent);
+    });
+  }
+  function initEditor(initialContent) {
+    if (typeof tinymce === 'undefined') return;
+    var ed = tinymce.get('customBlockEditor');
+    if (ed) ed.remove();
+    tinymce.init({
+      selector: '#customBlockEditor',
+      <?= getTinyMceConfig($pdo) ?>
+    }).then(function(editors) {
+      if (editors && editors[0]) editors[0].setContent(initialContent || '');
+    });
+  }
+  function getEditorContent() {
+    if (typeof tinymce === 'undefined') return '';
+    var ed = tinymce.get('customBlockEditor');
+    return ed ? ed.getContent() : (document.getElementById('customBlockEditor').value || '');
+  }
+
+  // ── Ajouter un bloc personnalisé (nouvelle ligne pleine largeur) ──
+  document.getElementById('btnAddCustomBlock').addEventListener('click', function() {
+    pendingCol = null;
+    modalTitle.textContent = 'Ajouter un bloc personnalisé';
+    editIdInput.value = '';
+    titleInput.value  = '';
+    openModal('');
+  });
+
+  // ── Replacer une section pré-définie (clic sur bouton dans sidebar Ajouter) ──
+  var restoreMenu = document.getElementById('restoreMenu');
+  if (restoreMenu) {
+    restoreMenu.addEventListener('click', function(e) {
+      var item = e.target.closest('button[data-restore-type], a[data-restore-type]');
+      if (!item) return;
+      e.preventDefault();
+      var type = item.dataset.restoreType;
+      var newRow = makeRowEl([{ type: type, width: 12, visible: true }]);
+      rowsEl.appendChild(newRow);
+      initColSortable(newRow);
+      refreshAllRowsInfo();
+    });
+  }
+
+  // ── Valider modal ──
+  document.getElementById('btnSaveCustomBlock').addEventListener('click', function() {
+    var id = editIdInput.value.trim();
+    var title = titleInput.value.trim();
+    var content = getEditorContent();
+
+    if (id && pendingCol) {
+      // Update
+      pendingCol.dataset.sectionTitle = title;
+      pendingCol.dataset.sectionContent = content;
+      pendingCol.querySelector('.le-col-preview').innerHTML = thumbHtml({
+        type: 'custom', title: title, content: content
+      });
+    } else {
+      // Add as new full-width row
+      var newRow = makeRowEl([{
+        type: 'custom', width: 12, visible: true,
+        id: newCustomId(), title: title, content: content
+      }]);
+      rowsEl.appendChild(newRow);
+      initColSortable(newRow);
+      refreshAllRowsInfo();
+    }
+    pendingCol = null;
+    if (bsModal) bsModal.hide();
+  });
+
+  // ── Sauvegarde du layout (POST AJAX du JSON) ──
+  document.getElementById('btnSaveLayout').addEventListener('click', function() {
+    var layout = [];
+    rowsEl.querySelectorAll('.le-row').forEach(function(row) {
+      var cols = [];
+      row.querySelectorAll('.le-col').forEach(function(col) {
+        var sec = {
+          type: col.dataset.sectionType,
+          visible: !col.classList.contains('is-hidden'),
+        };
+        if (sec.type === 'custom') {
+          sec.id      = col.dataset.sectionId || '';
+          sec.title   = col.dataset.sectionTitle || '';
+          sec.content = col.dataset.sectionContent || '';
+        }
+        cols.push({ width: parseInt(col.dataset.width, 10) || 12, section: sec });
+      });
+      if (cols.length === 0) return;
+      layout.push({ id: row.dataset.rowId, columns: cols });
+    });
+
+    var btn = this;
+    btn.disabled = true;
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#64748b';
+    statusEl.textContent = 'Enregistrement…';
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfTok  = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    fetch('', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ save_accueil_layout: 1, layout: layout, csrf_token: csrfTok })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      btn.disabled = false;
+      if (j && j.ok) {
+        statusEl.style.color = '#16a34a';
+        statusEl.textContent = '✓ Mise en page enregistrée.';
+      } else {
+        statusEl.style.color = '#dc2626';
+        statusEl.textContent = '✗ ' + ((j && j.err) || 'Échec de l\'enregistrement.');
+      }
+      setTimeout(function() { statusEl.style.display = 'none'; }, 4000);
+    })
+    .catch(function() {
+      btn.disabled = false;
+      statusEl.style.color = '#dc2626';
+      statusEl.textContent = '✗ Erreur réseau.';
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // NOUVELLES INTERACTIONS (sidebar droite + selection + edit modal universel)
+  // ════════════════════════════════════════════════════════════════════
+
+  // ── Tabs sidebar (Propriétés / Ajouter) ──
+  document.querySelectorAll('.le-sb-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var target = tab.dataset.sbTab;
+      document.querySelectorAll('.le-sb-tab').forEach(function(t) { t.classList.toggle('active', t === tab); });
+      document.querySelectorAll('.le-sb-pane').forEach(function(p) { p.classList.toggle('active', p.dataset.sbPane === target); });
+    });
+  });
+
+  // ── Sélection au clic sur une section (col ou bloc Hero) ──
+  var currentSelected = null;
+  function selectSection(el) {
+    if (currentSelected) currentSelected.classList.remove('is-selected');
+    currentSelected = el;
+    if (el) {
+      el.classList.add('is-selected');
+      populateSidebarProps(el);
+      // Switch to Propriétés tab automatically
+      document.querySelector('.le-sb-tab[data-sb-tab="props"]').click();
+    } else {
+      document.getElementById('leSbPropsEmpty').style.display = '';
+      document.getElementById('leSbPropsContent').style.display = 'none';
+    }
+  }
+
+  function populateSidebarProps(el) {
+    var sectionType = el.dataset.sectionType || 'unknown';
+    document.getElementById('leSbPropsEmpty').style.display = 'none';
+    var content = document.getElementById('leSbPropsContent');
+    content.style.display = '';
+
+    var labels = {
+      hero: 'Héro (vidéo + titre)',
+      reg_bar: "Compteur d'inscrits",
+      partners: 'Bandeau Partenaires',
+      timeline: 'Historique (Timeline)',
+      news: 'Dernières actualités',
+      custom: 'Bloc personnalisé'
+    };
+    document.getElementById('leSbSelType').textContent = labels[sectionType] || sectionType;
+
+    // Restaure les rows section (au cas où ils ont été cachés par sélection d'un sous-élément)
+    var widthRow = document.getElementById('leSbWidth').closest('.le-sb-row');
+    var visRow   = document.getElementById('leSbVisCheck').closest('.le-sb-row');
+    var sizeRow  = document.getElementById('leSbSizeRow');
+    widthRow.style.display = (sectionType === 'hero') ? 'none' : '';
+    visRow.style.display = (sectionType === 'hero') ? 'none' : '';
+    sizeRow.style.display = 'none';
+
+    if (sectionType !== 'hero') {
+      var widthSel = document.getElementById('leSbWidth');
+      widthSel.value = parseInt(el.dataset.width || '12', 10);
+
+      var visCheck = document.getElementById('leSbVisCheck');
+      var hidden = el.classList.contains('is-hidden');
+      visCheck.checked = !hidden;
+      document.getElementById('leSbVisLabel').textContent = hidden ? 'Masqué' : 'Visible';
+    }
+
+    var editWrap = document.getElementById('leSbActionEdit');
+    if (sectionType === 'custom') {
+      editWrap.style.display = '';
+      document.getElementById('leSbBtnEdit').onclick = function() {
+        var btn = el.querySelector('button[data-act="edit"]');
+        if (btn) btn.click();
+      };
+    } else {
+      editWrap.style.display = 'none';
+    }
+
+    var delBtn = document.getElementById('leSbBtnDelete');
+    delBtn.disabled = (sectionType === 'hero');
+    delBtn.style.display = (sectionType === 'hero') ? 'none' : '';
+  }
+
+  // Click sur une colonne/section pour sélectionner (hors data-edit-field qui ouvre le modal)
+  document.addEventListener('click', function(e) {
+    // Si clic sur élément éditable, on laisse le handler dédié gérer
+    if (e.target.closest('[data-edit-field]')) return;
+    var sec = e.target.closest('.le-col, .le-section-block');
+    if (sec) {
+      selectSection(sec);
+    } else if (!e.target.closest('.le-sidebar')) {
+      // Click hors d'une section et hors sidebar → désélectionne
+      // selectSection(null);  // commenté pour éviter désélection involontaire
+    }
+  });
+
+  // Width change depuis la sidebar
+  document.getElementById('leSbWidth').addEventListener('change', function() {
+    if (!currentSelected || currentSelected.classList.contains('le-section-hero')) return;
+    var newW = parseInt(this.value, 10);
+    var sel = currentSelected.querySelector('.le-width-select');
+    if (sel) { sel.value = newW; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+
+  // Toggle visibility via checkbox
+  document.getElementById('leSbVisCheck').addEventListener('change', function() {
+    if (!currentSelected || currentSelected.classList.contains('le-section-hero')) return;
+    var btn = currentSelected.querySelector('button[data-act="toggle-vis"]');
+    if (btn) btn.click();
+    document.getElementById('leSbVisLabel').textContent = this.checked ? 'Visible' : 'Masqué';
+  });
+
+  // Slider de taille (pour élément éditable sélectionné dans le Hero)
+  var currentEditEl = null; // élément data-edit-field actuellement sélectionné
+  var sizeRange = document.getElementById('leSbSizeRange');
+  var sizeVal = document.getElementById('leSbSizeVal');
+  var sizeRow = document.getElementById('leSbSizeRow');
+  var sizeSaveTimer = null;
+
+  sizeRange.addEventListener('input', function() {
+    if (!currentEditEl) return;
+    var val = parseInt(this.value, 10);
+    sizeVal.textContent = val + '%';
+    var sizeKey = currentEditEl.dataset.editSize;
+    // Application visuelle immédiate
+    if (sizeKey === 'hero_timer_size') {
+      currentEditEl.style.transform = 'scale(' + (val / 100) + ')';
+      currentEditEl.style.transformOrigin = 'left bottom';
+    } else {
+      currentEditEl.style.fontSize = (val / 100) + 'em';
+    }
+    // Save AJAX (debounced)
+    clearTimeout(sizeSaveTimer);
+    sizeSaveTimer = setTimeout(function() { saveStyle(sizeKey, val); }, 400);
+  });
+
+  function saveStyle(sizeKey, val) {
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfTok = csrfMeta ? csrfMeta.getAttribute('content') : '';
+    var fd = new FormData();
+    fd.append('save_accueil_style', '1');
+    fd.append('sizeKey', sizeKey);
+    fd.append('sizeValue', val);
+    fd.append('csrf_token', csrfTok);
+    fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (j && j.ok) { /* OK silencieux */ }
+      });
+  }
+
+  // Edit (custom uniquement) depuis la sidebar
+  document.getElementById('leSbBtnEdit').addEventListener('click', function() {
+    if (!currentSelected) return;
+    var btn = currentSelected.querySelector('button[data-act="edit"]');
+    if (btn) btn.click();
+  });
+
+  // Delete depuis la sidebar
+  document.getElementById('leSbBtnDelete').addEventListener('click', function() {
+    if (!currentSelected || currentSelected.classList.contains('le-section-hero')) return;
+    var btn = currentSelected.querySelector('button[data-act="del-col"]');
+    if (btn) { btn.click(); selectSection(null); }
+  });
+
+  // ── Bouton "+" entre rows : insère une nouvelle ligne (bloc custom vide) ──
+  document.querySelectorAll('.le-add-row').forEach(function(addBtn) {
+    addBtn.addEventListener('click', function(e) {
+      var pos = parseInt(addBtn.dataset.addPosition || '0', 10);
+      var newRow = makeRowEl([{ type: 'custom', width: 12, visible: true, id: newCustomId(), title: '', content: '' }]);
+      var allRows = rowsEl.querySelectorAll('.le-row');
+      if (pos >= allRows.length) {
+        rowsEl.appendChild(newRow);
+      } else {
+        // Trouver le bon point d'insertion : avant la row à l'index pos
+        var targetRow = allRows[pos];
+        rowsEl.insertBefore(newRow, targetRow);
+        // Aussi insérer un bouton + après la nouvelle row
+      }
+      initColSortable(newRow);
+      refreshAllRowsInfo();
+    });
+  });
+
+  // ── Modal universel : édition d'un champ (titre, sous-titre, image, vidéo) ──
+  var fieldModalEl = document.getElementById('fieldEditModal');
+  var fieldModal = null;
+  function openFieldModal(field, kind, currentValue, label) {
+    if (!fieldModal && typeof bootstrap !== 'undefined') fieldModal = new bootstrap.Modal(fieldModalEl);
+    document.getElementById('fieldEditTitle').textContent = 'Modifier : ' + (label || field);
+    document.getElementById('fieldEditFieldName').value = field;
+    document.getElementById('fieldEditKind').value = kind;
+    document.getElementById('fieldEditStatus').style.display = 'none';
+    document.getElementById('fieldEditTinymceWrap').style.display = 'none';
+    document.getElementById('fieldEditTextWrap').style.display = 'none';
+    document.getElementById('fieldEditFileWrap').style.display = 'none';
+
+    if (kind === 'tinymce') {
+      document.getElementById('fieldEditTinymceWrap').style.display = '';
+      var ed = tinymce.get('fieldEditTinymce');
+      if (ed) ed.remove();
+      tinymce.init({
+        selector: '#fieldEditTinymce',
+        <?= getTinyMceConfig($pdo) ?>
+      }).then(function(eds) {
+        if (eds && eds[0]) eds[0].setContent(currentValue || '');
+      });
+    } else if (kind === 'text') {
+      document.getElementById('fieldEditTextWrap').style.display = '';
+      document.getElementById('fieldEditText').value = currentValue || '';
+    } else if (kind === 'image' || kind === 'video') {
+      document.getElementById('fieldEditFileWrap').style.display = '';
+      document.getElementById('fieldEditFile').value = '';
+      var hint = document.getElementById('fieldEditFileHint');
+      if (kind === 'image') {
+        hint.textContent = 'Formats : JPG, PNG, GIF, WEBP. Max ~5 Mo.';
+        document.getElementById('fieldEditFile').accept = 'image/jpeg,image/png,image/gif,image/webp';
+      } else {
+        hint.textContent = 'Formats : MP4, WebM, OGG. Max 50 Mo.';
+        document.getElementById('fieldEditFile').accept = 'video/mp4,video/webm,video/ogg';
+      }
+      var current = document.getElementById('fieldEditFileCurrent');
+      current.textContent = currentValue ? ('Fichier actuel : ' + currentValue) : 'Aucun fichier actuellement.';
+    }
+    if (fieldModal) fieldModal.show();
+  }
+
+  // ── Click simple sur élément éditable : SÉLECTIONNE + montre slider taille dans sidebar ──
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-edit-field]');
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Sélection visuelle
+    document.querySelectorAll('.le-edit-selected').forEach(function(x){ x.classList.remove('le-edit-selected'); });
+    el.classList.add('le-edit-selected');
+    currentEditEl = el;
+
+    // Mise à jour de la sidebar : titre, slider, bouton "modifier contenu"
+    document.querySelector('.le-sb-tab[data-sb-tab="props"]').click();
+    document.getElementById('leSbPropsEmpty').style.display = 'none';
+    document.getElementById('leSbPropsContent').style.display = '';
+    document.getElementById('leSbSelType').textContent = (el.dataset.editField || 'élément') + ' (Hero)';
+
+    // Cache les options de section (largeur, visibilité) pour un élément éditable du Hero
+    document.getElementById('leSbWidth').closest('.le-sb-row').style.display = 'none';
+    document.getElementById('leSbVisCheck').closest('.le-sb-row').style.display = 'none';
+    document.getElementById('leSbBtnDelete').style.display = 'none';
+
+    // Affiche le slider de taille s'il y a un data-edit-size
+    if (el.dataset.editSize) {
+      sizeRow.style.display = '';
+      var current = parseInt(el.dataset.editSizeCurrent || '100', 10);
+      sizeRange.value = current;
+      sizeVal.textContent = current + '%';
+    } else {
+      sizeRow.style.display = 'none';
+    }
+
+    // Bouton "Modifier le contenu" si le kind n'est pas 'size-only' (timer = size only)
+    var editWrap = document.getElementById('leSbActionEdit');
+    if (el.dataset.editKind && el.dataset.editKind !== 'size-only') {
+      editWrap.style.display = '';
+      var btn = document.getElementById('leSbBtnEdit');
+      btn.onclick = function() { openFieldModalFromEl(el); };
+    } else {
+      editWrap.style.display = 'none';
+    }
+  });
+
+  // ── Double-clic sur élément éditable : ouvre directement le modal d'édition ──
+  document.addEventListener('dblclick', function(e) {
+    var el = e.target.closest('[data-edit-field]');
+    if (!el || el.dataset.editKind === 'size-only') return;
+    e.preventDefault();
+    e.stopPropagation();
+    openFieldModalFromEl(el);
+  });
+
+  function openFieldModalFromEl(el) {
+    var field = el.dataset.editField;
+    var kind = el.dataset.editKind;
+    var currentValue = '';
+    if (kind === 'tinymce') currentValue = el.innerHTML;
+    else if (kind === 'text') currentValue = el.textContent.trim();
+    else if (kind === 'image') currentValue = el.getAttribute('src') ? el.getAttribute('src').split('/').pop() : '';
+    else if (kind === 'video') {
+      var src = el.querySelector('source');
+      currentValue = src ? src.getAttribute('src').split('/').pop() : '';
+    }
+    openFieldModal(field, kind, currentValue, field);
+  }
+
+  // Save field
+  document.getElementById('btnSaveField').addEventListener('click', function() {
+    var field = document.getElementById('fieldEditFieldName').value;
+    var kind  = document.getElementById('fieldEditKind').value;
+    var btn = this;
+    var status = document.getElementById('fieldEditStatus');
+    btn.disabled = true;
+    status.style.display = 'block';
+    status.style.color = '#64748b';
+    status.textContent = 'Enregistrement…';
+
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfTok = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    var fd = new FormData();
+    fd.append('save_accueil_field', '1');
+    fd.append('field', field);
+    fd.append('csrf_token', csrfTok);
+
+    if (kind === 'tinymce') {
+      var ed = tinymce.get('fieldEditTinymce');
+      fd.append('value', ed ? ed.getContent() : '');
+    } else if (kind === 'text') {
+      fd.append('value', document.getElementById('fieldEditText').value);
+    } else if (kind === 'image' || kind === 'video') {
+      var file = document.getElementById('fieldEditFile').files[0];
+      if (!file) {
+        status.style.color = '#dc2626';
+        status.textContent = '✗ Sélectionnez un fichier.';
+        btn.disabled = false;
+        return;
+      }
+      fd.append('file', file);
+    }
+
+    fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        btn.disabled = false;
+        if (j && j.ok) {
+          status.style.color = '#16a34a';
+          status.textContent = '✓ Enregistré. Rechargement de l\'aperçu…';
+          setTimeout(function() { location.reload(); }, 800);
+        } else {
+          status.style.color = '#dc2626';
+          status.textContent = '✗ ' + ((j && j.err) || 'Échec de l\'enregistrement.');
+        }
+      })
+      .catch(function() {
+        btn.disabled = false;
+        status.style.color = '#dc2626';
+        status.textContent = '✗ Erreur réseau.';
+      });
+  });
+
+})();
+
+// ════════════════════════════════════════════════════════════════════════
+// BOOTSTRAP de l'éditeur d'accueil (config injectée pour js/accueil-editor.js)
+// ════════════════════════════════════════════════════════════════════════
+window.AccueilEditor = window.AccueilEditor || {};
+window.AccueilEditor.layoutData = (function() {
+  var el = document.getElementById('ifeLayoutData');
+  return el ? JSON.parse(el.textContent) : [];
+})();
+window.AccueilEditor.predefinedSections = <?= json_encode($predefinedSections, JSON_UNESCAPED_UNICODE) ?>;
+window.AccueilEditor.allowedWidths = <?= json_encode($allowedWidths) ?>;
+// État du brouillon au chargement : true si modifications non publiées en BDD
+window.AccueilEditor.hasDraft = <?= hasAccueilDraft($data) ? 'true' : 'false' ?>;
+// Styles courants (lecture brouillon avec fallback publié) — utilisé par les toggles
+// d'options de section (ex: news.card_style)
+window.AccueilEditor.accueilStyles = <?php
+  $stylesForJs = [];
+  $stylesRaw = $data['accueil_styles_draft'] ?? null;
+  if (!$stylesRaw) $stylesRaw = $data['accueil_styles'] ?? null;
+  if ($stylesRaw) {
+    $decoded = json_decode($stylesRaw, true);
+    if (is_array($decoded)) $stylesForJs = $decoded;
+  }
+  echo json_encode($stylesForJs);
+?>;
+// Helper pour init TinyMCE avec la config PHP partagée (appelé depuis l'externe)
+window.AccueilEditor.initTinyMce = function(selector, content) {
+  if (typeof tinymce === 'undefined') return;
+  var id = selector.replace('#', '');
+  var ed = tinymce.get(id);
+  if (ed) ed.remove();
+  return tinymce.init({
+    selector: selector,
+    <?= getTinyMceConfig($pdo) ?>
+  }).then(function(eds) {
+    if (eds && eds[0] && content !== undefined) eds[0].setContent(content || '');
+    return eds;
+  });
+};
+// IIFE de l'éditeur déplacée dans js/accueil-editor.js (inclus juste après)
+// (les ~600 lignes ci-dessous sont supprimées et déplacées dans le fichier externe)
+</script>
+<!-- Éditeur visuel WYSIWYG (logique principale) -->
+<script src="../js/accueil-editor.js?v=<?= @filemtime(__DIR__ . '/../js/accueil-editor.js') ?: time() ?>" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<?php endif; ?>

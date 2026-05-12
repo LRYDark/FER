@@ -195,12 +195,23 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
                 <button class="pgbtn" data-page="<?= $page - 1 ?>">←</button>
             <?php endif; ?>
             <?php
-            $start = max(1, $page - 2);
-            $end = min($totalPages, $page + 2);
-            for ($i = $start; $i <= $end; $i++):
-            ?>
-                <button class="pgbtn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
-            <?php endfor; ?>
+            // Pagination compacte type "1 ... 4 5 6 ... 12" (page courante ± 1, plus 1ère et dernière avec ellipses)
+            $pgPages = [];
+            $pgPages[] = 1;
+            if ($page - 1 > 2) $pgPages[] = '...';
+            for ($i = max(2, $page - 1); $i <= min($totalPages - 1, $page + 1); $i++) $pgPages[] = $i;
+            if ($page + 1 < $totalPages - 1) $pgPages[] = '...';
+            if ($totalPages > 1) $pgPages[] = $totalPages;
+            $pgSeen = [];
+            foreach ($pgPages as $i):
+                if ($i === '...'): ?>
+                    <span class="pgbtn pgbtn-ellipsis" style="cursor:default;background:transparent;border:none;">…</span>
+                <?php else:
+                    if (isset($pgSeen[$i])) continue;
+                    $pgSeen[$i] = true; ?>
+                    <button class="pgbtn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
+                <?php endif;
+            endforeach; ?>
             <?php if ($page < $totalPages): ?>
                 <button class="pgbtn" data-page="<?= $page + 1 ?>">→</button>
             <?php endif; ?>
@@ -423,12 +434,23 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
           <button class="pgbtn" data-page="<?= $page - 1 ?>">←</button>
         <?php endif; ?>
         <?php
-        $start = max(1, $page - 2);
-        $end = min($totalPages, $page + 2);
-        for ($i = $start; $i <= $end; $i++):
-        ?>
-          <button class="pgbtn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
-        <?php endfor; ?>
+        // Pagination compacte type "1 ... 4 5 6 ... 12" (page courante ± 1, plus 1ère et dernière avec ellipses)
+        $pgPages = [];
+        $pgPages[] = 1;
+        if ($page - 1 > 2) $pgPages[] = '...';
+        for ($i = max(2, $page - 1); $i <= min($totalPages - 1, $page + 1); $i++) $pgPages[] = $i;
+        if ($page + 1 < $totalPages - 1) $pgPages[] = '...';
+        if ($totalPages > 1) $pgPages[] = $totalPages;
+        $pgSeen = [];
+        foreach ($pgPages as $i):
+            if ($i === '...'): ?>
+              <span class="pgbtn pgbtn-ellipsis" style="cursor:default;background:transparent;border:none;">…</span>
+            <?php else:
+                if (isset($pgSeen[$i])) continue;
+                $pgSeen[$i] = true; ?>
+              <button class="pgbtn <?= $i == $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
+            <?php endif;
+        endforeach; ?>
         <?php if ($page < $totalPages): ?>
           <button class="pgbtn" data-page="<?= $page + 1 ?>">→</button>
         <?php endif; ?>
