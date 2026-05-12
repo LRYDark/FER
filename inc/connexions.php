@@ -492,6 +492,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   };
 
+  // Pagination compacte type "1 ... 4 5 6 ... 12"
+  if ($.fn.DataTable) { $.fn.dataTable.ext.pager.numbers_length = 7; }
+
   if ($.fn.DataTable && document.getElementById('logsTable')) {
     $('#logsTable').DataTable({
       language: frLang,

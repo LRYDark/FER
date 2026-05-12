@@ -1,3 +1,77 @@
+    /* ============================================================
+       Layout dynamique de l'accueil (rows + columns, format V2)
+       ============================================================ */
+    .accueil-row {
+      width: 100%;
+      display: block;
+    }
+    .accueil-row.accueil-row-multi {
+      display: flex;
+      flex-wrap: nowrap; /* JAMAIS d'empilement automatique → toujours côte à côte */
+      align-items: center; /* CENTRÉ PAR DÉFAUT verticalement (modif possible via row.valign) */
+      gap: 16px;
+    }
+    /* Alignement horizontal des colonnes quand leur somme < 12 */
+    .accueil-row.accueil-row-multi.accueil-row-align-left   { justify-content: flex-start; }
+    .accueil-row.accueil-row-multi.accueil-row-align-center { justify-content: center; }
+    .accueil-row.accueil-row-multi.accueil-row-align-right  { justify-content: flex-end; }
+    /* Alignement vertical des colonnes (utile quand hauteurs différentes) */
+    .accueil-row.accueil-row-multi.accueil-row-valign-top    { align-items: flex-start; }
+    .accueil-row.accueil-row-multi.accueil-row-valign-center { align-items: center; }
+    .accueil-row.accueil-row-multi.accueil-row-valign-bottom { align-items: flex-end; }
+    /* Les colonnes contenant un bloc HTML s'étirent TOUJOURS pleine hauteur de la ligne,
+       quel que soit row.valign. Comme ça, l'alignement interne du bloc HTML (top/center/
+       bottom du contenu) est visible même si la ligne a align-items:center. */
+    .accueil-row.accueil-row-multi > .accueil-col.accueil-col-html {
+      align-self: stretch !important;
+    }
+    /* Wrapper FLEX COLUMN → désactive le margin-collapse entre rows adjacentes.
+       L'utilisateur peut alors mettre 0/0 efficacement (sinon les margins s'écrasent). */
+    .accueil-rows-wrapper {
+      display: flex;
+      flex-direction: column;
+    }
+    /* IMPORTANT : annule TOUTES les margins intrinsèques des sections (reg-bar a
+       7.5rem top, custom-content 5rem, etc.) pour que la ROW soit LA seule source de
+       spacing vertical. Sinon mettre row.spaceTop=0 ne fait rien : la section interne
+       garde son margin et crée du blanc. */
+    .accueil-rows-wrapper > .accueil-row > .accueil-col > * {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    /* Espace par défaut entre rows : 5rem au-dessus de chaque row (sauf la 1re).
+       Pas de margin-bottom par défaut → user peut additionner avec row.spaceTop suivant.
+       Override par row.spaceTop / row.spaceBottom (inline style). */
+    .accueil-rows-wrapper > .accueil-row {
+      margin-top: 5rem;
+      margin-bottom: 0;
+    }
+    .accueil-rows-wrapper > .accueil-row:first-child { margin-top: 0; }
+    @media (max-width: 768px) {
+      .accueil-rows-wrapper > .accueil-row { margin-top: 3rem; }
+    }
+    /* flex-grow proportionnel à --col-w (valeur Bootstrap 1..12) → la `gap: 16px` est
+       automatiquement absorbée car flex-basis = 0. Plus de wrap accidentel à cause
+       du gap qui dépasse 100%. */
+    .accueil-col {
+      flex: var(--col-w, 12) 1 0;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    @media (max-width: 768px) {
+      /* Sur mobile, toutes les colonnes passent en pleine largeur */
+      .accueil-row.accueil-row-multi {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 0;
+      }
+      .accueil-col {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+    }
+
     :root{
       /* Global / page */
       --page-bg: #ffffff;
@@ -164,7 +238,7 @@
     main{
       width: var(--content-width);
       margin: 0 auto;
-      padding: 1.25rem 0 8.75rem; /* side padding handled by content width */
+      padding: 1.25rem 0 0; /* padding-bottom = 0 : c'est row.spaceBottom de la dernière ligne qui contrôle l'écart avec le footer (sinon ce padding fixe écraserait le réglage utilisateur) */
       text-align:center;
     }
     h1{
@@ -1125,6 +1199,10 @@
     /* ===== MARQUEE / LOGO STRIP (Vimeo-like) ===== */
 
 
+    /* ===== BLOC HTML/CSS/JS BRUT (kind=html) ===== */
+    /* Pas de wrapper imposé — l'admin contrôle 100% du markup à l'intérieur. */
+    .custom-html-section { display: block; width: 100%; }
+
     /* ===== CONTENU PERSONNALISE ===== */
     .custom-content-section {
       max-width: 65.625rem;
@@ -1354,10 +1432,36 @@
       margin-bottom: 0.875rem;
     }
 
-    .news-band-title{
+    .news-band .news-band-title,
+    .news-band-head .news-band-title,
+    .news-band-title {
       margin: 0;
-      font-size: 1.125rem;
-      font-weight: 700;
+      /* Réduit progressivement (le texte plus long que "Historique" donne une impression
+         visuelle plus grande). Sélecteur ultra-spécifique pour battre tout override
+         + 3 alternatives au cas où cache navigateur ne recharge pas */
+      font-size: 1.85rem !important;
+      font-weight: 900 !important;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      flex: 1; min-width: 0;
+    }
+    @media (max-width: 768px) {
+      .news-band-title { font-size: 1.25rem !important; }
+    }
+
+    /* CTA "Voir toutes les actualités" sous les cards.
+       Le bouton lui-même utilise .btn-action-primary (système unifié dans fer-modern.css)
+       pour rester cohérent avec les autres CTA (Vérifier, Devenir partenaire, etc.) +
+       suivre les couleurs --primary/--primary-hover du thème. */
+    .news-band-footer {
+      margin-top: 2rem;
+      text-align: center; /* défaut : centré, overridable via getAccueilAlignStyle */
+    }
+    .news-band-footer .btn-action-primary i {
+      transition: transform .2s ease;
+    }
+    .news-band-footer .btn-action-primary:hover i {
+      transform: translateX(4px);
     }
 
     .news-band-link{
@@ -1378,6 +1482,156 @@
       max-width: 68rem;
       margin: 0 auto;
     }
+    /* Variantes avec image (toggle via news.card_style).
+       Responsive 3 niveaux :
+         Mobile (≤768px)    : 1 col × 4 cards = 4 visibles
+         Standard           : 2 cols × 2 rows = 4 visibles (2x2)
+         Grand écran (≥1280): 3 cols × 2 rows = 6 visibles (3x2)
+       Côté PHP on charge 6 cards, CSS cache les cards 5-6 sur petits écrans.
+       grid-auto-rows:1fr → TOUTES les cards ont la même hauteur (= la plus grande). */
+    .news-grid.news-grid-2x2 {
+      grid-template-columns: repeat(2, minmax(280px, 1fr));
+      grid-auto-rows: 1fr;
+      gap: 1.5rem;
+      max-width: 60rem;
+      align-items: stretch;
+    }
+    /* Cache les cards 5-6 par défaut (2x2 = 4 visibles) */
+    .news-grid.news-grid-2x2 > *:nth-child(n+5) { display: none; }
+    @media (max-width: 768px) {
+      .news-grid.news-grid-2x2 { grid-template-columns: 1fr; }
+      /* Mobile : toujours max 4 (en colonne) */
+    }
+    /* Grand écran (desktop large, 27"+) : 3 colonnes × 2 lignes = 6 cards visibles */
+    @media (min-width: 1280px) {
+      .news-grid.news-grid-2x2 {
+        grid-template-columns: repeat(3, minmax(280px, 1fr));
+        max-width: 90rem;
+      }
+      /* Sur grand écran on AFFICHE les cards 5-6 (override le display:none) */
+      .news-grid.news-grid-2x2 > *:nth-child(n+5) { display: flex; }
+    }
+
+    /* ── Variant 'with-image-side' : cards horizontales (image gauche + texte droite) ──
+       Image FLUSH bord à bord avec la card (pas de padding ni gap), card overflow:hidden
+       → l'image hérite des coins arrondis de la card via le clip. Plus de zone grise. */
+    .news-card-h {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      padding: 0;
+      background: rgba(255,255,255,.06);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      transition: background .18s ease, transform .18s ease;
+      text-align: left;
+      height: 100%;
+    }
+    .news-card-h:hover {
+      background: rgba(255,255,255,.10);
+      transform: translateY(-2px);
+    }
+    .news-card-h-img {
+      flex: 0 0 180px;        /* desktop : 180px (mobile 130px ci-dessous) */
+      align-self: stretch;
+      overflow: hidden;
+      background: rgba(255,255,255,.03);
+      /* Coins droits arrondis (les gauches sont déjà clippés par card overflow:hidden) */
+      border-radius: 0 var(--radius, 12px) var(--radius, 12px) 0;
+    }
+    /* Placeholder affiché quand l'article n'a pas d'image (style identique à /news) */
+    .news-card-h-placeholder,
+    .news-card-img .news-card-h-placeholder {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; opacity: .3;
+    }
+    .news-card-h-img img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+      transition: transform .3s ease;
+    }
+    .news-card-h:hover .news-card-h-img img { transform: scale(1.04); }
+    .news-card-h-body {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      gap: 0.375rem;
+      padding: 0.875rem 1rem; /* padding interne uniquement sur le body */
+      text-align: left;
+    }
+    .news-card-h-title {
+      margin: 0;
+      font-size: 0.9375rem;
+      font-weight: 700; line-height: 1.35;
+      color: #fff;
+      text-align: left;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .news-card-h-meta {
+      display: flex; align-items: center; gap: 0.3125rem;
+      font-size: 0.7812rem; font-weight: 500;
+      color: #94a3b8 !important; /* gris slate (lisible sur fond dark, pas blanc) */
+      flex-wrap: wrap;
+      text-align: left;
+    }
+    /* Couleurs forcées avec sélecteur ULTRA-spécifique + !important + hexa littéral
+       pour battre TOUT override possible (a, .news-band, color: inherit, etc.) */
+    .news-band .news-card-h .news-card-h-source,
+    .news-card-h .news-card-h-source { color: #F42182 !important; font-weight: 700; }
+    .news-band .news-card-h .news-card-h-dot,
+    .news-card-h .news-card-h-dot { font-size: 0.5rem; opacity: .5; color: #94a3b8 !important; }
+    .news-band .news-card-h .news-card-h-date,
+    .news-card-h .news-card-h-date { color: #94a3b8 !important; }
+    .news-band .news-card-h .news-card-h-cta,
+    .news-card-h .news-card-h-cta {
+      margin-top: auto;
+      font-size: 0.8125rem;
+      color: #F42182 !important; /* rose vif (var --primary par défaut) */
+      font-weight: 700;
+      text-align: left;
+      align-self: flex-start;
+    }
+    @media (max-width: 640px) {
+      .news-card-h-img { flex: 0 0 130px; }
+    }
+    /* Bloc image en haut de la card en mode with-image. position:relative pour ancrer
+       la pill .news-kicker qui chevauche le bord bas de l'image. overflow:visible pour
+       laisser la pill dépasser (l'image elle-même est clippée par .news-card-img-inner). */
+    .news-card-img {
+      width: 100%; height: 180px;
+      background: rgba(255,255,255,.03);
+      position: relative;
+      overflow: visible; /* pour que la pill .news-kicker dépasse */
+    }
+    .news-card-img img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform .3s ease;
+    }
+    .news-card:hover .news-card-img img { transform: scale(1.04); }
+    /* Pill "Actualité" chevauchant le bord bas de l'image (style timeline kicker).
+       Border de 5px de la couleur SURFACE de la card (= mélange rgba(255,255,255,.08)
+       + var(--secondary)) → sur l'image, halo discret de la couleur card = effet
+       "découpe" propre comme la timeline. Sur la card body, halo se fond naturellement. */
+    .news-card-img .news-kicker {
+      position: absolute;
+      bottom: 0; left: 1rem;
+      transform: translateY(50%);
+      z-index: 3;
+      margin: 0;
+      /* color-mix : reproduit exactement la couleur visible de la card (white 8% sur secondary) */
+      border: 5px solid color-mix(in srgb, var(--secondary, #0f172a) 92%, #ffffff 8%) !important;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--secondary, #0f172a) 92%, #ffffff 8%);
+    }
+    /* Plus d'espace en haut du news-body quand il y a une image au-dessus → laisse
+       respirer la pill qui dépasse et le titre d'article qui suit. */
+    .news-card-img + .news-body { padding-top: 1.75rem; }
 
     .news-card{
       display:flex;
@@ -1417,14 +1671,29 @@
       gap: 0.5rem;
       padding: 1rem;
       min-height: 7.5rem;
+      /* Override le text-align:center hérité de main → texte aligné à gauche dans les cards */
+      text-align: left;
     }
 
-    .news-kicker{
-      font-size: 0.625rem;
-      letter-spacing: .18em;
+    .news-kicker,
+    .news-band .news-kicker {
+      /* Pill rose (couleurs IDENTIQUES timeline .t-kicker : text rose / fond rose pâle).
+         Sélecteur double + !important pour battre toute couleur héritée. */
+      display: inline-block;
+      align-self: flex-start; /* ne s'étire pas à toute la largeur */
+      font-size: 0.6875rem;
+      letter-spacing: .14em;
       text-transform: uppercase;
-      opacity: .6;
-      font-weight: 700;
+      color: var(--pink, #db2777) !important;
+      font-weight: 800;
+      padding: 0.375rem 0.75rem;
+      background: #fce7f3 !important;
+      border-radius: 100px;
+    }
+    /* Dark theme : matche la timeline .t-kicker dark mode (fond violet dark, texte pink) */
+    body.dark-theme .news-kicker {
+      background: #2d1f3d !important;
+      color: var(--pink, #db2777) !important;
     }
 
     .news-title{
@@ -1606,7 +1875,7 @@
     padding-top: 0.9375rem;
   }
   .demo-wrap{
-    margin-top: 1px;
+    margin-top: 4rem;
   }
   .demo-card{
     height: var(--demo-card-height, clamp(34.6875rem, calc(64vh - 2.5rem), 48.4375rem)) !important;

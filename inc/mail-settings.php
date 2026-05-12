@@ -29,6 +29,8 @@ try { $pdo->query("SELECT mail_email FROM setting LIMIT 0"); $hasMailFields = tr
 $mail_email = $data['mail_email'] ?? '';
 $mail_phone = $data['mail_phone'] ?? '';
 $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
+$turnstile_sitekey = $data['turnstile_sitekey'] ?? '';
+$turnstile_secret  = $data['turnstile_secret']  ?? '';
 $notify_recipients_raw = $data['notify_recipients'] ?? null;
 $notify_recipients = $notify_recipients_raw ? json_decode($notify_recipients_raw, true) : [];
 $notify_toggles_raw = $data['notify_toggles'] ?? null;
@@ -270,6 +272,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         $qrcode_mail_mode = $mode;
         addToast('success', 'Configuration QR Code enregistrée');
     }
+
+    // Cloudflare Turnstile : clés anti-bot du formulaire partenaire
+    if (isset($_POST['save_turnstile'])) {
+        require_once '../config/captcha.php';
+        $newKey    = trim($_POST['turnstile_sitekey'] ?? '');
+        $newSecret = trim($_POST['turnstile_secret']  ?? '');
+        // Le secret est facultatif côté UI : laisser vide = ne pas modifier
+        $secretToStore = $newSecret !== '' ? $newSecret : ($data['turnstile_secret'] ?? null);
+
+        // Vérification auprès de Cloudflare si les 2 clés sont fournies
+        $proceed = true;
+        if ($newKey !== '' && $secretToStore) {
+            $test = testTurnstileSecret($secretToStore);
+            if ($test['reason'] === 'invalid_secret') {
+                addToast('danger', 'Clé secrète Turnstile invalide — refusée par Cloudflare. Enregistrement annulé.');
+                $proceed = false;
+            } elseif ($test['reason'] === 'unreachable') {
+                addToast('warning', 'Cloudflare injoignable : impossible de vérifier la clé. Configuration sauvegardée quand même.');
+            }
+        }
+
+        if ($proceed) {
+            $pdo->prepare('UPDATE setting SET turnstile_sitekey = :k, turnstile_secret = :s WHERE id = 1')->execute([
+                'k' => $newKey !== '' ? $newKey : null,
+                's' => $secretToStore !== '' ? $secretToStore : null,
+            ]);
+            $turnstile_sitekey = $newKey;
+            if ($newSecret !== '') $turnstile_secret = $newSecret;
+            $okMsg = ($newKey !== '' && $secretToStore && isset($test) && $test['reason'] === 'valid')
+                ? 'Configuration Turnstile enregistrée (secret validé par Cloudflare — utilisez « Tester les 2 clés » pour vérifier aussi la Site Key)'
+                : 'Configuration Turnstile enregistrée';
+            addToast('success', $okMsg);
+        }
+    }
+
 
     // Notifications admin : toggles + destinataires
     if (isset($_POST['save_notify_comment'])) {
@@ -1435,8 +1472,155 @@ $jsConfig = json_encode([
         </form>
       </div>
     </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="setting-card">
+        <h2><i class="bi bi-shield-check me-2"></i>Anti-bot (Cloudflare Turnstile)</h2>
+        <p class="text-muted mb-3">
+          Protège le formulaire de demande de partenariat contre les bots et IA.
+          Créez un site gratuit sur
+          <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener">dash.cloudflare.com/turnstile</a>
+          puis collez les deux clés ci-dessous. Sans clés, un captcha mathématique de secours est utilisé.
+        </p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Site Key (publique)</label>
+            <input type="text" class="form-control" name="turnstile_sitekey" value="<?= htmlspecialchars($turnstile_sitekey) ?>" placeholder="0x4AAAAAAA...">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Secret Key (privée)</label>
+            <input type="password" class="form-control" name="turnstile_secret" value="" placeholder="<?= $turnstile_secret ? '********' : '0x4AAAAAAA...' ?>" autocomplete="off">
+            <?php if ($turnstile_secret): ?>
+              <div class="form-text text-success"><i class="bi bi-check-circle"></i> Clé secrète enregistrée (laisser vide pour ne pas changer)</div>
+            <?php endif; ?>
+          </div>
+          <div class="col-12">
+            <?php $tsConfigured = !empty($turnstile_sitekey) && !empty($turnstile_secret); ?>
+            <?php if ($tsConfigured): ?>
+              <div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle me-1"></i>Turnstile actif sur le formulaire partenaire.</div>
+            <?php else: ?>
+              <div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Captcha mathématique de secours utilisé (facilement résolu par les IA).</div>
+            <?php endif; ?>
+          </div>
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <button type="button" id="btnTurnstileTest" class="btn btn-outline-secondary w-auto"><i class="bi bi-cloud-check me-1"></i>Tester les 2 clés</button>
+            <button type="submit" name="save_turnstile" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+          <div class="col-12">
+            <div id="turnstileTestPanel" style="display:none;margin-top:.5rem;padding:1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.55rem;">
+              <div style="font-size:.85rem;color:#475569;margin-bottom:.6rem;">Complétez le widget ci-dessous pour vérifier que la <strong>Site Key</strong> et la <strong>Secret Key</strong> fonctionnent bien ensemble :</div>
+              <div id="turnstileTestWidget" style="display:flex;justify-content:center;min-height:70px;"></div>
+              <div id="turnstileTestResult" style="margin-top:.6rem;text-align:center;font-size:.9rem;"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
+
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var btn = document.getElementById('btnTurnstileTest');
+  if (!btn) return;
+  var panel  = document.getElementById('turnstileTestPanel');
+  var widget = document.getElementById('turnstileTestWidget');
+  var result = document.getElementById('turnstileTestResult');
+  var csrfTok = <?= json_encode(csrf_token()) ?>;
+  var loading = null;
+  var widgetId = null;
+
+  function loadTurnstile() {
+    if (window.turnstile) return Promise.resolve();
+    if (loading) return loading;
+    loading = new Promise(function(res, rej){
+      var s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true; s.defer = true;
+      s.onload = function(){ res(); };
+      s.onerror = function(){ loading = null; rej(); };
+      document.head.appendChild(s);
+    });
+    return loading;
+  }
+
+  function setResult(html, color) {
+    result.innerHTML = '<span style="color:' + (color || '#64748b') + '">' + html + '</span>';
+  }
+
+  btn.addEventListener('click', async function(){
+    var keyInput = document.querySelector('input[name="turnstile_sitekey"]');
+    var secInput = document.querySelector('input[name="turnstile_secret"]');
+    var sitekey = keyInput ? keyInput.value.trim() : '';
+    var secret  = secInput ? secInput.value.trim() : '';
+    panel.style.display = 'block';
+    if (!sitekey) { setResult('Saisissez d\'abord une <strong>Site Key</strong>.', '#b91c1c'); return; }
+    widget.innerHTML = '';
+    setResult('Chargement du widget Turnstile…');
+    try {
+      await loadTurnstile();
+    } catch(e) {
+      setResult('Impossible de charger le script Turnstile. Vérifiez votre connexion.', '#b91c1c');
+      return;
+    }
+    if (widgetId !== null) {
+      try { window.turnstile.remove(widgetId); } catch(e){}
+      widgetId = null;
+    }
+    setResult('Complétez la vérification ci-dessus…');
+    try {
+      widgetId = window.turnstile.render(widget, {
+        sitekey: sitekey,
+        theme: 'light',
+        callback: function(token){
+          setResult('Vérification côté serveur…');
+          fetch('../config/api.php?route=turnstile-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfTok },
+            body: JSON.stringify({ token: token, secret: secret })
+          })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d.ok) setResult('<i class="bi bi-check-circle-fill"></i> ' + d.msg, '#16a34a');
+            else      setResult('<i class="bi bi-exclamation-triangle-fill"></i> ' + (d.msg || d.err || 'Erreur'), '#b91c1c');
+          })
+          .catch(function(){ setResult('Erreur réseau pendant la vérification.', '#b91c1c'); });
+        },
+        'error-callback': function(code){
+          var hint = '';
+          var c = String(code || '');
+          // Mapping des codes Cloudflare Turnstile les plus courants
+          // https://developers.cloudflare.com/turnstile/troubleshooting/client-side-errors/error-codes/
+          if (c.indexOf('110100') === 0)      hint = 'Site Key inconnue de Cloudflare.';
+          else if (c.indexOf('110110') === 0) hint = 'Site Key mal formée.';
+          else if (c.indexOf('110200') === 0) hint = 'Domaine non autorisé pour cette Site Key.';
+          else if (c.indexOf('110500') === 0) hint = 'Navigateur incompatible.';
+          else if (c.indexOf('110600') === 0) hint = 'Mauvais type de widget (vérifie Managed/Invisible dans Cloudflare).';
+          else if (c.indexOf('300') === 0)    hint = 'Erreur d\'exécution du challenge — réessaie.';
+          else if (c.indexOf('400') === 0)    hint = 'Site Key invalide ou mal configurée (domaine non autorisé ?).';
+          else if (c.indexOf('600') === 0)    hint = 'Le widget n\'a pas pu s\'exécuter — réessaie.';
+          else                                hint = 'Site Key invalide ou domaine non autorisé.';
+
+          var html = '<i class="bi bi-exclamation-triangle-fill"></i> Erreur Turnstile <code>' + c + '</code> — ' + hint;
+          html += '<div style="margin-top:.5rem;font-size:.8rem;color:#64748b;line-height:1.5;">';
+          html += '<strong>À vérifier :</strong><br>';
+          html += '1. La Site Key copiée est bien identique à celle du dashboard Cloudflare<br>';
+          html += '2. Le domaine actuel (<code>' + location.hostname + '</code>) figure dans <em>Hostname management</em> du widget<br>';
+          html += '3. Le widget est en mode <em>Managed</em> dans Cloudflare';
+          html += '</div>';
+          setResult(html, '#b91c1c');
+        },
+        'expired-callback': function(){
+          setResult('Captcha expiré — cliquez à nouveau sur « Tester ».', '#b45309');
+        }
+      });
+    } catch(e) {
+      setResult('Impossible de rendre le widget : <strong>Site Key invalide</strong>.', '#b91c1c');
+    }
+  });
+})();
+</script>
 
 <?php endif; // $canWrite — fin Template + Google + Notifications ?>
 

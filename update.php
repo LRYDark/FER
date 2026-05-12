@@ -34,10 +34,26 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `course_km` INT(10) DEFAULT 7",
     "ALTER TABLE `setting` ADD COLUMN `notify_recipients` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `notify_toggles` TEXT DEFAULT NULL",
-    "ALTER TABLE `setting` ADD COLUMN `accueil_custom_content` MEDIUMTEXT DEFAULT NULL",
-    "ALTER TABLE `setting` ADD COLUMN `accueil_custom_position` ENUM('off','after_inscrits','after_partners') NOT NULL DEFAULT 'off'",
+    // Note : accueil_custom_content / accueil_custom_position / accueil_news_before_partners
+    // ont été remplacées par accueil_layout (JSON). La migration des données + le DROP de
+    // ces 3 colonnes obsolètes sont effectués plus bas (bloc dédié).
+    "ALTER TABLE `setting` ADD COLUMN `accueil_layout` MEDIUMTEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_styles` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_texts` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_geometry` TEXT DEFAULT NULL",
+    // Système brouillon : chaque réglage de l'accueil a maintenant une version
+    // "draft" (modifications en cours dans l'éditeur) et une version "published"
+    // (visible sur la vraie page). Le bouton "Publier" copie draft → published.
+    "ALTER TABLE `setting` ADD COLUMN `accueil_layout_draft` MEDIUMTEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_styles_draft` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_texts_draft` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_geometry_draft` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `accueil_draft_updated_at` DATETIME DEFAULT NULL",
     "ALTER TABLE `users` ADD COLUMN `permissions` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `role_permissions` TEXT DEFAULT NULL",
+    // Cloudflare Turnstile : protection anti-bot du formulaire partenaire (et autres)
+    "ALTER TABLE `setting` ADD COLUMN `turnstile_sitekey` VARCHAR(255) DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `turnstile_secret` TEXT DEFAULT NULL",
     "ALTER TABLE `users` ADD COLUMN `totp_secret` VARCHAR(64) DEFAULT NULL",
     "ALTER TABLE `users` ADD COLUMN `totp_pending_secret` VARCHAR(64) DEFAULT NULL",
     "ALTER TABLE `users` ADD COLUMN `totp_enabled` TINYINT(1) NOT NULL DEFAULT 0",
@@ -124,6 +140,46 @@ function migrateContentPermissions(array $perms): array
     }
     $perms['actions'] = array_values(array_unique($newActions));
     return $perms;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Migration : accueil_layout (nouveau format JSON)
+// Convertit les anciennes colonnes accueil_custom_content / accueil_custom_position
+// + accueil_news_before_partners en un layout JSON unique. Une fois la migration
+// faite (accueil_layout != NULL), les colonnes legacy sont supprimées.
+// ─────────────────────────────────────────────────────────────────────────
+try {
+    require_once __DIR__ . '/config/accueil_layout.php';
+    $row = $pdo->query('SELECT * FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+    if ($row && empty($row['accueil_layout'])) {
+        $layout = loadAccueilLayout($row); // gère la migration depuis legacy
+        saveAccueilLayout($pdo, $layout);
+        $results[] = ['status' => 'success', 'sql' => 'MIGRATE accueil_layout (depuis legacy custom_content)', 'msg' => 'Layout initialisé'];
+    } else {
+        $results[] = ['status' => 'skip', 'sql' => 'MIGRATE accueil_layout (depuis legacy custom_content)', 'msg' => 'Déjà initialisé'];
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => 'MIGRATE accueil_layout', 'msg' => $e->getMessage()];
+}
+
+// Suppression des colonnes obsolètes (après migration)
+$dropLegacyAccueil = [
+    "ALTER TABLE `setting` DROP COLUMN `accueil_custom_content`",
+    "ALTER TABLE `setting` DROP COLUMN `accueil_custom_position`",
+    "ALTER TABLE `setting` DROP COLUMN `accueil_news_before_partners`",
+];
+foreach ($dropLegacyAccueil as $sql) {
+    try {
+        $pdo->exec($sql);
+        $results[] = ['status' => 'success', 'sql' => $sql, 'msg' => 'OK'];
+    } catch (PDOException $e) {
+        $msg = $e->getMessage();
+        if (str_contains($msg, "Can't DROP") || str_contains($msg, 'check that column/key exists')) {
+            $results[] = ['status' => 'skip', 'sql' => $sql, 'msg' => 'Déjà supprimée'];
+        } else {
+            $results[] = ['status' => 'error', 'sql' => $sql, 'msg' => $msg];
+        }
+    }
 }
 
 // Migration users.permissions

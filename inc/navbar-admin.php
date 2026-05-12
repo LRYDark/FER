@@ -26,6 +26,7 @@ $pageTitles = [
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
 
 $adminLinks = [
+    'saisie.php'    => ['Saisie',            '<path d="M12 5v14M5 12h14"/>', ['saisie']],
     'dashboard.php' => ['Tableau de bord', '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>', ['admin','user','viewer','saisie']],
     'utilisateurs.php' => ['Utilisateurs & Droits', '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', ['admin']],
     'setting.php'   => ['Réglages',        '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>', ['admin']],
@@ -64,7 +65,7 @@ if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
   --oc-sidebar-bg:   #f8fafc;
   --oc-sidebar-active-bg:  var(--primary-light, #fce7f3);
   --oc-sidebar-active-text: var(--primary-hover, #9d174d);
-  --oc-sidebar-hover-bg:   #eef2f7;
+  --oc-sidebar-hover-bg:   #fdf2f8;
   --oc-sidebar-text:       #475569;
   --oc-sidebar-text-dim:   #94a3b8;
   --oc-sidebar-icon:       #94a3b8;
@@ -834,7 +835,11 @@ html, body {
           'logs.php'          => 'logs',
           'page_stats.php'    => 'page_stats',
       ];
+      // Détection du tab actif sur saisie.php (rôle saisie uniquement)
+      $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscriptions') ? 'inscriptions' : 'formulaire';
+
       foreach ($adminLinks as $file => [$label, $icon, $roles]):
+        $href = $file;
         // Pages réservées admin (utilisateurs, etc.) : on garde la vérif rôle dure
         if (!isset($fileToPageKey[$file])) {
             if (!in_array($userRole, $roles, true)) continue;
@@ -842,10 +847,21 @@ html, body {
             // Pages dynamiques : on utilise le système de permissions
             if (!canAccessPage($fileToPageKey[$file])) continue;
         }
-        $isActive = ($currentPage === $file);
+        // Pour le rôle saisie : le lien "Tableau de bord" devient "Mes inscriptions" et reste sur saisie.php
+        if ($file === 'dashboard.php' && $userRole === 'saisie') {
+            $label = 'Mes inscriptions';
+            $href  = 'saisie.php?tab=inscriptions';
+            $icon  = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>';
+            $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
+        } elseif ($file === 'saisie.php' && $userRole === 'saisie') {
+            // "Saisie" actif uniquement si on n'est pas sur l'onglet inscriptions
+            $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
+        } else {
+            $isActive = ($currentPage === $file);
+        }
       ?>
         <li>
-          <a class="oc-sidebar-link <?= $isActive ? 'active' : '' ?>" href="<?= $file ?>">
+          <a class="oc-sidebar-link <?= $isActive ? 'active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
             <svg viewBox="0 0 24 24"><?= $icon ?></svg>
             <span><?= $label ?></span>
           </a>
@@ -860,7 +876,7 @@ html, body {
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.0.5</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.0.6</div>
   </aside>
 
   <!-- ═══════ CONTENT (opened here, closed in admin-footer.php) ═══════ -->

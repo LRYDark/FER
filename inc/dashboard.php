@@ -504,6 +504,9 @@ let tshirtMode=false;
 function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Remise T-shirts':'Mode standard'); }
 refreshButtons();
 
+// Pagination compacte type "1 ... 4 5 6 ... 12"
+$.fn.dataTable.ext.pager.numbers_length = 7;
+
 const tbl=$('#tbl').DataTable({
   ajax:{
     url:'../config/api.php?route=registrations',

@@ -194,6 +194,9 @@ let qrTable;
 let currentQrData = null;
 
 $(document).ready(function() {
+    // Pagination compacte type "1 ... 4 5 6 ... 12"
+    $.fn.dataTable.ext.pager.numbers_length = 7;
+
     // Initialisation du DataTable
     qrTable = $('#qrTable').DataTable({
         ajax: {

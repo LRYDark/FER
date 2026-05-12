@@ -281,6 +281,9 @@ function fillYearCards(year){
 fillYearCards(<?= $currentYear ?>);
 
 /* ─────────── 3. DataTable inscriptions ─────────── */
+// Pagination compacte type "1 ... 4 5 6 ... 12"
+$.fn.dataTable.ext.pager.numbers_length = 7;
+
 let tbl = $('#tbl').DataTable({
   ajax:{
     url:'../config/api.php',

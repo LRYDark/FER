@@ -3,6 +3,7 @@ require '../config/config.php';
 checkMaintenance();
 require_once '../config/tracker.php';
 require_once '../config/csrf.php';
+require_once '../config/captcha.php';
 trackPageVisit();
 require '../inc/navbar-data.php';
 
@@ -29,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rlTimes = array_values(array_filter($rlTimes, fn($t) => $t > $now - 3600));
         if (count($rlTimes) >= 3) {
             $error = 'Trop de messages envoyés. Réessayez dans une heure.';
+        } elseif (!verifyPublicCaptcha($_POST, $pdo)) {
+            $error = 'Vérification anti-robot échouée. Recommencez.';
         } else {
             $rlTimes[] = $now;
             @file_put_contents($rlFile, json_encode($rlTimes));
@@ -147,8 +150,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label for="message">Message</label>
         <textarea id="message" name="message" required><?= htmlspecialchars($_POST['message'] ?? '') ?></textarea>
       </div>
-      <button type="submit" class="contact-submit">Envoyer le message</button>
+
+      <!-- Vérification anti-robot (Turnstile ou maths selon config) -->
+      <div id="contactCaptcha">
+        <div id="contactTurnstileBox" style="display:none;"></div>
+        <div id="contactMathBox" style="display:none;">
+          <div id="contactCaptchaQuestion" class="contact-captcha-question">Chargement…</div>
+          <div class="contact-captcha-row">
+            <input id="contactCaptchaAnswer" type="text" inputmode="numeric" autocomplete="off" placeholder="Votre réponse" class="contact-captcha-input">
+            <button type="button" id="contactCaptchaReload" class="contact-captcha-reload" title="Nouvelle question">↻</button>
+          </div>
+        </div>
+        <div id="contactCaptchaError" class="contact-captcha-error"></div>
+        <input type="hidden" name="turnstile_token"  id="contactTurnstileToken">
+        <input type="hidden" name="captcha_token"    id="contactCaptchaToken">
+        <input type="hidden" name="captcha_answer"   id="contactCaptchaAnswerHidden">
+      </div>
+
+      <button type="submit" class="contact-submit" id="contactSubmitBtn" disabled>Envoyer le message</button>
     </form>
+    <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+      .contact-captcha-question { font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:.5rem; }
+      .contact-captcha-row { display:flex; gap:.5rem; align-items:stretch; }
+      .contact-captcha-input { flex:1; padding:.55rem .75rem; border:1px solid #cbd5e1; border-radius:.55rem; font-size:1rem; outline:none; background:#fff; }
+      .contact-captcha-input:focus { border-color:#db2777; box-shadow:0 0 0 3px rgba(219,39,119,.15); }
+      .contact-captcha-reload { background:#e2e8f0; border:none; border-radius:.55rem; padding:0 .9rem; font-size:1rem; font-weight:600; color:#334155; cursor:pointer; }
+      .contact-captcha-reload:hover { background:#cbd5e1; }
+      .contact-captcha-error { color:#b91c1c; font-size:.82rem; min-height:1.1em; margin-top:.4rem; }
+      .contact-submit:disabled { opacity:.55; cursor:not-allowed; filter:grayscale(.4); }
+    </style>
     <?php endif; ?>
   </section>
 
@@ -156,15 +186,132 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <script src="../js/fer-modern.js"></script>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
-  /* Envoi AJAX du formulaire contact pour contourner le WAF */
+  /* Envoi AJAX du formulaire contact pour contourner le WAF + vérification anti-bot */
   (function () {
       var form = document.querySelector('.contact-form');
       if (!form) return;
+
+      var submitBtn   = document.getElementById('contactSubmitBtn');
+      var tsBox       = document.getElementById('contactTurnstileBox');
+      var mathBox     = document.getElementById('contactMathBox');
+      var qEl         = document.getElementById('contactCaptchaQuestion');
+      var aEl         = document.getElementById('contactCaptchaAnswer');
+      var aHidden     = document.getElementById('contactCaptchaAnswerHidden');
+      var tokHidden   = document.getElementById('contactCaptchaToken');
+      var tsHidden    = document.getElementById('contactTurnstileToken');
+      var errEl       = document.getElementById('contactCaptchaError');
+      var reloadBtn   = document.getElementById('contactCaptchaReload');
+
+      var mode = null;
+      var tsWidgetId = null;
+      var tsLoading = null;
+      var didFallback = false;
+
+      function setError(msg) { errEl.textContent = msg || ''; }
+      function setValid(ok)  { submitBtn.disabled = !ok; }
+
+      function ensureTurnstileScript() {
+        if (window.turnstile) return Promise.resolve();
+        if (tsLoading) return tsLoading;
+        tsLoading = new Promise(function(resolve, reject) {
+          var s = document.createElement('script');
+          s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+          s.async = true; s.defer = true;
+          s.onload  = function(){ resolve(); };
+          s.onerror = function(){ tsLoading = null; reject(new Error('load')); };
+          document.head.appendChild(s);
+        });
+        return tsLoading;
+      }
+
+      function switchToMathFallback(reason) {
+        if (didFallback) { setError(reason || 'Échec du captcha. Réessayez.'); return; }
+        didFallback = true;
+        setError('Vérification indisponible — bascule sur un captcha de secours…');
+        if (tsWidgetId !== null && window.turnstile) {
+          try { window.turnstile.remove(tsWidgetId); } catch(e){}
+          tsWidgetId = null;
+        }
+        fetch('../config/api.php?route=partner-captcha-init&fallback=1', { method: 'GET' })
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if (!j || !j.ok || j.mode !== 'math') throw new Error('fallback');
+            mode = 'math';
+            tsBox.style.display = 'none';
+            mathBox.style.display = 'block';
+            tokHidden.value = j.token;
+            tsHidden.value  = '';
+            qEl.textContent = j.question;
+            aEl.value = '';
+            setError('');
+          })
+          .catch(function(){
+            setError('Impossible d\'afficher le captcha de secours. Réessayez plus tard.');
+          });
+      }
+
+      function initCaptcha() {
+        setError(''); setValid(false);
+        didFallback = false;
+        tsHidden.value = ''; tokHidden.value = ''; aHidden.value = '';
+        fetch('../config/api.php?route=partner-captcha-init', { method: 'GET' })
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if (!j || !j.ok) throw new Error('init');
+            mode = j.mode;
+            if (mode === 'turnstile') {
+              tsBox.style.display = 'block';
+              mathBox.style.display = 'none';
+              ensureTurnstileScript().then(function(){
+                if (tsWidgetId !== null) {
+                  try { window.turnstile.remove(tsWidgetId); } catch(e){}
+                  tsWidgetId = null;
+                }
+                tsWidgetId = window.turnstile.render(tsBox, {
+                  sitekey: j.sitekey,
+                  theme: 'light',
+                  callback: function(token){ tsHidden.value = token; setValid(true); setError(''); },
+                  'error-callback':   function(){ tsHidden.value = ''; setValid(false); switchToMathFallback('Échec du captcha Cloudflare.'); },
+                  'expired-callback': function(){ tsHidden.value = ''; setValid(false); setError('Captcha expiré. Réessayez.'); }
+                });
+              }).catch(function(){
+                switchToMathFallback('Impossible de charger Cloudflare.');
+              });
+            } else {
+              tsBox.style.display = 'none';
+              mathBox.style.display = 'block';
+              tokHidden.value = j.token;
+              qEl.textContent = j.question;
+              aEl.value = '';
+            }
+          })
+          .catch(function(){
+            setError('Impossible d\'initialiser le captcha. Rechargez la page.');
+          });
+      }
+
+      // Validation maths : bouton devient actif dès qu'une réponse non vide est saisie
+      if (aEl) {
+        aEl.addEventListener('input', function(){
+          if (mode === 'math') {
+            aHidden.value = aEl.value.trim();
+            setValid(aHidden.value.length > 0);
+          }
+        });
+      }
+      reloadBtn.addEventListener('click', initCaptcha);
+
       form.addEventListener('submit', function (e) {
           e.preventDefault();
+          if (submitBtn.disabled) return;
+          // Synchronise la réponse math au cas où
+          if (mode === 'math') aHidden.value = aEl.value.trim();
+
           var fd = new FormData(form);
           var msg = fd.get('message') || '';
           if (msg) fd.set('message', btoa(unescape(encodeURIComponent(msg))));
+          submitBtn.disabled = true;
+
           fetch(form.action || window.location.href, {
               method: 'POST',
               body: fd,
@@ -182,12 +329,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       form.parentNode.insertBefore(alertDiv, form);
                   }
                   alertDiv.textContent = data.message;
+                  // Captcha consommé : on en regénère un
+                  initCaptcha();
               }
           })
           .catch(function (err) {
               alert('Erreur : ' + err.message);
+              initCaptcha();
           });
       });
+
+      initCaptcha();
   })();
   </script>
 </body>
