@@ -1540,6 +1540,12 @@
       background: rgba(255,255,255,.03);
       /* Coins droits arrondis (les gauches sont déjà clippés par card overflow:hidden) */
       border-radius: 0 var(--radius, 12px) var(--radius, 12px) 0;
+      /* CAP la hauteur visible : sans ça, l'intrinsèque d'une image portrait
+         (newspaper scan 800x1600 → ~360px de haut à 180px de large) bubble vers
+         la card via height:100% + align-self:stretch → grid-auto-rows:1fr étire
+         TOUTES les autres cards à 360px. Avec max-height, l'image est cappée et
+         la card retombe à la hauteur naturelle du body (~170px). */
+      max-height: 180px;
     }
     /* Placeholder affiché quand l'article n'a pas d'image (style identique à /news) */
     .news-card-h-placeholder,
@@ -1550,6 +1556,7 @@
     }
     .news-card-h-img img {
       width: 100%; height: 100%;
+      max-height: 180px;        /* ceinture + bretelles : empêche le bubble intrinsèque */
       object-fit: cover; display: block;
       transition: transform .3s ease;
     }
