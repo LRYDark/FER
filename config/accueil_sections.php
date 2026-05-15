@@ -49,6 +49,7 @@ function accueilEditableTexts(): array
         'news.title'              => ['label' => 'Actualités — titre', 'default' => 'Dernières actualités'],
         'news.link_all'           => ['label' => 'Actualités — bouton voir toutes', 'default' => 'Voir toutes les actualités'],
         'hero.cta_register'       => ['label' => 'Hero — bouton inscription', 'default' => "Je m'inscris →"],
+        'badge_fee.tooltip'       => ['label' => 'Hero — tooltip du badge prix', 'default' => 'Entièrement reversé à la Ligue contre le cancer'],
     ];
 }
 
@@ -480,6 +481,21 @@ function renderAccueilSection_timeline(array $ctx): void {
     <?php
 }
 
+/**
+ * Extrait le `src` de la 1re balise <img> trouvée dans un contenu HTML.
+ * Utilisé comme fallback d'image pour les cartes d'actualité (même logique que
+ * getFirstContentImage() de public/news.php). Guard function_exists pour éviter
+ * un conflit si les deux fichiers sont chargés ensemble.
+ */
+if (!function_exists('accueilGetFirstContentImage')) {
+    function accueilGetFirstContentImage(string $html): ?string {
+        if ($html !== '' && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $html, $m)) {
+            return $m[1];
+        }
+        return null;
+    }
+}
+
 function renderAccueilSection_news(array $ctx): void {
     $actualites = $ctx['actualites'] ?? [];
     if (empty($actualites)) return;
@@ -514,10 +530,20 @@ function renderAccueilSection_news(array $ctx): void {
                 $ts = strtotime($actu['date_publication']);
                 if ($ts) { $dateLabel = date('d/m/Y', $ts); $dateAttr = date('Y-m-d', $ts); }
               }
+              // Chaîne de fallback identique à la page /news :
+              //  1) image dédiée de l'article (img_article)
+              //  2) 1re image trouvée dans le contenu HTML (desc_article)
+              //  3) placeholder 📰 (si $hasImage reste false)
               $hasImage = false; $imgSrc = '';
-              if ($cardStyle !== 'simple' && !empty($actu['img_article'])) {
-                $imgPath = '../files/_news/' . $actu['img_article'];
-                if (is_file($imgPath)) { $hasImage = true; $imgSrc = $imgPath; }
+              if ($cardStyle !== 'simple') {
+                if (!empty($actu['img_article'])) {
+                  $imgPath = '../files/_news/' . $actu['img_article'];
+                  if (is_file($imgPath)) { $hasImage = true; $imgSrc = $imgPath; }
+                }
+                if (!$hasImage) {
+                  $contentImg = accueilGetFirstContentImage((string)($actu['desc_article'] ?? ''));
+                  if ($contentImg) { $hasImage = true; $imgSrc = $contentImg; }
+                }
               }
             ?>
               <?php if ($cardStyle === 'with-image-side'): ?>

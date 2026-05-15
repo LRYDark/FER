@@ -52,7 +52,9 @@ try {
 
 // Récupération des actualités pour le menu (uniquement publiées)
 try {
-    $stmtActus = $pdo->prepare("SELECT id, title_article as title, img_article, date_publication FROM news WHERE deleted_at IS NULL AND status = 'published' ORDER BY date_publication DESC LIMIT 10");
+    // desc_article est inclus pour permettre le fallback "1ère image du contenu"
+    // dans la section "Dernières actualités" de l'accueil (cf. renderAccueilSection_news).
+    $stmtActus = $pdo->prepare("SELECT id, title_article as title, img_article, desc_article, date_publication FROM news WHERE deleted_at IS NULL AND status = 'published' ORDER BY date_publication DESC LIMIT 10");
     $stmtActus->execute();
     $actualites = $stmtActus->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {

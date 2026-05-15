@@ -189,6 +189,37 @@ function generateTimelineSVG(int $count): array {
 
     return ['height' => $totalHeight, 'path' => $path];
 }
+
+// Chargement des styles / géométrie / textes de l'accueil AVANT le rendu du Hero.
+// (Le Hero utilise $accueilStyles['subtitle_accueil_size'], $accueilStyles['hero_timer_size'],
+//  $accueilGeometry[...] et $accueilTexts[...] — il faut donc qu'ils soient définis ici,
+//  pas plus bas dans la section de rendu du layout.)
+// En mode éditeur (?editor=1), on lit le brouillon avec fallback sur la version publiée.
+// En mode live, on lit uniquement la version publiée.
+$accueilStyles = [];
+$stylesRaw = $isEditorMode
+    ? ($data['accueil_styles_draft'] ?? null) ?: ($data['accueil_styles'] ?? null)
+    : ($data['accueil_styles'] ?? null);
+if (!empty($stylesRaw)) {
+    $decoded = json_decode($stylesRaw, true);
+    if (is_array($decoded)) $accueilStyles = $decoded;
+}
+$accueilGeometry = [];
+$geomRaw = $isEditorMode
+    ? ($data['accueil_geometry_draft'] ?? null) ?: ($data['accueil_geometry'] ?? null)
+    : ($data['accueil_geometry'] ?? null);
+if (!empty($geomRaw)) {
+    $decoded = json_decode($geomRaw, true);
+    if (is_array($decoded)) $accueilGeometry = $decoded;
+}
+$accueilTexts = [];
+$textsRaw = $isEditorMode
+    ? ($data['accueil_texts_draft'] ?? null) ?: ($data['accueil_texts'] ?? null)
+    : ($data['accueil_texts'] ?? null);
+if (!empty($textsRaw)) {
+    $decoded = json_decode($textsRaw, true);
+    if (is_array($decoded)) $accueilTexts = $decoded;
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -231,32 +262,203 @@ function generateTimelineSVG(int $count): array {
   <main>
     
 
-    <div class="demo-wrap">
-      <section class="demo-card" aria-label="Carte vidéo">
+    <?php
+      // Réglages de la "carte vidéo" Hero : hauteur personnalisée et pleine largeur.
+      // Lus depuis accueil_styles ; valeurs par défaut : laissées au CSS (clamp 70vh).
+      $heroCardHeight       = (int)($accueilStyles['hero_card_height'] ?? 0);
+      $heroCardHeightMobile = (int)($accueilStyles['hero_card_height_mobile'] ?? 0);
+      $heroCardWidth        = (int)($accueilStyles['hero_card_width'] ?? 0);
+      $heroCardWidthMobile  = (int)($accueilStyles['hero_card_width_mobile'] ?? 0);
+      $heroCardFullwidth        = !empty($accueilStyles['hero_card_fullwidth']);
+      $heroCardFullwidthMobile  = !empty($accueilStyles['hero_card_fullwidth_mobile']);
+      $heroWrapClass = 'demo-wrap';
+      if ($heroCardFullwidth)       $heroWrapClass .= ' fullwidth-desktop';
+      if ($heroCardFullwidthMobile) $heroWrapClass .= ' fullwidth-mobile';
+      $heroCardInlineStyle = '';
+      if ($heroCardHeight)       $heroCardInlineStyle .= '--hero-card-height:' . $heroCardHeight . 'px;';
+      if ($heroCardHeightMobile) $heroCardInlineStyle .= '--hero-card-height-mobile:' . $heroCardHeightMobile . 'px;';
+      // Largeur en vw + marge calculée pour centrer la card pile sur la viewport
+      // (sortie du container parent). 100 % = pleine fenêtre, < 100 % = marge symétrique.
+      if ($heroCardWidth) {
+        $heroCardInlineStyle .= '--hero-card-width:' . $heroCardWidth . 'vw;';
+        $heroCardInlineStyle .= '--hero-card-mx:calc(50% - 50vw + ' . ((100 - $heroCardWidth) / 2) . 'vw);';
+      }
+      if ($heroCardWidthMobile) {
+        $heroCardInlineStyle .= '--hero-card-width-mobile:' . $heroCardWidthMobile . 'vw;';
+        $heroCardInlineStyle .= '--hero-card-mx-mobile:calc(50% - 50vw + ' . ((100 - $heroCardWidthMobile) / 2) . 'vw);';
+      }
+    ?>
+    <div class="<?= $heroWrapClass ?>" data-edit-section="hero-card-wrap">
+      <section class="demo-card" aria-label="Carte vidéo"<?= $heroCardInlineStyle !== '' ? ' style="' . $heroCardInlineStyle . '"' : '' ?>>
         <?php if (!empty($registration_fee) || !empty($course_km)): ?>
+        <?php
+          // Helper : construit le CSS inline + les data-attrs pour un badge.
+          // - Position en topPct/leftPct (% de .demo-card) : on émet des data-pos-* ; le translate
+          //   sera calculé au runtime par applyHeroPositionPct (JS) selon les dimensions courantes
+          //   de .demo-card → cohérence parfaite éditeur ↔ live.
+          // - Taille (scale) : émis inline (le texte interne suit naturellement).
+          // - Fallback px (anciennes données) : transform translate inline.
+          // Construit les data-attrs de position pour le runtime JS (applyHeroPositionPct).
+          // Priorité : ancre+offset (modèle figé en px) > topPct/leftPct (legacy) > px brut (legacy).
+          // Le paramètre $suffix permet de produire la variante mobile (-mobile) sur le même
+          // élément HTML quand desktop et mobile cohabitent (badges, timer, toggle, social).
+          $buildPosAttrs = function($geom, $suffix = '') {
+            if (!is_array($geom)) return '';
+            // Mode d'ancrage (axis-mode) : émis indépendamment de la position ; utile pour
+            // un élément "centré sur axe X/Y" même sans anchor+offset enregistrés (cas où
+            // l'admin a passé l'élément en mode "centré" via clic droit avant tout drag).
+            $modeAttr = '';
+            if (isset($geom['mode']) && in_array($geom['mode'], ['centerX','centerY','center'], true)) {
+              $modeAttr = ' data-axis-mode' . $suffix . '="' . htmlspecialchars($geom['mode'], ENT_QUOTES) . '"';
+            }
+            if (isset($geom['anchorX']) && isset($geom['anchorY'])
+                && isset($geom['offsetX']) && isset($geom['offsetY'])) {
+              return ' data-anchor-x' . $suffix . '="' . htmlspecialchars($geom['anchorX'], ENT_QUOTES) . '"'
+                   . ' data-anchor-y' . $suffix . '="' . htmlspecialchars($geom['anchorY'], ENT_QUOTES) . '"'
+                   . ' data-offset-x' . $suffix . '="' . round((float)$geom['offsetX'], 2) . '"'
+                   . ' data-offset-y' . $suffix . '="' . round((float)$geom['offsetY'], 2) . '"'
+                   . $modeAttr;
+            }
+            if (isset($geom['topPct']) && isset($geom['leftPct'])) {
+              return ' data-pos-top' . $suffix . '="'  . round((float)$geom['topPct'], 4)
+                   . '" data-pos-left' . $suffix . '="' . round((float)$geom['leftPct'], 4) . '"'
+                   . $modeAttr;
+            }
+            return $modeAttr; // mode tout seul (sans position) reste valide pour center 2D
+          };
+          // Positions par défaut par device pour les éléments qui ont une attente forte
+          // (le bouton play/pause est attendu en bas-droite desktop, haut-droite mobile).
+          // Les autres éléments (badges, timer, social) restent en flow CSS naturel si rien
+          // n'est sauvegardé — leur position par défaut vient de la mise en page Flexbox.
+          // Defaults : positions générées par PHP quand AUCUNE position n'est sauvée.
+          // ATTENTION : applyHeroPositionPct écrase `el.style.transform` (donc le
+          // `translateY(-50%)` du CSS) quand il applique left/top — donc tout default
+          // émis ici doit avoir un `offsetY` calculé en SUPPOSANT que le CSS transform
+          // ne s'applique PAS. Pour video_social_card (CSS desktop = top:50% +
+          // translateY(-50%)) on ne peut PAS émettre de default sans casser le centrage
+          // vertical → on retire le default et laisse le CSS pur prendre la main.
+          $heroDefaults = [
+            'video_toggle' => [
+              'desktop' => ['anchorX'=>'right', 'anchorY'=>'bottom', 'offsetX'=>16, 'offsetY'=>16],
+              'mobile'  => ['anchorX'=>'right', 'anchorY'=>'top',    'offsetX'=>12, 'offsetY'=>12],
+            ],
+            // video_social_card : pas de default — le CSS d'origine (top:50%; right:1.5rem;
+            // transform:translateY(-50%)) suffit pour centrer la card à droite en desktop.
+            // En mobile, le CSS @media (avec :not([data-anchor-x-mobile])) gère la position.
+            // Le bug "ça monte après Publier" venait d'un default avec offsetY:240 qui
+            // forçait la card à top:240 sans le translateY(-50%) → décalage visuel.
+          ];
+          // Émet desktop + mobile sur le MÊME élément HTML (utilisé pour les éléments
+          // qui n'ont pas de jumeau .hero-pc/.hero-mobile : badges, timer, toggle, social).
+          // Le runtime JS (applyHeroPositionPct) choisit le set selon innerWidth < 1040.
+          // Fallback : si aucune géométrie sauvée pour un device, on retombe sur
+          // $heroDefaults[$field][$device] s'il existe.
+          $buildPosAttrsResponsive = function($field) use ($accueilGeometry, $buildPosAttrs, $heroDefaults) {
+            $desk = $accueilGeometry[$field] ?? null;
+            $mob  = $accueilGeometry[$field . '_mobile'] ?? null;
+            if (!is_array($desk) && isset($heroDefaults[$field]['desktop'])) {
+              $desk = $heroDefaults[$field]['desktop'];
+            }
+            if (!is_array($mob)  && isset($heroDefaults[$field]['mobile'])) {
+              $mob  = $heroDefaults[$field]['mobile'];
+            }
+            return $buildPosAttrs($desk) . $buildPosAttrs($mob, '-mobile');
+          };
+          $buildBadgeCss = function($field, $sizeKey) use ($accueilStyles, $accueilGeometry, $buildPosAttrs, $buildPosAttrsResponsive) {
+            $size = (int)($accueilStyles[$sizeKey] ?? 100);
+            // Taille mobile : null si non définie explicitement. Le rendu HTML n'émet
+            // alors PAS d'attribut data-size-mobile, et le runtime n'applique aucun
+            // scale mobile spécifique → on retombe sur le CSS naturel / la taille
+            // desktop (selon ce que fait applyHeroPositionPct). Indispensable pour que
+            // "Restaurer hero (mobile)" produise un vrai reset visuel.
+            $sizeMobile = isset($accueilStyles[$sizeKey . '_mobile'])
+                ? (int)$accueilStyles[$sizeKey . '_mobile']
+                : null;
+            $geom  = $accueilGeometry[$field] ?? null;
+            $scale = $size / 100;
+            $hasScale = abs($scale - 1) > 0.001;
+            $css = '';
+            // On émet desktop + mobile : le runtime choisit selon innerWidth.
+            $dataAttrs = $buildPosAttrsResponsive($field);
+            // hasRuntimePos vrai dès qu'au moins un set (desktop OU mobile) est défini.
+            $hasRuntimePos = $dataAttrs !== '';
+            if ($hasRuntimePos) {
+              if ($hasScale) {
+                $css .= 'transform:scale(' . $scale . ');transform-origin:left top;';
+              }
+            } else {
+              // Fallback historique px : translate + scale chaînés (anciens enregistrements)
+              $tx = is_array($geom) ? (int)($geom['x'] ?? 0) : 0;
+              $ty = is_array($geom) ? (int)($geom['y'] ?? 0) : 0;
+              $parts = [];
+              if ($tx || $ty) $parts[] = 'translate(' . $tx . 'px,' . $ty . 'px)';
+              if ($hasScale)  $parts[] = 'scale(' . $scale . ')';
+              if (!empty($parts)) {
+                $css .= 'transform:' . implode(' ', $parts) . ';transform-origin:left top;';
+              }
+              if ($tx || $ty) $css .= 'position:relative;';
+            }
+            return [$css, $dataAttrs, $size, $sizeMobile];
+          };
+          [$cssBadgeKm,  $attrsBadgeKm,  $sizeBadgeKm,  $sizeBadgeKmMobile]  = $buildBadgeCss('badge_km',  'badge_km_size');
+          [$cssBadgeFee, $attrsBadgeFee, $sizeBadgeFee, $sizeBadgeFeeMobile] = $buildBadgeCss('badge_fee', 'badge_fee_size');
+        ?>
         <div class="demo-badges">
           <?php if (!empty($course_km)): ?>
-          <a href="parcours" class="demo-badge demo-badge--km" style="text-decoration:none;cursor:pointer;">
+          <a href="parcours" class="demo-badge demo-badge--km" style="text-decoration:none;cursor:pointer;<?= $cssBadgeKm ?>"<?= $attrsBadgeKm ?> <?= $isEditorMode ? 'data-edit-field="badge_km" data-edit-kind="size-only" data-edit-section="hero" data-edit-size="badge_km_size" data-edit-size-current="' . $sizeBadgeKm . '"' . ($sizeBadgeKmMobile !== null ? ' data-edit-size-current-mobile="' . $sizeBadgeKmMobile . '"' : '') : '' ?><?= $sizeBadgeKmMobile !== null ? ' data-size-mobile="' . $sizeBadgeKmMobile . '"' : '' ?>>
             <span class="demo-badge-value"><?= (int)$course_km ?> km</span>
             <span class="demo-badge-label">Parcours</span>
           </a>
           <?php endif; ?>
           <?php if (!empty($registration_fee)): ?>
-          <div class="demo-badge demo-badge--fee" id="badgeFee">
+          <?php $badgeFeeTooltipText = (string)($accueilTexts['badge_fee.tooltip'] ?? 'Entièrement reversé à la Ligue contre le cancer'); ?>
+          <div class="demo-badge demo-badge--fee" id="badgeFee" style="<?= $cssBadgeFee ?>"<?= $attrsBadgeFee ?> <?= $isEditorMode ? 'data-edit-field="badge_fee" data-edit-kind="size-only" data-edit-section="hero" data-edit-size="badge_fee_size" data-edit-size-current="' . $sizeBadgeFee . '"' . ($sizeBadgeFeeMobile !== null ? ' data-edit-size-current-mobile="' . $sizeBadgeFeeMobile . '"' : '') : '' ?><?= $sizeBadgeFeeMobile !== null ? ' data-size-mobile="' . $sizeBadgeFeeMobile . '"' : '' ?>>
             <span class="demo-badge-value"><?= (int)$registration_fee ?>€</span>
-            <div class="badge-tooltip" id="badgeTooltip">Entièrement reversé à la<br>Ligue contre le cancer</div>
+            <div class="badge-tooltip" id="badgeTooltip" <?= $isEditorMode ? 'data-edit-field="badge_fee.tooltip" data-edit-kind="text" data-edit-section="hero"' : '' ?>><?= htmlspecialchars($badgeFeeTooltipText) ?></div>
           </div>
           <?php endif; ?>
         </div>
         <?php endif; ?>
-        <?php $videoFile = $data['video_accueil'] ?? 'FER.mp4'; ?>
-        <?php if ($videoFile && file_exists(__DIR__ . '/../files/' . $videoFile)): ?>
-        <video class="demo-video" id="heroVideo" <?= $isEditorMode ? 'data-edit-field="video_accueil" data-edit-kind="video" data-edit-section="hero"' : 'autoplay muted loop playsinline' ?>>
-          <source src="../files/<?= rawurlencode($videoFile) ?>" type="video/mp4" />
-        </video>
+        <?php
+          $videoFile = $data['video_accueil'] ?? 'FER.mp4';
+          $hasHeroVideo = $videoFile && file_exists(__DIR__ . '/../files/' . $videoFile);
+          $cssVideoToggle = $attrsVideoToggle = $cssVideoSocial = $attrsVideoSocial = '';
+        ?>
+        <div class="demo-card-media">
+        <?php if ($hasHeroVideo): ?>
+          <video class="demo-video" id="heroVideo" <?= $isEditorMode ? 'data-edit-field="video_accueil" data-edit-kind="video" data-edit-section="hero"' : 'autoplay muted loop playsinline' ?>>
+            <source src="../files/<?= rawurlencode($videoFile) ?>" type="video/mp4" />
+          </video>
+        <?php endif; ?>
+        </div>
+
+        <?php
+          // Helper : retourne [$css_inline, $data_attrs] pour video_toggle / video_social_card.
+          // - Si anchorX/anchorY/offsetX/offsetY : émet data-anchor-*/data-offset-* (modèle figé en px).
+          // - Si topPct/leftPct : émet data-pos-* (legacy — % de .demo-card).
+          // - Si px (legacy)    : transform translate inline (ancien comportement).
+          // - Sinon : pas de style → CSS par défaut.
+          $buildPositionCss = function($field) use ($accueilGeometry, $buildPosAttrs, $buildPosAttrsResponsive) {
+            $geom       = $accueilGeometry[$field] ?? null;
+            $mobileGeom = $accueilGeometry[$field . '_mobile'] ?? null;
+            // Si au moins l'un des deux (desktop ou mobile) a un format runtime,
+            // on émet les data-attrs des deux et on laisse le JS choisir.
+            $attrs = $buildPosAttrsResponsive($field);
+            if ($attrs !== '') return ['', $attrs];
+            if (!is_array($geom)) return ['', ''];
+            // Fallback historique en px (kept au cas où d'anciennes geom px existeraient en base).
+            $tx = (int)($geom['x'] ?? 0);
+            $ty = (int)($geom['y'] ?? 0);
+            if (!$tx && !$ty) return ['', ''];
+            return ['transform:translate(' . $tx . 'px,' . $ty . 'px);transform-origin:left top;', ''];
+          };
+          [$cssVideoToggle, $attrsVideoToggle] = $buildPositionCss('video_toggle');
+          [$cssVideoSocial, $attrsVideoSocial] = $buildPositionCss('video_social_card');
+        ?>
 
         <!-- Bouton Play/Pause -->
-        <button class="video-toggle" id="videoToggle" aria-label="Pause la vidéo" type="button">
+        <?php if ($hasHeroVideo): ?>
+        <button class="video-toggle" id="videoToggle" aria-label="Pause la vidéo" type="button" style="<?= $cssVideoToggle ?>"<?= $attrsVideoToggle ?> <?= $isEditorMode ? 'data-edit-field="video_toggle" data-edit-kind="size-only" data-edit-section="hero"' : '' ?>>
           <svg class="vt-icon vt-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
           <svg class="vt-icon vt-play" viewBox="0 0 24 24" fill="currentColor" style="display:none"><polygon points="6,4 20,12 6,20"/></svg>
         </button>
@@ -266,31 +468,57 @@ function generateTimelineSVG(int $count): array {
           <div class="demo-panel video-float">
             <div class="hero-text">
               <?php
-                // Helper inline : applique la geometry persistée (drag libre + resize + scale)
+                // Helper inline : applique la geometry persistée (drag libre + resize + scale).
+                // Le translate (positionnement) est calculé au runtime par applyHeroPositionPct
+                // à partir des data-attrs (ancre+offset px ou topPct/leftPct legacy).
                 $applyGeo = function($field) use ($accueilGeometry) {
                   $g = $accueilGeometry[$field] ?? null;
                   if (!is_array($g)) return '';
                   $css = '';
                   if (isset($g['w'])) $css .= 'width:' . (int)$g['w'] . 'px;';
                   if (isset($g['h'])) $css .= 'height:' . (int)$g['h'] . 'px;';
-                  $x = (int)($g['x'] ?? 0); $y = (int)($g['y'] ?? 0);
                   $sc = isset($g['scale']) ? (float)$g['scale'] : 1.0;
-                  $parts = [];
-                  if ($x || $y) $parts[] = 'translate(' . $x . 'px,' . $y . 'px)';
-                  if ($sc && abs($sc - 1) > 0.001) $parts[] = 'scale(' . $sc . ')';
-                  if (!empty($parts)) {
-                    $css .= 'transform:' . implode(' ', $parts) . ';transform-origin:left top;position:relative;';
-                  } elseif ($x || $y) {
-                    $css .= 'position:relative;';
+                  $hasScale = $sc && abs($sc - 1) > 0.001;
+                  $hasRuntimePos = (isset($g['anchorX']) && isset($g['anchorY'])
+                                    && isset($g['offsetX']) && isset($g['offsetY']))
+                                || (isset($g['topPct']) && isset($g['leftPct']));
+                  if ($hasRuntimePos) {
+                    // Le runtime JS appliquera le translate. On n'émet ici QUE le scale
+                    // (et width/height plus haut si applicable).
+                    if ($hasScale) {
+                      $css .= 'transform:scale(' . $sc . ');transform-origin:left top;';
+                    }
+                  } else {
+                    // Fallback historique px
+                    $x = (int)($g['x'] ?? 0); $y = (int)($g['y'] ?? 0);
+                    $parts = [];
+                    if ($x || $y) $parts[] = 'translate(' . $x . 'px,' . $y . 'px)';
+                    if ($hasScale) $parts[] = 'scale(' . $sc . ')';
+                    if (!empty($parts)) {
+                      $css .= 'transform:' . implode(' ', $parts) . ';transform-origin:left top;position:relative;';
+                    } elseif ($x || $y) {
+                      $css .= 'position:relative;';
+                    }
                   }
                   return $css;
                 };
-                $sizeSubtitle = (int)($accueilStyles['subtitle_accueil_size'] ?? 100);
+                // Helper miroir : renvoie les data-attrs (ancre/offset OU topPct/leftPct) pour le runtime.
+                $posAttrs = function($field) use ($accueilGeometry, $buildPosAttrs) {
+                  return $buildPosAttrs($accueilGeometry[$field] ?? null);
+                };
+                // Taille subtitle : PC et MOBILE INDÉPENDANTS. Si pas de valeur mobile
+                // explicite (subtitle_accueil_size_mobile), on retombe sur la valeur PC
+                // (pour conserver l'ancien comportement quand l'admin n'a jamais réglé mobile).
+                $sizeSubtitle       = (int)($accueilStyles['subtitle_accueil_size'] ?? 100);
+                $sizeSubtitleMobile = (int)($accueilStyles['subtitle_accueil_size_mobile'] ?? $sizeSubtitle);
                 $cssTitle       = $applyGeo('titleAccueil');
                 $cssTitleMobile = $applyGeo('titleAccueil_mobile') ?: $cssTitle;
-                $cssSubtitle    = $sizeSubtitle !== 100 ? 'font-size:' . ($sizeSubtitle / 100) . 'em;' : '';
-                $cssSubPC       = $applyGeo('subtitle_accueil') ?: $cssSubtitle;
-                $cssSubM        = $applyGeo('subtitle_accueil_mobile') ?: $cssSubtitle;
+                $cssSubtitlePC    = $sizeSubtitle       !== 100 ? 'font-size:' . ($sizeSubtitle       / 100) . 'em;' : '';
+                $cssSubtitleMob   = $sizeSubtitleMobile !== 100 ? 'font-size:' . ($sizeSubtitleMobile / 100) . 'em;' : '';
+                // La taille (font-size) du curseur s'ajoute TOUJOURS à la géométrie éventuelle :
+                // sans cela, dès qu'une géométrie était enregistrée (drag/resize), le font-size était écrasé.
+                $cssSubPC       = $applyGeo('subtitle_accueil')        . $cssSubtitlePC;
+                $cssSubM        = $applyGeo('subtitle_accueil_mobile') . $cssSubtitleMob;
                 // Alignement
                 $alignTitlePC = $accueilStyles['text_align__titleAccueil']        ?? '';
                 $alignTitleM  = $accueilStyles['text_align__titleAccueil_mobile'] ?? '';
@@ -303,46 +531,76 @@ function generateTimelineSVG(int $count): array {
               ?>
               <!-- PC -->
               <div class="hero-device hero-pc">
-                <div class="demo-kicker" style="<?= $cssTitle ?>" <?= $isEditorMode ? 'data-edit-field="titleAccueil" data-edit-kind="tinymce" data-edit-section="hero"' : '' ?>><?= $data['titleAccueil'] ?? ($isEditorMode ? '<em style="color:#fce7f3">Cliquer pour ajouter un titre PC</em>' : '') ?></div>
+                <div class="demo-kicker" style="<?= $cssTitle ?>"<?= $posAttrs('titleAccueil') ?> <?= $isEditorMode ? 'data-edit-field="titleAccueil" data-edit-kind="tinymce" data-edit-section="hero"' : '' ?>><?= $data['titleAccueil'] ?? ($isEditorMode ? '<em style="color:#fce7f3">Cliquer pour ajouter un titre PC</em>' : '') ?></div>
               </div>
               <!-- Mobile -->
               <div class="hero-device hero-mobile">
-                <div class="demo-kicker" style="<?= $cssTitleMobile ?>" <?= $isEditorMode ? 'data-edit-field="titleAccueil_mobile" data-edit-kind="tinymce" data-edit-section="hero"' : '' ?>><?= ($data['titleAccueil_mobile'] ?? '') ?: ($data['titleAccueil'] ?? ($isEditorMode ? '<em style="color:#fce7f3">Cliquer pour ajouter un titre mobile</em>' : '')) ?></div>
+                <div class="demo-kicker" style="<?= $cssTitleMobile ?>"<?= $posAttrs('titleAccueil_mobile') ?> <?= $isEditorMode ? 'data-edit-field="titleAccueil_mobile" data-edit-kind="tinymce" data-edit-section="hero"' : '' ?>><?= ($data['titleAccueil_mobile'] ?? '') ?: ($data['titleAccueil'] ?? ($isEditorMode ? '<em style="color:#fce7f3">Cliquer pour ajouter un titre mobile</em>' : '')) ?></div>
               </div>
               <?php
                 $subPC = $data['subtitle_accueil'] ?? '';
                 $subMobile = $data['subtitle_accueil_mobile'] ?? '';
               ?>
               <?php if ($subPC !== '' || $isEditorMode): ?>
-                <p class="demo-desc hero-device hero-pc" style="<?= $cssSubPC ?>" <?= $isEditorMode ? 'data-edit-field="subtitle_accueil" data-edit-kind="text" data-edit-section="hero" data-edit-size="subtitle_accueil_size" data-edit-size-current="' . $sizeSubtitle . '"' : '' ?>><?= htmlspecialchars($subPC !== '' ? $subPC : 'Cliquer pour ajouter un sous-titre PC') ?></p>
+                <p class="demo-desc hero-device hero-pc" style="<?= $cssSubPC ?>"<?= $posAttrs('subtitle_accueil') ?> <?= $isEditorMode ? 'data-edit-field="subtitle_accueil" data-edit-kind="text" data-edit-section="hero" data-edit-size="subtitle_accueil_size" data-edit-size-current="' . $sizeSubtitle . '"' : '' ?>><?= htmlspecialchars($subPC !== '' ? $subPC : 'Cliquer pour ajouter un sous-titre PC') ?></p>
               <?php endif; ?>
               <?php if ($subMobile !== '' || $isEditorMode): ?>
-                <p class="demo-desc hero-device hero-mobile" style="<?= $cssSubM ?>" <?= $isEditorMode ? 'data-edit-field="subtitle_accueil_mobile" data-edit-kind="text" data-edit-section="hero" data-edit-size="subtitle_accueil_size" data-edit-size-current="' . $sizeSubtitle . '"' : '' ?>><?= htmlspecialchars($subMobile !== '' ? $subMobile : ($subPC !== '' ? $subPC : 'Cliquer pour ajouter un sous-titre mobile')) ?></p>
+                <p class="demo-desc hero-device hero-mobile" style="<?= $cssSubM ?>"<?= $posAttrs('subtitle_accueil_mobile') ?> <?= $isEditorMode ? 'data-edit-field="subtitle_accueil_mobile" data-edit-kind="text" data-edit-section="hero" data-edit-size="subtitle_accueil_size_mobile" data-edit-size-current="' . $sizeSubtitleMobile . '"' : '' ?>><?= htmlspecialchars($subMobile !== '' ? $subMobile : ($subPC !== '' ? $subPC : 'Cliquer pour ajouter un sous-titre mobile')) ?></p>
               <?php endif; ?>
             </div>
 
             <?php
-              $sizeTimer = (int)($accueilStyles['hero_timer_size'] ?? 100);
-              $cssTimer = $sizeTimer !== 100 ? 'transform:scale(' . ($sizeTimer / 100) . ');transform-origin:left top;display:inline-block;' : '';
+              $sizeTimer       = (int)($accueilStyles['hero_timer_size'] ?? 100);
+              // null si pas de valeur mobile explicite → data-size-mobile non émis →
+              // pas de scale mobile imposé → "Restaurer hero (mobile)" produit un vrai
+              // reset visuel (le timer revient à sa taille CSS naturelle en mobile).
+              $sizeTimerMobile = isset($accueilStyles['hero_timer_size_mobile'])
+                  ? (int)$accueilStyles['hero_timer_size_mobile']
+                  : null;
+              // On N'émet PAS `display:inline-block` inline : ça écrasait le CSS responsive
+              // mobile (.countdown-wrap=display:flex) et faisait que le timer mobile gardait
+              // le layout desktop. Le scale visuel desktop est appliqué uniquement au runtime
+              // par __syncFieldNamesToDevice / applyHeroPositionPct selon le device courant.
+              $cssTimer = '';
               // Si une géométrie libre est définie pour le timer, elle prend le dessus mais conserve le scale.
-              $geomTimer = $accueilGeometry['hero_timer'] ?? null;
-              if (is_array($geomTimer)) {
+              $geomTimer       = $accueilGeometry['hero_timer'] ?? null;
+              $geomTimerMobile = $accueilGeometry['hero_timer_mobile'] ?? null;
+              // Le timer est un élément HTML unique : on émet desktop + mobile sur le même nœud.
+              $timerPosAttrs = $buildPosAttrsResponsive('hero_timer');
+              if (is_array($geomTimer) || is_array($geomTimerMobile)) {
                 $cssTimer = '';
-                if (isset($geomTimer['w'])) $cssTimer .= 'width:' . (int)$geomTimer['w'] . 'px;';
-                if (isset($geomTimer['h'])) $cssTimer .= 'height:' . (int)$geomTimer['h'] . 'px;';
-                $tx = (int)($geomTimer['x'] ?? 0);
-                $ty = (int)($geomTimer['y'] ?? 0);
-                $scaleTimer = isset($geomTimer['scale']) ? (float)$geomTimer['scale'] : ($sizeTimer / 100);
-                $transformParts = [];
-                if ($tx || $ty) $transformParts[] = 'translate(' . $tx . 'px,' . $ty . 'px)';
-                if ($scaleTimer && abs($scaleTimer - 1) > 0.001) $transformParts[] = 'scale(' . $scaleTimer . ')';
-                if (!empty($transformParts)) {
-                  $cssTimer .= 'transform:' . implode(' ', $transformParts) . ';transform-origin:left top;';
+                // width/height proviennent de la géométrie desktop (pas de override mobile).
+                if (is_array($geomTimer) && isset($geomTimer['w'])) $cssTimer .= 'width:' . (int)$geomTimer['w'] . 'px;';
+                if (is_array($geomTimer) && isset($geomTimer['h'])) $cssTimer .= 'height:' . (int)$geomTimer['h'] . 'px;';
+                // Le curseur de taille (accueil_styles.hero_timer_size) est la seule source de vérité pour le scale.
+                $scaleTimer = $sizeTimer / 100;
+                $hasScaleTimer = $scaleTimer && abs($scaleTimer - 1) > 0.001;
+                if ($timerPosAttrs !== '') {
+                  // Le runtime JS calculera le translate à partir des data-attrs.
+                  if ($hasScaleTimer) {
+                    $cssTimer .= 'transform:scale(' . $scaleTimer . ');transform-origin:left top;';
+                  }
+                  // CRITIQUE : on N'émet PAS `position:relative; display:inline-block` ici.
+                  // Sinon ces inline styles écrasaient le CSS responsive mobile
+                  // (`position:absolute; bottom:0; width:100%`) → dès qu'une position
+                  // DESKTOP était sauvée pour le timer, le rendu MOBILE devenait
+                  // décalé / mauvaise position. Le translate fonctionne sur n'importe
+                  // quelle position CSS, donc pas besoin de forcer relative.
+                } else {
+                  // Fallback historique px (uniquement si geom desktop existe).
+                  $tx = is_array($geomTimer) ? (int)($geomTimer['x'] ?? 0) : 0;
+                  $ty = is_array($geomTimer) ? (int)($geomTimer['y'] ?? 0) : 0;
+                  $transformParts = [];
+                  if ($tx || $ty) $transformParts[] = 'translate(' . $tx . 'px,' . $ty . 'px)';
+                  if ($hasScaleTimer) $transformParts[] = 'scale(' . $scaleTimer . ')';
+                  if (!empty($transformParts)) {
+                    $cssTimer .= 'transform:' . implode(' ', $transformParts) . ';transform-origin:left top;';
+                  }
+                  $cssTimer .= 'position:relative;display:inline-block;';
                 }
-                $cssTimer .= 'position:relative;display:inline-block;';
               }
             ?>
-            <div class="countdown-wrap" style="<?= $cssTimer ?>" <?= $isEditorMode ? 'data-edit-field="hero_timer" data-edit-kind="size-only" data-edit-section="hero" data-edit-size="hero_timer_size" data-edit-size-current="' . $sizeTimer . '"' : '' ?>>
+            <div class="countdown-wrap" style="<?= $cssTimer ?>"<?= $timerPosAttrs ?> <?= $isEditorMode ? 'data-edit-field="hero_timer" data-edit-kind="size-only" data-edit-section="hero" data-edit-size="hero_timer_size" data-edit-size-current="' . $sizeTimer . '"' . ($sizeTimerMobile !== null ? ' data-edit-size-current-mobile="' . $sizeTimerMobile . '"' : '') : '' ?><?= $sizeTimerMobile !== null ? ' data-size-mobile="' . $sizeTimerMobile . '"' : '' ?>>
               <div class="countdown-row" aria-label="Compte à rebours">
                 <div class="timebox">
                   <div class="num" id="cd_days">0</div>
@@ -368,30 +626,31 @@ function generateTimelineSVG(int $count): array {
                 // Texte du bouton inscription : récupère depuis accueil_texts si défini,
                 // sinon défaut "Je m'inscris →". Éditable dans l'éditeur via data-edit-field.
                 $ctaRegisterTxt = (string)($accueilTexts['hero.cta_register'] ?? "Je m'inscris →");
+                // Position personnalisée (drag dans l'éditeur). Émis pour les 2 devices.
+                $ctaPosAttrs = $buildPosAttrsResponsive('hero.cta_register');
               ?>
-              <a class="cta-pink" href="register" <?= $isEditorMode ? 'data-edit-field="hero.cta_register" data-edit-kind="text" data-edit-section="hero"' : '' ?>><?= htmlspecialchars($ctaRegisterTxt) ?></a>
+              <a class="cta-pink" href="register"<?= $ctaPosAttrs ?> <?= $isEditorMode ? 'data-edit-field="hero.cta_register" data-edit-kind="text" data-edit-section="hero"' : '' ?>><?= htmlspecialchars($ctaRegisterTxt) ?></a>
             </div>
           </div>
         </div>
+        <div class="video-social-card" aria-label="Réseaux sociaux" style="<?= $cssVideoSocial ?>"<?= $attrsVideoSocial ?> <?= $isEditorMode ? 'data-edit-field="video_social_card" data-edit-kind="size-only" data-edit-section="hero"' : '' ?>>
+          <?php if (!empty($link_instagram)): ?>
+          <a class="social-btn" href="<?= htmlspecialchars($link_instagram) ?>" target="_blank" rel="noopener" aria-label="Instagram">
+            <img src="../files/_logos/instagram.png" alt="Instagram">
+          </a>
+          <?php endif; ?>
+          <?php if (!empty($link_facebook)): ?>
+          <a class="social-btn" href="<?= htmlspecialchars($link_facebook) ?>" target="_blank" rel="noopener" aria-label="Facebook">
+            <img src="../files/_logos/facebook.png" alt="Facebook">
+          </a>
+          <?php endif; ?>
+          <?php if (!empty($link_cancer)): ?>
+          <a class="social-btn ligue" href="<?= htmlspecialchars($link_cancer) ?>" target="_blank" rel="noopener" aria-label="Ligue contre le cancer">
+            <img src="../files/_logos/ligue-cancer.png" alt="Ligue contre le cancer">
+          </a>
+          <?php endif; ?>
+        </div>
       </section>
-
-      <div class="video-social-card" aria-label="Réseaux sociaux">
-        <?php if (!empty($link_instagram)): ?>
-        <a class="social-btn" href="<?= htmlspecialchars($link_instagram) ?>" target="_blank" rel="noopener" aria-label="Instagram">
-          <img src="../files/_logos/instagram.png" alt="Instagram">
-        </a>
-        <?php endif; ?>
-        <?php if (!empty($link_facebook)): ?>
-        <a class="social-btn" href="<?= htmlspecialchars($link_facebook) ?>" target="_blank" rel="noopener" aria-label="Facebook">
-          <img src="../files/_logos/facebook.png" alt="Facebook">
-        </a>
-        <?php endif; ?>
-        <?php if (!empty($link_cancer)): ?>
-        <a class="social-btn ligue" href="<?= htmlspecialchars($link_cancer) ?>" target="_blank" rel="noopener" aria-label="Ligue contre le cancer">
-          <img src="../files/_logos/ligue-cancer.png" alt="Ligue contre le cancer">
-        </a>
-        <?php endif; ?>
-      </div>
     </div>
 
     <?php
@@ -409,32 +668,8 @@ function generateTimelineSVG(int $count): array {
     // la version publiée → le grand public voit ce qui a été "Publié", pas le brouillon.
     $accueilLayout = loadAccueilLayout($data, $isEditorMode);
 
-    // Idem pour les styles/géometrie : en éditeur, on lit le draft avec fallback.
-    $accueilStyles = [];
-    $stylesRaw = $isEditorMode
-        ? ($data['accueil_styles_draft'] ?? null) ?: ($data['accueil_styles'] ?? null)
-        : ($data['accueil_styles'] ?? null);
-    if (!empty($stylesRaw)) {
-        $decoded = json_decode($stylesRaw, true);
-        if (is_array($decoded)) $accueilStyles = $decoded;
-    }
-    $accueilGeometry = [];
-    $geomRaw = $isEditorMode
-        ? ($data['accueil_geometry_draft'] ?? null) ?: ($data['accueil_geometry'] ?? null)
-        : ($data['accueil_geometry'] ?? null);
-    if (!empty($geomRaw)) {
-        $decoded = json_decode($geomRaw, true);
-        if (is_array($decoded)) $accueilGeometry = $decoded;
-    }
-    // Textes hardcodés override-ables (reg_bar.kicker_open, partners.title, etc.)
-    $accueilTexts = [];
-    $textsRaw = $isEditorMode
-        ? ($data['accueil_texts_draft'] ?? null) ?: ($data['accueil_texts'] ?? null)
-        : ($data['accueil_texts'] ?? null);
-    if (!empty($textsRaw)) {
-        $decoded = json_decode($textsRaw, true);
-        if (is_array($decoded)) $accueilTexts = $decoded;
-    }
+    // $accueilStyles, $accueilGeometry et $accueilTexts sont déjà chargés en haut
+    // (avant le rendu du Hero qui les utilise). Voir bloc en début de fichier.
     $sectionCtx = [
         'count'             => $count,
         'accueil_active'    => $accueil_active,
@@ -1176,6 +1411,7 @@ function generateTimelineSVG(int $count): array {
       function updateHeroHeight(){
         if (!isMobile()){
           demoCard.style.removeProperty('--demo-card-height');
+          scheduleHeroPositionRefresh();
           return;
         }
 
@@ -1199,10 +1435,19 @@ function generateTimelineSVG(int $count): array {
         if (!demoCard.classList.contains('ready')) {
           requestAnimationFrame(() => demoCard.classList.add('ready'));
         }
+        scheduleHeroPositionRefresh();
       }
 
       function scheduleUpdate(){
         requestAnimationFrame(() => requestAnimationFrame(() => updateHeroHeight()));
+      }
+
+      function scheduleHeroPositionRefresh(){
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (typeof window.__applyHeroPositionPct === 'function') {
+            window.__applyHeroPositionPct();
+          }
+        }));
       }
 
       // Sur desktop, afficher directement
@@ -1218,10 +1463,317 @@ function generateTimelineSVG(int $count): array {
       scheduleUpdate();
     })();
 
+    // ===== Positionnement Hero (cohérence éditeur ↔ live) =====
+    // Deux modèles supportés :
+    //   1) ANCRÉ (préféré) — data-anchor-x/y + data-offset-x/y : position figée en px
+    //      depuis un coin de .demo-card → visuellement stable malgré les changements de
+    //      taille du hero.
+    //   2) POURCENTAGE (legacy) — data-pos-top/left : % de .demo-card. Conservé pour les
+    //      anciennes géométries.
+    // Chaque attribut peut exister en variante "-mobile" (data-anchor-x-mobile, etc.) :
+    // sous la largeur 1040px, le runtime privilégie ces variantes. Cela permet à l'admin
+    // d'éditer séparément les positions desktop et mobile (cf. toggle dans setting.php).
+    // S'exécute aussi bien en mode éditeur (drag/resize) qu'en mode live (rendu final).
+    (function(){
+      var MOBILE_BREAKPOINT = 1040;
+      function applyHeroPositionPct() {
+        // Le sélecteur capture les éléments qui ont au moins un set (desktop OU mobile).
+        var selector = ''
+          + '[data-anchor-x][data-anchor-y][data-offset-x][data-offset-y],'
+          + '[data-anchor-x-mobile][data-anchor-y-mobile][data-offset-x-mobile][data-offset-y-mobile],'
+          + '[data-pos-top][data-pos-left],'
+          + '[data-pos-top-mobile][data-pos-left-mobile],'
+          + '[data-axis-mode],'
+          + '[data-axis-mode-mobile],'
+          // Inclut aussi les éléments qui ont SEULEMENT un scale (taille) : sans ça,
+          // un timer/badge avec scale desktop (mais pas de position) gardait son
+          // inline `transform:scale(1.3)` en mobile car le runtime ne le sélectionnait
+          // jamais — d'où le bug "slider mobile à 100% mais visuellement à 130%".
+          + '[data-edit-section="hero"][data-size-mobile],'
+          + '[data-edit-section="hero"][data-edit-size]';
+        var fallbackCard = document.querySelector('.demo-card');
+        // Champs positionnés en absolute (left/top direct) dans .demo-card. Avec ce
+        // modèle, la position visuelle est INDÉPENDANTE du flow CSS du parent (donc
+        // identique entre l'éditeur — où .demo-card est forcée à 600px — et la vraie
+        // page — où elle suit `height: clamp(70vh, ...)`).
+        // `hero_timer` y figure : sans ça, son drag en mode "Libre" calculait un
+        // translate(dx, dy) basé sur sa position naturelle dans le flux flex de
+        // .hero-text, qui diffère entre editor et live → le timer apparaissait au
+        // centre-bas par défaut sur la vraie page au lieu de la position sauvée.
+        var directHeroFields = ['hero_timer', 'video_toggle', 'video_social_card', 'badge_fee', 'badge_km', 'hero.cta_register'];
+        var isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+        // Lit un attribut "device-aware". Desktop et mobile sont 100% INDÉPENDANTS :
+        // en mobile, on n'utilise PAS la config desktop comme fallback (sinon une
+        // position desktop déborderait sur mobile et "Restaurer hero mobile" ne
+        // pourrait jamais revenir au rendu CSS par défaut). L'admin configure
+        // explicitement le mobile s'il veut un layout custom mobile, sinon le CSS
+        // d'origine s'applique pleinement.
+        function pick(ds, baseKey, mobileKey) {
+          if (isMobile) {
+            return (ds[mobileKey] !== undefined && ds[mobileKey] !== '') ? ds[mobileKey] : undefined;
+          }
+          return ds[baseKey];
+        }
+        // Reset des styles inline appliqués au passage précédent : utilisé quand
+        // l'élément n'a aucune config pour le device courant (ex: après "Restaurer
+        // hero mobile", le timer doit redevenir CSS pur en mobile, sans hériter
+        // de l'inline desktop encore présent sur l'élément).
+        function resetInlinePosition(el) {
+          el.style.transform       = '';
+          el.style.left            = '';
+          el.style.top             = '';
+          el.style.right           = '';
+          el.style.bottom          = '';
+          el.style.position        = '';
+          el.style.marginLeft      = '';
+          el.style.marginTop       = '';
+          el.style.transformOrigin = '';
+          delete el.dataset.x;
+          delete el.dataset.y;
+        }
+        function preferredAnchorY(top, height, cardHeight) {
+          return (top + (height / 2) < cardHeight / 2) ? 'top' : 'bottom';
+        }
+        document.querySelectorAll(selector).forEach(function(el) {
+          var card = el.closest('.demo-card') || fallbackCard;
+          if (!card) return;
+          var cardRect = card.getBoundingClientRect();
+          if (cardRect.width <= 0 || cardRect.height <= 0) return;
+          // Préserve le scale courant (slider de taille) — qu'il vienne du dataset, du style,
+          // ou de data-edit-size-current (initial render).
+          // DEVICE-AWARE pour le scale : en mobile, on n'hérite PAS de la taille desktop si
+          // aucune taille mobile n'a été définie explicitement. Sinon, déplacer le timer en
+          // mobile lui appliquerait la taille desktop (via dataset.editSizeCurrent) au lieu
+          // de garder sa taille CSS naturelle (bug "le timer rétrécit au drag mobile").
+          var existing = el.style.transform || '';
+          var scaleStr = '';
+          var mobileSizeRaw = el.dataset.sizeMobile;
+          if (isMobile) {
+            if (mobileSizeRaw) {
+              var smz = parseInt(mobileSizeRaw, 10) / 100;
+              if (smz && Math.abs(smz - 1) > 0.001) scaleStr = ' scale(' + smz + ')';
+            }
+            // En mobile sans data-size-mobile explicite : pas de scale appliqué (taille CSS naturelle).
+          } else {
+            var scaleMatch = existing.match(/scale\([\d.]+\)/);
+            if (scaleMatch) {
+              scaleStr = ' ' + scaleMatch[0];
+            } else if (el.dataset.scale && parseFloat(el.dataset.scale) !== 1) {
+              scaleStr = ' scale(' + parseFloat(el.dataset.scale) + ')';
+            } else if (el.dataset.editSizeCurrent) {
+              var sz = parseInt(el.dataset.editSizeCurrent, 10) / 100;
+              if (sz && Math.abs(sz - 1) > 0.001) scaleStr = ' scale(' + sz + ')';
+            }
+          }
+          var isDirect = directHeroFields.indexOf(el.dataset.editField || '') !== -1;
+          // On ne reset PLUS le transform pour mesurer la position naturelle : cela créait
+          // un flash visible (l'élément sautait à sa position CSS naturelle puis revenait
+          // à la position cible à chaque tick — load, resize, ResizeObserver). À la place,
+          // on lit la position courante et on soustrait le translate déjà appliqué
+          // (mémorisé dans dataset.x/y, sinon extrait du style.transform inline).
+          var elRect = el.getBoundingClientRect();
+          var appliedDx = parseFloat(el.dataset.x);
+          var appliedDy = parseFloat(el.dataset.y);
+          if (isNaN(appliedDx) || isNaN(appliedDy)) {
+            var trMatch = existing.match(/translate\(\s*([-\d.]+)px\s*,\s*([-\d.]+)px/);
+            if (trMatch) {
+              if (isNaN(appliedDx)) appliedDx = parseFloat(trMatch[1]) || 0;
+              if (isNaN(appliedDy)) appliedDy = parseFloat(trMatch[2]) || 0;
+            }
+            if (isNaN(appliedDx)) appliedDx = 0;
+            if (isNaN(appliedDy)) appliedDy = 0;
+          }
+          var naturalTop  = elRect.top  - cardRect.top  - appliedDy;
+          var naturalLeft = elRect.left - cardRect.left - appliedDx;
+          var targetTop, targetLeft;
+          var anchorX = pick(el.dataset, 'anchorX', 'anchorXMobile');
+          var anchorY = pick(el.dataset, 'anchorY', 'anchorYMobile');
+          var offsetXAttr = pick(el.dataset, 'offsetX', 'offsetXMobile');
+          var offsetYAttr = pick(el.dataset, 'offsetY', 'offsetYMobile');
+          var posTopAttr  = pick(el.dataset, 'posTop',  'posTopMobile');
+          var posLeftAttr = pick(el.dataset, 'posLeft', 'posLeftMobile');
+          // Mode d'ancrage : 'centerX' centre horizontalement (axe X figé au centre),
+          // 'centerY' centre verticalement, 'center' = les deux, 'free' (ou absent) = libre.
+          var axisMode = pick(el.dataset, 'axisMode', 'axisModeMobile') || 'free';
+          if (anchorX && anchorY) {
+            // Modèle ANCRÉ : offset px depuis un coin fixe → position visuelle figée.
+            var offsetX = parseFloat(offsetXAttr) || 0;
+            var offsetY = parseFloat(offsetYAttr) || 0;
+            targetLeft = (anchorX === 'right')
+              ? (cardRect.width  - elRect.width  - offsetX)
+              : offsetX;
+            targetTop  = (anchorY === 'bottom')
+              ? (cardRect.height - elRect.height - offsetY)
+              : offsetY;
+          } else if (posTopAttr !== undefined && posLeftAttr !== undefined) {
+            // Modèle legacy POURCENTAGE.
+            var topPct  = parseFloat(posTopAttr);
+            var leftPct = parseFloat(posLeftAttr);
+            if (isNaN(topPct) || isNaN(leftPct)) return;
+            targetTop   = cardRect.height * topPct  / 100;
+            targetLeft  = cardRect.width  * leftPct / 100;
+          } else if (axisMode !== 'free') {
+            // Mode pur : pas d'offset enregistré, position dictée 100% par le mode.
+            targetLeft = (cardRect.width  - elRect.width)  / 2;
+            targetTop  = (cardRect.height - elRect.height) / 2;
+          } else {
+            // Aucune config pour ce device : on RESET les styles inline pour que le
+            // CSS d'origine reprenne pleinement la main (sinon une position posée au
+            // passage précédent sur l'autre device persiste). Indispensable pour que
+            // "Restaurer hero mobile" donne le rendu CSS pur en mobile.
+            // Cas particulier : on PRÉSERVE le scale (slider de taille) car il n'est
+            // pas une position — sinon, après un reset position, le timer reprendrait
+            // sa taille 100 % et l'admin perdrait son réglage de taille.
+            resetInlinePosition(el);
+            if (scaleStr.trim()) {
+              el.style.transform       = scaleStr.trim();
+              el.style.transformOrigin = 'left top';
+            }
+            return;
+          }
+          // Application du mode d'ancrage AU-DESSUS des anchor/offset calculés ci-dessus.
+          // Le mode "écrase" l'axe correspondant pour que l'élément reste centré
+          // visuellement quel que soit le redimensionnement de .demo-card.
+          if (axisMode === 'centerX' || axisMode === 'center') {
+            targetLeft = (cardRect.width - elRect.width) / 2;
+          }
+          if (axisMode === 'centerY' || axisMode === 'center') {
+            targetTop = (cardRect.height - elRect.height) / 2;
+          }
+          var preferredY = preferredAnchorY(targetTop, elRect.height, cardRect.height);
+          var isEditorMode = document.body.classList.contains('editor-mode');
+          var needsAnchorMigration = isEditorMode && (
+            (el.dataset.anchorX && el.dataset.anchorY && (el.dataset.anchorX !== 'left' || el.dataset.anchorY !== preferredY))
+            || (el.dataset.posTop && el.dataset.posLeft)
+          );
+          if (needsAnchorMigration) {
+            var migOffsetY = preferredY === 'bottom'
+              ? (cardRect.height - targetTop - elRect.height)
+              : targetTop;
+            // Route vers le bon set (desktop OU mobile) selon le device courant
+            // de l'éditeur, sinon la migration auto pollue le set desktop quand
+            // l'admin est en train d'éditer en mobile.
+            if (typeof window.__writeAnchorAttrs === 'function') {
+              window.__writeAnchorAttrs(el, 'left', preferredY, targetLeft, migOffsetY);
+            } else {
+              el.dataset.anchorX = 'left';
+              el.dataset.anchorY = preferredY;
+              el.dataset.offsetX = targetLeft;
+              el.dataset.offsetY = migOffsetY;
+              delete el.dataset.posTop;
+              delete el.dataset.posLeft;
+            }
+            el.dataset.needsGeometryMigration = '1';
+          }
+          if (directHeroFields.indexOf(el.dataset.editField || '') !== -1) {
+            var alreadyStableAnchor = el.dataset.anchorX === 'left'
+              && (el.dataset.anchorY === 'top' || el.dataset.anchorY === 'bottom')
+              && el.dataset.offsetX
+              && el.dataset.offsetY
+              && !el.dataset.posTop
+              && !el.dataset.posLeft;
+            if (isEditorMode && !alreadyStableAnchor) {
+              el.dataset.needsGeometryMigration = '1';
+            }
+            // SEUL hero_timer doit être déplacé directement dans `.demo-card` : il vit
+            // dans `.demo-panel.video-float` qui a `position:relative` + `transform:
+            // translate(35px,-35px)`, ce qui pénalise `position:absolute`. Les autres
+            // directHero (badges, toggle, social) sont déjà dans des conteneurs qui
+            // ne créent PAS de contexte de positionnement piégeux : les badges sont
+            // dans `.demo-badges` (qui a position:absolute; inset:0 ET z-index:10, donc
+            // au-dessus de .demo-overlay), le toggle/social directement dans `.demo-card`.
+            // Les déplacer dans .demo-card les ferait passer SOUS l'overlay (z-index:2)
+            // → effet "grisé" sur le badge km, exactement le bug que l'admin signale.
+            // hero_timer et hero.cta_register vivent dans .demo-panel.video-float qui a
+            // `position:relative` + `transform: translate(35px,-35px)` → on les sort dans
+            // .demo-card pour que `position:absolute` se résolve contre .demo-card direct.
+            // On garde une trace du parent ORIGINAL (id ou data-original-parent-id) pour
+            // pouvoir restaurer l'élément à son emplacement DOM d'origine lors d'un reset.
+            if ((el.dataset.editField === 'hero_timer'
+              || el.dataset.editField === 'hero.cta_register')
+              && el.parentNode !== card) {
+              if (!el.dataset.originalParent && el.parentNode) {
+                // Marqueur d'origine sur le parent + sur l'élément, pour reset later.
+                if (!el.parentNode.id) el.parentNode.id = '__heroOrigParent_' + el.dataset.editField.replace(/[^a-z0-9]/gi, '_');
+                el.dataset.originalParent = el.parentNode.id;
+              }
+              card.appendChild(el);
+            }
+            el.style.position = 'absolute';
+            el.style.left = targetLeft + 'px';
+            el.style.top  = targetTop  + 'px';
+            el.style.right = 'auto';
+            el.style.bottom = 'auto';
+            el.style.marginLeft = '0px';
+            el.style.marginTop = '0px';
+            el.style.transform = scaleStr.trim();
+            el.style.transformOrigin = 'left top';
+            // z-index élevé pour les éléments DÉPLACÉS dans .demo-card (timer + cta) :
+            // sans ça, ils passent SOUS .demo-overlay (z-index:2) qui a un gradient gris
+            // semi-transparent → effet "grisé" + clic intercepté. C'est le bug "bouton
+            // m'inscris devient grisé et non cliquable" après drag.
+            if (el.parentNode === card) {
+              el.style.zIndex = '10';
+            }
+            delete el.dataset.posTop;
+            delete el.dataset.posLeft;
+            el.dataset.x = 0;
+            el.dataset.y = 0;
+            return;
+          }
+          var dx = targetLeft - naturalLeft;
+          var dy = targetTop  - naturalTop;
+          el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)' + scaleStr;
+          el.style.transformOrigin = 'left top';
+          el.dataset.x = dx;
+          el.dataset.y = dy;
+        });
+        // Reveal : au 1er pass complet, on retire le opacity:0 anti-flash sur .demo-card.
+        var __cardReveal = document.querySelector('.demo-card');
+        if (__cardReveal && !__cardReveal.classList.contains('hero-pos-ready')) {
+          __cardReveal.classList.add('hero-pos-ready');
+        }
+      }
+      // Filet de sécurité : si JS plante, on rend visible après 1.5s pour ne pas
+      // laisser les éléments invisibles indéfiniment.
+      setTimeout(function(){
+        var c = document.querySelector('.demo-card');
+        if (c) c.classList.add('hero-pos-ready');
+      }, 1500);
+      // Première application asap (sans attendre tout 'load') pour éviter le flash.
+      if (document.readyState !== 'loading') {
+        requestAnimationFrame(applyHeroPositionPct);
+      } else {
+        document.addEventListener('DOMContentLoaded', function() {
+          requestAnimationFrame(applyHeroPositionPct);
+        });
+      }
+      window.addEventListener('load', applyHeroPositionPct);
+      var __heroPosResizeTimer = null;
+      window.addEventListener('resize', function() {
+        clearTimeout(__heroPosResizeTimer);
+        __heroPosResizeTimer = setTimeout(applyHeroPositionPct, 80);
+      });
+      var heroCardForPosition = document.querySelector('.demo-card');
+      if (window.ResizeObserver && heroCardForPosition) {
+        var heroPositionObserver = new ResizeObserver(function() {
+          clearTimeout(__heroPosResizeTimer);
+          __heroPosResizeTimer = setTimeout(applyHeroPositionPct, 40);
+        });
+        heroPositionObserver.observe(heroCardForPosition);
+      }
+      // Exposé pour que l'éditeur puisse le rappeler après un drag (mise à jour cohérente
+      // de dataset.x/y même quand seul un attribut data-pos-* change).
+      window.__applyHeroPositionPct = applyHeroPositionPct;
+    })();
+
     // ===== Badge fee tooltip =====
     (function(){
       const badge = document.getElementById('badgeFee');
       if (!badge) return;
+      // En mode éditeur, on ne veut ni le toggle ni l'auto-show (le clic sert à sélectionner
+      // le badge pour le drag/resize).
+      if (document.body.classList.contains('editor-mode')) return;
       badge.addEventListener('click', function(e){
         e.stopPropagation();
         badge.classList.toggle('expanded');
@@ -1249,6 +1801,8 @@ function generateTimelineSVG(int $count): array {
       const vid = document.getElementById('heroVideo');
       const btn = document.getElementById('videoToggle');
       if (!vid || !btn) return;
+      // En mode éditeur, le bouton sert au drag — pas au play/pause.
+      if (document.body.classList.contains('editor-mode')) return;
       const iconPause = btn.querySelector('.vt-pause');
       const iconPlay  = btn.querySelector('.vt-play');
       btn.addEventListener('click', function(){
@@ -1337,15 +1891,68 @@ foreach ($accueilLayout as $_row) {
     overflow-x: hidden; cursor: default;
     min-height: 0 !important;
     display: block !important;
+    /* Cache la scrollbar visuelle DANS l'iframe (le scroll fonctionne quand même via
+       wheel/touch). En mode éditeur, la hauteur est ajustée dynamiquement par le parent
+       au contenu réel, donc la scrollbar interne n'a aucune utilité — elle s'affichait
+       parasitairement entre l'iframe et le wrap noir en mode mobile. */
+    scrollbar-width: none; /* Firefox */
   }
+  body.editor-mode::-webkit-scrollbar,
+  html:has(body.editor-mode)::-webkit-scrollbar { width: 0; height: 0; display: none; } /* Chrome/Safari */
   body.editor-mode main { flex: none !important; }
-  body.editor-mode .demo-video, body.editor-mode .video-toggle { pointer-events: none; }
-  body.editor-mode .accueil-row, body.editor-mode .accueil-col {
-    position: relative; outline: 0;
-    transition: outline .12s, background .12s;
+  /* En mode éditeur : la vidéo est CLIQUABLE pour pouvoir la sélectionner depuis
+     l'aperçu (au lieu d'un bouton overlay). On la passe au-dessus de .demo-overlay
+     (z-index 2) pour que les clics atteignent la <video> et déclenchent le système
+     de sélection existant (outline rose + sidebar propriétés). */
+  /* La vidéo est cliquable en mode éditeur. PAS de z-index élevé pour ne PAS passer
+     devant l'overlay (.demo-overlay z-index:2) qui contient le gradient sombre — sinon
+     le visuel du hero serait cassé. Les clics arrivent à la vidéo parce que l'overlay
+     a `pointer-events: none` en mode éditeur (cf. règles plus bas). */
+  body.editor-mode .demo-video {
+    pointer-events: auto !important;
+    cursor: pointer;
   }
-  body.editor-mode .accueil-row:hover { outline: 2px dashed rgba(244,33,130,.5); outline-offset: -2px; }
-  body.editor-mode .accueil-col:hover { outline: 2px dashed rgba(244,33,130,.7); outline-offset: -2px; }
+  /* La vidéo `<video>` est un élément remplacé qui n'accepte ni outline (Chrome)
+     ni pseudo-éléments. On dessine le pointillé sur son PARENT `.demo-card-media`
+     via `::after`. Le pseudo couvre la même surface que la vidéo (inset:0) et
+     reçoit le hover quand la souris est sur la zone vidéo (l'overlay est en
+     pointer-events:none → le hit-test atteint `.demo-card-media`). */
+  body.editor-mode .demo-card-media::after {
+    content: '';
+    position: absolute;
+    /* `inset: 8px` = 8 px à l'intérieur des bords de la vidéo, créant un GAP visible
+       entre le pointillé rose et le bord de la vidéo. Sans cet espacement, le tracé
+       était collé au bord et peu lisible. */
+    inset: 8px;
+    border: 3px dashed transparent;
+    border-radius: 6px;
+    pointer-events: none;
+    transition: border-color .12s, border-style .12s, border-width .12s;
+    z-index: 5;
+  }
+  body.editor-mode .demo-card-media:hover::after {
+    border-color: #F42182;
+  }
+  /* Sélection : trait plein + plus épais. On utilise :has() pour cibler le parent
+     quand la <video> à l'intérieur reçoit la classe .le-edit-selected (posée par
+     le système de sélection existant au clic). */
+  body.editor-mode .demo-card-media:has(.demo-video.le-edit-selected)::after {
+    border-color: #F42182;
+    border-style: solid;
+    border-width: 3px;
+  }
+  /* .video-toggle reste interactif en mode éditeur pour permettre le drag */
+  body.editor-mode .accueil-row, body.editor-mode .accueil-col {
+    position: relative;
+    /* Largeur d'outline CONSTANTE (3 px) avec couleur transparente au repos, puis
+       seule la couleur change au hover → pas de "flash" où le pointillé apparait
+       petit puis grandit pendant la transition outline-width. */
+    outline: 3px dashed transparent;
+    outline-offset: 4px;
+    transition: outline-color .12s, background .12s;
+  }
+  body.editor-mode .accueil-row:hover { outline-color: rgba(244,33,130,.5); }
+  body.editor-mode .accueil-col:hover { outline-color: rgba(244,33,130,.7); }
   body.editor-mode .accueil-col-hidden {
     opacity: 0.4;
     background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(244,33,130,.05) 10px, rgba(244,33,130,.05) 20px);
@@ -1354,7 +1961,7 @@ foreach ($accueilLayout as $_row) {
      Le contenu placeholder (texte cliquable) est rendu côté serveur dans le bloc. */
   body.editor-mode .custom-html-section { cursor: pointer; min-height: 40px; }
   body.editor-mode .custom-html-section:hover {
-    outline: 2px dashed #6366f1; outline-offset: -2px;
+    outline: 3px dashed #6366f1; outline-offset: 4px;
   }
   /* Fallback si le bloc est vraiment vide */
   body.editor-mode .custom-html-section:empty::before {
@@ -1364,8 +1971,14 @@ foreach ($accueilLayout as $_row) {
     border: 2px dashed #c7d2fe; border-radius: 8px;
   }
   body.editor-mode [data-edit-field] {
-    cursor: pointer; outline: 1px dashed transparent; outline-offset: 2px;
-    transition: outline .12s;
+    cursor: pointer;
+    /* Style harmonisé pour TOUS les éléments éditables : 3 px dashed + 4 px de gap.
+       PAS de border-radius forcé : on garde celui de chaque élément (badges ronds,
+       cartes arrondies, etc.). Les navigateurs modernes font suivre l'outline aux
+       coins arrondis naturels de l'élément. */
+    outline: 3px dashed transparent;
+    outline-offset: 4px;
+    transition: outline-color .12s;
   }
   body.editor-mode [data-edit-field]:hover { outline-color: #F42182; }
   /* Désactive tous les liens et formulaires en mode éditeur */
@@ -1380,13 +1993,16 @@ foreach ($accueilLayout as $_row) {
   body.editor-mode button[type="submit"][data-edit-field],
   body.editor-mode a[data-edit-field] { pointer-events: auto !important; cursor: pointer !important; }
   /* Force clickable les éléments éditables même imbriqués */
-  body.editor-mode .demo-overlay { pointer-events: auto !important; }
-  body.editor-mode .demo-overlay > * { pointer-events: none; }
+  /* L'overlay ne capture PLUS les clics : seuls les éléments éditables le font
+     (badges, timer, sous-titre, bouton CTA…). Les zones vides laissent passer
+     le clic vers `.demo-card-media > video[data-edit-field="video_accueil"]`
+     → sélection visuelle + sidebar avec les propriétés (slider hauteur, toggle
+     pleine largeur, bouton "Modifier le contenu" qui ouvre l'upload existant). */
+  body.editor-mode .demo-overlay { pointer-events: none !important; }
   body.editor-mode .demo-overlay [data-edit-field] { pointer-events: auto !important; }
-  body.editor-mode .countdown-wrap[data-edit-field] {
-    cursor: pointer; outline: 2px dashed transparent; outline-offset: 4px; transition: outline .12s;
-  }
-  body.editor-mode .countdown-wrap[data-edit-field]:hover { outline-color: #F42182; }
+  body.editor-mode .demo-video[data-edit-field] { pointer-events: auto !important; cursor: pointer !important; }
+  /* Le timer hérite désormais du style commun `body.editor-mode [data-edit-field]`
+     (3 px dashed, 4 px de gap). On retire l'override 2 px qui dérogeait. */
 
   /* Guides d'alignement (apparaissent pendant le drag d'un élément) */
   body.editor-mode .align-guide {
@@ -1403,11 +2019,26 @@ foreach ($accueilLayout as $_row) {
 
   /* CRITIQUE : neutralise les unités vh qui causent une boucle infinie de redimensionnement
      dans l'iframe (le Hero a height: 70vh → si iframe = 1500px, Hero = 1050px → iframe + grand → ...)
-     En éditeur on fixe les hauteurs basées sur vh à des valeurs absolues. */
+     En éditeur on remplace par une valeur en px ABSOLUE. La CSS variable
+     `--hero-card-height` (posée par le slider de l'éditeur) reste prioritaire pour
+     que l'admin puisse override la hauteur — fallback 600 px sinon. */
+  /* En mode éditeur DESKTOP : on utilise UNIQUEMENT --hero-card-height (desktop).
+     Sans ça, le fallback `var(--hero-card-height-mobile, ...)` prenait la valeur
+     mobile en priorité → toucher la hauteur en mobile affectait l'aperçu desktop
+     (bug "mobile et desktop liés pour la vidéo"). */
   body.editor-mode .demo-card {
-    height: 600px !important;
-    min-height: 600px !important;
-    max-height: 600px !important;
+    height:     var(--hero-card-height, 600px) !important;
+    min-height: var(--hero-card-height, 600px) !important;
+    max-height: var(--hero-card-height, 600px) !important;
+  }
+  /* En mode éditeur MOBILE (iframe rétrécie < 1040px) : --hero-card-height-mobile
+     prioritaire, fallback desktop puis 600px. Cohérent avec le viewport de l'iframe. */
+  @media (max-width: 1040px) {
+    body.editor-mode .demo-card {
+      height:     var(--hero-card-height-mobile, var(--hero-card-height, 600px)) !important;
+      min-height: var(--hero-card-height-mobile, var(--hero-card-height, 600px)) !important;
+      max-height: var(--hero-card-height-mobile, var(--hero-card-height, 600px)) !important;
+    }
   }
   body.editor-mode .timeline-svg { /* la timeline aussi peut avoir vh */
     max-height: none !important;
@@ -1421,6 +2052,209 @@ foreach ($accueilLayout as $_row) {
   // Désactive l'autoplay et les redirections
   var heroVideo = document.getElementById('heroVideo');
   if (heroVideo) { heroVideo.removeAttribute('autoplay'); try { heroVideo.pause(); } catch(e) {} heroVideo.muted = true; }
+
+
+  // Device courant signalé par le parent (settings) via postMessage 'editor-set-device'.
+  // Influe sur la clé de sauvegarde (suffixe _mobile côté PHP) ET sur le calcul des
+  // ancres pendant un drag : en mobile, getBoundingClientRect lit la version mobile
+  // du DOM (l'iframe est rétrécie, le CSS media query bascule en layout mobile).
+  //
+  // SOURCE DE VÉRITÉ : on lit directement la classe `.is-mobile` sur le wrapper
+  // `#ifePreviewWrap` du parent (settings). C'est plus fiable que la variable cachée
+  // `__currentEditorDevice` qui dépendait du timing du postMessage 'editor-set-device'
+  // (parfois reçu APRÈS un drag rapide → écriture dans le mauvais set d'attrs).
+  // Fallback sur __currentEditorDevice + innerWidth si l'accès parent échoue.
+  var __currentEditorDevice = 'desktop';
+  function __detectEditorDevice() {
+    try {
+      var w = window.parent && window.parent.document
+        ? window.parent.document.getElementById('ifePreviewWrap')
+        : null;
+      if (w) return w.classList.contains('is-mobile') ? 'mobile' : 'desktop';
+    } catch(e) { /* cross-origin ou parent pas accessible : fallback */ }
+    if (__currentEditorDevice === 'mobile' || __currentEditorDevice === 'desktop') {
+      return __currentEditorDevice;
+    }
+    return window.innerWidth < 1040 ? 'mobile' : 'desktop';
+  }
+  window.__getEditorDevice = __detectEditorDevice;
+
+  // Champs qui ont leur propre élément HTML pour PC et mobile (séparés via CSS).
+  // Pour ces champs, le nom du champ porte déjà le device (titleAccueil_mobile),
+  // donc on écrit dans les attributs de base. Pour les AUTRES éléments (badges,
+  // timer, social, toggle) qui n'ont qu'un seul nœud DOM partagé, l'écriture
+  // doit cibler la variante *-mobile du dataset quand on édite en mobile, sinon
+  // l'édition mobile écrase la position desktop en mémoire (bug "PC et mobile liés").
+  var __TWIN_HTML_FIELDS = [
+    'titleAccueil', 'titleAccueil_mobile',
+    'subtitle_accueil', 'subtitle_accueil_mobile'
+  ];
+  // Liste des champs hero qui ont UN SEUL élément HTML (pas de jumeau .hero-pc/.hero-mobile).
+  // Pour ces champs, on simule la séparation comme pour subtitle_accueil_mobile en :
+  //  - modifiant `data-edit-field` selon le device courant (`hero_timer` ↔ `hero_timer_mobile`)
+  //  - idem pour `data-edit-size` (`hero_timer_size` ↔ `hero_timer_size_mobile`)
+  // Le drag/save part alors avec le bon field, la sidebar parent affiche le bon nom,
+  // et le PHP enregistre sans avoir besoin de logique de suffixage (le field arrive déjà
+  // suffixé). En clair : depuis le point de vue de l'admin, chaque device a SON champ.
+  var __DEVICE_SUFFIX_FIELDS = ['hero_timer', 'badge_fee', 'badge_km', 'video_toggle', 'video_social_card', 'video_accueil'];
+  function __syncFieldNamesToDevice() {
+    var dev = __detectEditorDevice();
+    var addSuffix = (dev === 'mobile');
+    __DEVICE_SUFFIX_FIELDS.forEach(function(baseField) {
+      // Cherche l'élément par son field actuel (peut être base OU déjà suffixé).
+      var el = document.querySelector(
+        '[data-edit-field="' + baseField + '"], [data-edit-field="' + baseField + '_mobile"]'
+      );
+      if (!el) return;
+      var targetField    = addSuffix ? (baseField + '_mobile') : baseField;
+      var baseSizeKey    = el.dataset.editSize ? el.dataset.editSize.replace(/_mobile$/, '') : null;
+      var targetSizeKey  = (baseSizeKey && addSuffix) ? (baseSizeKey + '_mobile') : baseSizeKey;
+      el.dataset.editField = targetField;
+      if (baseSizeKey) el.dataset.editSize = targetSizeKey;
+      // ── PAS de manipulation du transform pour les éléments sans slider de taille
+      // (video_social_card et video_toggle : kind="size-only" mais sans data-edit-size).
+      // Sans ce skip, on écrasait leur transform CSS naturel (ex: translateY(-50%) pour
+      // .video-social-card) par un transform inline vide → la card se "déplaçait"
+      // verticalement de manière imprévisible au toggle device ou au load.
+      if (!baseSizeKey) {
+        // Le cache dataset.scale reste invalidé pour cohérence avec les autres.
+        delete el.dataset.scale;
+        return;
+      }
+      // ── Détermine les valeurs PC / mobile pour appliquer le scale visuel.
+      // La SOURCE DE VÉRITÉ reste data-edit-size-current (desktop) et
+      // data-edit-size-current-mobile (mobile). Ces attrs sont maintenus à jour par
+      // le handler `parent-update-style` à chaque save → on n'a PAS besoin d'un
+      // backup `editSizeCurrentDesktopOriginal` (qui était figé à la valeur initiale
+      // et causait "slider revient à 100% au retour Desktop alors qu'on avait sauvé 130%").
+      var desktopValue = parseInt(el.dataset.editSizeCurrent || '100', 10);
+      var mobileValue  = el.dataset.editSizeCurrentMobile
+        ? parseInt(el.dataset.editSizeCurrentMobile, 10)
+        : 100;
+      var effectiveScale = (addSuffix ? mobileValue : desktopValue) / 100;
+      // Applique le scale visuel au inline style.transform en conservant le translate
+      // existant. CRITIQUE : sans ça, le scale desktop (1.3 par ex.) émis inline par
+      // PHP restait appliqué en mobile (où la valeur effective est 100%), faisant
+      // l'illusion que mobile et desktop sont liés visuellement.
+      var currentTransform = el.style.transform || '';
+      var withoutScale = currentTransform.replace(/\s*scale\([^)]*\)/g, '').trim();
+      if (Math.abs(effectiveScale - 1) > 0.001) {
+        el.style.transform = (withoutScale ? withoutScale + ' ' : '') + 'scale(' + effectiveScale + ')';
+        el.style.transformOrigin = 'left top';
+      } else {
+        el.style.transform = withoutScale;
+      }
+      // Le cache dataset.scale est invalidé pour que getElementScale recalcule au
+      // prochain drag (sinon il garderait la valeur du device précédent).
+      delete el.dataset.scale;
+    });
+  }
+  // Synchronisation initiale (peut être appelée avant que le parent envoie set-device).
+  if (document.readyState !== 'loading') {
+    __syncFieldNamesToDevice();
+  } else {
+    document.addEventListener('DOMContentLoaded', __syncFieldNamesToDevice);
+  }
+  window.__syncFieldNamesToDevice = __syncFieldNamesToDevice;
+
+  function __writeAnchorAttrs(el, anchorX, anchorY, offsetX, offsetY) {
+    var field = el.dataset.editField || '';
+    // Lit le device DEPUIS LE PARENT (DOM) plutôt que la variable cachée — robuste
+    // contre les courses postMessage. Voir __detectEditorDevice ci-dessus.
+    var dev = __detectEditorDevice();
+    var useMobileKey = (__TWIN_HTML_FIELDS.indexOf(field) === -1)
+                    && (dev === 'mobile');
+    if (useMobileKey) {
+      el.dataset.anchorXMobile = anchorX;
+      el.dataset.anchorYMobile = anchorY;
+      el.dataset.offsetXMobile = offsetX;
+      el.dataset.offsetYMobile = offsetY;
+      delete el.dataset.posTopMobile;
+      delete el.dataset.posLeftMobile;
+    } else {
+      el.dataset.anchorX = anchorX;
+      el.dataset.anchorY = anchorY;
+      el.dataset.offsetX = offsetX;
+      el.dataset.offsetY = offsetY;
+      delete el.dataset.posTop;
+      delete el.dataset.posLeft;
+    }
+  }
+  window.__writeAnchorAttrs = __writeAnchorAttrs;
+
+  function migrateLegacyHeroGeometry() {
+    if (typeof window.__applyHeroPositionPct === 'function') {
+      window.__applyHeroPositionPct();
+    }
+    var migratableFields = [
+      'video_toggle', 'video_social_card',
+      'badge_fee', 'badge_km',
+      'hero_timer',
+      'titleAccueil', 'titleAccueil_mobile',
+      'subtitle_accueil', 'subtitle_accueil_mobile'
+    ];
+    var migratedCount = 0;
+    document.querySelectorAll('[data-edit-section="hero"][data-edit-field]').forEach(function(el) {
+      var field = el.dataset.editField;
+      if (migratableFields.indexOf(field) === -1) return;
+      var inlineTransform = el.style.transform || '';
+      var hasLegacyPct = !!(el.dataset.posTop && el.dataset.posLeft);
+      var hasLegacyTranslate = /translate\(/.test(inlineTransform);
+      var hasOldResponsiveAnchor = !!(el.dataset.anchorX && el.dataset.anchorY && el.dataset.offsetX && el.dataset.offsetY);
+
+      var card = el.closest('.demo-card');
+      if (!card) return;
+      var pr = card.getBoundingClientRect();
+      var er = el.getBoundingClientRect();
+      if (pr.width <= 0 || pr.height <= 0 || er.width <= 0 || er.height <= 0) return;
+
+      var anchorX = 'left';
+      var anchorY = ((er.top + er.bottom) / 2 - pr.top < pr.height / 2) ? 'top' : 'bottom';
+      var offsetX = er.left - pr.left;
+      var offsetY = anchorY === 'bottom' ? (pr.bottom - er.bottom) : (er.top - pr.top);
+      var hasStableAnchor = el.dataset.anchorX === anchorX
+        && el.dataset.anchorY === anchorY
+        && el.dataset.offsetX
+        && el.dataset.offsetY
+        && !hasLegacyPct
+        && el.dataset.needsGeometryMigration !== '1';
+      if (hasStableAnchor && !hasLegacyTranslate) return;
+      var scale = parseFloat(el.dataset.scale) || 1;
+      var scaleMatch = inlineTransform.match(/scale\(([\d.]+)\)/);
+      if (scaleMatch) scale = parseFloat(scaleMatch[1]) || scale;
+      if (el.dataset.editSizeCurrent && scale === 1) {
+        var sizeScale = parseInt(el.dataset.editSizeCurrent, 10) / 100;
+        if (sizeScale && Math.abs(sizeScale - 1) > 0.001) scale = sizeScale;
+      }
+
+      __writeAnchorAttrs(el, anchorX, anchorY, offsetX, offsetY);
+      delete el.dataset.needsGeometryMigration;
+
+      parent.postMessage({
+        type: 'editor-save-geometry',
+        field: field,
+        device: __detectEditorDevice(),
+        geometry: {
+          x: 0,
+          y: 0,
+          w: el.offsetWidth,
+          h: el.offsetHeight,
+          scale: scale,
+          anchorX: anchorX,
+          anchorY: anchorY,
+          offsetX: offsetX,
+          offsetY: offsetY
+        }
+      }, '*');
+      migratedCount++;
+    });
+    return migratedCount;
+  }
+  // Exposé pour pouvoir être déclenché depuis le parent (bouton "Migrer positions").
+  // ATTENTION : ne PAS appeler automatiquement au load — cela créerait un draft
+  // ("Modifications non publiées") à chaque ouverture de l'éditeur, même quand
+  // rien n'a réellement été modifié. La migration ne tourne que sur clic explicite.
+  window.__migrateLegacyHeroGeometry = migrateLegacyHeroGeometry;
 
   // Envoie au parent la structure du layout avec les positions (rects)
   function sendLayoutStructure() {
@@ -1503,29 +2337,44 @@ foreach ($accueilLayout as $_row) {
   window.addEventListener('load', function() { setTimeout(function() { lastDocHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight); sendLayoutStructure(); }, 100); });
   window.addEventListener('resize', debouncedSend);
 
-  // Récupère les infos d'un élément data-edit-field
+  // Récupère les infos d'un élément data-edit-field.
+  // sizeCurrent reflète la valeur du DEVICE courant — TOTALEMENT indépendant :
+  // - En mobile : on lit UNIQUEMENT data-edit-size-current-mobile. Si absent, valeur 100%
+  //   (PAS de fallback sur la taille desktop, sinon l'admin voyait "100% sur slider mais
+  //    élément plus grand" car la taille desktop fuyait visuellement et numériquement).
+  // - En desktop : on lit data-edit-size-current.
   function getEditPayload(ed, type) {
     var src = '';
     if (ed.tagName === 'IMG') src = ed.getAttribute('src') || '';
     else if (ed.querySelector('source')) src = ed.querySelector('source').getAttribute('src') || '';
+    var isMobileView = window.innerWidth < 1040;
+    var sizeCurrentRaw = isMobileView
+      ? (ed.dataset.editSizeCurrentMobile || '100')
+      : (ed.dataset.editSizeCurrent       || '100');
     return {
       type: type,
       field: ed.dataset.editField,
       kind: ed.dataset.editKind,
       section: ed.dataset.editSection,
       sizeKey: ed.dataset.editSize || null,
-      sizeCurrent: parseInt(ed.dataset.editSizeCurrent || '100', 10),
+      sizeCurrent: parseInt(sizeCurrentRaw, 10),
       currentValue: (ed.dataset.editKind === 'tinymce') ? ed.innerHTML
                      : (ed.dataset.editKind === 'text') ? ed.textContent.trim()
                      : src.split('/').pop()
     };
   }
 
-  // SINGLE CLICK : sélectionne, montre le slider de taille dans la sidebar parent
+  // SINGLE CLICK : sélectionne, montre le slider de taille dans la sidebar parent.
+  // On garde la référence au dernier élément sélectionné pour pouvoir ré-émettre
+  // un `editor-select-edit` quand le device toggle change (sinon le slider de la
+  // sidebar reste sur la valeur de l'ancien device et l'admin croit que sa
+  // modification ne prend pas effet).
+  var __lastEditField = null;
   document.addEventListener('click', function(e) {
     var ed = e.target.closest('[data-edit-field]');
     if (ed) {
       e.preventDefault(); e.stopPropagation();
+      __lastEditField = ed;
       parent.postMessage(getEditPayload(ed, 'editor-select-edit'), '*');
       return;
     }
@@ -1563,13 +2412,17 @@ foreach ($accueilLayout as $_row) {
   }, true);
 
   // CLIC DROIT : menu contextuel transmis au parent (sidebar) pour proposer toutes
-  // les actions sur l'élément ciblé (modifier, supprimer, masquer, extraire, etc.)
+  // les actions sur l'élément ciblé (modifier, supprimer, masquer, extraire, etc.).
+  // Si le clic est sur un ÉLÉMENT HERO (data-edit-field d'une section "hero"), on
+  // envoie en plus le mode d'ancrage courant pour permettre au parent d'afficher
+  // les options "Centré X / Centré Y / Centré 2D / Libre".
   document.addEventListener('contextmenu', function(e) {
+    var heroEl = e.target.closest('[data-edit-field][data-edit-section="hero"]');
     var col = e.target.closest('[data-editor-col-idx]');
     var row = e.target.closest('[data-editor-row-id]');
-    if (!col && !row) return;
+    if (!heroEl && !col && !row) return;
     e.preventDefault();
-    parent.postMessage({
+    var payload = {
       type: 'editor-contextmenu',
       // Position dans l'iframe (le parent ajoutera l'offset de l'iframe)
       x: e.clientX,
@@ -1578,7 +2431,19 @@ foreach ($accueilLayout as $_row) {
       colIdx: col ? parseInt(col.dataset.editorColIdx, 10) : null,
       sectionType: col ? col.dataset.editorSectionType : null,
       sectionId: col ? col.dataset.editorSectionId : null
-    }, '*');
+    };
+    if (heroEl) {
+      var deviceMobile = (typeof window.__getEditorDevice === 'function')
+        ? window.__getEditorDevice() === 'mobile'
+        : (window.innerWidth < 1040);
+      var currentMode = (deviceMobile && heroEl.dataset.axisModeMobile)
+        ? heroEl.dataset.axisModeMobile
+        : (heroEl.dataset.axisMode || 'free');
+      payload.heroField   = heroEl.dataset.editField;
+      payload.heroDevice  = deviceMobile ? 'mobile' : 'desktop';
+      payload.heroMode    = currentMode;
+    }
+    parent.postMessage(payload, '*');
   }, true);
 
   // DOUBLE CLICK : édition inline pour les textes simples, modal pour le reste
@@ -1633,7 +2498,12 @@ foreach ($accueilLayout as $_row) {
   // ── Drag libre + resize 4-coins via interact.js + GUIDES D'ALIGNEMENT ──
   if (typeof interact !== 'undefined') {
     function postGeometry(field, geom) {
-      parent.postMessage({ type: 'editor-save-geometry', field: field, geometry: geom }, '*');
+      parent.postMessage({
+        type: 'editor-save-geometry',
+        field: field,
+        device: __detectEditorDevice(),
+        geometry: geom
+      }, '*');
     }
 
     // Conteneur pour les guides d'alignement (créé une fois)
@@ -1700,6 +2570,22 @@ foreach ($accueilLayout as $_row) {
       var t = el.style.transform || '';
       var m = t.match(/scale\(([\d.]+)\)/);
       if (m) { el.dataset.scale = m[1]; return parseFloat(m[1]); }
+      // Device-aware : en mode mobile, on lit UNIQUEMENT la taille mobile dédiée
+      // (data-size-mobile / data-edit-size-current-mobile). Si elle n'existe pas, on
+      // retourne 1 (taille CSS naturelle) — on NE retombe PAS sur la taille desktop.
+      // Sinon, drag/resize en mode mobile réappliquait le scale DESKTOP et l'élément
+      // semblait "rétrécir" alors que mobile n'a pas de réglage explicite.
+      var deviceMobile = (typeof window.__getEditorDevice === 'function')
+        ? window.__getEditorDevice() === 'mobile'
+        : (window.innerWidth < 1040);
+      if (deviceMobile) {
+        var mob = el.dataset.sizeMobile || el.dataset.editSizeCurrentMobile;
+        if (mob) {
+          var smz = parseInt(mob, 10) / 100;
+          if (smz && smz !== 1) { el.dataset.scale = smz; return smz; }
+        }
+        return 1; // pas de taille mobile → taille CSS naturelle, sans fallback desktop
+      }
       if (el.dataset.editSizeCurrent) {
         var sz = parseInt(el.dataset.editSizeCurrent, 10) / 100;
         if (sz && sz !== 1) { el.dataset.scale = sz; return sz; }
@@ -1718,25 +2604,74 @@ foreach ($accueilLayout as $_row) {
       el.style.transform = t;
     }
 
+    function readTranslateFromTransform(transformValue) {
+      if (!transformValue || transformValue === 'none') return null;
+      var direct = transformValue.match(/translate\(\s*([-\d.]+)px\s*,\s*([-\d.]+)px\s*\)/);
+      if (direct) return { x: parseFloat(direct[1]) || 0, y: parseFloat(direct[2]) || 0 };
+      var matrix = transformValue.match(/^matrix\((.+)\)$/);
+      if (matrix) {
+        var parts = matrix[1].split(',').map(function(v) { return parseFloat(v.trim()) || 0; });
+        return { x: parts[4] || 0, y: parts[5] || 0 };
+      }
+      var matrix3d = transformValue.match(/^matrix3d\((.+)\)$/);
+      if (matrix3d) {
+        var parts3d = matrix3d[1].split(',').map(function(v) { return parseFloat(v.trim()) || 0; });
+        return { x: parts3d[12] || 0, y: parts3d[13] || 0 };
+      }
+      return null;
+    }
+
     // Liste des champs qui sont des BOUTONS d'action → édition simple (textarea sidebar),
     // PAS de drag libre ni resize 4-coins. Sinon le clic ferait apparaître les
     // poignées de redimensionnement ce que l'utilisateur ne veut pas pour ces boutons.
-    var NO_DRAG_FIELDS = ['hero.cta_register', 'reg_bar.btn_check', 'partners.btn_submit'];
+    // `hero.cta_register` (bouton "Je m'inscris") A ÉTÉ RETIRÉ pour le rendre draggable
+    // dans le hero. On le met dans NO_RESIZE_FIELDS pour ne pas avoir de poignées de resize
+    // (le bouton garde sa taille naturelle CSS).
+    var NO_DRAG_FIELDS = ['reg_bar.btn_check', 'partners.btn_submit'];
+    // Champs draggables MAIS sans resize 4-coins (le slider de taille suffit, et le resize
+    // libre déformerait le badge circulaire en ovale).
+    var NO_RESIZE_FIELDS = ['badge_fee', 'badge_km', 'video_toggle', 'video_social_card', 'hero.cta_register'];
     var draggables = document.querySelectorAll('[data-edit-field][data-edit-section="hero"], [data-edit-field][data-edit-section="partners"]');
     draggables.forEach(function(el) {
       if (el.dataset.editKind === 'video') return;
       if (NO_DRAG_FIELDS.indexOf(el.dataset.editField) !== -1) return;
-      el.style.position = el.style.position || 'relative';
+      // Ne force 'relative' QUE si l'élément est en static. Sinon on préserve le positionnement
+      // CSS (ex: .video-toggle et .video-social-card sont absolus → ne pas écraser).
+      var __computedPos = (window.getComputedStyle ? window.getComputedStyle(el).position : '');
+      if (!el.style.position && __computedPos === 'static') el.style.position = 'relative';
       el.style.touchAction = 'none';
-      el.dataset.x = el.dataset.x || '0';
-      el.dataset.y = el.dataset.y || '0';
+      // Initialise dataset.x/y depuis le transform inline rendu par PHP (geometry sauvée).
+      // Sinon, après reload, le slider de taille écraserait la position en remettant translate(0,0).
+      if (!el.dataset.x) {
+        var __initTranslate = readTranslateFromTransform(el.style.transform || '');
+        if (!__initTranslate && window.getComputedStyle) {
+          __initTranslate = readTranslateFromTransform(window.getComputedStyle(el).transform || '');
+        }
+        el.dataset.x = __initTranslate ? String(__initTranslate.x) : '0';
+        el.dataset.y = __initTranslate ? String(__initTranslate.y) : '0';
+      }
 
-      interact(el)
+      // Lit le mode d'ancrage actif (device-aware) pour contraindre le drag.
+      function getActiveAxisMode(elNode) {
+        var deviceMobile = (typeof window.__getEditorDevice === 'function')
+          ? window.__getEditorDevice() === 'mobile'
+          : (window.innerWidth < 1040);
+        var mob = elNode.dataset.axisModeMobile;
+        var dsk = elNode.dataset.axisMode;
+        var m = deviceMobile && mob ? mob : (dsk || 'free');
+        return (m === 'centerX' || m === 'centerY' || m === 'center') ? m : 'free';
+      }
+      var inter = interact(el)
         .draggable({
           listeners: {
             move: function(event) {
-              var x = (parseFloat(event.target.dataset.x) || 0) + event.dx;
-              var y = (parseFloat(event.target.dataset.y) || 0) + event.dy;
+              var mode = getActiveAxisMode(event.target);
+              // En mode 'center' : aucun mouvement (l'élément reste figé au centre 2D).
+              if (mode === 'center') return;
+              var dx = (mode === 'centerX') ? 0 : event.dx; // axe X bloqué si centerX
+              var dy = (mode === 'centerY') ? 0 : event.dy; // axe Y bloqué si centerY
+              var x = (parseFloat(event.target.dataset.x) || 0) + dx;
+              var y = (parseFloat(event.target.dataset.y) || 0) + dy;
               applyTransform(event.target, x, y);
               event.target.dataset.x = x;
               event.target.dataset.y = y;
@@ -1745,7 +2680,10 @@ foreach ($accueilLayout as $_row) {
               var snap = computeAlignment(event.target, event.target.getBoundingClientRect());
               var slow = (event.speed || 0) < 250; // px/sec
               if (slow && (snap.dx || snap.dy)) {
-                var nx = x + snap.dx, ny = y + snap.dy;
+                // Snap respecte aussi la contrainte d'axe.
+                var snapDx = (mode === 'centerX') ? 0 : snap.dx;
+                var snapDy = (mode === 'centerY') ? 0 : snap.dy;
+                var nx = x + snapDx, ny = y + snapDy;
                 applyTransform(event.target, nx, ny);
                 event.target.dataset.x = nx;
                 event.target.dataset.y = ny;
@@ -1755,16 +2693,79 @@ foreach ($accueilLayout as $_row) {
               clearGuides();
               var field = event.target.dataset.editField;
               if (!field) return;
-              postGeometry(field, {
+              var geom = {
                 x: parseFloat(event.target.dataset.x) || 0,
                 y: parseFloat(event.target.dataset.y) || 0,
                 w: event.target.offsetWidth,
                 h: event.target.offsetHeight,
                 scale: parseFloat(event.target.dataset.scale) || 1
-              });
+              };
+              // Tous les éléments draggables du Hero stockent leur position en ANCRE+OFFSET PX
+              // depuis la gauche et depuis le haut/bas selon la position dans les settings
+              // → position visuelle FIGÉE à pixel près. Plus de décalage entre l'iframe
+              // étroite de l'éditeur et la page live large (problème des % qui scalaient avec
+              // la largeur du conteneur alors que le titre ne grandit pas proportionnellement).
+              // NB : on NE bake PAS en top/left CSS — les badges sont dans .demo-badges, leur
+              // ancêtre positionné n'est pas .demo-card. Le runtime (applyHeroPositionPct)
+              // calcule le bon transform translate à partir des data-anchor-*/data-offset-*.
+              var PCT_FIELDS = [
+                'video_toggle', 'video_social_card',
+                'badge_fee', 'badge_km',
+                'hero_timer',
+                'titleAccueil', 'titleAccueil_mobile',
+                'subtitle_accueil', 'subtitle_accueil_mobile',
+                'hero.cta_register'
+              ];
+              if (PCT_FIELDS.indexOf(field) !== -1) {
+                var parentEl = event.target.closest('.demo-card');
+                if (parentEl) {
+                  var pr = parentEl.getBoundingClientRect();
+                  var er = event.target.getBoundingClientRect();
+                  if (pr.width > 0 && pr.height > 0) {
+                    // ANCRAGE AU COIN LE PLUS PROCHE en pixels. Quand la card change
+                    // de taille (vh / breakpoints), l'élément reste à la MÊME DISTANCE
+                    // de SON coin de référence. Ex : élément à 5 px du bord droit et
+                    //  15 px du haut → on sauve anchorX=right, offsetX=5, anchorY=top,
+                    //  offsetY=15. Reste collé au coin haut-droit quoiqu'il arrive.
+                    var elCenterX = (er.left + er.right)  / 2;
+                    var elCenterY = (er.top  + er.bottom) / 2;
+                    var cardCenterX = pr.left + pr.width  / 2;
+                    var cardCenterY = pr.top  + pr.height / 2;
+                    var anchorX = (elCenterX > cardCenterX) ? 'right' : 'left';
+                    var anchorY = (elCenterY > cardCenterY) ? 'bottom' : 'top';
+                    var offsetX = (anchorX === 'right')
+                      ? (pr.right - er.right)
+                      : (er.left  - pr.left);
+                    var offsetY = (anchorY === 'bottom')
+                      ? (pr.bottom - er.bottom)
+                      : (er.top    - pr.top);
+                    // Écrit dans le bon set (anchor* desktop OU anchor*Mobile mobile)
+                    // selon le device courant ET selon si le champ a un jumeau HTML.
+                    __writeAnchorAttrs(event.target, anchorX, anchorY, offsetX, offsetY);
+                    geom.anchorX = anchorX;
+                    geom.anchorY = anchorY;
+                    geom.offsetX = offsetX;
+                    geom.offsetY = offsetY;
+                    // Purge des anciens modèles (% legacy + translate px) pour basculer
+                    // proprement vers le nouveau modèle ancré.
+                    delete geom.topPct; delete geom.leftPct;
+                    geom.x = 0;
+                    geom.y = 0;
+                  }
+                }
+              }
+              // Conserve le mode d'ancrage actif (centerX/Y/center/free) lors du save :
+              // sinon, dès que l'admin drag, on perdrait le mode et l'élément retournerait
+              // en 'free' au reload, ce qui défait la propriété "rester centré" demandée.
+              var activeMode = getActiveAxisMode(event.target);
+              if (activeMode !== 'free') geom.mode = activeMode;
+              postGeometry(field, geom);
             }
           }
-        })
+        });
+
+      if (NO_RESIZE_FIELDS.indexOf(el.dataset.editField) !== -1) return;
+      inter
         .resizable({
           edges: { left: true, right: true, bottom: true, top: true },
           modifiers: [interact.modifiers.restrictSize({ min: { width: 50, height: 20 } })],
@@ -1781,13 +2782,32 @@ foreach ($accueilLayout as $_row) {
             end: function(event) {
               var field = event.target.dataset.editField;
               if (!field) return;
-              postGeometry(field, {
+              var resizeGeom = {
                 x: parseFloat(event.target.dataset.x) || 0,
                 y: parseFloat(event.target.dataset.y) || 0,
                 w: event.target.offsetWidth,
                 h: event.target.offsetHeight,
                 scale: parseFloat(event.target.dataset.scale) || 1
-              });
+              };
+              // Recalcule l'ancre+offset après resize : la position visuelle peut avoir bougé
+              // (resize depuis le coin haut-gauche déplace le top/left). Sans ce recalcul, on
+              // sauverait seulement x/y/w/h et la position figée serait perdue.
+              var parentEl = event.target.closest('.demo-card');
+              if (parentEl) {
+                var pr = parentEl.getBoundingClientRect();
+                var er = event.target.getBoundingClientRect();
+                if (pr.width > 0 && pr.height > 0) {
+                  var anchorX = 'left';
+                  var anchorY = (er.top + er.bottom) / 2 - pr.top < pr.height / 2 ? 'top' : 'bottom';
+                  resizeGeom.anchorX = anchorX;
+                  resizeGeom.anchorY = anchorY;
+                  resizeGeom.offsetX = er.left - pr.left;
+                  resizeGeom.offsetY = anchorY === 'bottom' ? (pr.bottom - er.bottom) : (er.top - pr.top);
+                  __writeAnchorAttrs(event.target, resizeGeom.anchorX, resizeGeom.anchorY,
+                                                  resizeGeom.offsetX, resizeGeom.offsetY);
+                }
+              }
+              postGeometry(field, resizeGeom);
             }
           }
         });
@@ -1797,6 +2817,132 @@ foreach ($accueilLayout as $_row) {
   // Réception de commandes du parent (pour scroll-to-section, highlight, update DOM sans reload, etc.)
   window.addEventListener('message', function(e) {
     if (!e.data || typeof e.data !== 'object') return;
+
+    // Bascule Desktop / Mobile : le parent (settings) nous signale quel device l'admin
+    // édite actuellement. Toutes les sauvegardes suivantes seront routées vers la clé
+    // correspondante (suffixe _mobile côté PHP).
+    if (e.data.type === 'editor-set-device') {
+      __currentEditorDevice = (e.data.device === 'mobile') ? 'mobile' : 'desktop';
+      // Renomme les data-edit-field / data-edit-size selon le nouveau device.
+      // Ex: hero_timer → hero_timer_mobile en mobile. Permet à la sidebar parent
+      // d'afficher le bon nom (séparation claire mobile vs PC comme subtitle_accueil).
+      if (typeof __syncFieldNamesToDevice === 'function') __syncFieldNamesToDevice();
+      // Invalide le cache `dataset.scale` sur tous les éléments hero : il avait été
+      // calé via getElementScale() au passage précédent (donc avec la valeur du device
+      // précédent). Sans invalidation, le drag/resize en mobile garderait le scale
+      // desktop hérité — c'est ce qui faisait "rétrécir" le timer au drag mobile alors
+      // qu'aucune taille mobile n'était définie.
+      document.querySelectorAll('[data-edit-section="hero"][data-edit-field]').forEach(function(el){
+        delete el.dataset.scale;
+      });
+      // Réapplique les positions plusieurs fois pour couvrir le timing : l'iframe
+      // vient juste de changer de largeur côté parent, et le reflow interne (window
+      // .innerWidth, breakpoints CSS) peut ne pas être encore propagé. Sans ces
+      // retries, applyHeroPositionPct utilise les attributs du mauvais device.
+      function reapply() {
+        if (typeof window.__applyHeroPositionPct === 'function') {
+          window.__applyHeroPositionPct();
+        }
+      }
+      reapply();
+      setTimeout(reapply, 50);
+      setTimeout(reapply, 200);
+      setTimeout(reapply, 500);
+      // Reapply plus tardifs : la transition CSS de l'iframe (max-width .2s) peut ne pas
+      // être finie à 500ms si le browser ralentit (animations queue, throttling). Sans ces
+      // reapply, video_toggle au toggle Mobile gardait sa position desktop tant qu'on ne
+      // refresh pas. À 800/1200ms on a la garantie que le layout est stable.
+      setTimeout(reapply, 800);
+      setTimeout(reapply, 1200);
+      // Re-publie l'élément sélectionné pour que le slider de la sidebar parent se
+      // rafraîchisse avec la valeur du NOUVEAU device (sinon il reste sur l'ancienne
+      // valeur et l'admin croit que sa modif ne prend pas effet). On attend que le
+      // reflow soit propagé pour que getEditPayload lise le bon innerWidth.
+      if (__lastEditField && document.body.contains(__lastEditField)) {
+        setTimeout(function(){
+          if (__lastEditField && document.body.contains(__lastEditField)) {
+            try {
+              parent.postMessage(getEditPayload(__lastEditField, 'editor-select-edit'), '*');
+            } catch(err) {}
+          }
+        }, 250);
+      }
+      return;
+    }
+
+    // Change le mode d'ancrage (axis-mode) d'un élément hero pour le device demandé.
+    // Le mode est stocké sur le dataset puis persistéé via le flux save_accueil_geometry
+    // standard (en réutilisant les anchor/offset courants, juste avec mode ajouté).
+    if (e.data.type === 'parent-set-axis-mode' && e.data.field) {
+      var modeField  = e.data.field;
+      var modeDev    = (e.data.device === 'mobile') ? 'mobile' : 'desktop';
+      var newMode    = e.data.mode;
+      if (!newMode || ['free','centerX','centerY','center'].indexOf(newMode) === -1) {
+        return;
+      }
+      var modeEls = document.querySelectorAll('[data-edit-field="' + modeField + '"]');
+      modeEls.forEach(function(el){
+        // Dataset device-aware : titleAccueil/subtitle ont leur HTML séparé (mobile vs pc)
+        // donc on écrit toujours sur dataset.axisMode pour eux (pas de variante mobile).
+        var twin = ['titleAccueil','titleAccueil_mobile','subtitle_accueil','subtitle_accueil_mobile'];
+        var useMobileKey = (twin.indexOf(modeField) === -1) && (modeDev === 'mobile');
+        if (newMode === 'free') {
+          // 'free' = retour au comportement libre → on supprime la clé pour économiser
+          // les attributs émis et faire un rendu plus propre.
+          if (useMobileKey) delete el.dataset.axisModeMobile;
+          else              delete el.dataset.axisMode;
+        } else {
+          if (useMobileKey) el.dataset.axisModeMobile = newMode;
+          else              el.dataset.axisMode       = newMode;
+        }
+        // Construit la géométrie courante de l'élément pour la persister avec le mode.
+        // On lit les anchor/offset existants (du bon device) pour les conserver.
+        var dsetAnchorX = useMobileKey ? el.dataset.anchorXMobile : el.dataset.anchorX;
+        var dsetAnchorY = useMobileKey ? el.dataset.anchorYMobile : el.dataset.anchorY;
+        var dsetOffsetX = useMobileKey ? el.dataset.offsetXMobile : el.dataset.offsetX;
+        var dsetOffsetY = useMobileKey ? el.dataset.offsetYMobile : el.dataset.offsetY;
+        var geomPayload = {
+          x: 0, y: 0,
+          w: el.offsetWidth,
+          h: el.offsetHeight,
+          scale: parseFloat(el.dataset.scale) || 1
+        };
+        if (dsetAnchorX && dsetAnchorY) {
+          geomPayload.anchorX = dsetAnchorX;
+          geomPayload.anchorY = dsetAnchorY;
+          geomPayload.offsetX = parseFloat(dsetOffsetX) || 0;
+          geomPayload.offsetY = parseFloat(dsetOffsetY) || 0;
+        }
+        if (newMode !== 'free') geomPayload.mode = newMode;
+        // Persist : passe par le canal save_accueil_geometry standard.
+        parent.postMessage({
+          type: 'editor-save-geometry',
+          field: modeField,
+          device: modeDev,
+          geometry: geomPayload
+        }, '*');
+      });
+      // Réapplique la position : le nouveau mode entre en effet visuellement.
+      if (typeof window.__applyHeroPositionPct === 'function') {
+        window.__applyHeroPositionPct();
+      }
+      return;
+    }
+
+    // Migration one-shot : convertit les positions legacy (% ou translate px) en
+    // ancre+offset px. Le parent reçoit le compteur via 'editor-migrate-done'.
+    if (e.data.type === 'editor-migrate-legacy') {
+      var count = 0;
+      try {
+        if (typeof window.__migrateLegacyHeroGeometry === 'function') {
+          count = window.__migrateLegacyHeroGeometry() || 0;
+        }
+      } catch (err) {
+        count = 0;
+      }
+      parent.postMessage({ type: 'editor-migrate-done', count: count }, '*');
+      return;
+    }
 
     // Édition déclenchée depuis la sidebar parent (clic sur un bouton "Modifier ce texte")
     // → simule un dblclick sur l'élément correspondant pour réutiliser le flow existant
@@ -1811,23 +2957,80 @@ foreach ($accueilLayout as $_row) {
       return;
     }
 
-    // Reset géométrie : retire les styles inline et le dataset.x/y/scale pour un champ
+    // Reset géométrie : retire les styles inline et le dataset.x/y/scale pour un champ.
+    // DEVICE-AWARE : si data.device === 'mobile', on ne supprime QUE les attrs *-mobile
+    // (la position desktop persiste). En desktop, on ne supprime QUE les attrs desktop.
+    // Cas particulier : si le champ finit déjà par `_mobile` (élément HTML séparé pour
+    // titleAccueil_mobile / subtitle_accueil_mobile), on supprime tous les attrs de cet
+    // élément — il n'y a pas de double set sur lui.
     if (e.data.type === 'parent-reset-geometry') {
-      var fields = [e.data.field];
-      // Champs liés (PC + mobile partagent souvent la même clé "size")
-      if (e.data.field === 'titleAccueil')     fields.push('titleAccueil_mobile');
-      if (e.data.field === 'subtitle_accueil') fields.push('subtitle_accueil_mobile');
-      fields.forEach(function(f) {
-        document.querySelectorAll('[data-edit-field="' + f + '"]').forEach(function(el) {
+      var resetDevice = (e.data.device === 'mobile') ? 'mobile' : 'desktop';
+      var fieldName   = e.data.field;
+      var hasMobileSuffix = /_mobile$/.test(fieldName);
+      // En mode mobile sur un champ desktop (badges, timer, etc.), on cible le DOM
+      // de `field` (élément unique) mais on ne touche QU'aux attrs *-mobile.
+      // En mode desktop sur un champ desktop, idem mais sur les attrs sans suffixe.
+      // Sur un champ déjà *_mobile (élément HTML séparé), on traite comme reset complet.
+      document.querySelectorAll('[data-edit-field="' + fieldName + '"]').forEach(function(el) {
+        var resetMobileAttrs   = hasMobileSuffix || resetDevice === 'mobile';
+        var resetDesktopAttrs  = hasMobileSuffix || resetDevice === 'desktop';
+        // Les styles inline (transform/position/etc.) reflètent le device actuellement
+        // appliqué par applyHeroPositionPct. On les nettoie dès qu'on touche ce device,
+        // applyHeroPositionPct les réappliquera depuis les attrs restants (ou fallback CSS).
+        if ((resetDevice === 'mobile' && window.innerWidth < 1040)
+         || (resetDevice === 'desktop' && window.innerWidth >= 1040)
+         || hasMobileSuffix) {
           el.style.transform = '';
           el.style.width = '';
           el.style.height = '';
           el.style.transformOrigin = '';
+          el.style.top = '';
+          el.style.left = '';
+          el.style.right = '';
+          el.style.bottom = '';
+          el.style.marginLeft = '';
+          el.style.marginTop = '';
+          el.style.position = '';
           delete el.dataset.x;
           delete el.dataset.y;
           delete el.dataset.scale;
-        });
+        }
+        if (resetDesktopAttrs) {
+          delete el.dataset.anchorX;
+          delete el.dataset.anchorY;
+          delete el.dataset.offsetX;
+          delete el.dataset.offsetY;
+          delete el.dataset.posTop;
+          delete el.dataset.posLeft;
+          // Mode d'ancrage desktop : sans ça, un mode 'centerX' persisté forçait
+          // applyHeroPositionPct à recentrer la card même après reset → la card
+          // se déplaçait au lieu de revenir à sa position CSS d'origine.
+          delete el.dataset.axisMode;
+          // Pour hero_timer et hero.cta_register : on les avait déplacés dans .demo-card
+          // (via appendChild) pour casser le contexte du panel. Au reset, on les remet
+          // dans leur parent d'origine pour qu'ils retrouvent leur position CSS naturelle.
+          if (el.dataset.originalParent) {
+            var orig = document.getElementById(el.dataset.originalParent);
+            if (orig && el.parentNode !== orig) {
+              orig.appendChild(el);
+            }
+            delete el.dataset.originalParent;
+          }
+        }
+        if (resetMobileAttrs) {
+          delete el.dataset.anchorXMobile;
+          delete el.dataset.anchorYMobile;
+          delete el.dataset.offsetXMobile;
+          delete el.dataset.offsetYMobile;
+          delete el.dataset.posTopMobile;
+          delete el.dataset.posLeftMobile;
+          delete el.dataset.axisModeMobile;
+        }
       });
+      // Réapplique la position depuis les attrs restants (selon viewport courant).
+      if (typeof window.__applyHeroPositionPct === 'function') {
+        window.__applyHeroPositionPct();
+      }
       return;
     }
 
@@ -1841,20 +3044,56 @@ foreach ($accueilLayout as $_row) {
       return;
     }
 
-    // Mise à jour d'un style sans reload (taille, alignement)
+    // Mise à jour d'un style sans reload (taille, alignement).
+    // Les clés `*_size_mobile` sont appliquées UNIQUEMENT si le viewport est mobile
+    // (innerWidth < 1040). Dans tous les cas, on met aussi à jour `data-size-mobile`
+    // pour que applyHeroPositionPct lise la bonne valeur sur resize.
     if (e.data.type === 'parent-update-style') {
       var key = e.data.key;
       var val = e.data.value;
-      // Tailles : titleAccueil_size / subtitle_accueil_size / hero_timer_size
-      if (key === 'titleAccueil_size') {
+      var isMobileKey  = /_size_mobile$/.test(key);
+      var isMobileView = window.innerWidth < 1040;
+      // Pour les clés mobile, on stocke aussi la valeur dans data-size-mobile (lue par
+      // applyHeroPositionPct au resize). Si on n'est pas en mobile view, on évite
+      // d'écraser le style desktop courant — l'effet sera visible à la prochaine bascule.
+      var baseKey = isMobileKey ? key.replace(/_mobile$/, '') : key;
+      var shouldApplyVisually = !isMobileKey || isMobileView;
+      // CRITIQUE : on met à jour `data-edit-size-current` (desktop) ou
+      // `data-edit-size-current-mobile` (mobile) pour que la sidebar affiche la BONNE
+      // valeur à la prochaine sélection/toggle device. Sans ça, le slider montrait
+      // "100%" en revenant sur PC alors qu'on avait sauvé 130% : la valeur "live"
+      // restait coincée dans la BDD/PHP-rendered attr d'origine.
+      var fieldBase = null;
+      if (baseKey === 'hero_timer_size')         fieldBase = 'hero_timer';
+      else if (baseKey === 'badge_fee_size')     fieldBase = 'badge_fee';
+      else if (baseKey === 'badge_km_size')      fieldBase = 'badge_km';
+      else if (baseKey === 'titleAccueil_size')  fieldBase = 'titleAccueil';
+      else if (baseKey === 'subtitle_accueil_size') fieldBase = 'subtitle_accueil';
+      if (fieldBase) {
+        // Cible TOUS les éléments portant ce field, qu'il soit suffixé ou non par
+        // __syncFieldNamesToDevice (data-edit-field='hero_timer' OU 'hero_timer_mobile').
+        var matchSelector = '[data-edit-field="' + fieldBase + '"], [data-edit-field="' + fieldBase + '_mobile"]';
+        document.querySelectorAll(matchSelector).forEach(function(el){
+          if (isMobileKey) {
+            el.dataset.editSizeCurrentMobile = String(parseInt(val,10));
+            el.dataset.sizeMobile             = String(parseInt(val,10));
+          } else {
+            el.dataset.editSizeCurrent = String(parseInt(val,10));
+          }
+        });
+      }
+      if (!shouldApplyVisually) {
+        return; // valeur stockée, application différée à la bascule de viewport
+      }
+      if (baseKey === 'titleAccueil_size') {
         document.querySelectorAll('.demo-kicker').forEach(function(el) {
           el.style.fontSize = (parseInt(val,10)/100) + 'em';
         });
-      } else if (key === 'subtitle_accueil_size') {
+      } else if (baseKey === 'subtitle_accueil_size') {
         document.querySelectorAll('.demo-desc').forEach(function(el) {
           el.style.fontSize = (parseInt(val,10)/100) + 'em';
         });
-      } else if (key === 'hero_timer_size') {
+      } else if (baseKey === 'hero_timer_size') {
         var t = document.querySelector('.countdown-wrap');
         if (t) {
           var s = parseInt(val,10)/100;
@@ -1867,6 +3106,20 @@ foreach ($accueilLayout as $_row) {
           t.style.transform = transform;
           t.style.transformOrigin = 'left top';
           t.style.display = 'inline-block';
+        }
+      } else if (baseKey === 'badge_fee_size' || baseKey === 'badge_km_size') {
+        // Scale d'un badge → tout le texte interne suit automatiquement.
+        var badgeField = (baseKey === 'badge_fee_size') ? 'badge_fee' : 'badge_km';
+        var b = document.querySelector('[data-edit-field="' + badgeField + '"]');
+        if (b) {
+          var bs = parseInt(val,10)/100;
+          b.dataset.scale = bs;
+          var bx = parseFloat(b.dataset.x) || 0;
+          var by = parseFloat(b.dataset.y) || 0;
+          var bt = 'translate(' + bx + 'px, ' + by + 'px)';
+          if (bs !== 1) bt += ' scale(' + bs + ')';
+          b.style.transform = bt;
+          b.style.transformOrigin = 'left top';
         }
       } else if (key.indexOf('text_align__') === 0) {
         // Alignement : key = "text_align__<field>"
