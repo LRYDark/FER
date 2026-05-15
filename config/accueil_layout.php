@@ -310,11 +310,16 @@ function saveAccueilLayout(PDO $pdo, array $layout, bool $toDraft = true): void
  */
 function publishAccueilDraft(PDO $pdo): void
 {
+    // NULLIF(col, '') : si un draft est '' (chaîne vide) au lieu de NULL, on le
+    // traite comme NULL → COALESCE retombe sur la version publiée existante.
+    // Sans ce NULLIF, un reset complet d'un champ stocké à '' écrasait toute la
+    // production (bug : "video_social_card monte / disparaît après Publier" parce
+    // que le draft vide remplaçait silencieusement la prod).
     $pdo->exec("UPDATE setting SET
-        accueil_layout   = COALESCE(accueil_layout_draft,   accueil_layout),
-        accueil_styles   = COALESCE(accueil_styles_draft,   accueil_styles),
-        accueil_texts    = COALESCE(accueil_texts_draft,    accueil_texts),
-        accueil_geometry = COALESCE(accueil_geometry_draft, accueil_geometry),
+        accueil_layout   = COALESCE(NULLIF(accueil_layout_draft,   ''), accueil_layout),
+        accueil_styles   = COALESCE(NULLIF(accueil_styles_draft,   ''), accueil_styles),
+        accueil_texts    = COALESCE(NULLIF(accueil_texts_draft,    ''), accueil_texts),
+        accueil_geometry = COALESCE(NULLIF(accueil_geometry_draft, ''), accueil_geometry),
         accueil_layout_draft   = NULL,
         accueil_styles_draft   = NULL,
         accueil_texts_draft    = NULL,

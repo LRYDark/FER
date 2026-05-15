@@ -231,6 +231,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_field'])
         'picture_partner'         => ['type' => 'file', 'dir' => '../files/_pictures/', 'accept' => ['jpg','jpeg','png','gif','webp']],
     ];
     $field = (string)($_POST['field'] ?? '');
+    // La vidéo est COMMUNE desktop/mobile : `video_accueil_mobile` (nom affiché côté
+    // éditeur en mode mobile) est normalisé vers la colonne unique `video_accueil`.
+    if ($field === 'video_accueil_mobile') {
+        $field = 'video_accueil';
+    }
     if (!isset($allowedFields[$field])) {
         http_response_code(400);
         echo json_encode(['ok' => false, 'err' => 'Champ non autorisé.']);
@@ -274,6 +279,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_field'])
     exit;
 }
 
+// ─── Handler AJAX : restaure les valeurs par défaut du hero (purge tout) ───
+// Supprime du JSON `accueil_geometry_draft` ET/OU `accueil_styles_draft` toutes les
+// clés liées aux éléments du hero pour le device demandé (mobile, desktop ou both).
+// Après ça, le CSS d'origine de `css/accueil.css` reprend la main (positions par
+// défaut : badges flex flow, video_toggle bottom-right desktop ou top-right mobile,
+// social card column desktop ou row mobile static).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restore_accueil_hero_defaults'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    // Scope du reset : 'mobile' = ne touche que les variantes _mobile / _size_mobile,
+    // 'desktop' = ne touche que les clés sans suffixe, 'both' = nettoie tout (rare).
+    $scope = (string)($_POST['scope'] ?? 'both');
+    if (!in_array($scope, ['mobile', 'desktop', 'both'], true)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Scope invalide.']); exit;
+    }
+    // Toutes les clés "base" du hero ; les variantes _mobile sont dérivées par suffixe.
+    $heroBaseFields = [
+        'hero_timer', 'titleAccueil', 'subtitle_accueil',
+        'badge_fee', 'badge_km',
+        'video_toggle', 'video_social_card',
+        'hero.cta_register',
+    ];
+    $heroBaseSizes = [
+        'hero_timer_size', 'titleAccueil_size', 'subtitle_accueil_size',
+        'badge_fee_size', 'badge_km_size',
+    ];
+    // Helper : doit-on supprimer cette clé selon le scope ?
+    $shouldDrop = function(string $key) use ($scope): bool {
+        $isMobile = substr($key, -7) === '_mobile';
+        if ($scope === 'mobile')  return $isMobile;
+        if ($scope === 'desktop') return !$isMobile;
+        return true; // 'both'
+    };
+    try {
+        // Geometry
+        $row = $pdo->query('SELECT COALESCE(accueil_geometry_draft, accueil_geometry) AS g FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $geom = [];
+        if ($row && !empty($row['g'])) {
+            $decoded = json_decode($row['g'], true);
+            if (is_array($decoded)) $geom = $decoded;
+        }
+        foreach ($heroBaseFields as $f) {
+            if ($shouldDrop($f))             unset($geom[$f]);
+            if ($shouldDrop($f . '_mobile')) unset($geom[$f . '_mobile']);
+        }
+        // IMPORTANT : on encode TOUJOURS le tableau, même vide (`{}`/`[]`), pour ne PAS
+        // stocker la chaîne vide. La chaîne vide est falsy, donc le PHP de accueil.php
+        // (qui fait `accueil_geometry_draft ?: accueil_geometry`) basculerait sur la
+        // version PUBLIÉE et l'admin verrait à nouveau les anciennes positions au lieu
+        // du CSS par défaut. Avec `{}`, le draft reste truthy → lecture du draft vide
+        // → aucune position → CSS pur reprend. C'est exactement ce qu'on veut.
+        $geomEncoded = json_encode($geom ?: new stdClass(), JSON_UNESCAPED_UNICODE);
+        $pdo->prepare('UPDATE setting SET accueil_geometry_draft = :g, accueil_draft_updated_at = NOW() WHERE id = 1')
+            ->execute(['g' => $geomEncoded]);
+        // Styles (tailles + alignements). Les alignements (text_align__*) restent —
+        // l'utilisateur n'a pas demandé à les reset. Seules les tailles sont purgées.
+        $rowS = $pdo->query('SELECT COALESCE(accueil_styles_draft, accueil_styles) AS s FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $styles = [];
+        if ($rowS && !empty($rowS['s'])) {
+            $decodedS = json_decode($rowS['s'], true);
+            if (is_array($decodedS)) $styles = $decodedS;
+        }
+        foreach ($heroBaseSizes as $s) {
+            if ($shouldDrop($s))             unset($styles[$s]);
+            if ($shouldDrop($s . '_mobile')) unset($styles[$s . '_mobile']);
+        }
+        $stylesEncoded = json_encode($styles ?: new stdClass(), JSON_UNESCAPED_UNICODE);
+        $pdo->prepare('UPDATE setting SET accueil_styles_draft = :s, accueil_draft_updated_at = NOW() WHERE id = 1')
+            ->execute(['s' => $stylesEncoded]);
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[RESTORE_ACCUEIL_HERO_DEFAULTS] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
 // ─── Handler AJAX : sauvegarde de la géométrie (x/y/w/h) d'un élément éditable ───
 // Utilisé pour drag libre + resize 4-coins de certains éléments (image partenaires, timer Hero, etc.)
 // ─── Handler AJAX : reset (suppression) de la géométrie d'un champ hero ───
@@ -283,11 +367,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_accueil_geometr
         http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
     }
     $allowedResetFields = [
-        'picture_partner', 'hero_timer',
+        'picture_partner',
+        'hero_timer', 'hero_timer_mobile',
         'titleAccueil', 'titleAccueil_mobile',
         'subtitle_accueil', 'subtitle_accueil_mobile',
+        'badge_fee', 'badge_fee_mobile',
+        'badge_km',  'badge_km_mobile',
+        'video_toggle', 'video_toggle_mobile',
+        'video_social_card', 'video_social_card_mobile',
+        'hero.cta_register', 'hero.cta_register_mobile',
     ];
-    $field = (string)($_POST['field'] ?? '');
+    $field  = (string)($_POST['field'] ?? '');
+    $device = (string)($_POST['device'] ?? 'desktop');
+    // En mode mobile, on cible UNIQUEMENT la variante `_mobile` (la position desktop
+    // reste intacte). Inverse pour mode desktop. Si le champ finit déjà par `_mobile`
+    // (cas titleAccueil_mobile / subtitle_accueil_mobile), on garde tel quel.
+    if ($device === 'mobile' && substr($field, -7) !== '_mobile') {
+        $field .= '_mobile';
+    }
     if (!in_array($field, $allowedResetFields, true)) {
         http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Champ non autorisé.']); exit;
     }
@@ -300,9 +397,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_accueil_geometr
             if (is_array($decoded)) $all = $decoded;
         }
         unset($all[$field]);
-        // Écrit dans le BROUILLON (pas direct en prod)
+        // Écrit dans le BROUILLON. CRITIQUE : si `$all` devient vide après le reset,
+        // on stocke '{}' (objet JSON vide, TRUTHY) et NON null. Sinon `COALESCE(NULL, prod)`
+        // au prochain load retomberait sur la PRODUCTION (qui contient encore les positions)
+        // → l'admin verrait sa position publiée RÉAPPARAÎTRE au refresh juste après le reset.
+        // Avec '{}' le draft existe mais ne contient aucune position → PHP n'émet pas
+        // d'attrs → CSS natural appliqué partout.
+        $payload = $all ? json_encode($all, JSON_UNESCAPED_UNICODE) : '{}';
         $pdo->prepare('UPDATE setting SET accueil_geometry_draft = :g, accueil_draft_updated_at = NOW() WHERE id = 1')
-            ->execute(['g' => $all ? json_encode($all, JSON_UNESCAPED_UNICODE) : '']);
+            ->execute(['g' => $payload]);
         echo json_encode(['ok' => true]);
     } catch (\Throwable $e) {
         error_log('[RESET_ACCUEIL_GEOMETRY] ' . $e->getMessage());
@@ -317,11 +420,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_geometry
         http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
     }
     $allowedFields = [
-        'picture_partner', 'hero_timer',
+        'picture_partner',
+        'hero_timer', 'hero_timer_mobile',
         'titleAccueil', 'titleAccueil_mobile',
         'subtitle_accueil', 'subtitle_accueil_mobile',
+        'badge_fee', 'badge_fee_mobile',
+        'badge_km',  'badge_km_mobile',
+        'video_toggle', 'video_toggle_mobile',
+        'video_social_card', 'video_social_card_mobile',
+        'hero.cta_register', 'hero.cta_register_mobile',
     ];
-    $field = (string)($_POST['field'] ?? '');
+    $field  = (string)($_POST['field'] ?? '');
+    $device = (string)($_POST['device'] ?? 'desktop');
+    // Si l'éditeur est en mode "mobile", on enregistre dans la variante _mobile du champ.
+    if ($device === 'mobile' && substr($field, -7) !== '_mobile') {
+        $field .= '_mobile';
+    }
     if (!in_array($field, $allowedFields, true)) {
         http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Champ non autorisé.']); exit;
     }
@@ -342,6 +456,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_geometry
         $sc = (float)$geom['scale'];
         if ($sc > 0.1 && $sc < 10) $clean['scale'] = round($sc, 4);
     }
+    // Position en POURCENTAGE du parent : format historique conservé uniquement pour relire
+    // les anciennes géométries. Les nouvelles sauvegardes privilégient anchor+offset en pixels.
+    if (isset($geom['topPct']) && isset($geom['leftPct'])) {
+        $tp = (float)$geom['topPct'];
+        $lp = (float)$geom['leftPct'];
+        if ($tp >= -50 && $tp <= 150 && $lp >= -50 && $lp <= 150) {
+            $clean['topPct']  = round($tp, 4);
+            $clean['leftPct'] = round($lp, 4);
+        }
+    }
+    // Ancre + offset en PIXELS (nouveau modèle — position visuelle figée à pixel près
+    // quelle que soit la largeur de l'écran). Les nouvelles sauvegardes utilisent left/top ;
+    // right/bottom restent acceptés uniquement pour relire d'anciennes géométries.
+    if (isset($geom['anchorX']) && isset($geom['anchorY'])
+        && in_array($geom['anchorX'], ['left', 'right'], true)
+        && in_array($geom['anchorY'], ['top', 'bottom'], true)
+        && isset($geom['offsetX']) && isset($geom['offsetY'])) {
+        $ox = (float)$geom['offsetX'];
+        $oy = (float)$geom['offsetY'];
+        if ($ox >= -2000 && $ox <= 4000 && $oy >= -2000 && $oy <= 4000) {
+            $clean['anchorX'] = $geom['anchorX'];
+            $clean['anchorY'] = $geom['anchorY'];
+            $clean['offsetX'] = round($ox, 2);
+            $clean['offsetY'] = round($oy, 2);
+            unset($clean['topPct'], $clean['leftPct']);
+        }
+    }
+    // Mode d'ancrage : permet à l'admin de figer un axe au centre de .demo-card
+    // pour que l'élément reste visuellement centré même si la carte change de taille.
+    //  - 'free' (défaut) : anchor+offset libre sur les deux axes
+    //  - 'centerX'       : centré horizontalement, libre verticalement
+    //  - 'centerY'       : centré verticalement, libre horizontalement
+    //  - 'center'        : centré sur les deux axes (immobile)
+    if (isset($geom['mode'])) {
+        $mode = (string)$geom['mode'];
+        if (in_array($mode, ['free', 'centerX', 'centerY', 'center'], true)) {
+            $clean['mode'] = $mode;
+        }
+    }
     try {
         $row = $pdo->query('SELECT COALESCE(accueil_geometry_draft, accueil_geometry) AS g FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
         $all = [];
@@ -352,7 +505,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_geometry
         $all[$field] = $clean;
         $pdo->prepare('UPDATE setting SET accueil_geometry_draft = :g, accueil_draft_updated_at = NOW() WHERE id = 1')
             ->execute(['g' => json_encode($all, JSON_UNESCAPED_UNICODE)]);
-        echo json_encode(['ok' => true]);
+        // On renvoie la clé effective écrite (potentiellement suffixée _mobile) :
+        // le JS peut ainsi confirmer visuellement à l'admin que sa sauvegarde a bien
+        // été routée vers la variante mobile/desktop attendue.
+        echo json_encode(['ok' => true, 'savedKey' => $field, 'device' => $device]);
     } catch (\Throwable $e) {
         error_log('[SAVE_ACCUEIL_GEOMETRY] ' . $e->getMessage());
         http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
@@ -399,6 +555,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_text']))
     exit;
 }
 
+// ─── Handler AJAX : reset des dimensions de la vidéo Hero (hauteur, largeur, pleine
+// largeur) pour le device demandé. Supprime les clés du JSON accueil_styles_draft
+// → au reload, la vidéo retombe sur les valeurs CSS par défaut (clamp 70vh, width 100%). ───
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_hero_card_dimensions'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $scope = (string)($_POST['scope'] ?? 'desktop');
+    if (!in_array($scope, ['mobile', 'desktop', 'both'], true)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Scope invalide.']); exit;
+    }
+    try {
+        $row = $pdo->query('SELECT COALESCE(accueil_styles_draft, accueil_styles) AS s FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $styles = [];
+        if ($row && !empty($row['s'])) {
+            $decoded = json_decode($row['s'], true);
+            if (is_array($decoded)) $styles = $decoded;
+        }
+        $keysDesktop = ['hero_card_height', 'hero_card_width', 'hero_card_fullwidth'];
+        $keysMobile  = ['hero_card_height_mobile', 'hero_card_width_mobile', 'hero_card_fullwidth_mobile'];
+        $toDrop = [];
+        if ($scope === 'desktop' || $scope === 'both') $toDrop = array_merge($toDrop, $keysDesktop);
+        if ($scope === 'mobile'  || $scope === 'both') $toDrop = array_merge($toDrop, $keysMobile);
+        foreach ($toDrop as $k) unset($styles[$k]);
+        $payload = $styles ? json_encode($styles, JSON_UNESCAPED_UNICODE) : null;
+        $stmt = $pdo->prepare('UPDATE setting SET accueil_styles_draft = :s, accueil_draft_updated_at = NOW() WHERE id = 1');
+        $stmt->bindValue(':s', $payload, $payload === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->execute();
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[RESET_HERO_CARD_DIMENSIONS] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
 // ─── Handler AJAX : sauvegarde d'un style (taille) d'un élément du Hero ───
 // Le champ 'sizeKey' doit être whitelisté ; valeur en pourcent (50-250).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])) {
@@ -406,13 +599,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])
     if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
         http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
     }
-    $allowedSizeKeys  = ['titleAccueil_size', 'subtitle_accueil_size', 'hero_timer_size'];
+    $allowedSizeKeys  = [
+        'titleAccueil_size', 'titleAccueil_size_mobile',
+        'subtitle_accueil_size', 'subtitle_accueil_size_mobile',
+        'hero_timer_size', 'hero_timer_size_mobile',
+        'badge_fee_size', 'badge_fee_size_mobile',
+        'badge_km_size',  'badge_km_size_mobile',
+        // Hauteur de la vidéo Hero, en pixels. Plage 300–1500 (cf. validation infra).
+        'hero_card_height', 'hero_card_height_mobile',
+        // Largeur de la vidéo Hero, en POURCENTAGE de la viewport (30-100 %).
+        // 100 % = pleine largeur de la fenêtre du navigateur.
+        'hero_card_width', 'hero_card_width_mobile',
+    ];
     // Options (enum) : clé → valeurs autorisées
     $allowedOptionKeys = [
         'news.card_style' => ['simple', 'with-image', 'with-image-side'],
+        // Pleine largeur du Hero (vidéo qui sort de la container du main).
+        'hero_card_fullwidth' => ['0', '1'],
+        'hero_card_fullwidth_mobile' => ['0', '1'],
     ];
-    $key = (string)($_POST['sizeKey'] ?? '');
+    $key    = (string)($_POST['sizeKey'] ?? '');
+    $device = (string)($_POST['device']  ?? 'desktop');
     $rawVal = $_POST['sizeValue'] ?? '';
+    // En mode mobile, on suffixe `_mobile` à la clé de taille (sauf si déjà suffixée).
+    // Les clés d'alignement (text_align__*) et d'options ne sont pas device-aware.
+    if ($device === 'mobile' && strpos($key, '_size') !== false && substr($key, -7) !== '_mobile') {
+        $key .= '_mobile';
+    }
     $isSize   = in_array($key, $allowedSizeKeys, true);
     $isAlign  = strpos($key, 'text_align__') === 0;
     $isOption = isset($allowedOptionKeys[$key]);
@@ -421,8 +634,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])
     }
     if ($isSize) {
         $val = (int)$rawVal;
-        if ($val < 50 || $val > 300) {
-            http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Taille hors limites (50-300).']); exit;
+        // Plage adaptée par clé :
+        //  - hauteur du hero : 300-1500 px
+        //  - largeur du hero : 30-100 %
+        //  - tailles d'éléments standards : 50-300 %
+        $isHeroHeight = ($key === 'hero_card_height' || $key === 'hero_card_height_mobile');
+        $isHeroWidth  = ($key === 'hero_card_width'  || $key === 'hero_card_width_mobile');
+        if ($isHeroHeight)      { $min = 300; $max = 1500; }
+        elseif ($isHeroWidth)   { $min = 50;  $max = 100;  }
+        else                    { $min = 50;  $max = 300;  }
+        if ($val < $min || $val > $max) {
+            http_response_code(400); echo json_encode(['ok' => false, 'err' => "Valeur hors limites ($min-$max)."]); exit;
         }
     } elseif ($isAlign) {
         $val = (string)$rawVal;
@@ -1768,12 +1990,86 @@ document.addEventListener('DOMContentLoaded', function() {
     position: relative;
     background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
     overflow: hidden;
+    /* Scroll horizontal si l'iframe (min-width:1100 en desktop) dépasse la zone. */
+    overflow-x: auto;
   }
   .ife-preview-wrap iframe {
     display: block; width: 100%; min-height: 600px;
+    /* CRITIQUE : min-width simule un viewport "large desktop" (>1040px) pour que
+       le CSS mobile d'accueil.css ne s'active PAS dans l'iframe quand la zone du
+       parent est étroite (sidebar 300px + écran 1280px = iframe ~960px → sans
+       min-width, accueil.php basculait en mode mobile et la social-card s'étirait
+       sur toute la largeur même en édition Desktop). */
+    min-width: 1100px;
     border: 0; background: #fff;
+    /* PAS de transition CSS sur max/min-width : sinon, au toggle Mobile/Desktop, l'iframe
+       met 200ms à se redimensionner et applyHeroPositionPct calcule avec une cardRect
+       intermédiaire → video_toggle (et autres) atterrissent à un endroit incorrect.
+       Sans transition, le resize est INSTANTANÉ → la 1re reapply est correcte. */
     /* La hauteur est ajustée dynamiquement par JS au contenu réel */
   }
+  /* Mode mobile : largeur d'aperçu contrainte pour simuler un téléphone.
+     Le min-width:1100px est retiré : l'iframe doit pouvoir être étroite (≤420px)
+     pour que le CSS @media max-width:1040px s'active dans accueil.php. */
+  .ife-preview-wrap.is-mobile { background: #1f2937; }
+  /* En mode mobile, le wrap a un fond noir et l'iframe est centrée en max-width:420px.
+     overflow caché sur les 2 axes : la scrollbar verticale du wrap est INUTILE (la nav
+     interne se fait via l'iframe), et celle horizontale révélait un débordement parasite. */
+  .ife-preview-wrap.is-mobile { overflow: hidden; }
+  .ife-preview-wrap.is-mobile iframe {
+    max-width: 420px;
+    min-width: 0;
+    margin: 0 auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  /* Barre d'outils flottante : toggle device + migration legacy. */
+  .ife-preview-toolbar {
+    position: absolute; top: 8px; right: 8px;
+    display: flex; gap: 6px; align-items: center;
+    z-index: 20; pointer-events: auto;
+    background: rgba(255,255,255,.96);
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.08);
+  }
+  .ife-preview-toolbar .ife-device-group {
+    display: inline-flex; gap: 2px;
+    background: #f1f5f9; border-radius: 6px; padding: 2px;
+  }
+  .ife-preview-toolbar .ife-device-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; font-size: 12px; font-weight: 600;
+    color: #475569; background: transparent;
+    border: 0; border-radius: 5px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .ife-preview-toolbar .ife-device-btn:hover { color: #1e293b; }
+  .ife-preview-toolbar .ife-device-btn.is-active {
+    background: #fff; color: #F42182;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  .ife-preview-toolbar .ife-migrate-btn,
+  .ife-preview-toolbar .ife-restore-btn {
+    padding: 5px 10px; font-size: 12px; font-weight: 600;
+    color: #475569; background: #fff;
+    border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ife-preview-toolbar .ife-migrate-btn:hover,
+  .ife-preview-toolbar .ife-restore-btn:hover {
+    border-color: #F42182; color: #F42182;
+  }
+  .ife-preview-toolbar .ife-migrate-btn[disabled],
+  .ife-preview-toolbar .ife-restore-btn[disabled] {
+    opacity: .5; cursor: not-allowed;
+  }
+  /* Bouton "Restaurer hero" : variante warning pour signaler l'action destructive. */
+  .ife-preview-toolbar .ife-restore-btn { color: #b45309; border-color: #fcd34d; background: #fffbeb; }
+  .ife-preview-toolbar .ife-restore-btn:hover { color: #fff; background: #f59e0b; border-color: #f59e0b; }
+  /* Les <i> / <span> à l'intérieur des boutons ne doivent pas voler le clic
+     (sinon event.target n'est pas le bouton et la délégation rate). */
+  .ife-preview-toolbar .ife-device-btn > *,
+  .ife-preview-toolbar .ife-migrate-btn > *,
+  .ife-preview-toolbar .ife-restore-btn > * { pointer-events: none; }
   .ife-overlay {
     position: absolute; inset: 0; pointer-events: none;
     z-index: 10;
@@ -1782,7 +2078,8 @@ document.addEventListener('DOMContentLoaded', function() {
      de drag ne se décale plus au hover → plus de clignotement infini */
   .ife-row-overlay {
     position: absolute; pointer-events: none;
-    outline: 2px dashed transparent; outline-offset: -2px; border-radius: 4px;
+    /* Harmonisé avec les pointillés des éléments du hero : 3 px dashed + 4 px gap. */
+    outline: 3px dashed transparent; outline-offset: 4px; border-radius: 4px;
     transition: outline-color .15s;
   }
   .ife-row-overlay:hover { outline-color: rgba(244,33,130,.5); }
@@ -1969,7 +2266,8 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-row.is-selected, .le-section-block.is-selected { outline-color: #F42182 !important; outline-offset: 6px; }
 
   .le-col {
-    outline: 2px dashed transparent; outline-offset: 2px;
+    /* Harmonisé avec les pointillés des éléments du hero : 3 px dashed + 4 px gap. */
+    outline: 3px dashed transparent; outline-offset: 4px;
     transition: outline .12s;
   }
   .le-col:hover { outline-color: rgba(244,33,130,.35); }
@@ -2033,8 +2331,9 @@ document.addEventListener('DOMContentLoaded', function() {
     cursor: pointer !important;
     pointer-events: auto !important;
     transition: outline .15s;
-    outline: 2px dashed transparent;
-    outline-offset: 2px;
+    /* Harmonisé avec le style commun : 3 px dashed + 4 px gap. */
+    outline: 3px dashed transparent;
+    outline-offset: 4px;
   }
   .accueil-edit-preview [data-edit-field]:hover {
     outline-color: #F42182;
@@ -2584,10 +2883,179 @@ if (!$canTab($activeTab)) {
           </aside>
 
           <!-- ── Aperçu : iframe avec la home + overlay layer ── -->
-          <div class="ife-preview-wrap">
+          <div class="ife-preview-wrap" id="ifePreviewWrap">
+            <!-- Toolbar : bascule device + migration des positions legacy. -->
+            <div class="ife-preview-toolbar">
+              <div class="ife-device-group" role="group" aria-label="Aperçu device">
+                <button type="button" class="ife-device-btn is-active" data-device="desktop" title="Aperçu desktop">
+                  <i class="bi bi-laptop"></i><span>Desktop</span>
+                </button>
+                <button type="button" class="ife-device-btn" data-device="mobile" title="Aperçu mobile">
+                  <i class="bi bi-phone"></i><span>Mobile</span>
+                </button>
+              </div>
+              <button type="button" class="ife-migrate-btn" id="ifeMigrateBtn" title="Convertir les anciennes positions en pourcentage vers le nouveau format ancré">
+                <i class="bi bi-arrow-repeat"></i><span>Migrer positions</span>
+              </button>
+              <button type="button" class="ife-restore-btn" id="ifeRestoreBtn" title="Restaurer toutes les positions et tailles du hero aux valeurs par défaut pour le device courant (CSS d'origine)">
+                <i class="bi bi-arrow-counterclockwise"></i><span>Restaurer hero</span>
+              </button>
+            </div>
             <iframe id="ifePreview" src="../public/accueil.php?editor=1" frameborder="0"></iframe>
             <div id="ifeOverlay" class="ife-overlay"></div>
           </div>
+          <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+          (function(){
+            // ── Bascule Desktop / Mobile dans l'éditeur ─────────────────────
+            // L'iframe charge accueil.php?editor=1 qui héberge le drag/save.
+            // Quand l'admin clique "Mobile", on rétrécit l'iframe (CSS media
+            // queries de l'accueil basculent en layout mobile ≤1040px) et on
+            // signale à l'iframe que les saves doivent cibler les variantes
+            // _mobile du JSON de géométrie.
+            function init(){
+              var wrap   = document.getElementById('ifePreviewWrap');
+              var iframe = document.getElementById('ifePreview');
+              if (!wrap || !iframe) return;
+
+              var STORE_KEY = 'ife_editor_device';
+              var device = 'desktop';
+              try { device = localStorage.getItem(STORE_KEY) || 'desktop'; } catch(e) {}
+
+              function notifyIframe(){
+                try {
+                  if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage(
+                      { type: 'editor-set-device', device: device },
+                      '*'
+                    );
+                  }
+                } catch(e) {}
+              }
+
+              function getMigrateBtn(){ return document.getElementById('ifeMigrateBtn'); }
+              function migrateLabel(txt){
+                var b = getMigrateBtn(); if (!b) return;
+                var sp = b.querySelector('span'); if (sp) sp.textContent = txt;
+              }
+
+              function applyDevice(next){
+                device = (next === 'mobile') ? 'mobile' : 'desktop';
+                try { localStorage.setItem(STORE_KEY, device); } catch(e) {}
+                wrap.classList.toggle('is-mobile', device === 'mobile');
+                wrap.querySelectorAll('.ife-device-btn').forEach(function(b){
+                  b.classList.toggle('is-active', b.getAttribute('data-device') === device);
+                });
+                notifyIframe();
+              }
+
+              // Délégation de clic : robuste même si les boutons sont recréés.
+              wrap.addEventListener('click', function(e){
+                var devBtn = e.target.closest && e.target.closest('.ife-device-btn');
+                if (devBtn && wrap.contains(devBtn)) {
+                  e.preventDefault();
+                  applyDevice(devBtn.getAttribute('data-device'));
+                  return;
+                }
+                var mig = e.target.closest && e.target.closest('#ifeMigrateBtn');
+                if (mig && !mig.disabled) {
+                  e.preventDefault();
+                  mig.disabled = true;
+                  migrateLabel('Migration…');
+                  try {
+                    if (iframe.contentWindow) {
+                      iframe.contentWindow.postMessage({ type: 'editor-migrate-legacy' }, '*');
+                    }
+                  } catch(err) {}
+                  // Sécurité : on relâche le bouton si l'iframe ne répond pas.
+                  setTimeout(function(){
+                    var b = getMigrateBtn();
+                    if (b && b.disabled) {
+                      b.disabled = false;
+                      migrateLabel('Migrer positions');
+                    }
+                  }, 5000);
+                }
+
+                // Bouton "Restaurer hero" : purge geometry + tailles du hero pour le
+                // device courant (mobile OU desktop), puis recharge l'iframe pour que
+                // les valeurs CSS d'origine reprennent la main visuellement.
+                var restoreBtn = e.target.closest && e.target.closest('#ifeRestoreBtn');
+                if (restoreBtn && !restoreBtn.disabled) {
+                  e.preventDefault();
+                  var deviceLabel = device === 'mobile' ? 'MOBILE' : 'DESKTOP';
+                  if (!confirm('Restaurer toutes les positions et tailles du hero (badges, timer, bouton play, social, titre, sous-titre) aux valeurs par défaut pour la version ' + deviceLabel + ' ?\n\nCette action affecte uniquement le brouillon, vous devrez Publier pour appliquer sur le site.')) {
+                    return;
+                  }
+                  restoreBtn.disabled = true;
+                  var restoreSpan = restoreBtn.querySelector('span');
+                  var restoreOrig = restoreSpan ? restoreSpan.textContent : '';
+                  if (restoreSpan) restoreSpan.textContent = 'Restauration…';
+                  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                  var csrfTok  = csrfMeta ? csrfMeta.getAttribute('content') : '';
+                  var fd = new FormData();
+                  fd.append('restore_accueil_hero_defaults', '1');
+                  fd.append('scope', device); // 'mobile' ou 'desktop'
+                  fd.append('csrf_token', csrfTok);
+                  fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+                    .then(function(r){ return r.json(); })
+                    .then(function(j){
+                      restoreBtn.disabled = false;
+                      if (restoreSpan) restoreSpan.textContent = restoreOrig || 'Restaurer hero';
+                      if (j && j.ok) {
+                        // Marque comme draft en cours (badge "Modifications non publiées")
+                        if (window.AccueilEditor) window.AccueilEditor.hasDraft = true;
+                        var badge = document.getElementById('ifeDraftBadge');
+                        var btnDiscard = document.getElementById('btnDiscardDraft');
+                        if (badge) badge.style.display = '';
+                        if (btnDiscard) btnDiscard.style.display = '';
+                        // Recharge l'iframe : le PHP émettra les attrs sans les clés supprimées,
+                        // le CSS d'origine prend la main visuellement.
+                        try { iframe.contentWindow.location.reload(); } catch(err) { iframe.src = iframe.src; }
+                      } else {
+                        alert('Erreur restauration : ' + ((j && j.err) || 'inconnue'));
+                      }
+                    })
+                    .catch(function(){
+                      restoreBtn.disabled = false;
+                      if (restoreSpan) restoreSpan.textContent = restoreOrig || 'Restaurer hero';
+                      alert('Erreur réseau lors de la restauration.');
+                    });
+                }
+              });
+
+              // Sync device dès que l'iframe est prête. Si elle est déjà complète,
+              // on notifie tout de suite (sinon on rate le 'load' event).
+              function tryNotifyWhenReady(){
+                try {
+                  var d = iframe.contentDocument;
+                  if (d && d.readyState === 'complete') { notifyIframe(); return; }
+                } catch(e) {}
+                setTimeout(notifyIframe, 100);
+              }
+              iframe.addEventListener('load', function(){ setTimeout(notifyIframe, 50); });
+              tryNotifyWhenReady();
+
+              applyDevice(device);
+
+              // L'iframe signale le résultat de la migration.
+              window.addEventListener('message', function(ev){
+                var data = ev && ev.data;
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'editor-migrate-done') {
+                  var b = getMigrateBtn(); if (!b) return;
+                  b.disabled = false;
+                  migrateLabel(data.count ? (data.count + ' positions migrées') : 'Aucune à migrer');
+                  setTimeout(function(){ migrateLabel('Migrer positions'); }, 2500);
+                }
+              });
+            }
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', init);
+            } else {
+              init();
+            }
+          })();
+          </script>
         </div>
 
         <!-- État interne du layout (utilisé par JS) -->
@@ -2631,6 +3099,96 @@ if (!$canTab($activeTab)) {
         </div>
       </div>
     </div>
+    <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+    // ── Attachement DIRECT et autonome pour #btnSaveField ─────────────────
+    // Ce script est inline juste après le bouton et NE dépend d'aucune autre
+    // IIFE de la page. Si la grande IIFE plus bas plante avant son propre
+    // attachement (erreur silencieuse type getElementById null), le bouton
+    // restait inerte. On attache donc le handler ici, directement au nœud,
+    // avec déduplication via `data-save-attached` posé par le handler principal.
+    (function(){
+      var btnEl = document.getElementById('btnSaveField');
+      if (!btnEl) return;
+      // Capture phase + délégation document : robuste face à un focus-trap de
+      // TinyMCE ou un overlay Bootstrap qui pourrait avaler le clic en bubble.
+      function handler(e){
+        var t = e.target && e.target.closest ? e.target.closest('#btnSaveField') : null;
+        if (!t) return;
+        var btn = t;
+        if (btn.dataset.saveAttached === '1') return; // handler principal opère
+        if (btn.disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var status = document.getElementById('fieldEditStatus');
+        var field  = (document.getElementById('fieldEditFieldName') || {}).value || '';
+        var kind   = (document.getElementById('fieldEditKind') || {}).value || '';
+        function showErr(msg){
+          btn.disabled = false;
+          if (status) {
+            status.style.display = 'block';
+            status.style.color = '#dc2626';
+            status.textContent = '✗ ' + msg;
+          } else { alert(msg); }
+        }
+        try {
+          btn.disabled = true;
+          if (status) {
+            status.style.display = 'block';
+            status.style.color = '#64748b';
+            status.textContent = 'Enregistrement…';
+          }
+          var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+          var csrfTok  = csrfMeta ? csrfMeta.getAttribute('content') : '';
+          var fd = new FormData();
+          fd.append('save_accueil_field', '1');
+          fd.append('field', field);
+          fd.append('csrf_token', csrfTok);
+          if (kind === 'tinymce') {
+            var ed = (typeof tinymce !== 'undefined') ? tinymce.get('fieldEditTinymce') : null;
+            var content = (ed && typeof ed.getContent === 'function')
+              ? ed.getContent()
+              : ((document.getElementById('fieldEditTinymce') || {}).value || '');
+            fd.append('value', content);
+          } else if (kind === 'text') {
+            fd.append('value', (document.getElementById('fieldEditText') || {}).value || '');
+          } else if (kind === 'image' || kind === 'video') {
+            var file = (document.getElementById('fieldEditFile') || {}).files && document.getElementById('fieldEditFile').files[0];
+            if (!file) { showErr('Sélectionnez un fichier.'); return; }
+            fd.append('file', file);
+          } else {
+            showErr('Type de champ inconnu : ' + kind);
+            return;
+          }
+          fetch('', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd
+          })
+          .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(function(j){
+            btn.disabled = false;
+            if (j && j.ok) {
+              if (status) { status.style.color = '#16a34a'; status.textContent = '✓ Enregistré. Rechargement…'; }
+              setTimeout(function(){ location.reload(); }, 800);
+            } else {
+              showErr((j && j.err) || 'Échec de l\'enregistrement.');
+            }
+          })
+          .catch(function(err){
+            showErr('Erreur réseau' + (err && err.message ? ' (' + err.message + ')' : '') + '.');
+          });
+        } catch (err) {
+          console.error('[btnSaveField backup]', err);
+          showErr('Erreur JS : ' + (err && err.message ? err.message : err));
+        }
+      }
+      // Capture sur document : avant tout autre listener, et ne dépend pas du
+      // bouton lui-même (si Bootstrap recréait la modal, la délégation reste OK).
+      document.addEventListener('click', handler, true);
+      // Attachement direct aussi : ceinture + bretelles si un script remplace le node.
+      btnEl.addEventListener('click', handler);
+    })();
+    </script>
 
     <!-- Modal : édition d'un bloc personnalisé -->
     <!-- data-bs-focus="false" : Bootstrap n'impose pas son focus-trap → les dialogs
@@ -2789,7 +3347,7 @@ if (!$canTab($activeTab)) {
             </select>
           </div>
           <div class="col-md-6"><label class="form-label">Kilomètres de la course</label>
-            <input type="number" class="form-control" name="course_km" min="1" max="100" value="<?= (int)$course_km ?>" placeholder="Ex : 7">
+            <input type="number" id="course_km" class="form-control" name="course_km" min="1" max="100" value="<?= (int)$course_km ?>" placeholder="Ex : 7">
           </div>
           <div class="col-12"><label class="form-label">Nombre de premiers inscrits</label>
             <input type="number" class="form-control" name="qrcode_mail_limit" min="0" value="<?= $qrcode_mail_limit ?>" placeholder="Ex : 800">
@@ -4618,59 +5176,90 @@ document.addEventListener('DOMContentLoaded', function() {
     openFieldModal(field, kind, currentValue, field);
   }
 
-  // Save field
-  document.getElementById('btnSaveField').addEventListener('click', function() {
-    var field = document.getElementById('fieldEditFieldName').value;
-    var kind  = document.getElementById('fieldEditKind').value;
+  // Save field — robuste : capture toute erreur silencieuse pour la rendre visible
+  // (sinon le bouton apparaît inerte alors qu'une exception JS bloque le flux).
+  // On marque le bouton avec data-save-attached='1' pour neutraliser le backup
+  // (cf. <script> juste après la modal HTML) et éviter une double sauvegarde.
+  var __btnSaveField = document.getElementById('btnSaveField');
+  if (__btnSaveField) __btnSaveField.dataset.saveAttached = '1';
+  if (__btnSaveField) __btnSaveField.addEventListener('click', function() {
     var btn = this;
     var status = document.getElementById('fieldEditStatus');
-    btn.disabled = true;
-    status.style.display = 'block';
-    status.style.color = '#64748b';
-    status.textContent = 'Enregistrement…';
-
-    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-    var csrfTok = csrfMeta ? csrfMeta.getAttribute('content') : '';
-
-    var fd = new FormData();
-    fd.append('save_accueil_field', '1');
-    fd.append('field', field);
-    fd.append('csrf_token', csrfTok);
-
-    if (kind === 'tinymce') {
-      var ed = tinymce.get('fieldEditTinymce');
-      fd.append('value', ed ? ed.getContent() : '');
-    } else if (kind === 'text') {
-      fd.append('value', document.getElementById('fieldEditText').value);
-    } else if (kind === 'image' || kind === 'video') {
-      var file = document.getElementById('fieldEditFile').files[0];
-      if (!file) {
+    function showError(msg) {
+      btn.disabled = false;
+      if (status) {
+        status.style.display = 'block';
         status.style.color = '#dc2626';
-        status.textContent = '✗ Sélectionnez un fichier.';
-        btn.disabled = false;
+        status.textContent = '✗ ' + msg;
+      } else {
+        alert(msg);
+      }
+    }
+    try {
+      var field = document.getElementById('fieldEditFieldName').value;
+      var kind  = document.getElementById('fieldEditKind').value;
+      btn.disabled = true;
+      status.style.display = 'block';
+      status.style.color = '#64748b';
+      status.textContent = 'Enregistrement…';
+
+      var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      var csrfTok = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+      var fd = new FormData();
+      fd.append('save_accueil_field', '1');
+      fd.append('field', field);
+      fd.append('csrf_token', csrfTok);
+
+      if (kind === 'tinymce') {
+        // Fallback : si TinyMCE n'est pas (encore) initialisé ou a perdu son
+        // instance, on lit le contenu brut du <textarea>. Sinon on perdrait
+        // silencieusement la saisie utilisateur (apparence "rien ne se passe").
+        var ed = (typeof tinymce !== 'undefined') ? tinymce.get('fieldEditTinymce') : null;
+        var content = '';
+        if (ed && typeof ed.getContent === 'function') {
+          content = ed.getContent();
+        } else {
+          var ta = document.getElementById('fieldEditTinymce');
+          content = ta ? (ta.value || '') : '';
+        }
+        fd.append('value', content);
+      } else if (kind === 'text') {
+        fd.append('value', document.getElementById('fieldEditText').value);
+      } else if (kind === 'image' || kind === 'video') {
+        var file = document.getElementById('fieldEditFile').files[0];
+        if (!file) {
+          showError('Sélectionnez un fichier.');
+          return;
+        }
+        fd.append('file', file);
+      } else {
+        showError('Type de champ inconnu : ' + kind);
         return;
       }
-      fd.append('file', file);
-    }
 
-    fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
-      .then(function(r) { return r.json(); })
-      .then(function(j) {
-        btn.disabled = false;
-        if (j && j.ok) {
-          status.style.color = '#16a34a';
-          status.textContent = '✓ Enregistré. Rechargement de l\'aperçu…';
-          setTimeout(function() { location.reload(); }, 800);
-        } else {
-          status.style.color = '#dc2626';
-          status.textContent = '✗ ' + ((j && j.err) || 'Échec de l\'enregistrement.');
-        }
-      })
-      .catch(function() {
-        btn.disabled = false;
-        status.style.color = '#dc2626';
-        status.textContent = '✗ Erreur réseau.';
-      });
+      fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(j) {
+          btn.disabled = false;
+          if (j && j.ok) {
+            status.style.color = '#16a34a';
+            status.textContent = '✓ Enregistré. Rechargement de l\'aperçu…';
+            setTimeout(function() { location.reload(); }, 800);
+          } else {
+            showError((j && j.err) || 'Échec de l\'enregistrement.');
+          }
+        })
+        .catch(function(err) {
+          showError('Erreur réseau' + (err && err.message ? ' (' + err.message + ')' : '') + '.');
+        });
+    } catch (err) {
+      console.error('[btnSaveField] exception:', err);
+      showError('Erreur JS : ' + (err && err.message ? err.message : err));
+    }
   });
 
 })();

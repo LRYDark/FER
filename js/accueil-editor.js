@@ -76,18 +76,26 @@
     } else if (e.data.type === 'editor-save-inline') {
       saveInlineField(e.data.field, e.data.value);
     } else if (e.data.type === 'editor-save-geometry') {
-      saveGeometry(e.data.field, e.data.geometry);
+      saveGeometry(e.data.field, e.data.geometry, e.data.device);
     }
   });
 
   // Reset AJAX : supprime la géométrie d'un champ + ordonne à l'iframe de retirer
   // ses styles inline pour revenir à l'affichage CSS par défaut.
+  // DEVICE-AWARE : en mode mobile, on ne supprime QUE la variante `{field}_mobile`
+  // (la position desktop reste). En mode desktop, on ne touche QU'à `{field}`.
+  function getCurrentEditorDevice(){
+    try { return localStorage.getItem('ife_editor_device') === 'mobile' ? 'mobile' : 'desktop'; }
+    catch(e) { return 'desktop'; }
+  }
   function resetGeometry(field) {
     if (typeof setDraftState === 'function') setDraftState(true);
+    var device = getCurrentEditorDevice();
     var csrf = getCsrf();
     var fd = new FormData();
     fd.append('reset_accueil_geometry', '1');
     fd.append('field', field);
+    fd.append('device', device);
     fd.append('csrf_token', csrf);
     fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
       .then(function(r) { return r.json(); })
@@ -95,7 +103,7 @@
         if (j && j.ok) {
           // Demande à l'iframe de retirer les styles inline pour cet élément
           if (iframe.contentWindow) {
-            iframe.contentWindow.postMessage({ type: 'parent-reset-geometry', field: field }, '*');
+            iframe.contentWindow.postMessage({ type: 'parent-reset-geometry', field: field, device: device }, '*');
           }
           showSaveIndicator();
         } else {
@@ -104,18 +112,54 @@
       });
   }
 
-  // Save AJAX d'une géométrie (x/y/w/h) pour drag/resize libre
-  function saveGeometry(field, geom) {
+  // Save AJAX d'une géométrie (x/y/w/h) pour drag/resize libre.
+  // `device` (optionnel) : 'desktop' | 'mobile' — l'iframe l'envoie selon le toggle
+  // courant ; le PHP préfixe alors `_mobile` au nom du champ.
+  function saveGeometry(field, geom, device) {
     if (typeof setDraftState === 'function') setDraftState(true);
     var csrf = getCsrf();
     var fd = new FormData();
     fd.append('save_accueil_geometry', '1');
     fd.append('field', field);
     fd.append('geometry', JSON.stringify(geom));
+    if (device === 'mobile' || device === 'desktop') fd.append('device', device);
     fd.append('csrf_token', csrf);
     fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
       .then(function(r) { return r.json(); })
-      .then(function(j) { /* save silencieux : pas de reload pour éviter de casser la session de drag */ });
+      .then(function(j) {
+        // Confirme visuellement à l'admin la CLÉ effective sauvegardée (suffixée
+        // `_mobile` en mode mobile) pour qu'il VOIE que mobile/desktop sont isolés.
+        if (j && j.ok && j.savedKey) {
+          showGeometrySavedToast(j.savedKey, j.device || device);
+        }
+      });
+  }
+  // Toast léger en bas/droite de l'éditeur, masqué après 1.8s. Réutilise un seul nœud DOM.
+  var __geomToast = null;
+  function showGeometrySavedToast(key, device) {
+    if (!__geomToast) {
+      __geomToast = document.createElement('div');
+      __geomToast.style.cssText = ''
+        + 'position:fixed;bottom:20px;right:20px;z-index:99999;'
+        + 'background:#0f172a;color:#fff;padding:10px 14px;border-radius:8px;'
+        + 'font-size:12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);'
+        + 'transition:opacity .25s, transform .25s;opacity:0;transform:translateY(8px);'
+        + 'pointer-events:none;';
+      document.body.appendChild(__geomToast);
+    }
+    var color = device === 'mobile' ? '#ec4899' : '#22d3ee';
+    __geomToast.innerHTML = ''
+      + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';margin-right:8px;vertical-align:middle;"></span>'
+      + 'Sauvegardé : <code style="background:rgba(255,255,255,.1);padding:1px 5px;border-radius:3px;">' + key + '</code>';
+    __geomToast.style.opacity = '1';
+    __geomToast.style.transform = 'translateY(0)';
+    clearTimeout(__geomToast.__hide);
+    __geomToast.__hide = setTimeout(function(){
+      if (__geomToast) {
+        __geomToast.style.opacity = '0';
+        __geomToast.style.transform = 'translateY(8px)';
+      }
+    }, 1800);
   }
 
   // Save AJAX d'un champ texte édité inline (PAS de reload iframe — on update juste le DOM)
@@ -175,11 +219,37 @@
   // sélection actuelle qui n'en a pas besoin.
   function clearSidebarDynamicWidgets() {
     ['ifeSbFilePickerRow', 'ifeSbTextEditRow', 'ifeSbAlignRow', 'ifeSbResetRow',
-     'ifeSbEditableList', 'ifeSbSectionOptions']
+     'ifeSbEditableList', 'ifeSbSectionOptions', 'ifeSbBadgeInfoRow',
+     'ifeSbBadgeTooltipRow', 'ifeSbHeroVideoRow']
       .forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.remove();
       });
+  }
+
+  // Bascule sur un onglet de réglages (Personnalisation / Accueil / Inscription / etc.)
+  // et défile vers un élément précis (input ou card) pour le mettre en évidence.
+  function goToSettingTab(tabName, targetSelector) {
+    var tab = document.querySelector('#settingsTabs .nav-link[data-tab="' + tabName + '"]');
+    if (tab) tab.click();
+    if (!targetSelector) return;
+    setTimeout(function() {
+      var target = document.querySelector(targetSelector);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Surbrillance temporaire pour l'attirer le regard
+      var prevOutline = target.style.outline;
+      var prevTransition = target.style.transition;
+      target.style.transition = 'outline 0.3s ease';
+      target.style.outline = '3px solid #F42182';
+      setTimeout(function() {
+        target.style.outline = prevOutline;
+        target.style.transition = prevTransition;
+      }, 1800);
+      if (typeof target.focus === 'function') {
+        try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+      }
+    }, 80);
   }
 
   // Sélection d'un élément éditable du Hero (single click)
@@ -194,6 +264,10 @@
     if (gridRowEl) gridRowEl.style.display = 'none';
     document.getElementById('ifeSbVisRow').style.display = 'none';
     document.getElementById('ifeSbBtnDelete').style.display = 'none';
+    // L'espacement de ligne ne concerne que les LIGNES du layout (margin haut/bas entre rows),
+    // pas les éléments individuels du Hero. On le cache ici (et selectRow le ré-affiche).
+    var spacingRowEl = document.getElementById('ifeSbSpacingRow');
+    if (spacingRowEl) spacingRowEl.style.display = 'none';
 
     var sizeRow = document.getElementById('ifeSbSizeRow');
     if (data.sizeKey) {
@@ -208,11 +282,260 @@
     // Cleanup anciens widgets dynamiques (partagé avec selectRow pour éviter résidus)
     clearSidebarDynamicWidgets();
 
+    // Widgets spécifiques à la VIDÉO Hero : hauteur + toggles pleine largeur,
+    // device-aware (mobile/desktop). Lit/écrit dans accueilStyles via save_accueil_style.
+    if (data.field === 'video_accueil' || data.field === 'video_accueil_mobile') {
+      var heroVidRow = document.createElement('div');
+      heroVidRow.id = 'ifeSbHeroVideoRow';
+      heroVidRow.className = 'ife-sb-row';
+      heroVidRow.style.flexDirection = 'column';
+      heroVidRow.style.alignItems = 'stretch';
+      heroVidRow.style.gap = '8px';
+      var deviceNow = getCurrentEditorDevice();
+      var hSizeKey  = (deviceNow === 'mobile') ? 'hero_card_height_mobile'    : 'hero_card_height';
+      var hWidthKey = (deviceNow === 'mobile') ? 'hero_card_width_mobile'     : 'hero_card_width';
+      var hFullKey  = (deviceNow === 'mobile') ? 'hero_card_fullwidth_mobile' : 'hero_card_fullwidth';
+      var stylesCache = (window.AccueilEditor && window.AccueilEditor.accueilStyles) || {};
+      // Lecture de la valeur sauvée OU mesure de la dimension réelle de la card.
+      var curHeight = parseInt(stylesCache[hSizeKey], 10);
+      if (isNaN(curHeight) || curHeight < 300 || curHeight > 1500) curHeight = 700;
+      var curWidth = parseInt(stylesCache[hWidthKey], 10);
+      if (isNaN(curWidth) || curWidth < 50 || curWidth > 100) {
+        // Pas de valeur sauvée → on MESURE la largeur réelle de la card en % de la
+        // viewport de l'iframe (cohérent avec l'unité `vw` appliquée). Ainsi le slider
+        // démarre sur la vraie valeur visuelle (ex : 86 %) au lieu d'un 100 % erroné.
+        try {
+          var ifrW = iframe.contentWindow;
+          var cardM = iframe.contentDocument && iframe.contentDocument.querySelector('.demo-card');
+          if (cardM && ifrW && ifrW.innerWidth > 0) {
+            curWidth = Math.round(cardM.getBoundingClientRect().width / ifrW.innerWidth * 100);
+          }
+        } catch (_) {}
+        if (isNaN(curWidth) || curWidth < 50 || curWidth > 100) curWidth = 100;
+      }
+      var curFull   = String(stylesCache[hFullKey] || '0') === '1';
+      heroVidRow.innerHTML = ''
+        + '<label class="mb-0">Hauteur de la vidéo <span id="ifeSbHeroVideoHeightVal" style="color:#64748b">' + curHeight + ' px</span></label>'
+        + '<input type="range" min="300" max="1500" step="10" id="ifeSbHeroVideoHeight" value="' + curHeight + '" class="form-range">'
+        + '<label class="mb-0">Largeur de la vidéo <span id="ifeSbHeroVideoWidthVal" style="color:#64748b">' + curWidth + ' %</span></label>'
+        + '<input type="range" min="50" max="100" step="1" id="ifeSbHeroVideoWidth" value="' + curWidth + '" class="form-range">'
+        + '<small class="text-muted" style="margin-top:-4px;display:block">100 % = pleine largeur de la fenêtre. Active le toggle ci-dessous pour étendre la vidéo hors du conteneur central du site.</small>'
+        + '<div class="form-check form-switch mt-1">'
+        + '  <input class="form-check-input" type="checkbox" id="ifeSbHeroVideoFull"' + (curFull ? ' checked' : '') + '>'
+        + '  <label class="form-check-label" for="ifeSbHeroVideoFull">Vidéo pleine largeur</label>'
+        + '</div>'
+        + '<button type="button" class="btn btn-sm btn-outline-warning mt-1" id="ifeSbHeroVideoReset">'
+        + '  <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser dimensions vidéo'
+        + '</button>'
+        + '<small class="text-muted">Ces réglages s\'appliquent à la vue ' + (deviceNow === 'mobile' ? 'MOBILE' : 'DESKTOP') + ' seulement.</small>';
+      // Insertion après sizeRow.
+      sizeRow.parentNode.insertBefore(heroVidRow, sizeRow.nextSibling);
+      var heightInput = document.getElementById('ifeSbHeroVideoHeight');
+      var heightVal   = document.getElementById('ifeSbHeroVideoHeightVal');
+      var widthInput  = document.getElementById('ifeSbHeroVideoWidth');
+      var widthVal    = document.getElementById('ifeSbHeroVideoWidthVal');
+      var fullInput   = document.getElementById('ifeSbHeroVideoFull');
+      // Slider hauteur : save debounced + update live via CSS variable dans l'iframe.
+      var heightTimer = null;
+      heightInput.addEventListener('input', function() {
+        var v = parseInt(this.value, 10);
+        heightVal.textContent = v + ' px';
+        // Update live : pose la CSS variable sur .demo-card dans l'iframe.
+        try {
+          var ifrDoc = iframe.contentDocument;
+          var card = ifrDoc && ifrDoc.querySelector('.demo-card');
+          if (card) {
+            var varName = (deviceNow === 'mobile') ? '--hero-card-height-mobile' : '--hero-card-height';
+            card.style.setProperty(varName, v + 'px');
+          }
+        } catch (_) {}
+        clearTimeout(heightTimer);
+        heightTimer = setTimeout(function() {
+          saveStyleKey(hSizeKey, v);
+          stylesCache[hSizeKey] = v;
+        }, 400);
+      });
+      // Slider largeur : valeur en % de la VIEWPORT (vw). Cohérent avec la mesure
+      // initiale et indépendant des contraintes du wrap parent.
+      var widthTimer = null;
+      widthInput.addEventListener('input', function() {
+        var v = parseInt(this.value, 10);
+        widthVal.textContent = v + ' %';
+        try {
+          var ifrDoc = iframe.contentDocument;
+          var card = ifrDoc && ifrDoc.querySelector('.demo-card');
+          if (card) {
+            var varName = (deviceNow === 'mobile') ? '--hero-card-width-mobile' : '--hero-card-width';
+            var varMx   = (deviceNow === 'mobile') ? '--hero-card-mx-mobile'    : '--hero-card-mx';
+            // width en vw + marge calculée → centre la card pile sur la viewport.
+            // C'est ce qui fait que 100 % = pleine fenêtre (et non 100 % du wrap).
+            card.style.setProperty(varName, v + 'vw');
+            card.style.setProperty(varMx, 'calc(50% - 50vw + ' + ((100 - v) / 2) + 'vw)');
+          }
+        } catch (_) {}
+        clearTimeout(widthTimer);
+        widthTimer = setTimeout(function() {
+          saveStyleKey(hWidthKey, v);
+          stylesCache[hWidthKey] = v;
+        }, 400);
+      });
+      // Toggle pleine largeur : save + update class dans l'iframe.
+      fullInput.addEventListener('change', function() {
+        var val = this.checked ? '1' : '0';
+        saveStyleKey(hFullKey, val);
+        stylesCache[hFullKey] = val;
+        // Update live : ajoute/retire la classe sur .demo-wrap dans l'iframe.
+        try {
+          var ifrDoc = iframe.contentDocument;
+          var wrap = ifrDoc && ifrDoc.querySelector('.demo-wrap');
+          if (wrap) {
+            var cls = (deviceNow === 'mobile') ? 'fullwidth-mobile' : 'fullwidth-desktop';
+            wrap.classList.toggle(cls, val === '1');
+          }
+        } catch (_) {}
+      });
+      // Bouton "Réinitialiser dimensions vidéo" : supprime hauteur + largeur + pleine
+      // largeur pour le DEVICE COURANT. Visuel revient au CSS d'origine SANS reload :
+      //  - retire les CSS variables --hero-card-height/-width sur .demo-card
+      //  - retire la classe fullwidth-desktop/-mobile sur .demo-wrap
+      //  - mesure la NOUVELLE dimension réelle et met à jour les sliders en direct
+      var resetBtn = document.getElementById('ifeSbHeroVideoReset');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+          if (!confirm('Réinitialiser la hauteur, largeur et pleine largeur de la vidéo pour la version ' + (deviceNow === 'mobile' ? 'MOBILE' : 'DESKTOP') + ' ?')) return;
+          if (typeof setDraftState === 'function') setDraftState(true);
+          var csrf = getCsrf();
+          var fd = new FormData();
+          fd.append('reset_hero_card_dimensions', '1');
+          fd.append('scope', deviceNow);
+          fd.append('csrf_token', csrf);
+          fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(j) {
+              if (j && j.ok) {
+                // Purge le cache de styles local pour les 3 clés concernées.
+                delete stylesCache[hSizeKey];
+                delete stylesCache[hWidthKey];
+                delete stylesCache[hFullKey];
+                // Retire les CSS variables + classe pleine largeur dans l'iframe →
+                // le CSS d'origine reprend la main. Puis on RE-MESURE les dimensions
+                // résultantes et on remet les CURSEURS sur ces valeurs par défaut.
+                try {
+                  var ifrDoc2 = iframe.contentDocument;
+                  var card2 = ifrDoc2 && ifrDoc2.querySelector('.demo-card');
+                  var wrap2 = ifrDoc2 && ifrDoc2.querySelector('.demo-wrap');
+                  var vH  = (deviceNow === 'mobile') ? '--hero-card-height-mobile' : '--hero-card-height';
+                  var vW  = (deviceNow === 'mobile') ? '--hero-card-width-mobile'  : '--hero-card-width';
+                  var vMx = (deviceNow === 'mobile') ? '--hero-card-mx-mobile'     : '--hero-card-mx';
+                  if (card2) {
+                    card2.style.removeProperty(vH);
+                    card2.style.removeProperty(vW);
+                    card2.style.removeProperty(vMx);
+                  }
+                  if (wrap2) {
+                    wrap2.classList.remove(deviceNow === 'mobile' ? 'fullwidth-mobile' : 'fullwidth-desktop');
+                  }
+                  // Re-mesure les valeurs CSS d'origine et remet les curseurs dessus.
+                  setTimeout(function() {
+                    if (card2) {
+                      var nH = Math.round(card2.getBoundingClientRect().height);
+                      if (heightInput && nH) {
+                        heightInput.value = Math.min(1500, Math.max(300, nH));
+                        heightVal.textContent = heightInput.value + ' px';
+                      }
+                      var ifrWin2 = iframe.contentWindow;
+                      if (widthInput && ifrWin2 && ifrWin2.innerWidth > 0) {
+                        var nW = Math.round(card2.getBoundingClientRect().width / ifrWin2.innerWidth * 100);
+                        widthInput.value = Math.min(100, Math.max(50, nW));
+                        widthVal.textContent = widthInput.value + ' %';
+                      }
+                      if (fullInput) fullInput.checked = false;
+                    }
+                  }, 60);
+                } catch (_) {}
+              } else {
+                alert('Erreur réinitialisation : ' + ((j && j.err) || 'inconnue'));
+              }
+            })
+            .catch(function() { alert('Erreur réseau lors de la réinitialisation.'); });
+        });
+      }
+    }
+
+    // Info contextuelle pour les badges : la valeur (km / montant) n'est pas modifiable
+    // depuis l'éditeur visuel. Renvoie l'utilisateur vers l'onglet Inscription → carte
+    // "Paramètres d'inscription" pour modifier la donnée elle-même.
+    var badgeInfo = null;
+    if (data.field === 'badge_km')  badgeInfo = { msg: 'Pour changer la distance (km),', target: '#course_km' };
+    if (data.field === 'badge_fee') badgeInfo = { msg: "Pour changer le montant d'inscription,", target: '#registration_fee' };
+    if (badgeInfo) {
+      var infoRow = document.createElement('div');
+      infoRow.id = 'ifeSbBadgeInfoRow';
+      infoRow.className = 'ife-sb-row';
+      infoRow.style.flexDirection = 'column';
+      infoRow.style.alignItems = 'stretch';
+      infoRow.style.background = '#fff8e1';
+      infoRow.style.border = '1px solid #ffe082';
+      infoRow.style.borderRadius = '6px';
+      infoRow.style.padding = '8px 10px';
+      infoRow.style.fontSize = '12px';
+      infoRow.innerHTML = ''
+        + '<div><i class="bi bi-info-circle me-1 text-warning"></i>'
+        + badgeInfo.msg + ' <a href="#" id="ifeSbBadgeInfoLink" style="font-weight:600;text-decoration:underline;">cliquez ici</a>.'
+        + '</div>';
+      sizeRow.parentNode.insertBefore(infoRow, sizeRow);
+      document.getElementById('ifeSbBadgeInfoLink').addEventListener('click', function(e) {
+        e.preventDefault();
+        goToSettingTab('inscription', badgeInfo.target);
+      });
+    }
+
+    // Champ texte pour la TOOLTIP du badge prix (visible au hover/clic sur le badge €).
+    // Disponible quand l'admin sélectionne badge_fee ou badge_fee_mobile : il voit ainsi
+    // immédiatement ce qui est écrit et peut le modifier sans passer par un autre menu.
+    if (data.field === 'badge_fee' || data.field === 'badge_fee_mobile') {
+      var tipKey = 'badge_fee.tooltip';
+      var tipRow = document.createElement('div');
+      tipRow.id = 'ifeSbBadgeTooltipRow';
+      tipRow.className = 'ife-sb-row';
+      tipRow.style.flexDirection = 'column';
+      tipRow.style.alignItems = 'stretch';
+      tipRow.innerHTML = ''
+        + '<label class="mb-1">Texte au survol du badge prix</label>'
+        + '<textarea class="form-control form-control-sm" id="ifeSbBadgeTooltipInput" rows="2" style="resize:vertical;"></textarea>'
+        + '<small class="text-muted mt-1">S\'affiche quand le visiteur passe la souris sur le badge €.</small>';
+      sizeRow.parentNode.insertBefore(tipRow, sizeRow.nextSibling);
+      var tipInput = document.getElementById('ifeSbBadgeTooltipInput');
+      // Lit la valeur courante depuis le DOM de l'iframe (textContent du tooltip rendu).
+      var iframeDoc = null;
+      try { iframeDoc = iframe.contentDocument; } catch (_) {}
+      var liveTip = iframeDoc && iframeDoc.getElementById('badgeTooltip');
+      tipInput.value = liveTip ? (liveTip.textContent || '').trim() : '';
+      // Sauvegarde debounced à la saisie + au blur.
+      var tipTimer = null;
+      function saveTip() {
+        var v = tipInput.value.trim();
+        saveInlineField(tipKey, v);
+        // Met à jour le DOM iframe sans reload (effet immédiat dans l'aperçu).
+        if (liveTip) liveTip.textContent = v;
+      }
+      tipInput.addEventListener('blur', saveTip);
+      tipInput.addEventListener('input', function() {
+        clearTimeout(tipTimer);
+        tipTimer = setTimeout(saveTip, 700);
+      });
+      // Ajoute l'id au clear-up pour éviter qu'il reste affiché lors d'une autre sélection.
+      // (clearSidebarDynamicWidgets liste les ids à nettoyer — on l'étend dynamiquement.)
+    }
+
     // Bouton "Revenir à la position par défaut" pour les éléments hero/partners draggables
     var resettableFields = [
       'titleAccueil', 'titleAccueil_mobile',
       'subtitle_accueil', 'subtitle_accueil_mobile',
-      'hero_timer', 'picture_partner'
+      'hero_timer', 'hero_timer_mobile', 'picture_partner',
+      'hero.cta_register', 'hero.cta_register_mobile',
+      'badge_fee', 'badge_km',
+      'video_toggle', 'video_social_card'
     ];
     if (resettableFields.indexOf(data.field) !== -1) {
       var resetRow = document.createElement('div');
@@ -229,6 +552,17 @@
       document.getElementById('ifeSbResetBtn').addEventListener('click', function() {
         if (!confirm('Remettre cet élément à sa position et taille par défaut ?')) return;
         resetGeometry(data.field);
+        // Remet aussi la taille à 100% (sinon le slider reste sur l'ancienne valeur
+        // et la taille sauvée dans accueil_styles_draft n'est pas réinitialisée → la
+        // publication conservait l'ancienne taille).
+        if (data.sizeKey) {
+          var sizeInput = document.getElementById('ifeSbSize');
+          var sizeValLbl = document.getElementById('ifeSbSizeVal');
+          if (sizeInput) sizeInput.value = 100;
+          if (sizeValLbl) sizeValLbl.textContent = '100%';
+          data.sizeCurrent = 100;
+          saveStyleKey(data.sizeKey, 100);
+        }
       });
     }
 
@@ -308,7 +642,11 @@
         var csrf = getCsrf();
         var fd = new FormData();
         fd.append('save_accueil_field', '1');
-        fd.append('field', data.field);
+        // La vidéo est COMMUNE desktop/mobile (même fichier) : même si le champ
+        // affiché est `video_accueil_mobile` en mode mobile, l'upload cible toujours
+        // la colonne unique `video_accueil`. Seules les DIMENSIONS sont device-aware.
+        var uploadField = (data.field === 'video_accueil_mobile') ? 'video_accueil' : data.field;
+        fd.append('field', uploadField);
         fd.append('file', file);
         fd.append('csrf_token', csrf);
         fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
@@ -337,20 +675,27 @@
   }
 
   // Helper générique : sauve une clé/valeur dans accueil_styles (utilisé pour text_align__field, etc.)
-  // Met à jour l'iframe via postMessage sans reload
+  // Met à jour l'iframe via postMessage sans reload.
+  // DEVICE-AWARE pour les tailles (`*_size`) : en mode mobile, on cible la variante
+  // `*_size_mobile`. Alignements / options enum restent communs.
   function saveStyleKey(key, value) {
     if (typeof setDraftState === 'function') setDraftState(true);
+    var device = getCurrentEditorDevice();
     var csrf = getCsrf();
     var fd = new FormData();
     fd.append('save_accueil_style', '1');
     fd.append('sizeKey', key);
     fd.append('sizeValue', value);
+    fd.append('device', device);
     fd.append('csrf_token', csrf);
     fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
       .then(function(r) { return r.json(); })
       .then(function(j) {
         if (j && j.ok) {
-          updateIframeStyle(key, value);
+          // L'iframe reçoit la clé EFFECTIVE (suffixée _mobile si applicable) pour
+          // appliquer la taille au bon viewport visuellement, sans attendre reload.
+          var effectiveKey = (device === 'mobile' && /_size$/.test(key)) ? (key + '_mobile') : key;
+          updateIframeStyle(effectiveKey, value);
           showSaveIndicator();
         }
       });
@@ -366,17 +711,20 @@
     }, '*');
   }
 
-  // Slider de taille → save AJAX + update iframe sans reload
+  // Slider de taille → save AJAX + update iframe sans reload.
+  // DEVICE-AWARE : en mode mobile, on sauve dans `<sizeKey>_mobile`.
   var sizeSaveTimer = null;
   document.getElementById('ifeSbSize').addEventListener('input', function() {
     var val = parseInt(this.value, 10);
     document.getElementById('ifeSbSizeVal').textContent = val + '%';
     var sizeKey = document.getElementById('ifeSbSizeRow').dataset.sizeKey;
     if (!sizeKey) return;
+    var device = getCurrentEditorDevice();
+    var effectiveKey = (device === 'mobile' && /_size$/.test(sizeKey)) ? (sizeKey + '_mobile') : sizeKey;
     // Badge "modifications non publiées" instantané (avant même le debounce)
     if (typeof setDraftState === 'function') setDraftState(true);
-    // Update visual immédiat dans l'iframe
-    updateIframeStyle(sizeKey, val);
+    // Update visual immédiat dans l'iframe (l'iframe applique la taille selon la clé reçue)
+    updateIframeStyle(effectiveKey, val);
     // Save BDD (debounced)
     clearTimeout(sizeSaveTimer);
     sizeSaveTimer = setTimeout(function() {
@@ -385,6 +733,7 @@
       fd.append('save_accueil_style', '1');
       fd.append('sizeKey', sizeKey);
       fd.append('sizeValue', val);
+      fd.append('device', device);
       fd.append('csrf_token', csrf);
       fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
         .then(function(r) { return r.json(); })
@@ -949,6 +1298,28 @@
 
     // Items selon contexte
     var items = [];
+    // ── Élément hero éditable : options de mode d'ancrage (axis) pour stabiliser
+    // la position visuelle malgré les changements de taille de .demo-card. La coche
+    // ✓ devant l'item indique le mode actif pour le device courant.
+    if (data.heroField) {
+      var cm = data.heroMode || 'free';
+      var deviceTxt = data.heroDevice === 'mobile' ? ' (mobile)' : ' (desktop)';
+      var modeItems = [
+        { label: 'Libre (déplaçable)' + deviceTxt,         icon: 'bi-arrows-move',          mode: 'free' },
+        { label: 'Centré horizontal' + deviceTxt,           icon: 'bi-align-center',         mode: 'centerX' },
+        { label: 'Centré vertical' + deviceTxt,             icon: 'bi-align-middle',         mode: 'centerY' },
+        { label: 'Centré (2D, immobile)' + deviceTxt,       icon: 'bi-bullseye',             mode: 'center' }
+      ];
+      modeItems.forEach(function(mi){
+        items.push({
+          label: (cm === mi.mode ? '✓ ' : '   ') + mi.label,
+          icon: mi.icon,
+          act: 'hero-mode',
+          mode: mi.mode
+        });
+      });
+      if (data.sectionType || data.rowId) items.push({ separator: true });
+    }
     if (data.sectionType === 'custom' && data.sectionId) {
       items.push({ label: 'Modifier le texte',           icon: 'bi-pencil',        act: 'edit'      });
       items.push({ label: 'Extraire en ligne séparée',  icon: 'bi-box-arrow-up-right', act: 'extract' });
@@ -983,7 +1354,7 @@
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
         closeContextMenu();
-        runCtxAction(it.act, data);
+        runCtxAction(it.act, data, it);
       });
       ctxMenu.appendChild(btn);
     });
@@ -1005,7 +1376,7 @@
     }, 50);
   }
 
-  function runCtxAction(act, data) {
+  function runCtxAction(act, data, item) {
     if (act === 'edit' && data.sectionId) {
       openCustomBlockEditorForSection(data.sectionId);
     } else if (act === 'extract' && data.rowId && data.colIdx !== null) {
@@ -1020,6 +1391,18 @@
       addColumnToRow(data.rowId, 'html');
     } else if (act === 'select-row' && data.rowId) {
       selectRow(data.rowId);
+    } else if (act === 'hero-mode' && data.heroField && item && item.mode) {
+      // Change le mode d'ancrage de l'élément hero pour le device courant.
+      // 1) Demande à l'iframe d'appliquer immédiatement (dataset + reflow visuel)
+      // 2) L'iframe persistera via le flux save_accueil_geometry standard
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+          type: 'parent-set-axis-mode',
+          field: data.heroField,
+          device: data.heroDevice || 'desktop',
+          mode: item.mode
+        }, '*');
+      }
     }
   }
 
@@ -1380,6 +1763,9 @@
     document.getElementById('ifeSbVisRow').style.display = '';
     document.getElementById('ifeSbBtnDelete').style.display = '';
     document.getElementById('ifeSbSizeRow').style.display = 'none';
+    // Ré-affiche l'espacement de ligne (caché par selectEditableElement pour les éléments du Hero)
+    var spacingRowEl = document.getElementById('ifeSbSpacingRow');
+    if (spacingRowEl) spacingRowEl.style.display = '';
     // Nettoie tous les widgets dynamiques laissés par une précédente sélection
     // (reset, textarea inline, alignement, picker, liste éditables) → plus de résidu.
     clearSidebarDynamicWidgets();
@@ -2016,13 +2402,20 @@
     document.getElementById('fieldEditFileWrap').style.display = 'none';
     if (data.kind === 'tinymce') {
       document.getElementById('fieldEditTinymceWrap').style.display = '';
-      bsModal.show();
+      // Pré-remplit le textarea sous-jacent : si TinyMCE n'a pas fini son init au
+      // moment où l'admin clique "Enregistrer", le btnSaveField fallback lit cette
+      // valeur (évite de sauvegarder une chaîne vide qui effacerait le titre).
+      var ta = document.getElementById('fieldEditTinymce');
+      if (ta) ta.value = data.currentValue || '';
+      // Attache l'écouteur 'shown.bs.modal' AVANT show() pour ne pas manquer l'event
+      // (si l'event est émis de manière synchrone après show, le bind tardif rate).
       modalEl.addEventListener('shown.bs.modal', function once() {
         modalEl.removeEventListener('shown.bs.modal', once);
         if (window.AccueilEditor.initTinyMce) {
           window.AccueilEditor.initTinyMce('#fieldEditTinymce', data.currentValue || '');
         }
       });
+      bsModal.show();
     } else if (data.kind === 'text') {
       document.getElementById('fieldEditTextWrap').style.display = '';
       document.getElementById('fieldEditText').value = data.currentValue || '';
