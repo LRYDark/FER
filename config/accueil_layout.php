@@ -37,10 +37,12 @@
 function accueilPredefinedSections(): array
 {
     return [
-        'reg_bar'  => ['label' => "Compteur d'inscrits + recherche", 'icon' => 'bi-people-fill'],
-        'partners' => ['label' => 'Bandeau Partenaires',              'icon' => 'bi-handshake'],
-        'timeline' => ['label' => 'Historique (Timeline)',            'icon' => 'bi-clock-history'],
-        'news'     => ['label' => 'Dernières actualités',             'icon' => 'bi-newspaper'],
+        'reg_bar'     => ['label' => "Compteur d'inscrits + recherche", 'icon' => 'bi-people-fill'],
+        'partners'    => ['label' => 'Bandeau Partenaires',              'icon' => 'bi-handshake'],
+        'timeline'    => ['label' => 'Historique (Timeline)',            'icon' => 'bi-clock-history'],
+        'news'        => ['label' => 'Dernières actualités',             'icon' => 'bi-newspaper'],
+        'start_point' => ['label' => 'Retrouver le départ (carte)',      'icon' => 'bi-geo-alt-fill'],
+        'newsletter'  => ['label' => 'Rester informé (newsletter)',       'icon' => 'bi-envelope-heart'],
     ];
 }
 
@@ -276,10 +278,27 @@ function normalizeAccueilLayout(array $layout): array
         ];
     }
 
-    // Ajoute les sections pré-définies manquantes (masquées) en bas
+    // Ajoute les sections pré-définies manquantes (masquées) en bas.
+    // ID DÉTERMINISTE ('row_predef_<type>') et NON aléatoire : normalizeAccueilLayout()
+    // est appelée séparément par setting.php (pour #ifeLayoutData) et par accueil.php
+    // (pour le rendu de l'iframe). Avec un id aléatoire, les deux obtenaient un id
+    // différent pour la même section non encore sauvegardée → au clic, selectRow()
+    // ne trouvait pas la row dans layoutData et n'affichait aucune propriété.
     foreach ($allowed as $type => $_meta) {
         if (!isset($seenTypes[$type])) {
-            $clean[] = newLayoutRow(['type' => $type, 'visible' => false], 12);
+            // Structure STRICTEMENT identique aux lignes normalisées de la boucle
+            // principale (mêmes clés : align, valign, spaceTop, spaceBottom, columns)
+            // → la section se comporte exactement comme les autres dans l'éditeur.
+            $clean[] = [
+                'id'          => 'row_predef_' . $type,
+                'align'       => 'left',
+                'valign'      => 'center',
+                'spaceTop'    => null,
+                'spaceBottom' => null,
+                'columns'     => [
+                    ['width' => 12, 'section' => ['type' => $type, 'visible' => false]],
+                ],
+            ];
         }
     }
 

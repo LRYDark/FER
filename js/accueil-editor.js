@@ -1755,6 +1755,8 @@
       partners: 'Bandeau Partenaires',
       timeline: 'Historique (Timeline)',
       news: 'Dernières actualités',
+      start_point: 'Retrouver le départ',
+      newsletter: 'Rester informé (newsletter)',
       custom: 'Bloc personnalisé'
     };
     document.getElementById('ifeSbEmpty').style.display = 'none';
@@ -1827,40 +1829,319 @@
     if (existing) existing.remove();
     // Detect si une colonne contient un type de section avec options
     var hasNews = row.columns.some(function(c) { return c.section.type === 'news'; });
-    if (!hasNews) return;
+    var hasStartPoint = row.columns.some(function(c) { return c.section.type === 'start_point'; });
+    if (!hasNews && !hasStartPoint) return;
     var styles = window.AccueilEditor.accueilStyles || {};
-    var currentStyle = styles['news.card_style'] || 'simple';
     var panel = document.createElement('div');
     panel.id = 'ifeSbSectionOptions';
     panel.className = 'ife-sb-section-options';
-    panel.innerHTML = ''
-      + '<div class="ife-sb-section-label">Options "Dernières actualités"</div>'
-      + '<div class="ife-sb-toggle-row">'
-      +   '<label>Affichage des cards</label>'
-      +   '<div class="btn-group btn-group-sm" id="ifeSbNewsCardStyle">'
-      +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'simple' ? ' active' : '') + '" data-card-style="simple" title="Cards minimalistes côte à côte, sans image"><i class="bi bi-list-task"></i> Sans image</button>'
-      +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'with-image' ? ' active' : '') + '" data-card-style="with-image" title="Cards avec image en haut (style timeline)"><i class="bi bi-image"></i> Image en haut</button>'
-      +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'with-image-side' ? ' active' : '') + '" data-card-style="with-image-side" title="Cards avec image à gauche (style page actualités)"><i class="bi bi-layout-text-window-reverse"></i> Image à gauche</button>'
-      +   '</div>'
-      + '</div>';
-    panel.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-card-style]');
-      if (!btn) return;
-      var newStyle = btn.dataset.cardStyle;
-      if (newStyle === currentStyle) return;
-      // Update local cache + sauvegarde via saveStyleKey existant
-      styles['news.card_style'] = newStyle;
-      window.AccueilEditor.accueilStyles = styles;
-      panel.querySelectorAll('[data-card-style]').forEach(function(b) {
-        b.classList.toggle('active', b === btn);
+
+    if (hasNews) {
+      var currentStyle = styles['news.card_style'] || 'simple';
+      panel.innerHTML = ''
+        + '<div class="ife-sb-section-label">Options "Dernières actualités"</div>'
+        + '<div class="ife-sb-toggle-row">'
+        +   '<label>Affichage des cards</label>'
+        +   '<div class="btn-group btn-group-sm" id="ifeSbNewsCardStyle">'
+        +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'simple' ? ' active' : '') + '" data-card-style="simple" title="Cards minimalistes côte à côte, sans image"><i class="bi bi-list-task"></i> Sans image</button>'
+        +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'with-image' ? ' active' : '') + '" data-card-style="with-image" title="Cards avec image en haut (style timeline)"><i class="bi bi-image"></i> Image en haut</button>'
+        +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'with-image-side' ? ' active' : '') + '" data-card-style="with-image-side" title="Cards avec image à gauche (style page actualités)"><i class="bi bi-layout-text-window-reverse"></i> Image à gauche</button>'
+        +   '</div>'
+        + '</div>';
+      panel.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-card-style]');
+        if (!btn) return;
+        var newStyle = btn.dataset.cardStyle;
+        if (newStyle === currentStyle) return;
+        styles['news.card_style'] = newStyle;
+        window.AccueilEditor.accueilStyles = styles;
+        panel.querySelectorAll('[data-card-style]').forEach(function(b) {
+          b.classList.toggle('active', b === btn);
+        });
+        saveStyleKey('news.card_style', newStyle);
+        setTimeout(function() { reloadIframe(); }, 200);
       });
-      saveStyleKey('news.card_style', newStyle);
-      // Reload iframe pour voir le changement de layout
-      setTimeout(function() { reloadIframe(); }, 200);
-    });
+    } else if (hasStartPoint) {
+      buildStartPointPanel(panel, styles);
+    }
     var propsEl = document.getElementById('ifeSbProps');
     if (propsEl) propsEl.appendChild(panel);
   }
+
+  // Panneau "Retrouver le départ" : choix adresse OU coordonnées (jamais les deux)
+  // + dimensions de la carte (hauteur/largeur), séparées desktop / mobile.
+  function buildStartPointPanel(panel, styles) {
+    var sp = window.AccueilEditor.startPoint || { address: '', coords: '' };
+    // Mode courant : coordonnées si renseignées, sinon adresse (défaut).
+    var mode = (sp.coords && sp.coords.trim() !== '') ? 'coords' : 'address';
+    var device = getCurrentEditorDevice();
+    var devLabel = (device === 'mobile') ? 'MOBILE' : 'DESKTOP';
+
+    // Clés de dimensions device-aware
+    var hKey = (device === 'mobile') ? 'start_point_map_height_mobile' : 'start_point_map_height';
+    var wKey = (device === 'mobile') ? 'start_point_map_width_mobile'  : 'start_point_map_width';
+    // Valeurs par défaut alignées sur le CSS (.start-point-map : 380px desktop /
+    // 320px mobile, largeur 100%).
+    var defH = (device === 'mobile') ? 320 : 380;
+    var curH = parseInt(styles[hKey], 10);
+    if (isNaN(curH) || curH < 180 || curH > 900) curH = defH;
+    var curW = parseInt(styles[wKey], 10);
+    if (isNaN(curW) || curW < 40 || curW > 100) curW = 100;
+
+    panel.innerHTML = ''
+      + '<div class="ife-sb-section-label">Point de départ</div>'
+      + '<div class="ife-sb-toggle-row">'
+      +   '<label>Type de point</label>'
+      +   '<div class="btn-group btn-group-sm" id="ifeSpMode">'
+      +     '<button type="button" class="btn btn-outline-secondary' + (mode === 'address' ? ' active' : '') + '" data-sp-mode="address"><i class="bi bi-pin-map"></i> Adresse</button>'
+      +     '<button type="button" class="btn btn-outline-secondary' + (mode === 'coords' ? ' active' : '') + '" data-sp-mode="coords"><i class="bi bi-compass"></i> Coordonnées</button>'
+      +   '</div>'
+      + '</div>'
+      + '<div style="margin-top:8px;position:relative">'
+      +   '<input type="text" id="ifeSpInput" class="form-control form-control-sm" autocomplete="off">'
+      +   '<div id="ifeSpSuggest" class="ife-sp-suggest" style="display:none"></div>'
+      +   '<small id="ifeSpHint" class="text-muted" style="display:block;margin-top:3px"></small>'
+      +   '<small id="ifeSpErr" class="text-danger" style="display:none;margin-top:3px"></small>'
+      + '</div>'
+      + '<hr style="margin:12px 0">'
+      + '<div class="ife-sb-section-label">Dimensions de la carte — vue ' + devLabel + '</div>'
+      + '<label class="mb-0">Hauteur <span id="ifeSpHVal" style="color:#64748b">' + curH + ' px</span></label>'
+      + '<input type="range" min="180" max="900" step="10" id="ifeSpH" value="' + curH + '" class="form-range">'
+      + '<label class="mb-0">Largeur <span id="ifeSpWVal" style="color:#64748b">' + curW + ' %</span></label>'
+      + '<input type="range" min="40" max="100" step="1" id="ifeSpW" value="' + curW + '" class="form-range">'
+      + '<button type="button" class="btn btn-sm btn-outline-warning mt-1" id="ifeSpReset">'
+      +   '<i class="bi bi-arrow-counterclockwise me-1"></i>Restaurer les dimensions de la carte'
+      + '</button>'
+      + '<small class="text-muted">Ces dimensions s\'appliquent à la vue ' + devLabel + ' seulement.</small>';
+
+    var input = panel.querySelector('#ifeSpInput');
+    var hint  = panel.querySelector('#ifeSpHint');
+    var errEl = panel.querySelector('#ifeSpErr');
+    var suggestEl = panel.querySelector('#ifeSpSuggest');
+
+    function hideSuggest() {
+      if (suggestEl) { suggestEl.style.display = 'none'; suggestEl.innerHTML = ''; }
+    }
+
+    function applyMode(m) {
+      mode = m;
+      panel.querySelectorAll('[data-sp-mode]').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.spMode === m);
+      });
+      if (m === 'coords') {
+        input.value = sp.coords || '';
+        input.placeholder = 'ex : 49.1869,6.8983';
+        hint.textContent = 'Latitude,longitude. Le point se place automatiquement sur la carte.';
+      } else {
+        input.value = sp.address || '';
+        input.placeholder = 'ex : 12 rue des Mines, Forbach';
+        hint.textContent = 'Tapez une adresse : des suggestions apparaissent automatiquement.';
+      }
+      errEl.style.display = 'none';
+      hideSuggest();
+    }
+    applyMode(mode);
+
+    panel.querySelector('#ifeSpMode').addEventListener('click', function(e) {
+      var b = e.target.closest('[data-sp-mode]');
+      if (b && b.dataset.spMode !== mode) applyMode(b.dataset.spMode);
+    });
+
+    // — Autocomplétion d'adresse (mode adresse uniquement) —
+    // API Photon (OpenStreetMap, sans clé ni facturation, conçue pour le
+    // type-ahead). Cohérent avec la carte qui utilise déjà Maps sans clé.
+    var acTimer = null, acReqId = 0;
+    function photonLabel(p) {
+      var l1 = [p.housenumber, p.street || p.name].filter(Boolean).join(' ');
+      if (!l1) l1 = p.name || '';
+      var l2 = [p.postcode, p.city].filter(Boolean).join(' ');
+      return [l1, l2, p.country].filter(Boolean).join(', ');
+    }
+    function runAutocomplete(q) {
+      var reqId = ++acReqId;
+      fetch('https://photon.komoot.io/api/?lang=fr&limit=5&q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (reqId !== acReqId || mode !== 'address') return; // réponse périmée
+          var feats = (data && data.features) || [];
+          suggestEl.innerHTML = '';
+          feats.forEach(function(f) {
+            var label = photonLabel(f.properties || {});
+            if (!label) return;
+            var item = document.createElement('div');
+            item.className = 'ife-sp-suggest-item';
+            item.textContent = label;
+            // mousedown (et non click) : se déclenche avant le blur de l'input.
+            item.addEventListener('mousedown', function(e) {
+              e.preventDefault();
+              input.value = label;
+              hideSuggest();
+              clearTimeout(spTimer);
+              saveStartPoint('address', label, errEl);
+            });
+            suggestEl.appendChild(item);
+          });
+          suggestEl.style.display = suggestEl.children.length ? 'block' : 'none';
+        })
+        .catch(function() { hideSuggest(); });
+    }
+
+    // Sauvegarde du point (debounced) → handler save_start_point.
+    var spTimer = null;
+    input.addEventListener('input', function() {
+      clearTimeout(spTimer);
+      spTimer = setTimeout(function() { saveStartPoint(mode, input.value.trim(), errEl); }, 600);
+      // Suggestions d'adresses (mode adresse, ≥ 3 caractères)
+      clearTimeout(acTimer);
+      if (mode !== 'address') { hideSuggest(); return; }
+      var q = input.value.trim();
+      if (q.length < 3) { hideSuggest(); return; }
+      acTimer = setTimeout(function() { runAutocomplete(q); }, 300);
+    });
+    input.addEventListener('blur', function() { setTimeout(hideSuggest, 150); });
+
+    // — Sliders dimensions de la carte —
+    var hInput = panel.querySelector('#ifeSpH'), hVal = panel.querySelector('#ifeSpHVal');
+    var wInput = panel.querySelector('#ifeSpW'), wVal = panel.querySelector('#ifeSpWVal');
+    var hVar = (device === 'mobile') ? '--sp-map-h-mobile' : '--sp-map-h';
+    var wVar = (device === 'mobile') ? '--sp-map-w-mobile' : '--sp-map-w';
+    var hTimer = null, wTimer = null;
+    hInput.addEventListener('input', function() {
+      var v = parseInt(this.value, 10);
+      hVal.textContent = v + ' px';
+      setStartPointMapVar(hVar, v + 'px');
+      // La hauteur de la section change → re-mesure immédiate des lignes pour que
+      // les pointillés (overlays) de l'éditeur suivent la carte en direct.
+      resyncOverlaysFromIframe();
+      clearTimeout(hTimer);
+      hTimer = setTimeout(function() { saveStyleKey(hKey, v); styles[hKey] = v; }, 400);
+    });
+    wInput.addEventListener('input', function() {
+      var v = parseInt(this.value, 10);
+      wVal.textContent = v + ' %';
+      setStartPointMapVar(wVar, v + '%');
+      clearTimeout(wTimer);
+      wTimer = setTimeout(function() { saveStyleKey(wKey, v); styles[wKey] = v; }, 400);
+    });
+
+    // — Bouton "Restaurer les dimensions de la carte" —
+    // Supprime les clés start_point_map_* du device courant + remet les sliders
+    // sur les valeurs par défaut + retire les CSS variables dans l'iframe.
+    panel.querySelector('#ifeSpReset').addEventListener('click', function() {
+      if (!confirm('Restaurer la hauteur et la largeur de la carte pour la vue ' + devLabel + ' ?')) return;
+      var csrf = getCsrf();
+      var fd = new FormData();
+      fd.append('reset_start_point_map_dimensions', '1');
+      fd.append('scope', device);
+      fd.append('csrf_token', csrf);
+      fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+        .then(function(r) { return r.text(); })
+        .then(function(txt) {
+          var j = null;
+          try { j = JSON.parse(txt); } catch (_) {}
+          if (j && j.ok) {
+            delete styles[hKey]; delete styles[wKey];
+            // Sliders ramenés au défaut
+            hInput.value = defH; hVal.textContent = defH + ' px';
+            wInput.value = 100;  wVal.textContent = '100 %';
+            // Retire les CSS variables → la carte retombe sur le défaut CSS
+            setStartPointMapVar(hVar, null);
+            setStartPointMapVar(wVar, null);
+            resyncOverlaysFromIframe();
+            if (typeof setDraftState === 'function') setDraftState(true);
+            showSaveIndicator();
+          } else {
+            alert('Erreur de réinitialisation : ' + ((j && j.err) || 'réponse inattendue du serveur'));
+          }
+        })
+        .catch(function(e) { alert('Erreur réseau : ' + e.message); });
+    });
+  }
+
+  // Demande à l'iframe de renvoyer la structure du layout (rects des lignes).
+  function requestIframeLayout() {
+    try {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'editor-request-layout' }, '*');
+      }
+    } catch (_) {}
+  }
+
+  // Re-mesure DIRECTEMENT les lignes dans l'iframe (sans aller-retour postMessage)
+  // et reconstruit les overlays + ajuste la hauteur de l'iframe. Utilisé quand une
+  // dimension change en direct (slider hauteur de carte) : garantit que les
+  // pointillés de l'éditeur suivent la nouvelle hauteur immédiatement.
+  function resyncOverlaysFromIframe() {
+    try {
+      var doc = iframe.contentDocument;
+      if (!doc) return;
+      // Ajuste la hauteur de l'iframe pour ne pas tronquer le contenu agrandi
+      var docH = Math.max(doc.body ? doc.body.scrollHeight : 0,
+                          doc.documentElement ? doc.documentElement.scrollHeight : 0);
+      if (docH > 100) iframe.style.height = Math.min(docH + 2, 8000) + 'px';
+      // Re-mesure chaque ligne et rebâtit les overlays
+      var scrollY = 0;
+      try { scrollY = iframe.contentWindow.scrollY || 0; } catch (_) {}
+      var rows = [];
+      doc.querySelectorAll('[data-editor-row-id]').forEach(function(rowEl) {
+        var r = rowEl.getBoundingClientRect();
+        rows.push({
+          rowId: rowEl.dataset.editorRowId,
+          rect: { top: r.top + scrollY, left: r.left, width: r.width, height: r.height }
+        });
+      });
+      if (rows.length) buildOverlays(rows);
+    } catch (_) {}
+  }
+
+  // Pose (ou retire si value == null) une CSS variable sur la section "Retrouver
+  // le départ" dans l'iframe (preview live).
+  function setStartPointMapVar(varName, value) {
+    try {
+      var doc = iframe.contentDocument;
+      var sec = doc && doc.querySelector('.start-point-section');
+      if (!sec) return;
+      if (value === null || value === undefined) sec.style.removeProperty(varName);
+      else sec.style.setProperty(varName, value);
+    } catch (_) {}
+  }
+
+  // Enregistre l'adresse OU les coordonnées du point de départ, puis rafraîchit la carte.
+  // Écriture directe en colonne SQL (pas de brouillon) → on ne marque PAS l'état "draft".
+  function saveStartPoint(mode, value, errEl) {
+    var csrf = getCsrf();
+    var fd = new FormData();
+    fd.append('save_start_point', '1');
+    fd.append('mode', mode);
+    fd.append('value', value);
+    fd.append('csrf_token', csrf);
+    fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (j && j.ok) {
+          if (errEl) errEl.style.display = 'none';
+          window.AccueilEditor.startPoint = { address: j.address || '', coords: j.coords || '' };
+          // Rafraîchit la carte dans l'iframe (le point se replace tout seul).
+          if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              type: 'parent-start-point-update',
+              address: j.address || '',
+              coords: j.coords || ''
+            }, '*');
+          }
+          showSaveIndicator();
+        } else if (errEl) {
+          errEl.textContent = (j && j.err) || 'Erreur de sauvegarde.';
+          errEl.style.display = 'block';
+        }
+      });
+  }
+
+  // Re-render la sélection courante (appelé par setting.php au changement de device
+  // pour que les widgets device-aware de la sidebar se rebasent sur le bon device).
+  window.AccueilEditor.refreshSelection = function() {
+    if (selectedRowId) selectRow(selectedRowId);
+  };
 
   // Affiche la liste des champs éditables d'une row dans la sidebar.
   // Inclut : textes hardcodés, blocs custom (text), blocs custom (html avec boutons align)
@@ -1876,7 +2157,13 @@
       subtitle_accueil_mobile: 'Sous-titre (mobile)',
       hero_timer: 'Compte à rebours',
       video_accueil: 'Vidéo Hero',
-      picture_partner: 'Image partenaires'
+      picture_partner: 'Image partenaires',
+      'start_point.title': 'Titre de la section',
+      'newsletter.title': 'Newsletter — titre',
+      'newsletter.subtitle': 'Newsletter — sous-titre',
+      'newsletter.intro': 'Newsletter — texte',
+      'newsletter.button': 'Newsletter — bouton',
+      'newsletter.consent': 'Newsletter — consentement'
     };
     var iconByKind = {
       text: 'bi-fonts', tinymce: 'bi-text-paragraph',
@@ -2022,7 +2309,7 @@
     grid.innerHTML = '';
     var sectionLabels = {
       reg_bar: 'Compteur', partners: 'Partenaires', timeline: 'Timeline',
-      news: 'Actu', custom: 'Bloc'
+      news: 'Actu', start_point: 'Départ', newsletter: 'Newsletter', custom: 'Bloc'
     };
     row.columns.forEach(function(col, idx) {
       var cell = document.createElement('div');

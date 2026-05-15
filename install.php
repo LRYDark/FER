@@ -599,6 +599,8 @@ function getCreateTableStatements(): array
           `accueil_texts_draft` TEXT DEFAULT NULL,
           `accueil_geometry_draft` TEXT DEFAULT NULL,
           `accueil_draft_updated_at` DATETIME DEFAULT NULL,
+          `start_point_address` VARCHAR(255) DEFAULT NULL,
+          `start_point_coords` VARCHAR(64) DEFAULT NULL,
           `role_permissions` TEXT DEFAULT NULL,
           `turnstile_sitekey` VARCHAR(255) DEFAULT NULL,
           `turnstile_secret` TEXT DEFAULT NULL,
@@ -672,8 +674,19 @@ function getCreateTableStatements(): array
           `like` int(11) DEFAULT 0,
           `dislike` int(11) DEFAULT 0,
           `status` enum('published','draft') NOT NULL DEFAULT 'published',
+          `newsletter_sent_at` timestamp NULL DEFAULT NULL,
           `deleted_at` timestamp NULL DEFAULT NULL,
           PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `newsletter_subscribers` (
+          `id` int(11) NOT NULL AUTO_INCREMENT,
+          `email` varchar(255) NOT NULL,
+          `status` enum('subscribed','unsubscribed') NOT NULL DEFAULT 'subscribed',
+          `created_at` timestamp NULL DEFAULT current_timestamp(),
+          `unsubscribed_at` timestamp NULL DEFAULT NULL,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `email_idx` (`email`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
         "CREATE TABLE IF NOT EXISTS `registrations_stats` (
