@@ -38,7 +38,7 @@ function accueilEditableTexts(): array
         'reg_bar.kicker_open'     => ['label' => 'Compteur — kicker (ouvert)', 'default' => 'Déjà inscrits'],
         'reg_bar.title_search'    => ['label' => 'Compteur — titre recherche', 'default' => 'Vérifier mon inscription'],
         'reg_bar.placeholder'     => ['label' => 'Compteur — placeholder email', 'default' => 'Votre adresse email'],
-        'reg_bar.btn_check'       => ['label' => 'Compteur — bouton vérifier', 'default' => 'Vérifier →'],
+        'reg_bar.btn_check'       => ['label' => 'Compteur — bouton vérifier', 'default' => 'Vérifier'],
         'reg_bar.hint'            => ['label' => 'Compteur — hint', 'default' => "Saisissez l'email utilisé lors de votre inscription."],
         'partners.title'          => ['label' => 'Partenaires — titre', 'default' => 'Rejoignez le clan de nos partenaires engagés'],
         'partners.text'           => ['label' => 'Partenaires — paragraphe', 'default' => "Chaque année, des entreprises et associations locales s'associent à Forbach en Rose pour soutenir la lutte contre le cancer. En devenant partenaire, vous contribuez directement à la réussite de cet événement caritatif et affichez votre engagement solidaire auprès de notre communauté."],
@@ -48,6 +48,13 @@ function accueilEditableTexts(): array
         'timeline.title'          => ['label' => 'Timeline — titre', 'default' => 'Historique'],
         'news.title'              => ['label' => 'Actualités — titre', 'default' => 'Dernières actualités'],
         'news.link_all'           => ['label' => 'Actualités — bouton voir toutes', 'default' => 'Voir toutes les actualités'],
+        'start_point.title'       => ['label' => 'Départ — titre', 'default' => 'Retrouver le départ'],
+        'newsletter.title'        => ['label' => 'Newsletter — titre', 'default' => 'Rester informé'],
+        'newsletter.subtitle'     => ['label' => 'Newsletter — sous-titre', 'default' => "c'est déjà un moyen d'agir"],
+        'newsletter.intro'        => ['label' => 'Newsletter — texte', 'default' => 'Abonnez-vous à la newsletter de Forbach en Rose.'],
+        'newsletter.placeholder'  => ['label' => 'Newsletter — placeholder email', 'default' => 'Votre adresse email'],
+        'newsletter.button'       => ['label' => 'Newsletter — bouton', 'default' => "Je m'abonne"],
+        'newsletter.consent'      => ['label' => 'Newsletter — texte de consentement', 'default' => "En cliquant sur « Je m'abonne », j'accepte de recevoir des e-mails de l'association et confirme avoir pris connaissance de la politique de confidentialité."],
         'hero.cta_register'       => ['label' => 'Hero — bouton inscription', 'default' => "Je m'inscris →"],
         'badge_fee.tooltip'       => ['label' => 'Hero — tooltip du badge prix', 'default' => 'Entièrement reversé à la Ligue contre le cancer'],
     ];
@@ -147,6 +154,9 @@ function buildAccueilSectionContext(PDO $pdo, array $data, array $actualites = [
         'video_accueil'           => $data['video_accueil'] ?? 'FER.mp4',
         'registration_fee'        => $data['registration_fee'] ?? 0,
         'course_km'               => $data['course_km'] ?? 7,
+        // Section "Retrouver le départ" (colonnes SQL dédiées)
+        'start_point_address'     => $data['start_point_address'] ?? '',
+        'start_point_coords'      => $data['start_point_coords'] ?? '',
         'styles'                  => $styles,
         'texts'                   => $texts,
         'geometry'                => $geometry,
@@ -309,7 +319,7 @@ function renderAccueilSection_reg_bar(array $ctx): void {
     $kickerOpen = getAccueilText($ctx, 'reg_bar.kicker_open',     'Déjà inscrits');
     $titleSearch = getAccueilText($ctx, 'reg_bar.title_search',  'Vérifier mon inscription');
     $placeholder = getAccueilText($ctx, 'reg_bar.placeholder',    'Votre adresse email');
-    $btnCheck    = getAccueilText($ctx, 'reg_bar.btn_check',      'Vérifier →');
+    $btnCheck    = getAccueilText($ctx, 'reg_bar.btn_check',      'Vérifier');
     $hint        = getAccueilText($ctx, 'reg_bar.hint',           "Saisissez l'email utilisé lors de votre inscription.");
     ?>
     <section class="reg-bar" id="reg-bar" aria-label="Inscriptions">
@@ -320,10 +330,10 @@ function renderAccueilSection_reg_bar(array $ctx): void {
           <div class="reg-value" style="font-size:1.2rem;">Fermées</div>
         </div>
         <div class="reg-search">
-          <div class="reg-title" style="display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg><span>Inscriptions actuellement fermées</span></div>
+          <div class="reg-title" style="display:flex;align-items:center;justify-content:center;"><span>Inscriptions actuellement fermées</span></div>
           <?php if ($autoOpen && $now < $autoOpen): ?>
-            <p style="margin-top:10px;font-size:.95rem;color:#b5366b;display:flex;align-items:center;justify-content:center;gap:5px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>Ouverture le <strong><?= $autoOpen->format('d/m/Y') ?></strong> à <strong><?= $autoOpen->format('H\hi') ?></strong></span>
+            <p style="margin-top:10px;font-size:1.075rem;color:#b5366b;display:flex;align-items:center;justify-content:center;">
+              <span>Ouverture le <strong><?= $autoOpen->format('d/m/Y') ?></strong> à <strong><?= $autoOpen->format('H\hi') ?></strong></span>
             </p>
           <?php else: ?>
             <p style="margin-top:10px;font-size:.95rem;color:#64748b;">Merci de votre compréhension.</p>
@@ -346,6 +356,32 @@ function renderAccueilSection_reg_bar(array $ctx): void {
              style="<?= $searchMessage !== '' ? '' : 'display:none;' ?>"><?= htmlspecialchars($searchMessage) ?></p>
           <p id="regHint" class="reg-hint" style="<?= $searchMessage !== '' ? 'display:none;' : '' ?>"
              <?= $editable ? 'data-edit-field="reg_bar.hint" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($hint) ?></p>
+          <?php if (!$editable && $searchMessage !== ''): ?>
+          <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+          (function() {
+            function bind() {
+              var r = document.getElementById('regResult');
+              if (!r || r.dataset.autohide) return;
+              r.dataset.autohide = '1';
+              // Au bout de 5 s : on efface le message de retour (et on réaffiche le hint).
+              setTimeout(function() {
+                r.style.transition = 'opacity .3s ease';
+                r.style.opacity = '0';
+                setTimeout(function() {
+                  r.style.display = 'none';
+                  var h = document.getElementById('regHint');
+                  if (h) h.style.display = '';
+                }, 300);
+              }, 5000);
+            }
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', bind);
+            } else {
+              bind();
+            }
+          })();
+          </script>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
       </div>
@@ -643,17 +679,256 @@ function renderAccueilSection_custom(array $section, array $ctx = []): void {
 }
 
 /**
+ * Section "Retrouver le départ" : un titre éditable + une carte Google Maps
+ * (embed sans clé API) pointant sur le point de départ de la course.
+ *
+ * Le point est défini par UNE des deux colonnes SQL de `setting` :
+ *   - start_point_address  : une adresse postale ("12 rue des Mines, Forbach")
+ *   - start_point_coords   : des coordonnées "lat,lng" ("49.1869,6.8983")
+ * L'adresse est prioritaire si les deux sont renseignées.
+ *
+ * L'adresse / les coordonnées NE s'affichent PAS sur la page : elles s'éditent
+ * uniquement dans le panneau Propriétés de l'éditeur (sidebar gauche). Le point
+ * se place automatiquement sur la carte selon la valeur saisie.
+ *
+ * Les dimensions de la carte (hauteur px + largeur %) sont réglables séparément
+ * pour desktop et mobile via les clés de style start_point_map_* (accueil_styles).
+ *
+ * Un clic sur la carte ouvre l'itinéraire Google Maps depuis la position du
+ * visiteur (origine déduite automatiquement) vers le point de départ.
+ */
+function renderAccueilSection_start_point(array $ctx): void {
+    $editable = !empty($ctx['_editor']);
+    $title   = getAccueilText($ctx, 'start_point.title', 'Retrouver le départ');
+    $address = trim((string)($ctx['start_point_address'] ?? ''));
+    $coords  = trim((string)($ctx['start_point_coords']  ?? ''));
+
+    // L'adresse est prioritaire ; sinon coordonnées ; sinon défaut (Forbach).
+    if ($address !== '') {
+        $destination = $address;
+    } elseif ($coords !== '') {
+        $destination = $coords;
+    } else {
+        $destination = 'Forbach, France';
+    }
+    $embedUrl = 'https://maps.google.com/maps?q=' . rawurlencode($destination)
+              . '&z=15&hl=fr&output=embed';
+    $dirUrl   = 'https://www.google.com/maps/dir/?api=1&destination='
+              . rawurlencode($destination);
+
+    // Dimensions de la carte → CSS variables, séparées desktop / mobile.
+    $styles = $ctx['styles'] ?? [];
+    $mapVarCss = '';
+    $mh  = $styles['start_point_map_height']        ?? null;
+    $mhM = $styles['start_point_map_height_mobile'] ?? null;
+    $mw  = $styles['start_point_map_width']         ?? null;
+    $mwM = $styles['start_point_map_width_mobile']  ?? null;
+    if (is_numeric($mh))  $mapVarCss .= '--sp-map-h:'        . (int)$mh  . 'px;';
+    if (is_numeric($mhM)) $mapVarCss .= '--sp-map-h-mobile:' . (int)$mhM . 'px;';
+    if (is_numeric($mw))  $mapVarCss .= '--sp-map-w:'        . (int)$mw  . '%;';
+    if (is_numeric($mwM)) $mapVarCss .= '--sp-map-w-mobile:' . (int)$mwM . '%;';
+    ?>
+    <section class="start-point-section" aria-label="Point de départ"
+             <?= $mapVarCss !== '' ? 'style="' . $mapVarCss . '"' : '' ?>
+             <?= $editable ? 'data-sp-address="' . htmlspecialchars($address) . '" data-sp-coords="' . htmlspecialchars($coords) . '"' : '' ?>>
+      <div class="start-point-container">
+        <div class="start-point-head">
+          <h2 class="start-point-title" style="<?= getAccueilAlignStyle($ctx, 'start_point.title') ?>"
+              <?= $editable ? 'data-edit-field="start_point.title" data-edit-kind="text" data-edit-section="start_point"' : '' ?>><?= htmlspecialchars($title) ?></h2>
+        </div>
+        <?php if ($editable): ?>
+        <div class="start-point-map start-point-map--editor">
+          <iframe class="start-point-map-frame" src="<?= htmlspecialchars($embedUrl) ?>"
+                  loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                  title="Carte du point de départ"></iframe>
+          <span class="start-point-map-overlay" aria-hidden="true">
+            <i class="bi bi-geo-alt-fill"></i> Ouvrir l'itinéraire
+          </span>
+        </div>
+        <?php else: ?>
+        <a class="start-point-map" href="<?= htmlspecialchars($dirUrl) ?>" target="_blank"
+           rel="noopener noreferrer" aria-label="Ouvrir l'itinéraire vers le point de départ">
+          <iframe class="start-point-map-frame" src="<?= htmlspecialchars($embedUrl) ?>"
+                  loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                  title="Carte du point de départ"></iframe>
+          <span class="start-point-map-overlay">
+            <i class="bi bi-geo-alt-fill"></i> Ouvrir l'itinéraire
+          </span>
+        </a>
+        <?php endif; ?>
+      </div>
+    </section>
+    <?php
+}
+
+/**
+ * Section "Rester informé" : formulaire d'abonnement à la newsletter.
+ *
+ * L'email saisi est enregistré dans `newsletter_subscribers` via l'endpoint
+ * public/newsletter.php (AJAX). À la publication d'un article (case cochée côté
+ * admin), un mail est envoyé à tous les abonnés.
+ *
+ * Tous les textes sont éditables ; le style réutilise les variables du thème
+ * (--primary, --radius, --font-family…) pour rester cohérent avec le site.
+ */
+function renderAccueilSection_newsletter(array $ctx): void {
+    $editable = !empty($ctx['_editor']);
+    $title    = getAccueilText($ctx, 'newsletter.title',       'Rester informé');
+    $subtitle = getAccueilText($ctx, 'newsletter.subtitle',    "c'est déjà un moyen d'agir");
+    $intro    = getAccueilText($ctx, 'newsletter.intro',       'Abonnez-vous à la newsletter de Forbach en Rose.');
+    $ph       = getAccueilText($ctx, 'newsletter.placeholder', 'Votre adresse email');
+    $btn      = getAccueilText($ctx, 'newsletter.button',      "Je m'abonne");
+    $consent  = getAccueilText($ctx, 'newsletter.consent',     "En cliquant sur « Je m'abonne », j'accepte de recevoir des e-mails de l'association et confirme avoir pris connaissance de la politique de confidentialité.");
+    $ed = function($field) use ($editable) {
+        return $editable ? ' data-edit-field="' . $field . '" data-edit-kind="text" data-edit-section="newsletter"' : '';
+    };
+    ?>
+    <section class="newsletter-section" aria-label="Newsletter">
+      <div class="newsletter-card">
+        <div class="newsletter-content">
+          <h2 class="newsletter-title" style="<?= getAccueilAlignStyle($ctx, 'newsletter.title') ?>"<?= $ed('newsletter.title') ?>><?= htmlspecialchars($title) ?></h2>
+          <p class="newsletter-subtitle" style="<?= getAccueilAlignStyle($ctx, 'newsletter.subtitle') ?>"<?= $ed('newsletter.subtitle') ?>><?= htmlspecialchars($subtitle) ?></p>
+          <p class="newsletter-intro" style="<?= getAccueilAlignStyle($ctx, 'newsletter.intro') ?>"<?= $ed('newsletter.intro') ?>><?= htmlspecialchars($intro) ?></p>
+          <form class="newsletter-form" id="newsletterForm" method="post" action="newsletter.php" novalidate>
+            <div class="newsletter-input-row">
+              <input type="email" name="email" class="newsletter-email" placeholder="<?= htmlspecialchars($ph) ?>" autocomplete="email" required>
+              <button type="submit" class="newsletter-submit"<?= $ed('newsletter.button') ?>><?= htmlspecialchars($btn) ?></button>
+            </div>
+            <!-- Champ piège anti-bot : invisible, doit rester vide -->
+            <input type="text" name="website" class="newsletter-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <label class="newsletter-consent">
+              <input type="checkbox" name="consent" required>
+              <span style="<?= getAccueilAlignStyle($ctx, 'newsletter.consent') ?>"<?= $ed('newsletter.consent') ?>><?= htmlspecialchars($consent) ?></span>
+            </label>
+            <div class="newsletter-feedback" id="newsletterFeedback" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+        <div class="newsletter-deco" aria-hidden="true">
+          <!-- Ruban de sensibilisation au cancer (SVG fourni). fill=currentColor
+               → suit la couleur du thème (--secondary-text), donc blanc sur la carte. -->
+          <svg class="newsletter-ribbon" viewBox="0 0 1127 1396"
+               xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <g transform="translate(0,1396) scale(0.1,-0.1)" fill="currentColor" stroke="none">
+              <path d="M3680 12640 c-199 -24 -255 -35 -475 -100 -462 -137 -968 -463 -1255
+-810 -278 -337 -537 -1025 -609 -1620 -29 -242 -21 -626 18 -845 21 -118 91
+-397 115 -461 8 -22 26 -73 41 -114 23 -66 36 -101 65 -175 185 -475 558
+-1105 923 -1560 144 -179 434 -500 645 -713 24 -24 42 -50 40 -57 -2 -8 -577
+-583 -1278 -1278 -1076 -1067 -1530 -1526 -1858 -1878 -47 -51 -52 -60 -52
+-102 0 -26 1 -47 3 -47 4 0 92 29 132 43 81 30 240 40 406 28 406 -31 678
+-144 919 -382 137 -135 274 -375 314 -550 32 -143 37 -182 46 -359 9 -194 20
+-250 49 -250 48 0 727 740 1446 1575 132 154 303 351 380 440 77 88 198 228
+269 310 125 145 159 183 365 414 207 231 462 481 491 481 9 0 59 -34 111 -76
+52 -42 159 -127 239 -190 80 -63 199 -157 265 -210 156 -125 499 -381 661
+-494 291 -203 602 -405 814 -530 607 -357 1211 -649 1980 -955 202 -80 455
+-174 565 -210 39 -13 81 -28 95 -33 30 -13 346 -113 450 -142 142 -41 534
+-129 670 -151 128 -21 422 -58 508 -64 l92 -7 0 55 0 54 -87 7 c-83 6 -140 13
+-413 52 -223 32 -545 98 -750 155 -225 63 -839 276 -995 345 -16 7 -77 32
+-135 54 -93 37 -178 73 -275 115 -16 8 -58 25 -92 39 -35 15 -86 37 -115 50
+-411 186 -544 248 -778 365 -363 182 -627 329 -853 475 -116 75 -660 462 -832
+592 -584 441 -743 567 -957 759 -76 68 -81 93 -38 177 46 87 121 207 194 307
+139 193 759 1015 786 1044 16 18 21 15 121 -65 57 -46 138 -109 179 -140 41
+-31 125 -95 185 -142 164 -128 360 -276 451 -342 45 -33 187 -136 315 -230
+617 -451 1178 -818 2064 -1349 703 -422 1177 -683 1726 -952 333 -164 299
+-154 298 -90 l-1 52 -306 152 c-169 84 -356 180 -417 214 -60 34 -132 74 -160
+89 -98 53 -311 173 -370 210 -33 20 -91 55 -130 77 -146 84 -924 553 -1210
+728 -88 55 -206 123 -263 152 -91 47 -352 215 -564 364 -82 58 -419 307 -738
+544 -107 80 -229 170 -270 200 -41 29 -147 108 -235 174 -88 66 -202 150 -252
+187 -176 126 -263 222 -263 287 0 66 36 136 195 372 328 488 487 763 661 1141
+121 263 263 656 308 854 8 36 22 94 30 130 98 418 112 963 35 1330 -46 217
+-106 418 -162 540 -8 19 -32 71 -52 115 -113 249 -298 517 -521 756 -467 499
+-1077 845 -1738 989 -100 22 -201 44 -224 50 -24 6 -90 15 -145 21 -56 6 -133
+14 -172 19 -115 15 -454 9 -625 -10z m825 -125 c338 -39 660 -133 820 -239
+207 -137 422 -483 511 -826 71 -271 55 -706 -37 -1055 -43 -161 -155 -483
+-219 -630 -9 -22 -41 -96 -70 -165 -173 -408 -389 -786 -789 -1384 -85 -127
+-175 -262 -200 -299 -28 -43 -50 -67 -60 -65 -8 2 -96 89 -196 195 -99 105
+-247 263 -330 350 -528 560 -1012 1255 -1354 1943 -188 380 -221 501 -221 823
+0 350 65 614 217 887 84 149 160 211 358 293 240 98 413 147 605 172 190 25
+747 25 965 0z m1191 -373 c473 -270 888 -672 1177 -1139 110 -178 247 -479
+283 -618 7 -27 24 -95 39 -150 88 -340 92 -816 11 -1270 -47 -268 -174 -665
+-302 -953 -13 -29 -24 -55 -24 -58 0 -12 -165 -334 -235 -459 -142 -254 -414
+-682 -588 -925 -18 -25 -54 -76 -82 -115 -79 -113 -271 -369 -392 -525 -62
+-80 -146 -187 -185 -239 -40 -52 -120 -153 -177 -225 -109 -138 -139 -177
+-290 -370 -167 -214 -241 -305 -495 -611 -343 -414 -354 -427 -915 -1079 -146
+-170 -279 -325 -296 -345 -53 -64 -346 -401 -495 -571 -338 -383 -469 -528
+-569 -629 -192 -194 -197 -193 -245 54 -27 137 -52 235 -67 265 -4 8 -17 37
+-29 63 -56 130 -239 363 -365 467 -211 175 -374 248 -730 330 -57 14 -253 38
+-367 46 -78 5 -98 10 -98 21 0 9 330 342 733 741 1404 1393 1922 1919 2202
+2242 22 25 67 74 100 110 298 322 798 948 1075 1345 27 39 75 107 107 151 417
+586 535 761 731 1090 210 352 446 835 532 1094 11 30 30 87 44 125 142 401
+216 885 187 1226 -29 338 -143 620 -342 845 -67 77 -82 101 -75 119 8 22 13
+21 142 -53z"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </section>
+    <?php if (!$editable): ?>
+    <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+    (function() {
+      var form = document.getElementById('newsletterForm');
+      if (!form || form.dataset.bound) return;
+      form.dataset.bound = '1';
+      var fb = document.getElementById('newsletterFeedback');
+      var fbTimer = null;
+
+      // Efface le message de retour.
+      function clearFeedback() {
+        if (fbTimer) { clearTimeout(fbTimer); fbTimer = null; }
+        fb.className = 'newsletter-feedback';
+        fb.textContent = '';
+      }
+      // Affiche un message + le fait disparaître tout seul au bout de 3 secondes.
+      function showFeedback(msg, ok) {
+        if (fbTimer) clearTimeout(fbTimer);
+        fb.className = 'newsletter-feedback ' + (ok ? 'is-success' : 'is-error');
+        fb.textContent = msg;
+        fbTimer = setTimeout(clearFeedback, 3000);
+      }
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var email   = (form.email.value || '').trim();
+        var consent = form.consent.checked;
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          showFeedback('Merci de saisir une adresse email valide.', false); return;
+        }
+        if (!consent) {
+          showFeedback('Merci de cocher la case de consentement.', false); return;
+        }
+        var btn = form.querySelector('.newsletter-submit');
+        btn.disabled = true;
+        var fd = new FormData(form);
+        fd.append('subscribe_newsletter', '1');
+        fetch('newsletter.php', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+          .then(function(r) { return r.json(); })
+          .then(function(j) {
+            showFeedback((j && j.msg) || 'Une erreur est survenue.', !!(j && j.ok));
+            if (j && j.ok) form.reset();
+          })
+          .catch(function() {
+            showFeedback('Une erreur réseau est survenue. Réessayez plus tard.', false);
+          })
+          .finally(function() { btn.disabled = false; });
+      });
+    })();
+    </script>
+    <?php endif;
+}
+
+/**
  * Dispatcher unique. Render la section selon son type.
  */
 function renderAccueilSection(array $section, array $ctx): void
 {
     $type = $section['type'] ?? '';
     switch ($type) {
-        case 'hero':     renderAccueilSection_hero($ctx);     break;
-        case 'reg_bar':  renderAccueilSection_reg_bar($ctx);  break;
-        case 'partners': renderAccueilSection_partners($ctx); break;
-        case 'timeline': renderAccueilSection_timeline($ctx); break;
-        case 'news':     renderAccueilSection_news($ctx);     break;
-        case 'custom':   renderAccueilSection_custom($section, $ctx); break;
+        case 'hero':        renderAccueilSection_hero($ctx);        break;
+        case 'reg_bar':     renderAccueilSection_reg_bar($ctx);     break;
+        case 'partners':    renderAccueilSection_partners($ctx);    break;
+        case 'timeline':    renderAccueilSection_timeline($ctx);    break;
+        case 'news':        renderAccueilSection_news($ctx);        break;
+        case 'start_point': renderAccueilSection_start_point($ctx); break;
+        case 'newsletter':  renderAccueilSection_newsletter($ctx);  break;
+        case 'custom':      renderAccueilSection_custom($section, $ctx); break;
     }
 }

@@ -30,6 +30,34 @@ try {
     $migrationDone = true;
 } catch (PDOException $e) {}
 
+// Newsletter : helpers d'envoi aux abonnés
+require_once __DIR__ . '/../config/newsletter.php';
+
+/**
+ * Envoie la notification "nouvel article" aux abonnés newsletter — une seule fois
+ * par article — si la case "Prévenir les abonnés" est cochée ET que l'article est
+ * publié. L'horodatage `newsletter_sent_at` garantit le non-doublon.
+ * Toute erreur est journalisée sans bloquer l'enregistrement de l'article.
+ */
+function newsArticleMaybeNotify(PDO $pdo, int $articleId): void
+{
+    if ($articleId <= 0 || empty($_POST['notify_subscribers'])) return;
+    try {
+        $st = $pdo->prepare("SELECT id, title_article, desc_article, img_article, status, newsletter_sent_at
+                               FROM news WHERE id = ?");
+        $st->execute([$articleId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row || ($row['status'] ?? '') !== 'published') return; // pas de notif pour un brouillon
+        if (!empty($row['newsletter_sent_at'])) return;               // déjà notifié
+        $sent = newsletterSendNewArticle($pdo, $row);
+        if ($sent > 0) {
+            $pdo->prepare("UPDATE news SET newsletter_sent_at = NOW() WHERE id = ?")->execute([$articleId]);
+        }
+    } catch (\Throwable $e) {
+        error_log('[NEWS] notify subscribers: ' . $e->getMessage());
+    }
+}
+
 // ─── CSRF check for all POST actions ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
     http_response_code(403);
@@ -84,6 +112,7 @@ if (isset($_POST['add_news'])) {
             $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
             $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`, status) VALUES (?, ?, ?, NOW(), 0, 0, ?)");
             $stmt->execute([$imgName, $title, $desc, $status]);
+            newsArticleMaybeNotify($pdo, (int)$pdo->lastInsertId());
         } else {
             $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
             $stmt->execute([$imgName, $title, $desc]);
@@ -143,6 +172,7 @@ if (isset($_POST['update_news'])) {
                 $stmt = $pdo->prepare("UPDATE news SET title_article = ?, desc_article = ?, status = ? WHERE id = ?");
                 $stmt->execute([$title, $desc, $status, $id]);
             }
+            newsArticleMaybeNotify($pdo, $id);
         } else {
             $safeName = uploadImage($_FILES['img_article'] ?? [], '../files/_news/', 'news_');
             if ($safeName) {
@@ -620,6 +650,21 @@ if ($migrationDone) {
                           <option value="published" <?= $n['status'] === 'published' ? 'selected' : '' ?>>Publié</option>
                         </select>
                       </div>
+                      <?php $njSent = !empty($n['newsletter_sent_at']); ?>
+                      <div class="col-12">
+                        <div class="form-check">
+                          <input type="checkbox" name="notify_subscribers" value="1" class="form-check-input"
+                                 id="notifyEdit<?= $n['id'] ?>" <?= $njSent ? 'disabled' : '' ?>>
+                          <label class="form-check-label<?= $njSent ? ' text-muted' : '' ?>" for="notifyEdit<?= $n['id'] ?>">
+                            <i class="bi bi-envelope-heart"></i>
+                            <?php if ($njSent): ?>
+                              Newsletter déjà envoyée aux abonnés pour cet article.
+                            <?php else: ?>
+                              Prévenir les abonnés à la newsletter — un email part si l'article est <strong>publié</strong>.
+                            <?php endif; ?>
+                          </label>
+                        </div>
+                      </div>
                       <?php endif; ?>
                       <div class="col-md-12">
                         <label>Description</label>
@@ -729,6 +774,14 @@ if ($migrationDone) {
                 <option value="draft" selected>Brouillon</option>
                 <option value="published">Publié</option>
               </select>
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input type="checkbox" name="notify_subscribers" value="1" class="form-check-input" id="notifyAdd">
+                <label class="form-check-label" for="notifyAdd">
+                  <i class="bi bi-envelope-heart"></i> Prévenir les abonnés à la newsletter — un email est envoyé si l'article est <strong>publié</strong>.
+                </label>
+              </div>
             </div>
             <?php endif; ?>
             <div class="col-md-12">

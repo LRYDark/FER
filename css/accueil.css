@@ -295,7 +295,7 @@
     }
 
     .reg-count .reg-kicker {
-      font-size: 0.6875rem;
+      font-size: 0.8125rem; /* +2px */
       color: var(--secondary-text, #fff); opacity: .5;
       text-transform: uppercase;
       letter-spacing: .12em;
@@ -326,38 +326,58 @@
     }
 
     .reg-title {
-      font-size: 0.875rem;
+      font-size: 1rem; /* +2px */
       font-weight: 700;
       color: var(--page-text);
       margin: 0 0 0.625rem;
     }
 
+    /* Champ "Vérifier mon inscription" : même habillage que le formulaire
+       newsletter (.newsletter-input-row) — pilule blanche + bouton sombre. */
     .reg-form {
       display: flex;
-      align-items: center;
-      gap: 0.625rem;
+      align-items: stretch;
+      gap: .4rem;
+      background: #ffffff;
+      border-radius: var(--radius-pill, 999px);
+      padding: .35rem;
+      box-shadow: 0 2px 10px rgba(2, 6, 23, .08);
     }
 
     .reg-input {
-      background: var(--pill-bg, #fff);
-      border: none;
-      padding: 0.875rem 1.125rem;
-      border-radius: var(--radius);
-      font-size: 0.875rem;
       flex: 1 1 auto;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      padding: .6rem 1rem;
+      font-size: 1rem;
+      font-family: inherit;
+      color: var(--page-text, #0f172a);
       outline: none;
-      box-shadow: 0 2px 8px rgba(0,0,0,.04);
-      transition: box-shadow .2s;
+      box-shadow: none;
     }
 
-    .reg-input::placeholder {
-      color: #9ca3af;
-    }
+    .reg-input::placeholder { color: #9ca3af; }
+    .reg-input:focus { outline: none; box-shadow: none; }
 
-    .reg-input:focus {
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+    /* Bouton "Vérifier" — copie de .newsletter-submit (surcharge le système
+       unifié de fer-modern.css grâce à une spécificité plus forte). */
+    .reg-form .reg-submit {
+      flex: 0 0 auto;
+      border: 0;
+      cursor: pointer;
+      background: var(--primary, #db2777);
+      color: #ffffff;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: .95rem;
+      text-transform: none;
+      letter-spacing: .01em;
+      padding: .65rem 1.6rem;
+      border-radius: var(--radius-pill, 999px);
+      transition: filter .15s ease;
     }
-    /* .reg-submit — styles gérés par le système unifié dans fer-modern.css */
+    .reg-form .reg-submit:hover { filter: brightness(1.12); }
 
     .reg-hint {
       margin: 0.75rem 0 0;
@@ -365,30 +385,44 @@
       font-size: 0.75rem;
     }
 
+    /* Message de retour : encart blanc + pastille-icône — copie exacte du
+       rendu de .newsletter-feedback. */
     .reg-result {
-      margin: 0.75rem 0 0;
-      font-size: 0.8125rem;
-      padding: 0.75rem 1rem;
-      border-radius: var(--radius);
-      display: inline-block;
-      font-weight: 500;
+      /* width:100% → l'encart fait exactement la même largeur que le champ
+         au-dessus (.reg-form), quel que soit le contexte flex parent. */
+      width: 100%;
+      box-sizing: border-box;
+      margin: .85rem 0 0;
+      font-size: .9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .7rem 1rem;
+      border-radius: 10px;
+      background: #ffffff;
+      border: 0;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, .18);
+      animation: nlFeedbackIn .28s ease;
     }
-
-    .reg-result.success { 
-      background: #ede9fe; 
-      color: #5b21b6;
-      border: 1px solid rgba(124,58,237,.25);
+    .reg-result::before {
+      flex: 0 0 auto;
+      width: 1.25rem;
+      height: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #ffffff;
+      font-size: .8rem;
+      line-height: 1;
     }
-    .reg-result.warn { 
-      background: #e0f2fe; 
-      color: #0c4a6e;
-      border: 1px solid rgba(14,116,144,.25);
-    }
-    .reg-result.danger { 
-      background: #fce7f3; 
-      color: #9d174d;
-      border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
-    }
+    .reg-result.success { color: #15803d; }
+    .reg-result.success::before { content: "\2713"; background: #16a34a; }
+    .reg-result.warn { color: #92400e; }
+    .reg-result.warn::before { content: "\0021"; background: #d97706; }
+    .reg-result.danger { color: #b91c1c; }
+    .reg-result.danger::before { content: "\0021"; background: #dc2626; }
 
     /* Responsive */
     @media (max-width: 700px) {
@@ -437,20 +471,29 @@
         margin-top: 0.5rem;
       }
       
+      /* Mobile : bouton SOUS le champ, tous deux pleine largeur (même taille).
+         Même principe que le formulaire newsletter en version mobile. */
       .reg-form {
-        flex-direction: row;
-        flex-wrap: nowrap;
+        flex-direction: column;
         width: 100%;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+        gap: .6rem;
       }
 
       .reg-input{
         width: 100%;
         min-width: 0;
+        background: #ffffff;
+        border-radius: var(--radius-pill, 999px);
+        box-shadow: 0 2px 10px rgba(2, 6, 23, .08);
       }
-      .reg-submit{
-        height: 2.875rem;
-        padding: 0 0.875rem;
-        font-size: 0.8125rem;
+      .reg-form .reg-submit{
+        width: 100%;
+        /* Même hauteur que le champ : padding vertical + font-size identiques. */
+        padding: .6rem 1.6rem;
+        font-size: 1rem;
       }
     }
 
@@ -1298,6 +1341,349 @@
       .t-pill { padding: 0.375rem 0.625rem; font-size: 0.6875rem; }
     }
 
+    /* ===== SECTION "RETROUVER LE DÉPART" (carte Google Maps) ===== */
+    /* Toutes les valeurs réutilisent les variables du thème (--primary, --radius,
+       --font-family, etc.) pour rester cohérent avec le reste du site. */
+    .start-point-section {
+      width: 100%;
+      /* Transparent → suit le fond de la page (blanc en clair, sombre en thème
+         sombre). Évite le rectangle blanc autour de la carte en mode sombre. */
+      background: transparent;
+      padding: 1rem 0;
+    }
+
+    .start-point-container {
+      width: 100%;
+      max-width: 75rem;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+
+    .start-point-head {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .start-point-title {
+      margin: 0;
+      font-family: var(--font-family, system-ui, sans-serif);
+      font-size: 2.625rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--page-text, #0f172a);
+    }
+
+    /* Dimensions pilotées par variables CSS : hauteur en px, largeur en % du
+       conteneur. Les variables *-mobile prennent le relais sous 1040px.
+       Valeurs par défaut si rien n'est réglé : 420px / 100% (desktop). */
+    .start-point-map {
+      position: relative;
+      display: block;
+      width: var(--sp-map-w, 100%);
+      height: var(--sp-map-h, 380px);
+      margin-left: auto;
+      margin-right: auto;
+      border-radius: var(--radius-panel, 18px);
+      overflow: hidden;
+      border: 1px solid var(--mega-border, rgba(15,23,42,.10));
+      box-shadow: var(--mega-shadow, 0 18px 60px rgba(2,6,23,.16));
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .start-point-map:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 22px 70px rgba(2,6,23,.22);
+    }
+
+    .start-point-map-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      /* La carte sert d'aperçu : les clics sont captés par le lien parent
+         (.start-point-map) qui ouvre l'itinéraire. */
+      pointer-events: none;
+    }
+
+    .start-point-map-overlay {
+      position: absolute;
+      left: 50%;
+      bottom: 1rem;
+      transform: translateX(-50%);
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .6rem 1.1rem;
+      background: var(--primary, #db2777);
+      color: var(--secondary-text, #ffffff);
+      font-family: var(--font-family, system-ui, sans-serif);
+      font-weight: 700;
+      font-size: .95rem;
+      border-radius: var(--radius-pill, 14px);
+      box-shadow: 0 8px 24px rgba(2,6,23,.25);
+      pointer-events: none;
+      transition: background .2s ease;
+    }
+
+    .start-point-map:hover .start-point-map-overlay {
+      background: var(--primary-hover, #be185d);
+    }
+
+    /* — Mode éditeur — */
+    .start-point-map--editor { cursor: default; }
+    .start-point-map--editor:hover { transform: none; }
+
+    @media (max-width: 1040px) {
+      .start-point-title { font-size: 2rem; }
+      /* Dimensions mobiles indépendantes (vars *-mobile, défaut 320px / 100%). */
+      .start-point-map {
+        width: var(--sp-map-w-mobile, 100%);
+        height: var(--sp-map-h-mobile, 320px);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .start-point-title { font-size: 1.6rem; }
+      .start-point-map-overlay { font-size: .85rem; padding: .5rem .9rem; }
+    }
+
+    /* ===== SECTION "RESTER INFORMÉ" (newsletter) ===== */
+    /* Réutilise les variables du thème (--primary, --radius, --font-family…). */
+    .newsletter-section {
+      width: 100%;
+      padding: 1rem 0;
+    }
+
+    .newsletter-card {
+      position: relative;
+      width: 100%;
+      max-width: 75rem;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      padding: 3rem clamp(1.5rem, 4vw, 4rem);
+      background: var(--primary, #db2777);
+      border-radius: var(--radius-lg, 24px);
+      overflow: hidden;
+      font-family: var(--font-family, system-ui, sans-serif);
+    }
+
+    /* z-index:1 → le texte reste au-dessus du ruban (positionné en absolu).
+       padding-right → réserve la zone du ruban pour que le texte ne passe pas dessous. */
+    .newsletter-content {
+      flex: 1 1 auto;
+      min-width: 0;
+      position: relative;
+      z-index: 1;
+      padding-right: clamp(210px, 26vw, 340px);
+    }
+
+    .newsletter-title {
+      margin: 0;
+      /* Taille réduite de 3px au total (-0.1875rem sur min et max) */
+      font-size: clamp(1.6125rem, 3.4vw, 2.6125rem);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--secondary-text, #ffffff);
+    }
+
+    .newsletter-subtitle {
+      margin: 0 0 1.4rem;
+      /* Taille réduite de 3px au total (-0.1875rem sur min et max) */
+      font-size: clamp(1.2125rem, 2.6vw, 2.0125rem);
+      font-weight: 800;
+      line-height: 1.15;
+      color: var(--secondary-text, #ffffff);
+    }
+
+    .newsletter-intro {
+      margin: 0 0 1.1rem;
+      /* 1rem −2px puis +1px → 0.9375rem (15px) */
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--page-text, #0f172a);
+    }
+
+    .newsletter-form { margin: 0; }
+
+    .newsletter-input-row {
+      display: flex;
+      align-items: stretch;
+      gap: .4rem;
+      background: #ffffff;
+      border-radius: var(--radius-pill, 999px);
+      padding: .35rem;
+      max-width: 34rem;
+    }
+
+    .newsletter-email {
+      flex: 1 1 auto;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      padding: .6rem 1rem;
+      font-size: 1rem;
+      font-family: inherit;
+      color: var(--page-text, #0f172a);
+      outline: none;
+    }
+
+    .newsletter-submit {
+      flex: 0 0 auto;
+      border: 0;
+      cursor: pointer;
+      background: var(--secondary, #0f172a);
+      color: var(--secondary-text, #ffffff);
+      font-family: inherit;
+      font-weight: 800;
+      font-size: .95rem;
+      text-transform: none;
+      letter-spacing: .01em;
+      padding: .65rem 1.6rem;
+      border-radius: var(--radius-pill, 999px);
+      transition: filter .15s ease, transform .15s ease;
+    }
+    .newsletter-submit:hover { filter: brightness(1.12); }
+    .newsletter-submit:disabled { opacity: .6; cursor: default; }
+
+    /* Champ piège anti-bot : hors écran, jamais visible */
+    .newsletter-hp {
+      position: absolute !important;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .newsletter-consent {
+      display: flex;
+      align-items: center;          /* case verticalement centrée sur le texte */
+      gap: .6rem;
+      margin-top: .9rem;
+      max-width: 34rem;
+      font-size: .8rem;
+      font-style: italic;
+      line-height: 1.5;
+      color: var(--page-text, #0f172a);
+      cursor: pointer;
+    }
+    /* Case à cocher personnalisée : carré blanc, coche rose une fois cochée. */
+    .newsletter-consent input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      flex: 0 0 auto;
+      width: 1.15rem;
+      height: 1.15rem;
+      margin: 0;
+      border: 2px solid var(--secondary-text, #ffffff);
+      border-radius: 5px;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      transition: background-color .15s ease;
+    }
+    .newsletter-consent input[type="checkbox"]:checked {
+      background: var(--secondary-text, #ffffff);
+    }
+    .newsletter-consent input[type="checkbox"]:checked::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: .3rem;
+      height: .56rem;
+      border: solid var(--primary, #db2777);
+      border-width: 0 2px 2px 0;
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+    .newsletter-consent input[type="checkbox"]:focus-visible {
+      outline: 2px solid var(--secondary-text, #ffffff);
+      outline-offset: 2px;
+    }
+
+    /* Message de retour : invisible tant que vide, puis affiché en encart bien
+       visible (fond blanc + icône) dès qu'il y a un message succès/erreur. */
+    .newsletter-feedback {
+      font-size: .9rem;
+      font-weight: 700;
+      font-style: normal;
+    }
+    .newsletter-feedback.is-success,
+    .newsletter-feedback.is-error {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      max-width: 34rem;
+      margin-top: .85rem;
+      padding: .7rem 1rem;
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, .22);
+      animation: nlFeedbackIn .28s ease;
+    }
+    .newsletter-feedback.is-success { color: #15803d; }
+    .newsletter-feedback.is-error   { color: #b91c1c; }
+    /* Pastille-icône à gauche du message */
+    .newsletter-feedback.is-success::before,
+    .newsletter-feedback.is-error::before {
+      flex: 0 0 auto;
+      width: 1.25rem;
+      height: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #ffffff;
+      font-size: .8rem;
+      line-height: 1;
+    }
+    .newsletter-feedback.is-success::before { content: "\2713"; background: #16a34a; }
+    .newsletter-feedback.is-error::before   { content: "\0021"; background: #dc2626; }
+    @keyframes nlFeedbackIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Ruban de sensibilisation — décor desktop, calé sur le bord droit de la carte.
+       Positionné en absolu : le ruban peut être grand et déborder légèrement en
+       haut/bas sans agrandir la carte (overflow:hidden de .newsletter-card le rogne). */
+    .newsletter-deco {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 0;
+      line-height: 0;
+      color: var(--secondary-text, #ffffff);
+      opacity: .95;
+    }
+    .newsletter-deco .newsletter-ribbon {
+      display: block;
+      width: clamp(200px, 22vw, 300px);
+      height: auto;
+    }
+
+    @media (max-width: 1040px) {
+      .newsletter-card { gap: 1rem; padding: 2.4rem 1.6rem; }
+      /* Décor masqué hors desktop : le ruban ne s'affiche que sur grand écran.
+         → on retire aussi la réserve d'espace à droite du texte. */
+      .newsletter-deco { display: none; }
+      .newsletter-content { padding-right: 0; }
+    }
+
+    @media (max-width: 600px) {
+      .newsletter-deco { display: none; }
+      .newsletter-input-row { flex-direction: column; background: transparent; padding: 0; gap: .6rem; }
+      .newsletter-email { background: #ffffff; border-radius: var(--radius-pill, 999px); }
+      /* Bouton à la même hauteur que le champ : mêmes padding vertical + font-size. */
+      .newsletter-submit { width: 100%; padding: .6rem 1.6rem; font-size: 1rem; }
+      .newsletter-consent, .newsletter-input-row { max-width: none; }
+    }
+
     /* ===== MARQUEE / LOGO STRIP (Vimeo-like) ===== */
 
 
@@ -1455,37 +1841,66 @@
       margin-top: 0;
     }
     
+    /* Champ partenaire : même habillage que ".reg-form" / ".newsletter-input-row"
+       — pilule blanche (input transparent) + bouton rose. */
     .form-group{
       display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
+      align-items: stretch;
+      flex-wrap: nowrap;
+      gap: .4rem;
+      background: #ffffff;
+      border-radius: var(--radius-pill, 999px);
+      padding: .35rem;
+      box-shadow: 0 2px 10px rgba(2, 6, 23, .08);
     }
-    
+
     .partner-email-input{
-      flex: 1;
-      min-width: 17.5rem;
-      padding: 1rem 1.25rem;
+      flex: 1 1 auto;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      padding: .6rem 1rem;
       font-size: 1rem;
-      background: rgba(128,128,128,.1);
-      border: 2px solid rgba(128,128,128,.2);
-      border-radius: var(--radius);
-      color: var(--secondary-text, #ffffff);
+      font-family: inherit;
+      color: var(--page-text, #0f172a);
       outline: none;
-      transition: all .2s ease;
+      transition: none;
     }
 
     .partner-email-input::placeholder{
-      color: var(--secondary-text, #ffffff);
-      opacity: .5;
+      color: #9ca3af;
+      opacity: 1;
     }
 
     .partner-email-input:focus{
-      background: rgba(128,128,128,.15);
-      border-color: var(--pink);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+      background: transparent;
+      border: 0;
+      box-shadow: none;
     }
-    
-    /* .partner-submit — styles gérés par le système unifié dans fer-modern.css */
+
+    /* Bouton "Devenir partenaire" — copie de ".reg-form .reg-submit" (rose, pilule).
+       Sélecteur fort pour surcharger le système unifié de fer-modern.css. */
+    .partner-form .partner-submit{
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      cursor: pointer;
+      background: var(--primary, #db2777);
+      color: #ffffff;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: .95rem;
+      text-transform: none;
+      letter-spacing: .01em;
+      padding: .65rem 1.6rem;
+      border-radius: var(--radius-pill, 999px);
+      transition: filter .15s ease;
+    }
+    .partner-form .partner-submit:hover{ filter: brightness(1.12); }
+    /* Flèche SVG masquée → bouton texte seul, comme "Vérifier" / "Je m'abonne". */
+    .partner-form .partner-submit svg{ display: none; }
 
     .form-note{
       font-size: 0.875rem;
@@ -1864,17 +2279,27 @@
         font-size: 0.9375rem;
       }
       
+      /* Mobile : bouton SOUS le champ, tous deux pleine largeur (même taille).
+         Même principe que les formulaires reg-bar / newsletter. */
       .form-group{
         flex-direction: column;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+        gap: .6rem;
       }
-      
+
       .partner-email-input{
         min-width: 100%;
+        background: #ffffff;
+        border-radius: var(--radius-pill, 999px);
+        box-shadow: 0 2px 10px rgba(2, 6, 23, .08);
       }
-      
-      .partner-submit{
+
+      .partner-form .partner-submit{
         width: 100%;
-        justify-content: center;
+        padding: .6rem 1.6rem;
+        font-size: 1rem;
       }
 
       .reg-bar{
@@ -2169,36 +2594,26 @@
     body.dark-theme .reg-title{
       color: #ffffff;
     }
+    /* Le champ et l'encart de retour sont dans une pilule / un encart BLANCS
+       quel que soit le thème → on garde le style clair en mode sombre (sinon le
+       placeholder devient blanc sur blanc = invisible). On surcharge juste pour
+       neutraliser les anciennes règles sombres. */
     body.dark-theme .reg-input{
-      background: rgba(255,255,255,.08);
-      color: #ffffff;
+      background: transparent;
+      color: var(--page-text, #0f172a);
       box-shadow: none;
-      border: 1px solid rgba(255,255,255,.1);
+      border: 0;
     }
     body.dark-theme .reg-input::placeholder{
-      color: rgba(255,255,255,.4);
+      color: #9ca3af;
     }
     body.dark-theme .reg-input:focus{
-      background: rgba(255,255,255,.12);
-      border-color: var(--pink);
+      background: transparent;
+      border: 0;
+      box-shadow: none;
     }
     body.dark-theme .reg-hint{
       color: rgba(255,255,255,.5);
-    }
-    body.dark-theme .reg-result.success{
-      background: rgba(91,33,182,.2);
-      color: #c4b5fd;
-      border-color: rgba(124,58,237,.35);
-    }
-    body.dark-theme .reg-result.warn{
-      background: rgba(14,116,144,.15);
-      color: #67e8f9;
-      border-color: rgba(14,116,144,.35);
-    }
-    body.dark-theme .reg-result.danger{
-      background: color-mix(in srgb, var(--primary) 15%, transparent);
-      color: #f9a8d4;
-      border-color: color-mix(in srgb, var(--primary) 35%, transparent);
     }
 
     body.dark-theme .t-card{

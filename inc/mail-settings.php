@@ -40,6 +40,10 @@ $notify_toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'two
 // Charger les admins pour le select
 $adminUsers = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY email ASC")->fetchAll(PDO::FETCH_COLUMN);
 
+// Abonnés newsletter (pour le bouton "Newsletter" des destinataires)
+require_once '../config/newsletter.php';
+$newsletterEmails = newsletterSubscribedEmails($pdo);
+
 // SMTP / mail provider
 $mail_provider   = $data['mail_provider'] ?? 'google';
 $smtp_host       = $data['smtp_host'] ?? '';
@@ -90,10 +94,10 @@ $mtcCardWidth = $mtc['card_width'] ?? 600;
 $mtcHeaderImgSize = $mtc['header_image_size'] ?? 80;
 $mtcVisibility = ($mtc['visibility'] ?? []) + [
     'details'=>['inscription'],'tips'=>['inscription'],
-    'description'=>['inscription','code','new_user','bulk','test'],
+    'description'=>['inscription','code','new_user','bulk','test','new_article'],
     'qrcode'=>['inscription'],
-    'banner'=>['inscription','code','new_user','bulk','test'],
-    'contact'=>['inscription','code','new_user','bulk','test'],
+    'banner'=>['inscription','code','new_user','bulk','test','new_article'],
+    'contact'=>['inscription','code','new_user','bulk','test','new_article'],
 ];
 
 // ── POST handlers ──
@@ -364,6 +368,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
 // ── AJAX Preview handler ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && csrf_verify()) {
     header('Content-Type: text/html; charset=utf-8');
+    // render() vit dans googleMail.php — pas chargé si le provider mail est "smtp"
+    // (le bloc OAuth plus haut ne s'exécute que pour Google). On le charge ici
+    // pour que l'aperçu fonctionne quel que soit le provider.
+    if (!function_exists('render')) {
+        try { require_once __DIR__ . '/../config/googleMail.php'; } catch (\Throwable $e) {}
+    }
+    if (!function_exists('render')) {
+        http_response_code(500);
+        echo '<p style="font-family:sans-serif;padding:20px;color:#b91c1c;">Aperçu indisponible : moteur de rendu introuvable.</p>';
+        exit;
+    }
     $previewType = $_POST['preview_type'];
     $mtcRaw2 = $data['mail_template_config'] ?? null;
     $mtcPreview = $mtcRaw2 ? json_decode($mtcRaw2, true) : [];
@@ -440,6 +455,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'type' => 'info',
                 'mailTitle' => 'Test réussi !',
                 'description' => 'Ce mail de test confirme que la configuration email fonctionne correctement.',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => '', 'inscription_no' => null,
+            ];
+            break;
+        case 'new_article':
+            // Aperçu du mail envoyé aux abonnés newsletter à la publication d'un
+            // article. Le corps est construit par le MÊME code que l'envoi réel
+            // (newsletterArticleMailBody) → l'aperçu reflète exactement l'envoi.
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => '', // le titre figure déjà dans le corps de l'article
+                'description' => function_exists('newsletterArticleMailBody')
+                    ? newsletterArticleMailBody([
+                        'id' => 1,
+                        'title_article' => 'Forbach en Rose 2026 : les inscriptions sont ouvertes !',
+                        'desc_article' => "<p>La nouvelle édition de la course caritative Forbach en Rose se "
+                            . "prépare. Rejoignez-nous pour une journée solidaire au profit de la lutte contre "
+                            . "le cancer du sein : parcours, animations, village partenaires… Retrouvez toutes "
+                            . "les informations pratiques et le lien d'inscription dans l'article complet.</p>",
+                        'img_article' => '',
+                      ])
+                    : '<p>Aperçu indisponible.</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -878,6 +915,10 @@ $jsConfig = json_encode([
             <button type="button" class="btn btn-outline-secondary select-all-btn" id="clearAllBtn">
               Tout désélectionner
             </button>
+            <button type="button" class="btn btn-outline-success select-all-btn" id="newsletterBtn"
+                    title="Sélectionner uniquement les abonnés à la newsletter">
+              <i class="bi bi-envelope-heart"></i> Newsletter (<?= count($newsletterEmails) ?>)
+            </button>
           </div>
         </div>
 
@@ -1037,6 +1078,9 @@ $jsConfig = json_encode([
       </button>
       <button type="button" class="preview-btn" data-preview="test" style="width:100%;margin-bottom:8px">
         <span style="font-weight:600">Mail test</span><br><span style="font-size:11px;color:#94a3b8">Test simple de configuration</span>
+      </button>
+      <button type="button" class="preview-btn" data-preview="new_article" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Nouvel article (newsletter)</span><br><span style="font-size:11px;color:#94a3b8">Mail envoyé aux abonnés à la publication</span>
       </button>
       <hr style="margin:16px 0;border-color:#e2e8f0">
       <p style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px"><i class="bi bi-bell me-1"></i>Notifications admin</p>
@@ -1989,7 +2033,8 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       cc.appendChild(visTitle);
       var mailTypes=[
         ['inscription','Inscription'],['code','Code connexion'],
-        ['new_user','Nouveau compte'],['bulk','Envoi groupé'],['test','Mail test']
+        ['new_user','Nouveau compte'],['bulk','Envoi groupé'],['test','Mail test'],
+        ['new_article','Nouvel article (newsletter)']
       ];
       var curVis=CFG.visibility[secKey]||[];
       if(!CFG.visibility[secKey]){ CFG.visibility[secKey]=[]; }
@@ -2512,6 +2557,15 @@ $(document).ready(function() {
     var clearAllBtn = document.getElementById('clearAllBtn');
     if (selectAllBtn) selectAllBtn.addEventListener('click', function() { availableEmails.forEach(function(p) { addRecipient(p.email, p.name, p.id); }); });
     if (clearAllBtn) clearAllBtn.addEventListener('click', function() { selectedRecipients = []; updateDisplay(); });
+    // Bouton "Newsletter" : remplace la sélection par les seuls abonnés à la newsletter.
+    var newsletterBtn = document.getElementById('newsletterBtn');
+    if (newsletterBtn) newsletterBtn.addEventListener('click', function() {
+      var subs = <?= json_encode($newsletterEmails, JSON_UNESCAPED_UNICODE) ?>;
+      selectedRecipients = [];
+      subs.forEach(function(email) { addRecipient(email, 'Abonné newsletter', null); });
+      updateDisplay();
+      if (subs.length === 0) alert('Aucun abonné à la newsletter pour le moment.');
+    });
 
     // Form submit
     var mailForm = document.getElementById('fMail');

@@ -1187,8 +1187,10 @@ header(
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net 'unsafe-inline'; " .
     "img-src 'self' data: blob: https:; " .
     "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://cdn.datatables.net; " .
-    "frame-src 'self' https://*.assoconnect.com https://challenges.cloudflare.com; " .
-    "connect-src 'self' https://*.assoconnect.com https://cdn.jsdelivr.net https://challenges.cloudflare.com; " .
+    "frame-src 'self' https://*.assoconnect.com https://challenges.cloudflare.com " .
+        "https://www.google.com https://maps.google.com; " .
+    "connect-src 'self' https://*.assoconnect.com https://cdn.jsdelivr.net https://challenges.cloudflare.com " .
+        "https://photon.komoot.io; " .
     "object-src 'none'; " .
     "base-uri 'self';"
 );

@@ -279,6 +279,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_field'])
     exit;
 }
 
+// ─── Handler AJAX : point de départ de la section "Retrouver le départ" ───
+// Stocke SOIT une adresse SOIT des coordonnées (jamais les deux) dans les colonnes
+// dédiées `start_point_address` / `start_point_coords`. Le mode choisi détermine la
+// colonne renseignée ; l'autre est vidée (NULL) pour garantir l'exclusivité.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_start_point'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $mode  = (string)($_POST['mode'] ?? '');
+    $value = trim((string)($_POST['value'] ?? ''));
+    if (!in_array($mode, ['address', 'coords'], true)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Mode invalide.']); exit;
+    }
+    if ($mode === 'coords' && $value !== '') {
+        $value = str_replace(' ', '', $value);
+        if (!preg_match('/^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/', $value)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Format invalide. Attendu : latitude,longitude (ex : 49.1869,6.8983).']);
+            exit;
+        }
+        [$lat, $lng] = array_map('floatval', explode(',', $value));
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Coordonnées hors limites (lat -90..90, lng -180..180).']);
+            exit;
+        }
+    }
+    $value = mb_substr($value, 0, $mode === 'address' ? 255 : 64);
+    try {
+        if ($mode === 'address') {
+            $pdo->prepare('UPDATE setting SET start_point_address = :v, start_point_coords = NULL WHERE id = 1')
+                ->execute(['v' => $value !== '' ? $value : null]);
+            echo json_encode(['ok' => true, 'address' => $value, 'coords' => '']);
+        } else {
+            $pdo->prepare('UPDATE setting SET start_point_coords = :v, start_point_address = NULL WHERE id = 1')
+                ->execute(['v' => $value !== '' ? $value : null]);
+            echo json_encode(['ok' => true, 'address' => '', 'coords' => $value]);
+        }
+    } catch (\Throwable $e) {
+        error_log('[SAVE_START_POINT] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
 // ─── Handler AJAX : restaure les valeurs par défaut du hero (purge tout) ───
 // Supprime du JSON `accueil_geometry_draft` ET/OU `accueil_styles_draft` toutes les
 // clés liées aux éléments du hero pour le device demandé (mobile, desktop ou both).
@@ -592,6 +638,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_hero_card_dimen
     exit;
 }
 
+// ─── Handler AJAX : reset des dimensions de la carte "Retrouver le départ" ───
+// Supprime les clés start_point_map_* du JSON accueil_styles_draft pour le device
+// demandé → au reload, la carte retombe sur ses dimensions CSS par défaut.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_start_point_map_dimensions'])) {
+    header('Content-Type: application/json');
+    if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $scope = (string)($_POST['scope'] ?? 'desktop');
+    if (!in_array($scope, ['mobile', 'desktop', 'both'], true)) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Scope invalide.']); exit;
+    }
+    try {
+        $row = $pdo->query('SELECT COALESCE(accueil_styles_draft, accueil_styles) AS s FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $styles = [];
+        if ($row && !empty($row['s'])) {
+            $decoded = json_decode($row['s'], true);
+            if (is_array($decoded)) $styles = $decoded;
+        }
+        $keysDesktop = ['start_point_map_height', 'start_point_map_width'];
+        $keysMobile  = ['start_point_map_height_mobile', 'start_point_map_width_mobile'];
+        $toDrop = [];
+        if ($scope === 'desktop' || $scope === 'both') $toDrop = array_merge($toDrop, $keysDesktop);
+        if ($scope === 'mobile'  || $scope === 'both') $toDrop = array_merge($toDrop, $keysMobile);
+        foreach ($toDrop as $k) unset($styles[$k]);
+        $payload = $styles ? json_encode($styles, JSON_UNESCAPED_UNICODE) : null;
+        $stmt = $pdo->prepare('UPDATE setting SET accueil_styles_draft = :s, accueil_draft_updated_at = NOW() WHERE id = 1');
+        $stmt->bindValue(':s', $payload, $payload === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->execute();
+        echo json_encode(['ok' => true]);
+    } catch (\Throwable $e) {
+        error_log('[RESET_START_POINT_MAP] ' . $e->getMessage());
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Erreur serveur.']);
+    }
+    exit;
+}
+
 // ─── Handler AJAX : sauvegarde d'un style (taille) d'un élément du Hero ───
 // Le champ 'sizeKey' doit être whitelisté ; valeur en pourcent (50-250).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])) {
@@ -610,6 +693,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])
         // Largeur de la vidéo Hero, en POURCENTAGE de la viewport (30-100 %).
         // 100 % = pleine largeur de la fenêtre du navigateur.
         'hero_card_width', 'hero_card_width_mobile',
+        // Carte "Retrouver le départ" : hauteur (px) + largeur (% du conteneur),
+        // séparées desktop / mobile.
+        'start_point_map_height', 'start_point_map_height_mobile',
+        'start_point_map_width',  'start_point_map_width_mobile',
     ];
     // Options (enum) : clé → valeurs autorisées
     $allowedOptionKeys = [
@@ -640,8 +727,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])
         //  - tailles d'éléments standards : 50-300 %
         $isHeroHeight = ($key === 'hero_card_height' || $key === 'hero_card_height_mobile');
         $isHeroWidth  = ($key === 'hero_card_width'  || $key === 'hero_card_width_mobile');
+        $isMapHeight  = ($key === 'start_point_map_height' || $key === 'start_point_map_height_mobile');
+        $isMapWidth   = ($key === 'start_point_map_width'  || $key === 'start_point_map_width_mobile');
         if ($isHeroHeight)      { $min = 300; $max = 1500; }
         elseif ($isHeroWidth)   { $min = 50;  $max = 100;  }
+        elseif ($isMapHeight)   { $min = 180; $max = 900;  }
+        elseif ($isMapWidth)    { $min = 40;  $max = 100;  }
         else                    { $min = 50;  $max = 300;  }
         if ($val < $min || $val > $max) {
             http_response_code(400); echo json_encode(['ok' => false, 'err' => "Valeur hors limites ($min-$max)."]); exit;
@@ -2022,14 +2113,18 @@ document.addEventListener('DOMContentLoaded', function() {
     margin: 0 auto;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
   }
-  /* Barre d'outils flottante : toggle device + migration legacy. */
+  /* Barre d'outils flottante : toggle device + migration legacy.
+     position:fixed → reste en haut à droite du viewport même quand on scrolle
+     tout en bas de l'éditeur. Comme la barre est dans le DOM de l'onglet
+     "Accueil", elle est masquée automatiquement (ancêtre display:none) sur les
+     autres onglets des Réglages. */
   .ife-preview-toolbar {
-    position: absolute; top: 8px; right: 8px;
+    position: fixed; top: 72px; right: 24px;
     display: flex; gap: 6px; align-items: center;
-    z-index: 20; pointer-events: auto;
+    z-index: 1000; pointer-events: auto;
     background: rgba(255,255,255,.96);
     border: 1px solid #e2e8f0; border-radius: 8px;
-    padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.08);
+    padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
   }
   .ife-preview-toolbar .ife-device-group {
     display: inline-flex; gap: 2px;
@@ -2074,6 +2169,20 @@ document.addEventListener('DOMContentLoaded', function() {
     position: absolute; inset: 0; pointer-events: none;
     z-index: 10;
   }
+  /* Liste de suggestions d'adresses (autocomplétion du point de départ). */
+  .ife-sp-suggest {
+    position: absolute; left: 0; right: 0; top: 100%;
+    margin-top: 2px; z-index: 30;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.12);
+    max-height: 220px; overflow-y: auto;
+  }
+  .ife-sp-suggest-item {
+    padding: 7px 10px; font-size: 12px; color: #334155;
+    cursor: pointer; border-bottom: 1px solid #f1f5f9;
+  }
+  .ife-sp-suggest-item:last-child { border-bottom: 0; }
+  .ife-sp-suggest-item:hover { background: #fdf2f8; color: #be185d; }
   /* outline (et pas border) : ne prend AUCUN espace dans le layout, donc le rail
      de drag ne se décale plus au hover → plus de clignotement infini */
   .ife-row-overlay {
@@ -2722,7 +2831,11 @@ if (!$canTab($activeTab)) {
     <?php if ($canCard('accueil', 'custom')):
       require_once __DIR__ . '/../config/accueil_layout.php';
       require_once __DIR__ . '/../config/accueil_sections.php';
-      $accueilLayout = loadAccueilLayout($data);
+      // useDraft=true : #ifeLayoutData (modèle interne de l'éditeur) DOIT refléter la
+      // même version que l'iframe accueil.php?editor=1 (qui charge le brouillon avec
+      // fallback publié). Sinon les IDs de lignes divergent entre l'éditeur et l'iframe
+      // → selectRow() ne retrouve pas la ligne cliquée et n'affiche aucune propriété.
+      $accueilLayout = loadAccueilLayout($data, true);
       $predefinedSections = accueilPredefinedSections();
       $allowedWidths = accueilAllowedWidths();
       // Contexte pour le rendu réel des sections (mêmes données que la home)
@@ -2946,6 +3059,12 @@ if (!$canTab($activeTab)) {
                   b.classList.toggle('is-active', b.getAttribute('data-device') === device);
                 });
                 notifyIframe();
+                // Rebase les widgets device-aware de la sidebar (dimensions carte, etc.)
+                try {
+                  if (window.AccueilEditor && typeof window.AccueilEditor.refreshSelection === 'function') {
+                    window.AccueilEditor.refreshSelection();
+                  }
+                } catch(e) {}
               }
 
               // Délégation de clic : robuste même si les boutons sont recréés.
@@ -5288,6 +5407,12 @@ window.AccueilEditor.accueilStyles = <?php
   }
   echo json_encode($stylesForJs);
 ?>;
+// Point de départ courant (colonnes SQL dédiées) — lu par le widget de la section
+// "Retrouver le départ" pour pré-remplir le champ adresse/coordonnées.
+window.AccueilEditor.startPoint = {
+  address: <?= json_encode((string)($data['start_point_address'] ?? ''), JSON_UNESCAPED_UNICODE) ?>,
+  coords:  <?= json_encode((string)($data['start_point_coords']  ?? ''), JSON_UNESCAPED_UNICODE) ?>
+};
 // Helper pour init TinyMCE avec la config PHP partagée (appelé depuis l'externe)
 window.AccueilEditor.initTinyMce = function(selector, content) {
   if (typeof tinymce === 'undefined') return;

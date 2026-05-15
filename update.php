@@ -49,6 +49,20 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `accueil_texts_draft` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `accueil_geometry_draft` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `accueil_draft_updated_at` DATETIME DEFAULT NULL",
+    // Section "Retrouver le départ" : point de départ de la course (adresse OU coordonnées)
+    "ALTER TABLE `setting` ADD COLUMN `start_point_address` VARCHAR(255) DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `start_point_coords` VARCHAR(64) DEFAULT NULL",
+    // Newsletter : abonnés + horodatage d'envoi de la notif "nouvel article"
+    "CREATE TABLE IF NOT EXISTS `newsletter_subscribers` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `email` varchar(255) NOT NULL,
+      `status` enum('subscribed','unsubscribed') NOT NULL DEFAULT 'subscribed',
+      `created_at` timestamp NULL DEFAULT current_timestamp(),
+      `unsubscribed_at` timestamp NULL DEFAULT NULL,
+      PRIMARY KEY (`id`),
+      UNIQUE KEY `email_idx` (`email`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    "ALTER TABLE `news` ADD COLUMN `newsletter_sent_at` TIMESTAMP NULL DEFAULT NULL",
     "ALTER TABLE `users` ADD COLUMN `permissions` TEXT DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `role_permissions` TEXT DEFAULT NULL",
     // Cloudflare Turnstile : protection anti-bot du formulaire partenaire (et autres)
@@ -160,6 +174,37 @@ try {
     }
 } catch (\Throwable $e) {
     $results[] = ['status' => 'error', 'sql' => 'MIGRATE accueil_layout', 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Migration : persiste les sections pré-définies manquantes (start_point,
+// newsletter, …) dans le layout. Sans ça, normalizeAccueilLayout() les ajoute
+// "à la volée" à chaque chargement → elles restent des lignes transitoires et
+// ne se comportent pas comme les autres sections dans l'éditeur. On les persiste
+// ici (avec leur id déterministe row_predef_<type>) → vraies lignes de layout.
+// ─────────────────────────────────────────────────────────────────────────
+try {
+    require_once __DIR__ . '/config/accueil_layout.php';
+    $row = $pdo->query("SELECT accueil_layout, accueil_layout_draft FROM setting WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+    $spDone = 0;
+    foreach (['accueil_layout', 'accueil_layout_draft'] as $col) {
+        $raw = $row[$col] ?? null;
+        if (empty($raw)) continue;                       // colonne vide → rien à migrer
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || empty($decoded)) continue;
+        // normalizeAccueilLayout() ajoute toute section pré-définie manquante.
+        // Si le nombre de lignes change, c'est qu'il en manquait → on persiste.
+        $normalized = normalizeAccueilLayout($decoded);
+        if (count($normalized) === count($decoded)) continue; // rien à ajouter
+        $pdo->prepare("UPDATE setting SET `$col` = :l WHERE id = 1")
+            ->execute(['l' => json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        $spDone++;
+    }
+    $results[] = ['status' => $spDone > 0 ? 'success' : 'skip',
+                  'sql' => 'MIGRATE layout : sections pré-définies manquantes',
+                  'msg' => $spDone > 0 ? "$spDone colonne(s) mise(s) à jour" : 'Déjà à jour'];
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => 'MIGRATE layout sections', 'msg' => $e->getMessage()];
 }
 
 // Suppression des colonnes obsolètes (après migration)

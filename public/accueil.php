@@ -692,6 +692,9 @@ if (!empty($textsRaw)) {
         'video_accueil'           => $data['video_accueil'] ?? 'FER.mp4',
         'registration_fee'        => $data['registration_fee'] ?? 0,
         'course_km'               => $data['course_km'] ?? 7,
+        // Section "Retrouver le départ" (colonnes SQL dédiées)
+        'start_point_address'     => $data['start_point_address'] ?? '',
+        'start_point_coords'      => $data['start_point_coords'] ?? '',
         'styles'                  => $accueilStyles,
         'geometry'                => $accueilGeometry,
         'texts'                   => $accueilTexts,
@@ -997,6 +1000,7 @@ if (!empty($textsRaw)) {
       const submitBtn = form.querySelector('button[type="submit"]');
       const resultEl = document.getElementById('regResult');
       const hintEl = document.getElementById('regHint');
+      let regHideTimer = null;
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1023,11 +1027,27 @@ if (!empty($textsRaw)) {
           if (resultEl) {
             resultEl.textContent = data.message || "Une erreur est survenue.";
             resultEl.className = 'reg-result ' + (data.status || 'warn');
-            resultEl.style.display = 'inline-block';
+            // display vidé → la mise en page flex de .reg-result (CSS) reprend la main.
+            resultEl.style.transition = '';
+            resultEl.style.opacity = '';
+            resultEl.style.display = '';
           }
           if (hintEl) {
             hintEl.style.display = 'none';
           }
+          // Disparition automatique du message de retour au bout de 5 secondes.
+          if (regHideTimer) clearTimeout(regHideTimer);
+          regHideTimer = setTimeout(function() {
+            if (!resultEl) return;
+            resultEl.style.transition = 'opacity .3s ease';
+            resultEl.style.opacity = '0';
+            setTimeout(function() {
+              resultEl.style.display = 'none';
+              resultEl.style.opacity = '';
+              resultEl.style.transition = '';
+              if (hintEl) hintEl.style.display = '';
+            }, 300);
+          }, 5000);
         } catch (err) {
           form.submit();
           return;
@@ -2814,6 +2834,20 @@ foreach ($accueilLayout as $_row) {
     });
   }
 
+  // Reconstruit le src de l'iframe Google Maps de la section "Retrouver le départ"
+  // à partir des data-attributs de la section (adresse prioritaire, sinon
+  // coordonnées, sinon Forbach par défaut).
+  function __refreshStartPointMap() {
+    var sec = document.querySelector('.start-point-section');
+    var frame = document.querySelector('.start-point-map-frame');
+    if (!sec || !frame) return;
+    var addr  = (sec.dataset.spAddress || '').trim();
+    var coord = (sec.dataset.spCoords  || '').trim();
+    var dest  = addr !== '' ? addr : (coord !== '' ? coord : 'Forbach, France');
+    frame.src = 'https://maps.google.com/maps?q=' + encodeURIComponent(dest)
+              + '&z=15&hl=fr&output=embed';
+  }
+
   // Réception de commandes du parent (pour scroll-to-section, highlight, update DOM sans reload, etc.)
   window.addEventListener('message', function(e) {
     if (!e.data || typeof e.data !== 'object') return;
@@ -3044,6 +3078,27 @@ foreach ($accueilLayout as $_row) {
       return;
     }
 
+    // Le parent demande un recalcul de la structure du layout (rects des lignes).
+    // Utilisé quand une dimension change DANS l'iframe sans event resize natif
+    // (ex : slider hauteur de la carte "Retrouver le départ") → les pointillés
+    // de l'éditeur (overlays) suivent la nouvelle hauteur en direct.
+    if (e.data.type === 'editor-request-layout') {
+      sendLayoutStructure();
+      return;
+    }
+
+    // Section "Retrouver le départ" : le parent (sidebar) a changé l'adresse ou les
+    // coordonnées → on met à jour les data-attributs et on recharge la carte.
+    if (e.data.type === 'parent-start-point-update') {
+      var spSec = document.querySelector('.start-point-section');
+      if (spSec) {
+        spSec.dataset.spAddress = e.data.address || '';
+        spSec.dataset.spCoords  = e.data.coords  || '';
+      }
+      __refreshStartPointMap();
+      return;
+    }
+
     // Mise à jour d'un style sans reload (taille, alignement).
     // Les clés `*_size_mobile` sont appliquées UNIQUEMENT si le viewport est mobile
     // (innerWidth < 1040). Dans tous les cas, on met aussi à jour `data-size-mobile`
@@ -3051,6 +3106,30 @@ foreach ($accueilLayout as $_row) {
     if (e.data.type === 'parent-update-style') {
       var key = e.data.key;
       var val = e.data.value;
+      // Carte "Retrouver le départ" : dimensions appliquées via CSS variables sur
+      // la section. height en px, width en %. Les clés *_mobile alimentent les
+      // variables *-mobile lues par le @media (max-width:1040px).
+      if (key.indexOf('start_point_map_') === 0) {
+        var spSec2 = document.querySelector('.start-point-section');
+        if (spSec2) {
+          var spVarMap = {
+            'start_point_map_height':        '--sp-map-h',
+            'start_point_map_height_mobile': '--sp-map-h-mobile',
+            'start_point_map_width':         '--sp-map-w',
+            'start_point_map_width_mobile':  '--sp-map-w-mobile'
+          };
+          var spVar = spVarMap[key];
+          if (spVar) {
+            var spUnit = key.indexOf('width') !== -1 ? '%' : 'px';
+            spSec2.style.setProperty(spVar, parseInt(val, 10) + spUnit);
+          }
+        }
+        // La hauteur de la carte a changé → la ligne du layout change de taille :
+        // on renvoie la structure au parent pour qu'il repositionne le contour
+        // pointillé de la section (sinon il reste figé à l'ancienne hauteur).
+        requestAnimationFrame(function() { sendLayoutStructure(); });
+        return;
+      }
       var isMobileKey  = /_size_mobile$/.test(key);
       var isMobileView = window.innerWidth < 1040;
       // Pour les clés mobile, on stocke aussi la valeur dans data-size-mobile (lue par
