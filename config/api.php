@@ -1863,7 +1863,7 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
                 encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
                 '-', encrypt($values['ville']), encrypt($values['entreprise']),
-                ($values['origine'] ?? null) ?: 'France',
+                ($values['origine'] ?? null) ?: 'AssoConnect',
                 'en ligne (CB)', $values['created_at'], currentUserId()
             ]);
 
@@ -1989,7 +1989,26 @@ if ($route === 'check-duplicates' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /* ---------- Petites fonctions utilitaires ---------- */
 function normaliseLabel(string $label): string {
-    $label = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $label);
+    // Translittération déterministe des accents (UTF-8 -> ASCII).
+    // NB : on n'utilise PAS iconv('ASCII//TRANSLIT') car son résultat dépend
+    // de la locale du serveur : sur un serveur en locale C/POSIX, les lettres
+    // accentuées sont purement supprimées ("Numéro" -> "Numro"), ce qui faisait
+    // échouer la correspondance des colonnes Excel sur le serveur de production.
+    $accents = [
+        'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','ā'=>'a','ą'=>'a',
+        'À'=>'A','Á'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','Å'=>'A',
+        'è'=>'e','é'=>'e','ê'=>'e','ë'=>'e','ē'=>'e','ę'=>'e',
+        'È'=>'E','É'=>'E','Ê'=>'E','Ë'=>'E',
+        'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i','ī'=>'i',
+        'Ì'=>'I','Í'=>'I','Î'=>'I','Ï'=>'I',
+        'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','ø'=>'o','ō'=>'o',
+        'Ò'=>'O','Ó'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ø'=>'O',
+        'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u','ū'=>'u',
+        'Ù'=>'U','Ú'=>'U','Û'=>'U','Ü'=>'U',
+        'ç'=>'c','Ç'=>'C','ñ'=>'n','Ñ'=>'N',
+        'ý'=>'y','ÿ'=>'y','Ý'=>'Y','š'=>'s','ž'=>'z',
+    ];
+    $label = strtr($label, $accents);
     $label = preg_replace('/[^a-zA-Z0-9 ]/', '', $label);
     return strtolower(trim(preg_replace('/\s+/', ' ', $label)));
 }
