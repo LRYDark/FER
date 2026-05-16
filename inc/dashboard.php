@@ -628,6 +628,7 @@ $('#quickSearch').on('keyup',function(){tbl.search(this.value).draw();});
 /* ══ Stats ════ */
 function updateStats(data){
   const total=data.length, oldest={H:null,F:null}, byEnt={};
+  let tshirtCount=0;
   data.forEach(r=>{
     const a=ageFromBirth(r.naissance);
     if(a!==null&&(r.sexe==='H'||r.sexe==='F')){
@@ -635,12 +636,18 @@ function updateStats(data){
         oldest[r.sexe]={nom:`${r.prenom||''} ${r.nom||''}`.trim(),age:a};
     }
     if(r.entreprise) byEnt[r.entreprise]=(byEnt[r.entreprise]||0)+1;
+    // T-shirt récupéré = taille renseignée (≠ vide et ≠ "-")
+    const sz=(r.tshirt_size||'').toString().trim();
+    if(sz && sz!=='-') tshirtCount++;
   });
   const [eTop,eCnt]=Object.entries(byEnt).sort((a,b)=>b[1]-a[1])[0]||['–',0];
   $('#stats').html(`
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h5 class="card-title mb-1">Inscriptions</h5>
       <p class="display-6 fw-bold mb-0">${total}</p></div></div>
+    <div class="card statCard flex-fill text-center"><div class="card-body">
+      <h5 class="card-title mb-1">T-shirts récupérés</h5>
+      <p class="display-6 fw-bold mb-0">${tshirtCount}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h6 class="card-title text-muted mb-1">+ Vieux H</h6>
       <p class="fw-semibold mb-0">${oldest.H?oldest.H.nom+' ('+oldest.H.age+' ans)':'–'}</p></div></div>
@@ -749,12 +756,31 @@ $('#fAdd').on('submit',e=>{
   fetch('../config/api.php?route=registrations',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},body:JSON.stringify(Object.fromEntries(fd))})
   .then(r=>r.json()).then(j=>{
     if(j.inscription_no){
-      tbl.ajax.reload(); e.target.reset();
-      showToast('Inscription n°' + j.inscription_no + ' enregistrée !', 'success');
+      e.target.reset();
       $('#fAdd [name="nom"]').focus();
+      showInscriptionToast(j.inscription_no);
+      tbl.ajax.reload(null, false);
     }
   });
 });
+
+/* Toast d'ajout : n° d'inscription + rang de l'inscrit + éligibilité T-shirt */
+function showInscriptionToast(inscriptionNo){
+  const hlLimit = <?= (int)$highlightLimit ?>;
+  // Rang global = numéro de séquence de l'inscription (compteur atomique, toutes
+  // organisations confondues) — indépendant des filtres / du contenu du tableau.
+  const rank = parseInt(String(inscriptionNo).replace(/[^0-9]/g,'')) || 0;
+
+  let html = '<div>Inscription <strong>n°'+inscriptionNo+'</strong> enregistrée&nbsp;!</div>'
+           + '<div style="font-size:20px;font-weight:800;margin-top:6px;line-height:1.2">'
+           +   rank+'<sup>e</sup> inscrit</div>';
+  if(hlLimit>0){
+    html += rank<=hlLimit
+      ? '<div style="font-size:12px;margin-top:4px;opacity:.95">&#10003; Dans les '+hlLimit+' premiers — éligible T-shirt</div>'
+      : '<div style="font-size:12px;margin-top:4px;opacity:.95">Au-delà des '+hlLimit+' premiers — non éligible T-shirt</div>';
+  }
+  showToast(html, 'success', 9000);
+}
 
 
 /* ══ ÉDITION ════ */

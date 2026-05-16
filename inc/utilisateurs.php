@@ -328,10 +328,8 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
 
           <?php
           $accueilCardActions = [
-            'settings.accueil.hero'   => 'Titre / Image sur la vidéo',
             'settings.accueil.params' => 'Paramètres page accueil (liens, date, Flash Info)',
-            'settings.accueil.video'  => 'Vidéo d\'accueil',
-            'settings.accueil.custom' => 'Contenu personnalisé',
+            'settings.accueil.custom' => 'Mise en page de l\'accueil (éditeur visuel)',
           ];
           foreach ($accueilCardActions as $k => $label): ?>
           <tr>
@@ -668,10 +666,8 @@ const ALL_ACTIONS = [
   { key: 'settings.tab.import',           label: 'Réglages : Import Excel',      group: 'settings' },
   { key: 'settings.tab.maintenance',      label: 'Réglages : Maintenance',       group: 'settings' },
   // Cartes de l'onglet Accueil
-  { key: 'settings.accueil.hero',         label: 'Accueil : Titre / Image sur la vidéo', group: 'settings' },
   { key: 'settings.accueil.params',       label: 'Accueil : Paramètres page',    group: 'settings' },
-  { key: 'settings.accueil.video',        label: 'Accueil : Vidéo d\'accueil', group: 'settings' },
-  { key: 'settings.accueil.custom',       label: 'Accueil : Contenu personnalisé', group: 'settings' },
+  { key: 'settings.accueil.custom',       label: 'Accueil : Mise en page (éditeur visuel)', group: 'settings' },
   // Cartes de l'onglet Inscription
   { key: 'settings.inscription.header',      label: 'Inscription : En-tête du site', group: 'settings' },
   { key: 'settings.inscription.params',      label: 'Inscription : Paramètres d\'inscription', group: 'settings' },

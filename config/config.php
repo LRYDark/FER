@@ -282,7 +282,7 @@ function permCatalog(): array
             'settings.tab.parcours','settings.tab.reglementation','settings.tab.formulaire',
             'settings.tab.import','settings.tab.maintenance',
             // Cartes de l'onglet Accueil
-            'settings.accueil.hero','settings.accueil.params','settings.accueil.video','settings.accueil.custom',
+            'settings.accueil.params','settings.accueil.custom',
             // Cartes de l'onglet Inscription
             'settings.inscription.header','settings.inscription.params','settings.inscription.assoconnect',
         ],
