@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once '../config/csrf.php';
 requirePage('qr_code');
 $role = currentRole();
 $canWrite     = canDoAction('qrcode.write');
@@ -52,6 +53,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>QR Codes</title>
+<meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 
 <!-- CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
@@ -192,6 +194,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 let qrTable;
 let currentQrData = null;
+const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
 $(document).ready(function() {
     // Pagination compacte type "1 ... 4 5 6 ... 12"
@@ -312,6 +315,7 @@ $(document).ready(function() {
             url: '../config/api.php?route=qrcodes',
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRF-TOKEN': _csrfToken },
             data: JSON.stringify(formData),
             success: function(response) {
                 if (response.success) {
@@ -363,6 +367,7 @@ $(document).ready(function() {
             method: 'PUT',
             data: 'id=' + data.id + '&is_active=' + newStatus,
             contentType: 'application/x-www-form-urlencoded',
+            headers: { 'X-CSRF-TOKEN': _csrfToken },
             success: function() {
                 qrTable.ajax.reload(null, false);
             }
@@ -378,6 +383,7 @@ $(document).ready(function() {
                 method: 'DELETE',
                 data: 'id=' + data.id,
                 contentType: 'application/x-www-form-urlencoded',
+                headers: { 'X-CSRF-TOKEN': _csrfToken },
                 success: function() {
                     qrTable.ajax.reload();
                     alert('QR Code supprimé avec succès');

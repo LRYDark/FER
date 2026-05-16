@@ -16,6 +16,11 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $title        = $data['title']        ?? '';
 $title_mobile = $data['title_mobile'] ?? '';
 
+// Limite « X premiers inscrits » (éligibilité T-shirt) — même logique que le dashboard
+$qrcode_mail_mode  = $data['qrcode_mail_mode']  ?? 'none';
+$qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
+$highlightLimit    = ($qrcode_mail_mode === 'first_x' && $qrcode_mail_limit > 0) ? $qrcode_mail_limit : 0;
+
 require_once '../config/form_fields.php';
 $formFields = getActiveFields($pdo, 'saisie');
 
@@ -187,6 +192,12 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 
 /* ── Message retour ── */
 #msg { font-size: 13px; border-radius: 6px; padding: 10px 14px; }
+/* La règle globale #oc-content .alert force display:flex (alignement en ligne).
+   On la neutralise ici pour que les lignes du message s'empilent verticalement. */
+#oc-content #msg.alert { display: block; }
+
+/* ── Cartes statistiques (onglet « Mes inscriptions ») ── */
+#statsSaisie .statCard { min-width: 180px; }
 </style>
 
 <?php if ($activeTab === 'formulaire'): ?>
@@ -242,6 +253,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     <p>Inscriptions enregistrées via votre compte.</p>
   </div>
   <div class="saisie-table-card">
+    <div id="statsSaisie" class="d-flex flex-wrap gap-3 mb-3"></div>
     <input id="quickSearchSaisie" class="form-control quick-search-saisie" placeholder="Recherche rapide">
     <div class="table-responsive">
       <table id="tblSaisie" class="table table-striped table-sm w-100"></table>
@@ -295,11 +307,23 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     .then(function(j) {
       btn.disabled = false; btn.textContent = 'Enregistrer';
       if (j.ok) {
+        // Rang global = numéro de séquence de l'inscription (compteur atomique,
+        // toutes organisations confondues). Même logique que le toast du dashboard.
+        var hlLimit = <?= (int)$highlightLimit ?>;
+        var rank = parseInt(String(j.inscription_no).replace(/[^0-9]/g, '')) || 0;
+        var html = '<div>Inscription <strong>n° ' + j.inscription_no + '</strong> enregistrée !</div>'
+                 + '<div style="display:block;font-size:20px;font-weight:800;margin-top:6px;line-height:1.2">'
+                 +   rank + '<sup>e</sup> inscrit</div>';
+        if (hlLimit > 0) {
+          html += rank <= hlLimit
+            ? '<div style="font-size:12px;margin-top:4px">✓ Dans les ' + hlLimit + ' premiers — éligible T-shirt</div>'
+            : '<div style="font-size:12px;margin-top:4px">Au-delà des ' + hlLimit + ' premiers — non éligible T-shirt</div>';
+        }
         msg.className = 'alert alert-success';
-        msg.textContent = 'Inscription n° ' + j.inscription_no + ' enregistrée !';
+        msg.innerHTML = html;
         e.target.reset();
         if (tblSaisie) tblSaisie.ajax.reload(null, false);
-        setTimeout(function() { msg.className = 'alert d-none'; }, 5000);
+        setTimeout(function() { msg.className = 'alert d-none'; }, 9000);
       } else {
         msg.className = 'alert alert-danger';
         msg.textContent = j.err || 'Erreur lors de l\'enregistrement.';
@@ -387,6 +411,29 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 
   $('#quickSearchSaisie').on('keyup', function(){ tblSaisie.search(this.value).draw(); });
 
+  // ── Cartes statistiques : Inscriptions + T-shirts récupérés ──
+  // Compteurs GLOBAUX (toutes organisations) : le tableau ci-dessous n'affiche
+  // que les inscriptions de l'organisation connectée, donc on interroge l'API.
+  function updateSaisieStats(){
+    fetch('../config/api.php?route=registrations-stats', { credentials: 'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(s){
+        if (!s || !s.ok) return;
+        $('#statsSaisie').html(
+          '<div class="card statCard flex-fill text-center"><div class="card-body">'
+          + '<h5 class="card-title mb-1">Inscriptions</h5>'
+          + '<p class="display-6 fw-bold mb-0">' + s.total + '</p>'
+          + '<div class="text-muted" style="font-size:11px">Total — toutes organisations</div></div></div>'
+          + '<div class="card statCard flex-fill text-center"><div class="card-body">'
+          + '<h5 class="card-title mb-1">T-shirts récupérés</h5>'
+          + '<p class="display-6 fw-bold mb-0">' + s.tshirt_recovered + '</p>'
+          + '<div class="text-muted" style="font-size:11px">Total — toutes organisations</div></div></div>'
+        );
+      })
+      .catch(function(){});
+  }
+  updateSaisieStats();
+
   // Suppression
   $('#tblSaisie').on('click', '.delete-saisie', function() {
     var row  = tblSaisie.row($(this).closest('tr'));
@@ -400,7 +447,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     })
     .then(function(r){ return r.json(); })
     .then(function(j){
-      if (j.ok) { row.remove().draw(false); }
+      if (j.ok) { row.remove().draw(false); updateSaisieStats(); }
       else { alert('Erreur : ' + (j.err || 'Suppression impossible.')); }
     })
     .catch(function(){ alert('Erreur de communication avec le serveur.'); });
@@ -428,6 +475,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     .then(function(j){
       if (j.ok) {
         tblSaisie.ajax.reload(null, false);
+        updateSaisieStats();
         bootstrap.Modal.getInstance(document.getElementById('editModalSaisie')).hide();
       } else {
         alert('Erreur : ' + (j.err || 'Modification impossible.'));

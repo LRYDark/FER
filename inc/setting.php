@@ -31,10 +31,8 @@ $postCardMap = [
     'save_flash_colors'   => ['personnalisation', null],
     'reset_flash_colors'  => ['personnalisation', null],
     // Accueil
-    'save_hero'               => ['accueil', 'hero'],
     'save_accueil_params'     => ['accueil', 'params'],
     'delete_picture_partner'  => ['accueil', 'params'],
-    'save_video_accueil'      => ['accueil', 'video'],
     // 'save_accueil_layout' arrive en JSON (pas dans $_POST) → permission vérifiée plus bas dans le handler dédié
     // Inscription
     'save_header'              => ['inscription', 'header'],

@@ -1689,6 +1689,30 @@ if ($route==='registrations'){
     }
 }
 
+/* ───── STATS GLOBALES INSCRIPTIONS (toutes organisations confondues) ────── */
+if ($route === 'registrations-stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!canAccessPage('dashboard')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Accès refusé']);
+        exit;
+    }
+    try {
+        // Compteurs sur TOUTES les inscriptions, sans filtre d'organisation
+        $total  = (int) $pdo->query('SELECT COUNT(*) FROM registrations')->fetchColumn();
+        // T-shirt récupéré = taille renseignée (différente de vide et de "-")
+        $tshirt = (int) $pdo->query(
+            "SELECT COUNT(*) FROM registrations
+              WHERE tshirt_size IS NOT NULL AND tshirt_size <> '' AND tshirt_size <> '-'"
+        )->fetchColumn();
+        echo json_encode(['ok' => true, 'total' => $total, 'tshirt_recovered' => $tshirt]);
+    } catch (Throwable $e) {
+        error_log('[REGISTRATIONS-STATS] ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Erreur lors du calcul des statistiques']);
+    }
+    exit;
+}
+
 /* ───── IMPORT EXCEL (permission dashboard.import_excel) ─────────────────── */
 if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     requireAction('dashboard.import_excel');
