@@ -562,14 +562,15 @@
       margin-left: -2px;
     }
     .badge-tooltip{
-      width: 11.25rem;
-      max-width: 11.25rem;
+      width: 11.5rem;
+      max-width: 11.5rem;
       flex-shrink: 0;
       overflow: hidden;
       opacity: 0;
       font-size: 0.8125rem;
       font-weight: 600;
-      white-space: nowrap;
+      white-space: normal;
+      line-height: 1.25;
       transition: opacity .3s ease;
     }
     @media (max-width: 1040px){
@@ -583,7 +584,7 @@
       }
     }
     .demo-badge--fee.expanded{
-      width: 17.1875rem;
+      width: 17rem;
       padding-right: 1.125rem;
     }
     .demo-badge--fee.expanded .badge-tooltip{
@@ -1952,7 +1953,7 @@
     .news-band .news-band-title,
     .news-band-head .news-band-title,
     .news-band-title {
-      margin: 0;
+      margin: 0 0 25px 0;
       /* Réduit progressivement (le texte plus long que "Historique" donne une impression
          visuelle plus grande). Sélecteur ultra-spécifique pour battre tout override
          + 3 alternatives au cas où cache navigateur ne recharge pas */
