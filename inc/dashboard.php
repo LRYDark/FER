@@ -791,6 +791,28 @@ document.getElementById('importFileInput').addEventListener('change', async func
     const data = await file.arrayBuffer();
     const wb   = XLSX.read(data, {type:'array'});
     const ws   = wb.Sheets[wb.SheetNames[0]];
+
+    // Certains exports Excel écrivent une plage (!ref) incorrecte ne couvrant
+    // que la 1re ligne (ex: dimension "A1:AB1" alors que la feuille contient
+    // plusieurs lignes). SheetJS se fie à cette plage et ignore alors les
+    // données -> "fichier semble vide". On recalcule la plage réelle à partir
+    // des cellules réellement présentes pour ne perdre aucune ligne.
+    (function fixSheetRange(){
+      var minR = Infinity, minC = Infinity, maxR = -1, maxC = -1;
+      for (var addr in ws) {
+        if (!ws.hasOwnProperty(addr) || addr.charAt(0) === '!') continue;
+        var cell = XLSX.utils.decode_cell(addr);
+        if (cell.r < minR) minR = cell.r;
+        if (cell.c < minC) minC = cell.c;
+        if (cell.r > maxR) maxR = cell.r;
+        if (cell.c > maxC) maxC = cell.c;
+      }
+      if (maxR >= 0) {
+        var realRef = XLSX.utils.encode_range({s:{r:minR,c:minC}, e:{r:maxR,c:maxC}});
+        if (ws['!ref'] !== realRef) ws['!ref'] = realRef;
+      }
+    })();
+
     const rows = XLSX.utils.sheet_to_json(ws, {header:1});
 
     if (rows.length < 2) {
@@ -939,7 +961,17 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       credentials: 'same-origin'
     });
 
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      let msg = res.status + ' ' + res.statusText;
+      try {
+        const j = await res.json();
+        if (j && j.error) {
+          msg = j.error;
+          if (j.missing && j.missing.length) msg += ' : ' + j.missing.join(', ');
+        }
+      } catch (e) { /* corps non-JSON, on garde le code HTTP */ }
+      throw new Error(msg);
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();

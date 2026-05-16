@@ -1711,7 +1711,17 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'application/xml',                                                     // variante XML
         'text/html',                                                           // xls exporté en HTML (certains exports)
     ];
-    if (!in_array($xlsExt, $allowedXlsExts, true) || !in_array($xlsMime, $allowedXlsMimes, true)) {
+    // Détection par signature binaire : selon le serveur, mime_content_type()
+    // peut renvoyer application/octet-stream (ou autre) pour un .xlsx pourtant
+    // valide. On vérifie alors les octets magiques du fichier :
+    //   - xlsx (= archive ZIP)       -> "PK\x03\x04"
+    //   - xls binaire (OLE Compound) -> "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
+    $xlsSig = (string) file_get_contents($_FILES['file']['tmp_name'], false, null, 0, 8);
+    $isXlsZip = strncmp($xlsSig, "PK\x03\x04", 4) === 0;
+    $isXlsOle = strncmp($xlsSig, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8) === 0;
+    $xlsMimeOk = in_array($xlsMime, $allowedXlsMimes, true) || $isXlsZip || $isXlsOle;
+
+    if (!in_array($xlsExt, $allowedXlsExts, true) || !$xlsMimeOk) {
         http_response_code(400);
         echo json_encode(['error' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls)']);
         exit;
@@ -1745,8 +1755,11 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 3. Vérification des colonnes requises
-        $required = array_keys($mapFields);
-        $missing = array_diff($required, array_keys($headerMap));
+        //    "pays" est optionnelle : si la colonne est absente du fichier,
+        //    le champ `origine` reçoit "France" par défaut (voir insertion BDD).
+        $optionalLabels = [ normaliseLabel('pays') ];
+        $required = array_diff(array_keys($mapFields), $optionalLabels);
+        $missing  = array_diff($required, array_keys($headerMap));
 
         // Log de debug supprimé (ne pas écrire dans le webroot)
 
@@ -1849,7 +1862,8 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
                 encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
-                '-', encrypt($values['ville']), encrypt($values['entreprise']), 'AssoConnect',
+                '-', encrypt($values['ville']), encrypt($values['entreprise']),
+                ($values['origine'] ?? null) ?: 'France',
                 'en ligne (CB)', $values['created_at'], currentUserId()
             ]);
 
