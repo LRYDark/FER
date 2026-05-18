@@ -1227,6 +1227,59 @@ if ($route === 'users') {
         exit;
     }
 
+    // 🔐 POST : supprimer les authentifications fortes (TOTP + clés d'accès)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear-2fa') {
+        $id = $_POST['id'] ?? null;
+        if (!$id) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'id manquant']);
+            exit;
+        }
+
+        // Vérifier que l'utilisateur existe
+        $chk = $pdo->prepare('SELECT id FROM users WHERE id = ?');
+        $chk->execute([$id]);
+        if (!$chk->fetchColumn()) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'err' => 'Utilisateur introuvable']);
+            exit;
+        }
+
+        $totpCleared    = 0;
+        $passkeysCleared = 0;
+
+        // Désactiver l'application d'authentification (TOTP)
+        try {
+            $stmt = $pdo->prepare(
+                'UPDATE users
+                    SET totp_enabled = 0,
+                        totp_secret = NULL,
+                        totp_pending_secret = NULL,
+                        default_2fa_method = \'email\'
+                  WHERE id = ?'
+            );
+            $stmt->execute([$id]);
+            $totpCleared = $stmt->rowCount();
+        } catch (PDOException $e) {
+            error_log('clear-2fa totp error user id=' . $id . ' : ' . $e->getMessage());
+        }
+
+        // Supprimer les clés d'accès (passkeys)
+        try {
+            $stmt = $pdo->prepare('DELETE FROM user_passkeys WHERE user_id = ?');
+            $stmt->execute([$id]);
+            $passkeysCleared = $stmt->rowCount();
+        } catch (PDOException $e) {
+            error_log('clear-2fa passkeys error user id=' . $id . ' : ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'passkeys_removed' => $passkeysCleared,
+        ]);
+        exit;
+    }
+
     // 🔄 POST : activer/désactiver un compte
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle-active') {
         $id = $_POST['id'] ?? null;
@@ -1361,8 +1414,31 @@ if ($route === 'users') {
         try { $pdo->query('SELECT permissions FROM users LIMIT 0'); $hasPermsCol = true; }
         catch (PDOException $e) {}
 
-        $cols = 'id,email,role,organisation,is_active,created_at' . ($hasPermsCol ? ',permissions' : '');
-        echo json_encode($pdo->query("SELECT $cols FROM users")->fetchAll());
+        // Détection de la colonne totp_enabled (MFA application d'authentification)
+        $hasTotpCol = false;
+        try { $pdo->query('SELECT totp_enabled FROM users LIMIT 0'); $hasTotpCol = true; }
+        catch (PDOException $e) {}
+
+        $cols = 'id,email,role,organisation,is_active,created_at'
+              . ($hasPermsCol ? ',permissions' : '')
+              . ($hasTotpCol ? ',totp_enabled' : '');
+        $rows = $pdo->query("SELECT $cols FROM users")->fetchAll();
+
+        // Comptage des clés d'accès (passkeys) par utilisateur — table optionnelle
+        $pkCounts = [];
+        try {
+            foreach ($pdo->query('SELECT user_id, COUNT(*) AS c FROM user_passkeys GROUP BY user_id') as $r) {
+                $pkCounts[$r['user_id']] = (int)$r['c'];
+            }
+        } catch (PDOException $e) {}
+
+        foreach ($rows as &$row) {
+            $row['totp_enabled']  = (int)($row['totp_enabled'] ?? 0);
+            $row['passkey_count'] = $pkCounts[$row['id']] ?? 0;
+        }
+        unset($row);
+
+        echo json_encode($rows);
         exit;
     }
 

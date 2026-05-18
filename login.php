@@ -677,8 +677,9 @@ $picture= $data['picture'] ?? '';
       document.querySelector('.oc-card').style.display = 'none';
       document.getElementById('backToAccueil').style.display = 'none';
       document.getElementById('totp-section').style.display = '';
+      // Toujours proposer le changement de méthode (au minimum le mot de passe est dispo)
       var cm = document.getElementById('changeMethodFromTotp');
-      if (cm) cm.style.display = _2faMethods.length > 0 ? '' : 'none';
+      if (cm) cm.style.display = '';
       document.querySelector('#fTotp input[name="code"]').focus();
     }
 
@@ -688,8 +689,9 @@ $picture= $data['picture'] ?? '';
       document.querySelector('.oc-card').style.display = 'none';
       document.getElementById('backToAccueil').style.display = 'none';
       document.getElementById('passkey-section').style.display = '';
+      // Toujours proposer le changement de méthode (au minimum le mot de passe est dispo)
       var cm = document.getElementById('changeMethodFromPasskey');
-      if (cm) cm.style.display = _2faMethods.length > 0 ? '' : 'none';
+      if (cm) cm.style.display = '';
       if (options) _passkeyOptions = options;
     }
 
@@ -766,8 +768,15 @@ $picture= $data['picture'] ?? '';
 
     function handle2faResponse(j) {
       if (j.method === 'email')   { showTwofaSection(); return; }
-      if (j.method === 'totp')    { showTotpSection(); return; }
-      if (j.method === 'passkey') { showPasskeySection(j.options); return; }
+      if (j.method === 'totp')    {
+        // Méthode forte unique : mémoriser pour permettre le changement de méthode
+        if (!_2faMethods.length) _2faMethods = ['totp'];
+        showTotpSection(); return;
+      }
+      if (j.method === 'passkey') {
+        if (!_2faMethods.length) _2faMethods = ['passkey'];
+        showPasskeySection(j.options); return;
+      }
       if (j.method === 'select') {
         _2faMethods = j.methods || [];
         _2faDefault = j.default  || (_2faMethods[0] || 'email');
@@ -932,14 +941,14 @@ $picture= $data['picture'] ?? '';
     });
     document.getElementById('changeMethodFromTotp').addEventListener('click', function(e) {
       e.preventDefault();
-      if (_2faMethods.length > 0) showMethodSelectSection(); else showLoginSection();
+      showMethodSelectSection();
     });
     document.getElementById('backFromPasskey').addEventListener('click', function(e) {
       e.preventDefault(); showLoginSection();
     });
     document.getElementById('changeMethodFromPasskey').addEventListener('click', function(e) {
       e.preventDefault();
-      if (_2faMethods.length > 0) showMethodSelectSection(); else showLoginSection();
+      showMethodSelectSection();
     });
     document.getElementById('backToLogin').addEventListener('click', function(e) {
       e.preventDefault();

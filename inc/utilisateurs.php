@@ -89,10 +89,10 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
     }
   }
   @media (max-width: 575.98px) {
-    #tblUsers td:nth-child(5),
-    #tblUsers th:nth-child(5),
     #tblUsers td:nth-child(6),
-    #tblUsers th:nth-child(6) {
+    #tblUsers th:nth-child(6),
+    #tblUsers td:nth-child(7),
+    #tblUsers th:nth-child(7) {
       display: none;
     }
   }
@@ -494,6 +494,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
         <hr>
         <div class="d-flex flex-wrap gap-2">
           <button id="btnResetPwd" class="btn btn-outline-warning btn-sm"><i class="bi bi-key me-1"></i>Reinitialiser MDP</button>
+          <button id="btnClear2fa" class="btn btn-outline-warning btn-sm" style="display:none"><i class="bi bi-shield-slash me-1"></i>Supprimer l'authentification forte</button>
           <button id="btnToggleActive" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pause-circle me-1"></i><span>Bloquer</span></button>
           <button id="btnDeleteUser" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash3 me-1"></i>Supprimer</button>
         </div>
@@ -699,6 +700,30 @@ let usrTbl = $('#tblUsers').DataTable({
         return val == 1
           ? '<span class="badge bg-success">Actif</span>'
           : '<span class="badge bg-secondary">Inactif</span>';
+      }
+    },
+    {
+      data: null,
+      title: 'MFA',
+      className: 'text-center',
+      orderable: false,
+      render: function (row) {
+        const totp = row.totp_enabled == 1;
+        const pk   = (row.passkey_count || 0) > 0;
+        if (!totp && !pk) {
+          return '<span class="badge bg-light text-muted border">Aucune</span>';
+        }
+        let html = '';
+        if (pk) {
+          html += '<span class="badge bg-success" title="Cl\u00e9 d\'acc\u00e8s">'
+                + '<i class="bi bi-fingerprint me-1"></i>Cl\u00e9 d\'acc\u00e8s</span>';
+        }
+        if (totp) {
+          html += (html ? ' ' : '')
+                + '<span class="badge bg-primary" title="Application d\'authentification">'
+                + '<i class="bi bi-shield-lock me-1"></i>Authenticator</span>';
+        }
+        return html;
       }
     },
     { data: 'organisation', title: 'Organisation' },
@@ -920,6 +945,10 @@ $('#tblUsers tbody').on('click', 'tr', function () {
     toggleBtn.innerHTML = '<i class="bi bi-play-circle me-1"></i><span>Debloquer</span>';
   }
 
+  // Bouton "Supprimer l'authentification forte" — visible seulement si MFA actif
+  const hasMfa = (data.totp_enabled == 1) || ((data.passkey_count || 0) > 0);
+  document.getElementById('btnClear2fa').style.display = hasMfa ? '' : 'none';
+
   new bootstrap.Modal('#editUserModal').show();
 });
 
@@ -970,6 +999,29 @@ document.getElementById('btnResetPwd').addEventListener('click', function () {
         alert('Mot de passe r\u00e9initialis\u00e9. Un email a \u00e9t\u00e9 envoy\u00e9 \u00e0 ' + currentEditUser.email + '.');
       }
       usrTbl.ajax.reload();
+    } else {
+      alert('Erreur : ' + (j.err || 'inconnue'));
+    }
+  });
+});
+
+/* ══ Clear strong authentication (edit modal) ════ */
+document.getElementById('btnClear2fa').addEventListener('click', function () {
+  if (!currentEditUser) return;
+  if (!confirm('Supprimer toutes les authentifications fortes (clé d\'accès et application d\'authentification) de "'
+      + currentEditUser.email + '" ?\n\nL\'utilisateur devra se reconnecter avec son mot de passe.')) return;
+
+  fetch('../config/api.php?route=users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
+    body: new URLSearchParams({ action: 'clear-2fa', id: currentEditUser.id })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (j.ok) {
+      usrTbl.ajax.reload();
+      bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+      alert('Authentification forte supprimée. Le compte se reconnecte désormais par mot de passe.');
     } else {
       alert('Erreur : ' + (j.err || 'inconnue'));
     }
