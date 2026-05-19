@@ -832,7 +832,7 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
     if ($user) {
         $token   = bin2hex(random_bytes(32));
 
-        $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 10 MINUTE) WHERE id = ?')
+        $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?')
             ->execute([$token, $user['id']]);
 
         // Envoyer le mail si Gmail est configuré
@@ -851,8 +851,8 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
                     '<p>Vous avez demandé la réinitialisation de votre mot de passe.</p>'
                       . '<p>Cliquez sur le lien ci-dessous pour définir un nouveau mot de passe :</p>'
                       . '<p><a href="' . htmlspecialchars($resetUrl) . '">' . htmlspecialchars($resetUrl) . '</a></p>'
-                      . '<p><em>Ce lien expire dans 10 minutes.</em></p>',
-                    null, null, 'info'
+                      . '<p><em>Ce lien expire dans 30 minutes.</em></p>',
+                    null, null, 'info', null, 'password_reset'
                 );
             }
         } catch (Exception $e) {
@@ -1054,7 +1054,7 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
     $token    = $d['token'] ?? '';
     $password = $d['password'] ?? '';
 
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()');
+    $stmt = $pdo->prepare('SELECT id, is_active, locked_at FROM users WHERE reset_token = ? AND reset_token_expires > NOW()');
     $stmt->execute([$token]);
     $user = $stmt->fetch();
 
@@ -1069,8 +1069,14 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok' => false, 'errors' => $errors]); exit;
     }
 
-    // Réactiver le compte uniquement s'il était verrouillé auto (locked_at non nul),
-    // pas s'il a été désactivé manuellement par un admin (is_active=0, locked_at=NULL).
+    // Réactivation du compte après changement de mot de passe :
+    //  - verrouillage automatique (3 échecs, locked_at non nul) → on réactive ;
+    //  - compte déjà actif → reste actif ;
+    //  - désactivé manuellement par un admin (is_active=0 ET locked_at NULL) → reste bloqué.
+    // ⚠️ Calculé en PHP : dans un UPDATE MySQL, "is_active = IF(locked_at...)" lirait
+    //    locked_at APRÈS son passage à NULL dans la même requête (faux négatif).
+    $newIsActive = (!empty($user['locked_at']) || (int)$user['is_active'] === 1) ? 1 : 0;
+
     $pdo->prepare('UPDATE users SET
         password_hash       = ?,
         must_change_password = 0,
@@ -1078,9 +1084,9 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
         reset_token_expires = NULL,
         failed_attempts     = 0,
         locked_at           = NULL,
-        is_active           = IF(locked_at IS NOT NULL, 1, is_active)
+        is_active           = ?
     WHERE id = ?')
-        ->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+        ->execute([password_hash($password, PASSWORD_DEFAULT), $newIsActive, $user['id']]);
     echo json_encode(['ok' => true]); exit;
 }
 
@@ -1188,42 +1194,65 @@ if ($route === 'users') {
             exit;
         }
 
-        $tempPassword = generateTemporaryPassword();
-
-        $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 1, is_active = 1, failed_attempts = 0, locked_at = NULL WHERE id = ?')
-            ->execute([password_hash($tempPassword, PASSWORD_DEFAULT), $id]);
-
-        // Récupérer l'email pour envoi
-        $userStmt = $pdo->prepare('SELECT email FROM users WHERE id = ?');
+        // Récupérer l'email + l'état du compte
+        $userStmt = $pdo->prepare('SELECT email, is_active, locked_at FROM users WHERE id = ?');
         $userStmt->execute([$id]);
-        $userEmail = $userStmt->fetchColumn();
+        $userInfo = $userStmt->fetch();
+        if (!$userInfo || empty($userInfo['email'])) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'err' => 'Utilisateur introuvable']);
+            exit;
+        }
+        $userEmail = $userInfo['email'];
 
+        // Génère un lien de réinitialisation valable 30 minutes.
+        // ⚠️ On ne touche PAS à is_active / locked_at ici : la réactivation
+        // éventuelle se fait quand l'utilisateur change réellement son mot de
+        // passe (route reset-password-confirm), et jamais pour un compte
+        // désactivé manuellement par un admin.
+        $token = bin2hex(random_bytes(32));
+        $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?')
+            ->execute([$token, $id]);
+
+        // Tente d'envoyer le lien de réinitialisation
         $emailSent = false;
-        if ($userEmail) {
-            try {
-                require_once __DIR__ . '/googleMail.php';
-                if (isMailConfigured()) {
-                    $emailSent = sendMail(
-                        $userEmail,
-                        'Réinitialisation de votre mot de passe – Forbach en Rose',
-                        'Mot de passe réinitialisé',
-                        '<p>Votre mot de passe a été réinitialisé.</p>'
-                          . '<p><strong>Nouveau mot de passe temporaire :</strong> ' . htmlspecialchars($tempPassword) . '</p>'
-                          . '<p>Vous devrez changer votre mot de passe lors de votre prochaine connexion.</p>',
-                        null, null, 'info', null, 'new_user'
-                    );
-                }
-            } catch (Exception $e) {
-                error_log('Reset password mail error: ' . $e->getMessage());
+        try {
+            require_once __DIR__ . '/googleMail.php';
+            if (isMailConfigured()) {
+                // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
+                $resetUrl = getAppBaseUrl()
+                          . dirname(dirname($_SERVER['SCRIPT_NAME']))
+                          . '/reset-password.php?token=' . $token;
+
+                $emailSent = sendMail(
+                    $userEmail,
+                    'Réinitialisation de votre mot de passe – Forbach en Rose',
+                    'Mot de passe oublié ?',
+                    '<p>La réinitialisation de votre mot de passe a été demandée.</p>'
+                      . '<p>Cliquez sur le lien ci-dessous pour définir un nouveau mot de passe :</p>'
+                      . '<p><a href="' . htmlspecialchars($resetUrl) . '">' . htmlspecialchars($resetUrl) . '</a></p>'
+                      . '<p><em>Ce lien expire dans 30 minutes.</em></p>',
+                    null, null, 'info', null, 'password_reset'
+                );
             }
+        } catch (Exception $e) {
+            error_log('Reset password mail error: ' . $e->getMessage());
         }
 
-        // 🔒 [FIX-PWD-EXPOSE] Ne retourner le MDP temporaire que si l'email n'a pas été envoyé (CWE-319)
-        $response = ['ok' => true, 'email_sent' => $emailSent];
+        // 🔒 Repli : si le mail n'a pas pu partir, on génère un mot de passe
+        // temporaire affiché à l'admin et on annule le lien token.
+        // Réactivation : seulement si le compte était verrouillé auto (locked_at
+        // non nul) ou déjà actif. Un compte désactivé par l'admin reste bloqué.
         if (!$emailSent) {
-            $response['temp_password'] = $tempPassword;
+            $tempPassword = generateTemporaryPassword();
+            $newIsActive  = (!empty($userInfo['locked_at']) || (int)$userInfo['is_active'] === 1) ? 1 : 0;
+            $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 1, reset_token = NULL, reset_token_expires = NULL, failed_attempts = 0, locked_at = NULL, is_active = ? WHERE id = ?')
+                ->execute([password_hash($tempPassword, PASSWORD_DEFAULT), $newIsActive, $id]);
+            echo json_encode(['ok' => true, 'email_sent' => false, 'temp_password' => $tempPassword]);
+            exit;
         }
-        echo json_encode($response);
+
+        echo json_encode(['ok' => true, 'email_sent' => true]);
         exit;
     }
 

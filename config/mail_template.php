@@ -28,12 +28,16 @@ $sectionOrder = $mtc['section_order'] ?? ['details','tips','description','qrcode
 $headerImage = $mtc['header_image'] ?? '';
 $r = ($mtc['radius'] ?? []) + ['card'=>16,'section'=>12,'badge'=>20];
 $visibility = $mtc['visibility'] ?? [];
-// La section "description" porte le corps du mail "nouvel article" (newsletter) :
-// on garantit qu'elle reste toujours visible pour ce sous-type, quelle que soit
-// la configuration de visibilité enregistrée (un mail vide n'a aucun sens).
-if (isset($visibility['description']) && is_array($visibility['description'])
-    && !in_array('new_article', $visibility['description'], true)) {
-    $visibility['description'][] = 'new_article';
+// La section "description" porte le corps de certains mails système
+// (newsletter "nouvel article", lien de réinitialisation de mot de passe) :
+// on garantit qu'elle reste toujours visible pour ces sous-types, quelle que
+// soit la configuration de visibilité enregistrée (un mail vide n'a aucun sens).
+if (isset($visibility['description']) && is_array($visibility['description'])) {
+    foreach (['new_article', 'password_reset'] as $_forcedSubtype) {
+        if (!in_array($_forcedSubtype, $visibility['description'], true)) {
+            $visibility['description'][] = $_forcedSubtype;
+        }
+    }
 }
 $mailSubtype = $mail_subtype ?? ($type === 'inscription' ? 'inscription' : 'info');
 

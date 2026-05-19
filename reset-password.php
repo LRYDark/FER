@@ -62,7 +62,7 @@ $data = $stmt2->fetch(PDO::FETCH_ASSOC) ?: [];
     <div class="oc-card">
       <?php if (!$tokenValid): ?>
         <div class="oc-alert oc-alert-danger show">
-          Ce lien de reinitialisation est invalide ou a expire (10 minutes).
+          Ce lien de reinitialisation est invalide ou a expire (30 minutes).
         </div>
         <a href="login" class="oc-btn">Retour a la connexion</a>
       <?php else: ?>
