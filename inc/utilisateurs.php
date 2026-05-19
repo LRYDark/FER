@@ -996,7 +996,7 @@ document.getElementById('btnResetPwd').addEventListener('click', function () {
       if (j.temp_password) {
         showTempPasswordModal(j.temp_password, currentEditUser.email, j.email_sent);
       } else {
-        alert('Mot de passe r\u00e9initialis\u00e9. Un email a \u00e9t\u00e9 envoy\u00e9 \u00e0 ' + currentEditUser.email + '.');
+        alert('Un lien de r\u00e9initialisation de mot de passe a \u00e9t\u00e9 envoy\u00e9 \u00e0 ' + currentEditUser.email + ' (valable 30 minutes).');
       }
       usrTbl.ajax.reload();
     } else {
