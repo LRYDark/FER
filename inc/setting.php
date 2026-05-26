@@ -53,6 +53,9 @@ $postCardMap = [
     'importExcel'              => ['import', null],
     // Maintenance
     'save_maintenance'         => ['maintenance', null],
+    // API
+    'save_api'                 => ['api', null],
+    'regenerate_api'           => ['api', null],
 ];
 
 // Bloquer toute action POST si pas le droit d'écriture
@@ -117,8 +120,24 @@ $registration_auto_open  = $data['registration_auto_open']  ?? null;
 $registration_auto_close = $data['registration_auto_close'] ?? null;
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
-$picture_partner= $data['picture_partner'] ?? ''; 
+$picture_partner= $data['picture_partner'] ?? '';
 $link_cancer = $data['link_cancer'] ?? null;
+
+// API externe (onglet API)
+$api_enabled = (int)($data['api_enabled'] ?? 0);
+$api_user    = $data['api_user'] ?? '';
+$api_token   = !empty($data['api_token']) ? decrypt($data['api_token']) : '';
+
+// URL absolue de l'API (api.php est à la racine du projet)
+$api_baseUrl     = getAppBaseUrl();
+$api_projectRoot = realpath(__DIR__ . '/..');
+$api_docRoot     = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
+if ($api_projectRoot === $api_docRoot || $api_projectRoot === false || $api_docRoot === false) {
+    $api_baseDir = '';
+} else {
+    $api_baseDir = str_replace('\\', '/', substr($api_projectRoot, strlen($api_docRoot)));
+}
+$api_url = $api_baseUrl . $api_baseDir . '/api.php';
 $titleAccueil_mobile = $data['titleAccueil_mobile'] ?? '';
 $subtitle_accueil = $data['subtitle_accueil'] ?? '';
 $subtitle_accueil_mobile = $data['subtitle_accueil_mobile'] ?? '';
@@ -844,7 +863,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $import_fields[$row['fields_bdd']] = $row['fields_excel'] ?? '';
 }
 
-$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'paiement_mode', 'created_at'];
+$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'paiement_mode', 'montant_du', 'created_at'];
 foreach ($fields as $field) {
     $$field = $import_fields[$field] ?? '';
 }
@@ -1224,6 +1243,40 @@ if (isset($_POST['save_maintenance'])) {
 }
 
 /* --------------------------------------------------------------------------
+   Onglet API : activation + génération des identifiants
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_api'])) {
+    try {
+        $apiEnabledNew = !empty($_POST['api_enabled']) ? 1 : 0;
+        // Générer des identifiants si l'API est activée et qu'il n'en existe pas encore
+        if ($apiEnabledNew && (empty($data['api_user']) || empty($data['api_token']))) {
+            $api_user  = 'fer_' . bin2hex(random_bytes(8));
+            $api_token = bin2hex(random_bytes(24));
+            $pdo->prepare('UPDATE setting SET api_enabled = ?, api_user = ?, api_token = ? WHERE id = 1')
+                ->execute([$apiEnabledNew, $api_user, encrypt($api_token)]);
+        } else {
+            $pdo->prepare('UPDATE setting SET api_enabled = ? WHERE id = 1')->execute([$apiEnabledNew]);
+        }
+        $api_enabled = $apiEnabledNew;
+        addToast('success', $apiEnabledNew ? 'API activée !' : 'API désactivée.');
+    } catch (\Throwable $e) {
+        addToast('danger', "Impossible de mettre à jour l'API. Exécutez update.php pour appliquer les migrations.");
+    }
+}
+
+if (isset($_POST['regenerate_api'])) {
+    try {
+        $api_user  = 'fer_' . bin2hex(random_bytes(8));
+        $api_token = bin2hex(random_bytes(24));
+        $pdo->prepare('UPDATE setting SET api_user = ?, api_token = ? WHERE id = 1')
+            ->execute([$api_user, encrypt($api_token)]);
+        addToast('success', 'Nouveaux identifiants API générés ! Pensez à les copier.');
+    } catch (\Throwable $e) {
+        addToast('danger', "Impossible de générer les identifiants. Exécutez update.php.");
+    }
+}
+
+/* --------------------------------------------------------------------------
    Carte 4 : PARCOURS
 -------------------------------------------------------------------------- */
 if (isset($_POST['parcours'])) {
@@ -1543,6 +1596,7 @@ if (isset($_POST['importExcel'])) {
         'sexe',
         'ville',
         'paiement_mode',
+        'montant_du',
         'created_at',
         'entreprise',
     ];
@@ -2475,14 +2529,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
     elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
     elseif (isset($_POST['importExcel'])) $activeTab = 'import';
+    elseif (isset($_POST['save_api']) || isset($_POST['regenerate_api'])) $activeTab = 'api';
 }
 // Also check URL hash
-if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance'])) {
+if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance','api'])) {
     $activeTab = $_GET['tab'];
 }
 
 // Si l'onglet actif n'est pas accessible, basculer sur le premier accessible
-$allTabs = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance'];
+$allTabs = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance','api'];
 if (!$canTab($activeTab)) {
     $activeTab = '';
     foreach ($allTabs as $t) { if ($canTab($t)) { $activeTab = $t; break; } }
@@ -2501,6 +2556,7 @@ if (!$canTab($activeTab)) {
   <?php if ($canTab('formulaire')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li><?php endif; ?>
   <?php if ($canTab('import')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li><?php endif; ?>
   <?php if ($canTab('maintenance')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'maintenance' ? 'active' : '' ?>" href="#" data-tab="maintenance">Maintenance</a></li><?php endif; ?>
+  <?php if ($canTab('api')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'api' ? 'active' : '' ?>" href="#" data-tab="api">API</a></li><?php endif; ?>
 </ul>
 <?php if ($activeTab === ''): ?>
 <div class="alert alert-warning mt-3"><i class="bi bi-exclamation-triangle me-2"></i>Vous n'avez accès à aucun onglet des Réglages.</div>
@@ -3933,6 +3989,9 @@ if (!$canTab($activeTab)) {
                     <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
                         <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
+                    <div class="col-md-4"><label class="form-label">Montant dû =</label>
+                        <input type="text" class="form-control" name="montant_du" value="<?= htmlspecialchars($montant_du, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
                     <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
                         <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
@@ -3982,6 +4041,154 @@ if (!$canTab($activeTab)) {
   </div><!-- /row -->
 </div><!-- /tab-maintenance -->
 <?php endif; // canTab('maintenance') ?>
+
+<!-- ═══ TAB: API ═══ -->
+<?php if ($canTab('api')): ?>
+<div class="settings-section <?= $activeTab === 'api' ? 'active' : '' ?>" id="tab-api">
+  <div class="row g-4">
+
+    <!-- Carte : activation -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>API — Connexion d'applications externes</h2>
+        <p class="text-muted">
+          L'API permet à d'autres logiciels de se connecter au site de manière sécurisée :
+          importer un fichier Excel, ajouter un inscrit ou consulter les statistiques,
+          exactement comme depuis le tableau de bord.
+        </p>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <div class="col-12">
+            <label class="form-label">Activer l'API</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="api_enabled" id="api_enabled" <?= $api_enabled ? 'checked' : '' ?>>
+              <label class="form-check-label" for="api_enabled">
+                <?= $api_enabled ? '<span class="badge bg-success">Activée</span>' : '<span class="badge bg-secondary">Désactivée</span>' ?>
+              </label>
+            </div>
+            <small class="text-muted">
+              Quand l'API est désactivée, toutes les requêtes externes sont refusées.
+              Un identifiant et un token sont générés automatiquement à la première activation.
+            </small>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_api" class="btn btn-primary w-auto">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Carte : identifiants -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Identifiants de connexion</h2>
+
+        <div class="mb-3">
+          <label class="form-label">URL de l'API</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="apiUrlField" value="<?= htmlspecialchars($api_url, ENT_QUOTES, 'UTF-8') ?>" readonly>
+            <button class="btn btn-outline-secondary" type="button" data-copy="apiUrlField"><i class="bi bi-clipboard"></i> Copier</button>
+          </div>
+          <small class="text-muted">Adresse à utiliser depuis vos applications externes. Exemple : <code><?= htmlspecialchars($api_url, ENT_QUOTES, 'UTF-8') ?>?endpoint=ping</code></small>
+        </div>
+
+        <?php if ($api_user && $api_token): ?>
+          <div class="alert alert-warning">
+            <i class="bi bi-shield-lock me-2"></i>
+            Ne partagez jamais ces identifiants. Toute application qui les détient peut agir
+            sur vos inscrits. L'API n'accepte que les connexions HTTPS (le HTTP est
+            automatiquement bloqué).
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Identifiant (X-Api-User)</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="apiUserField" value="<?= htmlspecialchars($api_user, ENT_QUOTES, 'UTF-8') ?>" readonly>
+              <button class="btn btn-outline-secondary" type="button" data-copy="apiUserField"><i class="bi bi-clipboard"></i> Copier</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Token (X-Api-Token)</label>
+            <div class="input-group">
+              <input type="password" class="form-control" id="apiTokenField" value="<?= htmlspecialchars($api_token, ENT_QUOTES, 'UTF-8') ?>" readonly>
+              <button class="btn btn-outline-secondary" type="button" data-toggle-visibility="apiTokenField"><i class="bi bi-eye"></i></button>
+              <button class="btn btn-outline-secondary" type="button" data-copy="apiTokenField"><i class="bi bi-clipboard"></i> Copier</button>
+            </div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            <a href="api-doc.php" target="_blank" rel="noopener" class="btn btn-info">
+              <i class="bi bi-book me-1"></i>Voir la documentation
+            </a>
+            <form action="" method="post" class="d-inline" id="regenApiForm">
+              <?= csrf_field() ?>
+              <button type="submit" name="regenerate_api" class="btn btn-outline-danger">
+                <i class="bi bi-arrow-repeat me-1"></i>Régénérer les identifiants
+              </button>
+            </form>
+          </div>
+          <small class="text-muted d-block mt-2">
+            Régénérer crée un nouvel identifiant et un nouveau token. Les applications
+            utilisant les anciens identifiants devront être mises à jour.
+          </small>
+        <?php else: ?>
+          <p class="text-muted">
+            Activez l'API ci-dessus : un identifiant et un token seront générés automatiquement
+            et s'afficheront ici.
+          </p>
+          <a href="api-doc.php" target="_blank" rel="noopener" class="btn btn-info">
+            <i class="bi bi-book me-1"></i>Voir la documentation
+          </a>
+        <?php endif; ?>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+</div><!-- /tab-api -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  // Copier un champ dans le presse-papiers
+  document.querySelectorAll('[data-copy]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var field = document.getElementById(btn.getAttribute('data-copy'));
+      if(!field) return;
+      var wasPassword = field.type === 'password';
+      if(wasPassword) field.type = 'text';
+      field.select();
+      field.setSelectionRange(0, 99999);
+      var done = function(){
+        var old = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check2"></i> Copié';
+        setTimeout(function(){ btn.innerHTML = old; }, 1500);
+      };
+      if(navigator.clipboard){
+        navigator.clipboard.writeText(field.value).then(done, function(){ try{document.execCommand('copy');done();}catch(e){} });
+      } else {
+        try{ document.execCommand('copy'); done(); }catch(e){}
+      }
+      if(wasPassword) field.type = 'password';
+      window.getSelection().removeAllRanges();
+    });
+  });
+  // Afficher / masquer le token
+  document.querySelectorAll('[data-toggle-visibility]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var field = document.getElementById(btn.getAttribute('data-toggle-visibility'));
+      if(!field) return;
+      field.type = (field.type === 'password') ? 'text' : 'password';
+      btn.innerHTML = (field.type === 'password') ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+    });
+  });
+  // Confirmation avant régénération
+  var regenForm = document.getElementById('regenApiForm');
+  if(regenForm){
+    regenForm.addEventListener('submit', function(e){
+      if(!confirm('Régénérer les identifiants ? Les applications utilisant les anciens identifiants ne fonctionneront plus.')){
+        e.preventDefault();
+      }
+    });
+  }
+})();
+</script>
+<?php endif; // canTab('api') ?>
 
 <!-- Paramètres mail déplacé vers mail-settings.php -->
 

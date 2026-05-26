@@ -45,6 +45,13 @@ $logFiles = [
         'icon'  => 'bi-file-earmark-excel',
         'path'  => __DIR__ . '/../config/logs/import_errors.log',
     ],
+    'api' => [
+        'name'  => 'API',
+        'key'   => 'api',
+        'tab'   => 'api',
+        'icon'  => 'bi-plug',
+        'path'  => __DIR__ . '/../config/logs/api.log',
+    ],
 ];
 
 // ── Traitement vidage ───────────────────────────────────────
@@ -268,7 +275,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 
   <?php
     $activeLogTab = $_GET['log'] ?? 'php';
-    if (!in_array($activeLogTab, ['php', 'mail', 'smtp', 'import'])) $activeLogTab = 'php';
+    if (!in_array($activeLogTab, ['php', 'mail', 'smtp', 'import', 'api'])) $activeLogTab = 'php';
   ?>
 
   <!-- Onglets -->

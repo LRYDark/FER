@@ -15,6 +15,7 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 $title        = $data['title']        ?? '';
 $title_mobile = $data['title_mobile'] ?? '';
+$registration_fee = (float) ($data['registration_fee'] ?? 0);
 
 // Limite « X premiers inscrits » (éligibilité T-shirt) — même logique que le dashboard
 $qrcode_mail_mode  = $data['qrcode_mail_mode']  ?? 'none';
@@ -228,12 +229,14 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 
       <div class="col-md-6">
         <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
-        <select name="paiement_mode" class="form-select" required>
+        <select name="paiement_mode" class="form-select paiement-select" required>
           <option value="" selected disabled hidden>Choisir&hellip;</option>
           <option value="CB">CB</option>
           <option value="espece">Esp&egrave;ces</option>
           <option value="cheque">Ch&egrave;que</option>
+          <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
         </select>
+        <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
       </div>
 
       <div class="col-12 mt-2">
@@ -273,7 +276,16 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         <?php foreach ($adminFields as $f): ?>
           <?= renderFormField($f) ?>
         <?php endforeach; ?>
-        <div class="col-md-6"><label class="form-label">Paiement</label><select name="paiement_mode" class="form-select"><option>CB</option><option>espece</option><option>cheque</option></select></div>
+        <div class="col-md-6">
+          <label class="form-label">Paiement</label>
+          <select name="paiement_mode" class="form-select paiement-select">
+            <option value="CB">CB</option>
+            <option value="espece">Espèce</option>
+            <option value="cheque">Chèque</option>
+            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+          </select>
+          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+        </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn-saisie" style="width:auto;padding:0 18px">Sauvegarder</button></div>
     </form>
@@ -290,6 +302,43 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
   var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   var tblSaisie = null;
+  var registrationFee = <?= json_encode($registration_fee) ?>;
+
+  /* Affichage dynamique du « Montant dû » sous le select paiement */
+  function formatMontant(n){
+    var v = parseFloat(n);
+    if(!isFinite(v)) v = 0;
+    return v.toFixed(2).replace(/\.00$/,'') + ' €';
+  }
+  function updateMontantDisplay(selectEl){
+    var wrap = selectEl.closest('.col-md-6');
+    if(!wrap) return;
+    var disp = wrap.querySelector('.montant-du-display');
+    if(!disp) return;
+    var val = selectEl.value;
+    if(!val){ disp.style.display='none'; disp.textContent=''; return; }
+    // Dans le modal d'édition, l'inscription existe déjà → on parle de montant payé.
+    var isEdit = !!selectEl.closest('#editModalSaisie');
+    var labelDu  = isEdit ? 'Montant payé' : 'Montant dû';
+    var labelDue = isEdit ? 'Montant payé' : 'Montant total dû';
+    if(val === 'gratuit'){
+      disp.style.display='block';
+      disp.innerHTML = labelDu + ' : <span style="color:#16a34a">'+formatMontant(0)+'</span>';
+    } else {
+      disp.style.display='block';
+      disp.innerHTML = labelDue + ' : <span style="color:#F42182">'+formatMontant(registrationFee)+'</span>';
+    }
+  }
+  document.addEventListener('change', function(e){
+    if(e.target && e.target.matches('.paiement-select')) updateMontantDisplay(e.target);
+  });
+  var _editModalSaisie = document.getElementById('editModalSaisie');
+  if (_editModalSaisie) {
+    _editModalSaisie.addEventListener('shown.bs.modal', function(){
+      var sel = _editModalSaisie.querySelector('.paiement-select');
+      if(sel) updateMontantDisplay(sel);
+    });
+  }
 
   document.getElementById('fAdd') && document.getElementById('fAdd').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -307,21 +356,28 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     .then(function(j) {
       btn.disabled = false; btn.textContent = 'Enregistrer';
       if (j.ok) {
-        // Rang global = numéro de séquence de l'inscription (compteur atomique,
-        // toutes organisations confondues). Même logique que le toast du dashboard.
         var hlLimit = <?= (int)$highlightLimit ?>;
-        var rank = parseInt(String(j.inscription_no).replace(/[^0-9]/g, '')) || 0;
+        var seqNo = parseInt(String(j.inscription_no).replace(/[^0-9]/g, '')) || 0;
+        // Le formulaire saisie n'a pas la liste complète des inscrits (vue limitée
+        // à l'organisation connectée). On se base sur le paiement saisi :
+        // « gratuit » → non éligible. L'admin verra le rang payant exact côté dashboard.
+        var paiement = (new FormData(e.target)).get('paiement_mode') || '';
+        var isPaid = paiement && paiement !== 'gratuit';
         var html = '<div>Inscription <strong>n° ' + j.inscription_no + '</strong> enregistrée !</div>'
                  + '<div style="display:block;font-size:20px;font-weight:800;margin-top:6px;line-height:1.2">'
-                 +   rank + '<sup>e</sup> inscrit</div>';
-        if (hlLimit > 0) {
-          html += rank <= hlLimit
+                 +   seqNo + '<sup>e</sup> inscrit</div>';
+        if (!isPaid) {
+          html += '<div style="font-size:12px;margin-top:4px">Gratuit / Enfant -12 ans — non éligible T-shirt</div>';
+        } else if (hlLimit > 0) {
+          html += seqNo <= hlLimit
             ? '<div style="font-size:12px;margin-top:4px">✓ Dans les ' + hlLimit + ' premiers — éligible T-shirt</div>'
             : '<div style="font-size:12px;margin-top:4px">Au-delà des ' + hlLimit + ' premiers — non éligible T-shirt</div>';
         }
         msg.className = 'alert alert-success';
         msg.innerHTML = html;
         e.target.reset();
+        var _sel = e.target.querySelector('.paiement-select');
+        if(_sel){ var _wrap = _sel.closest('.col-md-6'); var _disp = _wrap && _wrap.querySelector('.montant-du-display'); if(_disp) _disp.style.display='none'; }
         if (tblSaisie) tblSaisie.ajax.reload(null, false);
         setTimeout(function() { msg.className = 'alert d-none'; }, 9000);
       } else {
@@ -365,7 +421,26 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     ?>
     { data: '<?= $col ?>', title: '<?= $lbl ?>', defaultContent: '' },
     <?php endforeach; ?>
-    { data: 'paiement_mode', title: 'Paiement', defaultContent: '' },
+    { data: 'paiement_mode', title: 'Paiement', defaultContent: '',
+      render: function(val, type){
+        // Display : libellé convivial. Filter/sort/recherche : valeur brute,
+        // pour que la recherche rapide « gratuit » trouve bien les lignes.
+        if (type === 'display') {
+          if (!val) return '';
+          if (String(val).toLowerCase() === 'gratuit') return 'Gratuit/-12ans';
+          return val;
+        }
+        return val;
+      }
+    },
+    { data: 'montant_du', title: 'Montant', className: 'text-end text-nowrap', defaultContent: '0',
+      render: function(val, type){
+        if (type !== 'display' && type !== 'filter') return val;
+        var n = parseFloat(val);
+        if (!isFinite(n)) n = 0;
+        return n.toFixed(2).replace(/\.00$/,'') + ' €';
+      }
+    },
     { data: 'created_at', title: 'Date ajout', render: function(val, type){
         if (type === 'display' || type === 'filter') { if (!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
         return val;

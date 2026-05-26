@@ -243,26 +243,32 @@ function shouldIncludeQrCode(string|int $inscriptionNo): bool
     if ($mode === 'all') return true;
 
     // mode 'first_x' : vérifier le rang chronologique de cet inscrit
+    // parmi les inscrits AYANT PAYÉ (montant_du > 0). Les non-payés (gratuit /
+    // enfant -12 ans) sont écartés du décompte et ne reçoivent pas de QR Code.
     $limit = (int) ($data['qrcode_mail_limit'] ?? 0);
     if ($limit <= 0) return false;
 
     try {
-        // Récupérer la date d'inscription de cet inscrit
-        $stmtDate = $pdo->prepare('SELECT created_at FROM registrations WHERE inscription_no = :no LIMIT 1');
-        $stmtDate->execute(['no' => $inscriptionNo]);
-        $createdAt = $stmtDate->fetchColumn();
+        // Récupérer la date d'inscription et le montant dû de cet inscrit
+        $stmtSelf = $pdo->prepare('SELECT created_at, montant_du FROM registrations WHERE inscription_no = :no LIMIT 1');
+        $stmtSelf->execute(['no' => $inscriptionNo]);
+        $self = $stmtSelf->fetch(PDO::FETCH_ASSOC);
 
-        if (!$createdAt) return false;
+        if (!$self || empty($self['created_at'])) return false;
 
-        // Compter combien d'inscrits ont été créés AVANT ou en même temps (rang chronologique)
+        // Inscrit non-payé → jamais éligible en mode first_x
+        if ((float) ($self['montant_du'] ?? 0) <= 0) return false;
+
+        // Compter combien d'inscrits PAYANTS ont été créés AVANT ou en même temps
         $stmtRank = $pdo->prepare(
             'SELECT COUNT(*) FROM registrations
-             WHERE created_at < :created_at
-                OR (created_at = :created_at2 AND inscription_no <= :no)'
+             WHERE montant_du > 0
+               AND (created_at < :created_at
+                    OR (created_at = :created_at2 AND inscription_no <= :no))'
         );
         $stmtRank->execute([
-            'created_at'  => $createdAt,
-            'created_at2' => $createdAt,
+            'created_at'  => $self['created_at'],
+            'created_at2' => $self['created_at'],
             'no'          => $inscriptionNo,
         ]);
         $rank = (int) $stmtRank->fetchColumn();

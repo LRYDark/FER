@@ -33,6 +33,7 @@ $picture= $data['picture'] ?? '';
 $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $highlightLimit = ($qrcode_mail_mode === 'first_x' && $qrcode_mail_limit > 0) ? $qrcode_mail_limit : 0;
+$registration_fee = (float) ($data['registration_fee'] ?? 0);
 
 // Champs dynamiques
 require_once '../config/form_fields.php';
@@ -158,6 +159,15 @@ $allActiveFields = $stmtAllFields->fetchAll(PDO::FETCH_ASSOC);
 }
 .first-750:hover td {
   background: #fce4ec !important;
+}
+
+/* Inscrits non-payés (montant dû = 0) — gris pâle pour distinction visuelle */
+.row-unpaid td {
+  background: #f8fafc !important;
+  color: #64748b;
+}
+.row-unpaid:hover td {
+  background: #f1f5f9 !important;
 }
 
 /* Filtres ligne */
@@ -318,9 +328,19 @@ tr.filters select{
         <?php foreach ($adminFields as $f): ?>
           <?= renderFormField($f) ?>
         <?php endforeach; ?>
-        <div class="col-md-6"><label class="form-label">Paiement <span style="color:#ef4444">*</span></label><select name="paiement_mode" class="form-select" required><option value="" disabled selected hidden>Choisir…</option><option>CB</option><option>espece</option><option>cheque</option></select></div>
+        <div class="col-md-6">
+          <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+          <select name="paiement_mode" class="form-select paiement-select" required>
+            <option value="" disabled selected hidden>Choisir…</option>
+            <option value="CB">CB</option>
+            <option value="espece">Espèce</option>
+            <option value="cheque">Chèque</option>
+            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+          </select>
+          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+        </div>
       </div>
-      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
     </form>
   </div></div></div>
 
@@ -334,9 +354,18 @@ tr.filters select{
         <?php foreach ($adminFields as $f): ?>
           <?= renderFormField($f) ?>
         <?php endforeach; ?>
-        <div class="col-md-6"><label class="form-label">Paiement</label><select name="paiement_mode" class="form-select"><option>CB</option><option>espece</option><option>cheque</option></select></div>
+        <div class="col-md-6">
+          <label class="form-label">Paiement</label>
+          <select name="paiement_mode" class="form-select paiement-select">
+            <option value="CB">CB</option>
+            <option value="espece">Espèce</option>
+            <option value="cheque">Chèque</option>
+            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+          </select>
+          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+        </div>
       </div>
-      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Sauvegarder</button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Sauvegarder</button></div>
     </form>
   </div></div></div>
 
@@ -472,7 +501,65 @@ const userRole = '<?= $role ?>';
 const canEditReg     = <?= $canEditReg ? 'true' : 'false' ?>;
 const canScanQr      = <?= $canScanQr ? 'true' : 'false' ?>;
 const canTshirtMode  = <?= $canTshirtMode ? 'true' : 'false' ?>;
+const registrationFee = <?= json_encode($registration_fee) ?>;
 let tableData = []; // Pour stocker les données triées par date
+
+/* ══ Affichage dynamique du « Montant dû » sous le select paiement ══ */
+function formatMontant(n){
+  var v = parseFloat(n);
+  if(!isFinite(v)) v = 0;
+  return v.toFixed(2).replace(/\.00$/,'') + ' €';
+}
+function updateMontantDisplay(selectEl){
+  var wrap = selectEl.closest('.col-md-6');
+  if(!wrap) return;
+  var disp = wrap.querySelector('.montant-du-display');
+  if(!disp) return;
+  var val = selectEl.value;
+  if(!val){ disp.style.display='none'; disp.textContent=''; return; }
+  // Dans le modal d'édition, le montant représente ce qui a déjà été payé
+  // (l'inscription existe déjà), pas une somme à régler.
+  var isEdit = !!selectEl.closest('#editModal');
+  var labelDu  = isEdit ? 'Montant payé' : 'Montant dû';
+  var labelDue = isEdit ? 'Montant payé' : 'Montant total dû';
+  if(val === 'gratuit'){
+    disp.style.display='block';
+    disp.innerHTML = labelDu + ' : <span style="color:#16a34a">'+formatMontant(0)+'</span>';
+  } else {
+    disp.style.display='block';
+    disp.innerHTML = labelDue + ' : <span style="color:#F42182">'+formatMontant(registrationFee)+'</span>';
+  }
+}
+document.addEventListener('change', function(e){
+  if(e.target && e.target.matches('.paiement-select')) updateMontantDisplay(e.target);
+});
+// Réinitialise l'affichage à l'ouverture des modales
+['addModal','editModal'].forEach(function(id){
+  var m = document.getElementById(id);
+  if(!m) return;
+  m.addEventListener('shown.bs.modal', function(){
+    var sel = m.querySelector('.paiement-select');
+    if(sel) updateMontantDisplay(sel);
+  });
+});
+
+/* ══ Rang « payant » : numéro d'ordre en ignorant les non-payés ══ */
+// Renvoie le rang chronologique d'un inscrit en ne comptant que ceux ayant
+// effectivement payé (montant_du > 0). Les non-payés sont écartés du décompte.
+function computePaidRank(allRows, inscriptionNo){
+  var sorted = allRows.slice().sort(function(a,b){
+    return new Date(a.created_at) - new Date(b.created_at);
+  });
+  var paidCount = 0;
+  for (var i = 0; i < sorted.length; i++){
+    var paid = parseFloat(sorted[i].montant_du) > 0;
+    if (paid) paidCount++;
+    if (String(sorted[i].inscription_no) === String(inscriptionNo)){
+      return paid ? paidCount : -1; // -1 si non payé
+    }
+  }
+  return -1;
+}
 
 /* ══ Outils ════ */
 function normalizeBirth(fd){
@@ -535,7 +622,22 @@ const tbl=$('#tbl').DataTable({
     {data:'<?= $col ?>',title:'<?= $lbl ?>',defaultContent:''},
       <?php endif; ?>
     <?php endforeach; ?>
-    {data:'paiement_mode',title:'Paiement',defaultContent:''},
+    {data:'paiement_mode',title:'Paiement',defaultContent:'',render:function(val,type){
+      // Display : libellé convivial. Filter/sort/recherche : valeur brute
+      // (sinon les filtres et la recherche par regex ^gratuit$ ne fonctionnent plus).
+      if(type==='display'){
+        if(!val) return '';
+        if(String(val).toLowerCase() === 'gratuit') return 'Gratuit/-12ans';
+        return val;
+      }
+      return val;
+    }},
+    {data:'montant_du', title:'Montant', className:'text-end text-nowrap', defaultContent:'0', render:function(val,type){
+      if(type!=='display' && type!=='filter') return val;
+      var n = parseFloat(val);
+      if(!isFinite(n)) n = 0;
+      return n.toFixed(2).replace(/\.00$/,'') + ' €';
+    }},
     {data:'created_at', title:'Date ajout', render:function(val,type){
       if(type==='display'||type==='filter'){ if(!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
       return val;
@@ -566,11 +668,23 @@ const tbl=$('#tbl').DataTable({
   orderCellsTop:true,
   order: [[11, 'asc']], // Trier par date d'ajout par défaut (colonne 11 = created_at)
   rowCallback: function (row, data, _displayNum, displayIndex) {
-    // 1) numéro séquentiel : displayIndex (0-based) + 1
-    $('td:eq(0)', row).text(displayIndex + 1);   // 2 = 3ᵉ colonne (0,1,2)
-    // displayIndex = rang global après tri & recherche
+    // numéro séquentiel affiché (colonne « ID »)
+    $('td:eq(0)', row).text(displayIndex + 1);
+  },
+  drawCallback: function(){
+    // Surlignage « X premiers » : on ne compte que les inscrits qui ont payé
+    // (montant_du > 0). Les non-payés ne consomment pas un slot T-shirt.
+    var api = this.api();
     var hlLimit = <?= (int) $highlightLimit ?>;
-    $(row).toggleClass('first-750', hlLimit > 0 && displayIndex < hlLimit);
+    var paidCount = 0;
+    $('#tbl tbody tr').each(function(){
+      var d = api.row(this).data();
+      if(!d){ return; }
+      var paid = parseFloat(d.montant_du) > 0;
+      if(paid) paidCount++;
+      $(this).toggleClass('first-750', paid && hlLimit > 0 && paidCount <= hlLimit);
+      $(this).toggleClass('row-unpaid', !paid);
+    });
   },
   initComplete:function(){
     buildFilters(this.api());
@@ -673,8 +787,25 @@ function buildFilters(api){
     if(['T-shirt','Sexe','Paiement','Entreprise','Origine'].includes(title)){
       const $sel=$('<select class="form-select form-select-sm"><option value="">Tous</option></select>')
         .appendTo($cell)
-        .on('change',function(){ api.column(i).search(this.value ? '^'+this.value+'$' : '', true, false).draw();});
-      this.data().unique().sort().each(v=>{if(v)$sel.append(`<option>${v}</option>`);});
+        .on('change',function(){
+          // Échappe les caractères regex pour les libellés contenant /, -, etc.
+          var raw = this.value;
+          if(raw){
+            var esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            api.column(i).search('^'+esc+'$', true, false).draw();
+          } else {
+            api.column(i).search('', true, false).draw();
+          }
+        });
+      this.data().unique().sort().each(function(v){
+        if(!v) return;
+        // Libellé convivial pour le paiement « gratuit » ; valeur brute conservée
+        var label = (title === 'Paiement' && String(v).toLowerCase() === 'gratuit')
+                  ? 'Gratuit/-12ans' : v;
+        var optVal = $('<div/>').text(v).html();   // échappe HTML
+        var optLbl = $('<div/>').text(label).html();
+        $sel.append('<option value="'+optVal+'">'+optLbl+'</option>');
+      });
     }
   });
   if(tshirtMode) $('.filters').hide();
@@ -682,7 +813,7 @@ function buildFilters(api){
 
 /* ══ Bascule Remise T-shirts ════ */
 function applyTshirtMode() {
-  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Entreprise', 'Date ajout', 'Origine', 'Actions'];
+  const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Montant', 'Entreprise', 'Date ajout', 'Origine', 'Actions'];
   tbl.columns().every(function () {
     const h = $(this.header()).text().trim();
     if (hideHeaders.includes(h)) this.visible(!tshirtMode, false);
@@ -758,8 +889,11 @@ $('#fAdd').on('submit',e=>{
     if(j.inscription_no){
       e.target.reset();
       $('#fAdd [name="nom"]').focus();
-      showInscriptionToast(j.inscription_no);
-      tbl.ajax.reload(null, false);
+      // Reset affichage montant
+      var _selAdd = document.querySelector('#fAdd .paiement-select');
+      if(_selAdd){ var _wA = _selAdd.closest('.col-md-6'); var _dA = _wA && _wA.querySelector('.montant-du-display'); if(_dA){ _dA.style.display='none'; } }
+      // Recharge la table puis affiche le toast avec le rang « payant » à jour
+      tbl.ajax.reload(function(){ showInscriptionToast(j.inscription_no); }, false);
     }
   });
 });
@@ -767,17 +901,22 @@ $('#fAdd').on('submit',e=>{
 /* Toast d'ajout : n° d'inscription + rang de l'inscrit + éligibilité T-shirt */
 function showInscriptionToast(inscriptionNo){
   const hlLimit = <?= (int)$highlightLimit ?>;
-  // Rang global = numéro de séquence de l'inscription (compteur atomique, toutes
-  // organisations confondues) — indépendant des filtres / du contenu du tableau.
-  const rank = parseInt(String(inscriptionNo).replace(/[^0-9]/g,'')) || 0;
+  // Numéro brut (toutes inscriptions confondues, payées ou non)
+  const seqNo = parseInt(String(inscriptionNo).replace(/[^0-9]/g,'')) || 0;
+  // Rang « payant » : on ne compte que les inscrits ayant payé (montant_du > 0).
+  // Si l'inscrit vient d'être créé comme « gratuit » → rang = -1 (non éligible).
+  const paidRank = computePaidRank(tableData, inscriptionNo);
+  const isPaid = paidRank > 0;
 
   let html = '<div>Inscription <strong>n°'+inscriptionNo+'</strong> enregistrée&nbsp;!</div>'
            + '<div style="font-size:20px;font-weight:800;margin-top:6px;line-height:1.2">'
-           +   rank+'<sup>e</sup> inscrit</div>';
-  if(hlLimit>0){
-    html += rank<=hlLimit
-      ? '<div style="font-size:12px;margin-top:4px;opacity:.95">&#10003; Dans les '+hlLimit+' premiers — éligible T-shirt</div>'
-      : '<div style="font-size:12px;margin-top:4px;opacity:.95">Au-delà des '+hlLimit+' premiers — non éligible T-shirt</div>';
+           +   seqNo+'<sup>e</sup> inscrit</div>';
+  if(!isPaid){
+    html += '<div style="font-size:12px;margin-top:4px;opacity:.95">Gratuit / Enfant -12 ans — non éligible T-shirt</div>';
+  } else if(hlLimit>0){
+    html += paidRank<=hlLimit
+      ? '<div style="font-size:12px;margin-top:4px;opacity:.95">&#10003; '+paidRank+'ᵉ inscrit payant / '+hlLimit+' — éligible T-shirt</div>'
+      : '<div style="font-size:12px;margin-top:4px;opacity:.95">'+paidRank+'ᵉ inscrit payant — au-delà des '+hlLimit+' premiers, non éligible T-shirt</div>';
   }
   showToast(html, 'success', 9000);
 }
@@ -993,7 +1132,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
         const j = await res.json();
         if (j && j.error) {
           msg = j.error;
-          if (j.missing && j.missing.length) msg += ' : ' + j.missing.join(', ');
+          if (j.missing && j.missing.length) msg += ' — voir logs pour plus d\'infos';
         }
       } catch (e) { /* corps non-JSON, on garde le code HTTP */ }
       throw new Error(msg);
@@ -1048,7 +1187,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     closeBtn.style.display = 'inline-block';
 
   } catch (err) {
-    addLog('❌', 'Erreur réseau/serveur : ' + err.message, '#dc3545');
+    addLog('❌', 'Erreur : ' + err.message, '#dc3545');
+    button.innerHTML = 'Importer';
     button.style.display = 'inline-block';
     button.disabled = false;
   }
@@ -1268,20 +1408,22 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     // Find in DataTable data
     var allData = tbl.data().toArray();
     var person = null;
-    var rank = -1;
+    var paidRank = -1;
 
-    // Sort by inscription_no ASC to determine rank
+    // Tri chronologique pour calculer le rang « payant » (cohérent avec
+    // l'éligibilité T-shirt : on ignore les inscrits non-payés).
     var sorted = allData.slice().sort(function(a,b){
-      var numA = parseInt(String(a.inscription_no).replace(/[ES]/g,'')) || 0;
-      var numB = parseInt(String(b.inscription_no).replace(/[ES]/g,'')) || 0;
-      return numA - numB;
+      return new Date(a.created_at) - new Date(b.created_at);
     });
+    var paidCount = 0;
     for (var i = 0; i < sorted.length; i++) {
       var ino = String(sorted[i].inscription_no);
+      var paidHere = parseFloat(sorted[i].montant_du) > 0;
+      if (paidHere) paidCount++;
       // Correspondance exacte ou sans préfixe (compatibilité anciens QR codes)
       if (ino === no || ino === 'E' + no || ino === 'S' + no) {
         person = sorted[i];
-        rank = i + 1;
+        paidRank = paidHere ? paidCount : -1;
         lastScannedNo = ino;
         break;
       }
@@ -1307,13 +1449,18 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     document.getElementById('qrPersonNo').textContent = 'N°' + person.inscription_no;
     document.getElementById('qrPersonVille').textContent = person.ville || '';
 
-    // Eligibility
-    var eligible = (highlightLimit === 0) || (rank <= highlightLimit);
+    // Eligibility :
+    //   - non-payé (montant_du = 0) → jamais éligible
+    //   - payé : éligible si dans les X premiers PAYANTS (ou si pas de limite)
+    var isPaid = paidRank > 0;
+    var eligible = isPaid && ((highlightLimit === 0) || (paidRank <= highlightLimit));
     var eligDiv = document.getElementById('qrEligibility');
-    if (eligible) {
-      eligDiv.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle-fill me-2"></i><strong>Éligible T-shirt</strong>' + (highlightLimit > 0 ? ' — inscrit N°' + rank + ' / ' + highlightLimit : '') + '</div>';
+    if (!isPaid) {
+      eligDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — inscription non payée (Gratuit / Enfant -12 ans)</div>';
+    } else if (eligible) {
+      eligDiv.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle-fill me-2"></i><strong>Éligible T-shirt</strong>' + (highlightLimit > 0 ? ' — '+paidRank+'ᵉ inscrit payant / ' + highlightLimit : '') + '</div>';
     } else {
-      eligDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — inscrit N°' + rank + ' (limite : ' + highlightLimit + ')</div>';
+      eligDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — '+paidRank+'ᵉ inscrit payant (limite : ' + highlightLimit + ')</div>';
     }
 
     // Avertissement si déjà scanné (taille déjà renseignée)

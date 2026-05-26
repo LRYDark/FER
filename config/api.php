@@ -1652,9 +1652,22 @@ if ($route==='registrations'){
             $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
         }
 
+        // Calcul du montant dû : 0 pour gratuit/-12 ans, sinon le tarif d'inscription configuré.
+        // Le client peut aussi forcer une valeur explicite via `montant_du` (utile pour les corrections).
+        $paiement = $d['paiement_mode'] ?? '';
+        if (array_key_exists('montant_du', $d) && is_numeric($d['montant_du'])) {
+            $montantDu = (float) $d['montant_du'];
+        } elseif (strcasecmp($paiement, 'gratuit') === 0) {
+            $montantDu = 0.0;
+        } else {
+            $registrationFee = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
+            $montantDu = $registrationFee;
+        }
+
         // Champs système
         $cols[] = 'origine';      $phs[] = '?'; $vals[] = $origine;
         $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $d['paiement_mode'] ?? null;
+        $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
         $colStr = implode(',', $cols);
@@ -1762,7 +1775,7 @@ if ($route==='registrations'){
         /* 4. Champs autorisés dynamiques depuis la table forms + champs système */
         require_once __DIR__ . '/form_fields.php';
         $fieldCols = getAllActiveFieldColumns($pdo);
-        $systemCols = ['origine', 'paiement_mode'];
+        $systemCols = ['origine', 'paiement_mode', 'montant_du'];
 
         $params = ['id' => $d['id']];
         $setParts = [];
@@ -1777,9 +1790,19 @@ if ($route==='registrations'){
             $setParts[] = "`{$col}` = :{$col}";
         }
 
+        // Si le mode de paiement change mais que le montant n'est pas explicitement fourni,
+        // on recalcule automatiquement (gratuit → 0, autre → tarif).
+        if (array_key_exists('paiement_mode', $d) && !array_key_exists('montant_du', $d)) {
+            if (strcasecmp((string) $d['paiement_mode'], 'gratuit') === 0) {
+                $d['montant_du'] = 0;
+            } else {
+                $d['montant_du'] = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
+            }
+        }
+
         foreach ($systemCols as $sc) {
             if (!array_key_exists($sc, $d)) continue;
-            $params[$sc] = $d[$sc];
+            $params[$sc] = $sc === 'montant_du' ? (float) $d[$sc] : $d[$sc];
             $setParts[] = "`{$sc}` = :{$sc}";
         }
 
@@ -1884,9 +1907,14 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 3. Vérification des colonnes requises
-        //    "pays" est optionnelle : si la colonne est absente du fichier,
-        //    le champ `origine` reçoit "France" par défaut (voir insertion BDD).
+        //    "pays" et "Montant dû" sont optionnelles : si elles sont absentes,
+        //    `origine` reçoit la valeur par défaut et `montant_du` est pré-rempli
+        //    au tarif standard (existants → considérés payés).
         $optionalLabels = [ normaliseLabel('pays') ];
+        $montantLabel   = array_search('montant_du', $mapFields, true);
+        if ($montantLabel !== false) {
+            $optionalLabels[] = $montantLabel; // déjà normalisé
+        }
         $required = array_diff(array_keys($mapFields), $optionalLabels);
         $missing  = array_diff($required, array_keys($headerMap));
 
@@ -1911,13 +1939,16 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $existingTickets = $pdo->query('SELECT inscription_no FROM registrations')
                                ->fetchAll(PDO::FETCH_COLUMN, 0);
 
+        // Tarif inscription pour pré-remplir le montant dû quand la colonne Excel est absente
+        $registrationFee = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
+
         // 5. Préparation de la requête
         $stmt = $pdo->prepare(
             'INSERT INTO registrations
              (inscription_no, nom, prenom, tel, email, naissance, sexe,
               tshirt_size, ville, entreprise, origine, paiement_mode,
-              created_at, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+              montant_du, created_at, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
 
         // 6. Parsing de toutes les lignes
@@ -1941,9 +1972,15 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $value = convertExcelDate($value);
                 } elseif ($bddField === 'sexe') {
                     $value = normaliseSexe($value);
+                } elseif ($bddField === 'montant_du') {
+                    $clean = preg_replace('/[^0-9.,\-]/', '', (string) $value);
+                    $clean = str_replace(',', '.', $clean);
+                    $value = is_numeric($clean) ? (float) $clean : null;
                 }
 
-                $values[$bddField] = $value ?: null;
+                $values[$bddField] = ($bddField === 'montant_du')
+                    ? ($value === null ? null : (float) $value)
+                    : ($value ?: null);
             }
 
             if (!$values['inscription_no'] || !$values['nom'] || !$values['prenom']) {
@@ -1988,12 +2025,17 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($parsedRows as $parsed) {
             $values = $parsed['values'];
 
+            $montant = $values['montant_du'] ?? null;
+            if ($montant === null) {
+                $montant = $registrationFee;
+            }
+
             $stmt->execute([
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
                 encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
                 '-', encrypt($values['ville']), encrypt($values['entreprise']),
                 ($values['origine'] ?? null) ?: 'AssoConnect',
-                'en ligne (CB)', $values['created_at'], currentUserId()
+                'en ligne (CB)', (float) $montant, $values['created_at'], currentUserId()
             ]);
 
             $added++;
@@ -2184,14 +2226,14 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     /* 1. Entêtes */
     $headers = ['No', 'Nom', 'Prénom', 'Tel', 'Email', 'Naissance',
                 'Sexe', 'T-shirt', 'Ville', 'Entreprise', 'Origine',
-                'Paiement', 'Créé le', 'Créé par'];
+                'Paiement', 'Montant dû', 'Créé le', 'Créé par'];
     $sheet->fromArray($headers, null, 'A1');
 
     /* 2. Données (déchiffrer les PII) */
     $rows = $pdo->query(
         "SELECT r.inscription_no, r.nom, r.prenom, r.tel, r.email, r.naissance,
                 r.sexe, r.tshirt_size, r.ville, r.entreprise, r.origine,
-                r.paiement_mode, r.created_at, COALESCE(u.email, r.created_by) AS created_by
+                r.paiement_mode, r.montant_du, r.created_at, COALESCE(u.email, r.created_by) AS created_by
          FROM registrations r
          LEFT JOIN users u ON r.created_by = u.id
          ORDER BY CAST(REPLACE(REPLACE(r.inscription_no, 'S', ''), 'E', '') AS UNSIGNED)"
@@ -2202,8 +2244,8 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $sheet->fromArray($rows, null, 'A2');
 
     /* 3. Style minimal */
-    $sheet->getStyle('A1:N1')->getFont()->setBold(true);
-    foreach (range('A', 'N') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+    $sheet->getStyle('A1:O1')->getFont()->setBold(true);
+    foreach (range('A', 'O') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
 
     /* 4. Téléchargement */
     $filename = 'inscriptions_'.date('Ymd_His').'.xlsx';
