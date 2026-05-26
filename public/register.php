@@ -105,6 +105,15 @@ if ($_POST) {
                     $placeholders[] = ":{$sysCol}";
                 }
             }
+
+            // Montant dû : 0 si gratuit / enfant -12 ans, sinon le tarif d'inscription configuré.
+            $stmtFee = $pdo->prepare('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1');
+            $stmtFee->execute();
+            $regFee = (float) ($stmtFee->fetchColumn() ?: 0);
+            $formData['montant_du'] = (strcasecmp((string)($formData['paiement_mode'] ?? ''), 'gratuit') === 0) ? 0.0 : $regFee;
+            $columns[] = '`montant_du`';
+            $placeholders[] = ':montant_du';
+
             $columns[] = 'created_at';
             $placeholders[] = 'NOW()';
 
@@ -258,7 +267,17 @@ try {
 
         <input type="hidden" name="qr_token" value="<?= htmlspecialchars($qrToken) ?>">
         <input type="hidden" name="origine" value="QR-<?= htmlspecialchars($qrData['organisation']) ?>">
-        <input type="hidden" name="paiement_mode" value="En ligne">
+
+        <div class="col-md-12">
+          <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+          <select name="paiement_mode" id="paiement_mode_public" class="form-select" required>
+            <option value="En ligne" selected>En ligne (CB)</option>
+            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+          </select>
+          <div id="montantDuPublic" class="mt-2" style="font-size:14px;font-weight:600;color:#1e293b">
+            Montant total dû : <span style="color:#F42182"><?= htmlspecialchars((string) $registration_fee) ?> €</span>
+          </div>
+        </div>
 
         <div class="col-12 d-grid">
           <button class="btn-action-primary btn-action-lg" type="submit">
@@ -266,6 +285,24 @@ try {
           </button>
         </div>
       </form>
+      <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+      (function(){
+        var sel = document.getElementById('paiement_mode_public');
+        var disp = document.getElementById('montantDuPublic');
+        if(!sel || !disp) return;
+        var fee = <?= json_encode((float) $registration_fee) ?>;
+        function fmt(n){ var v=parseFloat(n); if(!isFinite(v)) v=0; return v.toFixed(2).replace(/\.00$/,'') + ' €'; }
+        function update(){
+          if(sel.value === 'gratuit'){
+            disp.innerHTML = 'Montant dû : <span style="color:#16a34a">' + fmt(0) + '</span>';
+          } else {
+            disp.innerHTML = 'Montant total dû : <span style="color:#F42182">' + fmt(fee) + '</span>';
+          }
+        }
+        sel.addEventListener('change', update);
+        update();
+      })();
+      </script>
     <?php else: ?>
       <?php if ($success_message): ?>
         <div class="alert alert-success text-center mb-4">

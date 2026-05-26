@@ -84,6 +84,19 @@ $migrations = [
       UNIQUE KEY `idx_cred` (credential_id(255)),
       INDEX `idx_user` (`user_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    // API externe : permet à des applications tierces de se connecter au site
+    // (import Excel, ajout d'inscrit, consultation des statistiques) via un
+    // identifiant + token. Le token est stocké chiffré (AES-256-GCM).
+    "ALTER TABLE `setting` ADD COLUMN `api_enabled` TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE `setting` ADD COLUMN `api_user` VARCHAR(64) DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `api_token` TEXT DEFAULT NULL",
+    // Les appels à l'API sont désormais journalisés dans le fichier
+    // config/logs/api.log (et non en BDD) : on supprime l'ancienne table si
+    // elle a été créée par une version précédente de cette mise à jour.
+    "DROP TABLE IF EXISTS `api_logs`",
+
+    // Suivi du paiement : montant dû par inscrit (0 = non payé / gratuit / enfant -12 ans).
+    "ALTER TABLE `registrations` ADD COLUMN `montant_du` DECIMAL(10,2) NOT NULL DEFAULT 0",
 ];
 
 $results = [];
@@ -112,7 +125,34 @@ try {
     $results[] = ['status' => 'error', 'sql' => 'MODIFY inscription_no INT → VARCHAR(50)', 'msg' => $e->getMessage()];
 }
 
+/**
+ * Vérifie l'existence d'une table dans la base courante.
+ */
+$tableExists = function (string $name) use ($pdo): bool {
+    $st = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+    );
+    $st->execute([$name]);
+    return (int) $st->fetchColumn() > 0;
+};
+
 foreach ($migrations as $sql) {
+    // CREATE TABLE IF NOT EXISTS et DROP TABLE IF EXISTS ne lèvent jamais
+    // d'exception en cas de no-op : on inspecte la BDD avant d'exécuter pour
+    // afficher un statut « Existe déjà » / « N'existe pas » plutôt qu'« OK ».
+    if (preg_match('/^\s*CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+`?(\w+)`?/i', $sql, $m)) {
+        if ($tableExists($m[1])) {
+            $results[] = ['status' => 'skip', 'sql' => $sql, 'msg' => 'Table « ' . $m[1] . ' » existe déjà'];
+            continue;
+        }
+    } elseif (preg_match('/^\s*DROP\s+TABLE\s+IF\s+EXISTS\s+`?(\w+)`?/i', $sql, $m)) {
+        if (!$tableExists($m[1])) {
+            $results[] = ['status' => 'skip', 'sql' => $sql, 'msg' => 'Table « ' . $m[1] . ' » déjà absente'];
+            continue;
+        }
+    }
+
     try {
         $pdo->exec($sql);
         $results[] = ['status' => 'success', 'sql' => $sql, 'msg' => 'OK'];
@@ -124,6 +164,69 @@ foreach ($migrations as $sql) {
             $results[] = ['status' => 'error', 'sql' => $sql, 'msg' => $msg];
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Pré-remplissage de `registrations.montant_du` pour les inscrits existants.
+// Idempotent : si toutes les lignes ont déjà un montant > 0, on n'agit pas.
+// ─────────────────────────────────────────────────────────────────────────
+$initMontantSql = "Pré-remplir registrations.montant_du = registration_fee pour les inscrits existants";
+try {
+    $remaining = (int) $pdo->query("SELECT COUNT(*) FROM `registrations` WHERE `montant_du` = 0")->fetchColumn();
+    if ($remaining === 0) {
+        $results[] = ['status' => 'skip', 'sql' => $initMontantSql, 'msg' => 'Déjà appliqué'];
+    } else {
+        $stmt = $pdo->prepare(
+            "UPDATE `registrations` r JOIN `setting` s ON s.id = 1
+             SET r.montant_du = COALESCE(s.registration_fee, 0)
+             WHERE r.montant_du = 0"
+        );
+        $stmt->execute();
+        $results[] = ['status' => 'success', 'sql' => $initMontantSql, 'msg' => $stmt->rowCount() . ' ligne(s) mises à jour'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $initMontantSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Mapping de la colonne Excel « Montant dû » dans la table `import`.
+// ─────────────────────────────────────────────────────────────────────────
+$importMapSql = "Ajouter le mapping import « Montant dû » (id 13)";
+try {
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `import` WHERE `fields_bdd` = 'montant_du'")->fetchColumn();
+    if ($exists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $importMapSql, 'msg' => 'Existe déjà'];
+    } else {
+        $pdo->prepare("INSERT INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES (13, 'montant_du', 'Montant du')")
+            ->execute();
+        $results[] = ['status' => 'success', 'sql' => $importMapSql, 'msg' => 'Mapping ajouté'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $importMapSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Référence de `montant_du` dans la gestion des champs (table `forms`).
+// Verrouillée — auto-calculée d'après le paiement, non éditable côté UI.
+// ─────────────────────────────────────────────────────────────────────────
+$formsMontantSql = "Ajouter la référence montant_du dans `forms` (verrouillée)";
+try {
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `bdd_column` = 'montant_du'")->fetchColumn();
+    if ($exists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $formsMontantSql, 'msg' => 'Existe déjà'];
+    } else {
+        $pdo->prepare(
+            "INSERT INTO `forms`
+              (`fields`, `label`, `field_type`, `bdd_column`, `active`, `required`,
+               `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`,
+               `sort_order`, `options_list`, `encrypted`)
+             VALUES ('required_montant', 'Montant dû', 'number', 'montant_du', 0, 0,
+                     1, 1, 0, 1, 1, 0, 10, NULL, 0)"
+        )->execute();
+        $results[] = ['status' => 'success', 'sql' => $formsMontantSql, 'msg' => 'Champ ajouté'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $formsMontantSql, 'msg' => $e->getMessage()];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

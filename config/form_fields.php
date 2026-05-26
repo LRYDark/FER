@@ -76,8 +76,12 @@ function getAllActiveFieldColumns(PDO $pdo): array
 {
     $stmt = $pdo->query('SELECT bdd_column, encrypted, field_type FROM forms WHERE active = 1 ORDER BY sort_order ASC');
     $cols = [];
+    // Colonnes système gérées par leur propre logique (paiement / calcul du montant)
+    // et qu'il ne faut JAMAIS traiter comme un champ saisi par l'utilisateur, même
+    // si elles sont marquées « active » dans la table forms.
+    $reserved = ['paiement_mode', 'montant_du', 'origine', 'created_at', 'created_by'];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($row['bdd_column']) {
+        if ($row['bdd_column'] && !in_array($row['bdd_column'], $reserved, true)) {
             $cols[$row['bdd_column']] = [
                 'encrypted'  => (bool) $row['encrypted'],
                 'field_type' => $row['field_type'],

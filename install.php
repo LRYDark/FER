@@ -604,6 +604,9 @@ function getCreateTableStatements(): array
           `role_permissions` TEXT DEFAULT NULL,
           `turnstile_sitekey` VARCHAR(255) DEFAULT NULL,
           `turnstile_secret` TEXT DEFAULT NULL,
+          `api_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          `api_user` VARCHAR(64) DEFAULT NULL,
+          `api_token` TEXT DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -724,6 +727,7 @@ function getCreateTableStatements(): array
           `entreprise` varchar(255) DEFAULT NULL,
           `origine` varchar(40) DEFAULT 'en ligne',
           `paiement_mode` varchar(50) DEFAULT NULL,
+          `montant_du` decimal(10,2) NOT NULL DEFAULT 0,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           `created_by` int(11) DEFAULT NULL,
           PRIMARY KEY (`id`),
@@ -951,7 +955,8 @@ function getDefaultInserts(): array
           (6, 'required_sex',           'Sexe',             'select', 'sexe',        1, 0, 0, 1, 1, 1, 1, 1, 6,  'H,F,Autre', 0),
           (7, 'required_city',          'Ville',            'text',   'ville',       1, 0, 0, 1, 1, 1, 1, 1, 7,  NULL, 1),
           (8, 'required_company',       'Entreprise',       'text',   'entreprise',  1, 0, 0, 1, 1, 1, 1, 1, 8,  NULL, 1),
-          (9, 'required_tshirt',        'Taille T-shirt',   'select', 'tshirt_size', 0, 0, 0, 1, 0, 1, 0, 0, 9,  '-,XS,S,M,L,XL,XXL', 0)",
+          (9, 'required_tshirt',        'Taille T-shirt',   'select', 'tshirt_size', 0, 0, 0, 1, 0, 1, 0, 0, 9,  '-,XS,S,M,L,XL,XXL', 0),
+          (10,'required_montant',       'Montant dû',       'number', 'montant_du',  0, 0, 1, 1, 0, 1, 1, 0, 10, NULL, 0)",
 
         "INSERT IGNORE INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES
           (1, 'inscription_no', 'numero billet'),
@@ -965,7 +970,8 @@ function getDefaultInserts(): array
           (9, 'entreprise', 'nom de l\\'equipe'),
           (10, 'paiement_mode', 'Moyen de paiement'),
           (11, 'origine', 'pays'),
-          (12, 'created_at', 'date de creation')",
+          (12, 'created_at', 'date de creation'),
+          (13, 'montant_du', 'Montant du')",
 
         // Compteur atomique pour inscription_no (évite la race condition CWE-362)
         "INSERT IGNORE INTO `inscription_counter` (`id`, `next_no`) VALUES (1, 0)",
