@@ -2030,12 +2030,19 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $montant = $registrationFee;
             }
 
+            // Si le montant est à 0, on force le mode de paiement à 'gratuit'
+            // (ex. ligne AssoConnect "Carte bancaire" + 0€ = enfant -12 ans gratuit).
+            $paiementMode = normalisePaiementMode($values['paiement_mode'] ?? null);
+            if ((float) $montant <= 0) {
+                $paiementMode = 'gratuit';
+            }
+
             $stmt->execute([
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
                 encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
                 '-', encrypt($values['ville']), encrypt($values['entreprise']),
                 ($values['origine'] ?? null) ?: 'AssoConnect',
-                'en ligne (CB)', (float) $montant, $values['created_at'], currentUserId()
+                $paiementMode, (float) $montant, $values['created_at'], currentUserId()
             ]);
 
             $added++;
@@ -2192,6 +2199,20 @@ function normaliseSexe(?string $val): ?string {
         ''                         => null,
         default                    => 'Autre'
     };
+}
+
+function normalisePaiementMode(?string $val): string {
+    // Mappe les libellés Excel (AssoConnect) vers les valeurs stockées en BDD.
+    // Import AssoConnect = paiement en ligne, donc carte → 'en ligne (CB)'
+    // (distinct du 'CB' de la saisie manuelle, qui désigne un paiement carte
+    // en présentiel). Fallback : 'en ligne (CB)' pour toute valeur inconnue.
+    $v = strtolower(trim($val ?? ''));
+    if ($v === '') return 'en ligne (CB)';
+    if (str_contains($v, 'gratuit'))                              return 'gratuit';
+    if (str_contains($v, 'cheque') || str_contains($v, 'chèque')) return 'cheque';
+    if (str_contains($v, 'espece') || str_contains($v, 'espèce')) return 'espece';
+    if (str_contains($v, 'carte') || str_contains($v, 'cb') || str_contains($v, 'bancaire')) return 'en ligne (CB)';
+    return 'en ligne (CB)';
 }
 
 function convertExcelDate($value): ?string {
