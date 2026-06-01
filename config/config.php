@@ -194,6 +194,7 @@ function requireRole(array $roles)
  *     - dashboard.create_registration / edit_registration / delete_registration
  *     - dashboard.archive / import_excel / export_excel
  *     - dashboard.scan_qr  (mode "Remise T-shirts" : scanner QR + assigner taille)
+ *     - dashboard.bulk_create  (ajout multiple : saisie en lot d'inscrits d'une même entreprise)
  *   Contenus (granularité par page) :
  *     - news.create / news.edit / news.trash / news.delete
  *     - timeline.create / timeline.edit / timeline.trash / timeline.delete
@@ -269,7 +270,7 @@ function permCatalog(): array
             'dashboard.create_registration','dashboard.edit_registration',
             'dashboard.delete_registration','dashboard.archive',
             'dashboard.import_excel','dashboard.export_excel',
-            'dashboard.scan_qr',
+            'dashboard.scan_qr','dashboard.bulk_create',
             // Contenus — granularité par page
             'news.create','news.edit','news.trash','news.delete',
             'timeline.create','timeline.edit','timeline.trash','timeline.delete',

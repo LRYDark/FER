@@ -655,6 +655,8 @@ function getCreateTableStatements(): array
           `visible_admin` tinyint(1) NOT NULL DEFAULT 1,
           `visible_saisie` tinyint(1) NOT NULL DEFAULT 1,
           `visible_qr` tinyint(1) NOT NULL DEFAULT 1,
+          `visible_saisie_multiple` tinyint(1) NOT NULL DEFAULT 0,
+          `required_saisie_multiple` tinyint(1) NOT NULL DEFAULT 0,
           `sort_order` int(11) NOT NULL DEFAULT 0,
           `options_list` text DEFAULT NULL,
           `encrypted` tinyint(1) NOT NULL DEFAULT 0,

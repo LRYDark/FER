@@ -223,6 +223,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
           <?php
           $dashActions = [
             'dashboard.create_registration' => 'Créer un inscrit',
+            'dashboard.bulk_create'         => 'Ajout multiple (saisie en lot, ex. entreprise)',
             'dashboard.edit_registration'   => 'Modifier un inscrit',
             'dashboard.delete_registration' => 'Supprimer un inscrit',
             'dashboard.archive'             => 'Archiver l\'année en cours',
@@ -628,6 +629,7 @@ const ALL_PAGES = [
 ];
 const ALL_ACTIONS = [
   { key: 'dashboard.create_registration', label: 'Cr\u00e9er un inscrit',     group: 'dashboard' },
+  { key: 'dashboard.bulk_create',         label: 'Ajout multiple',            group: 'dashboard' },
   { key: 'dashboard.edit_registration',   label: 'Modifier un inscrit',       group: 'dashboard' },
   { key: 'dashboard.delete_registration', label: 'Supprimer un inscrit',      group: 'dashboard' },
   { key: 'dashboard.archive',             label: 'Archiver l\u0027ann\u00e9e',group: 'dashboard' },

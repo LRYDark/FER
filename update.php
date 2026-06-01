@@ -97,6 +97,14 @@ $migrations = [
 
     // Suivi du paiement : montant dû par inscrit (0 = non payé / gratuit / enfant -12 ans).
     "ALTER TABLE `registrations` ADD COLUMN `montant_du` DECIMAL(10,2) NOT NULL DEFAULT 0",
+
+    // Mode "Ajout multiple" (saisie en lot, ex. entreprise avec N inscrits) :
+    //   - visible_saisie_multiple : champ affiché dans le formulaire bulk ?
+    //   - required_saisie_multiple : champ obligatoire en mode bulk ?
+    // Désactivés par défaut (0) — l'admin choisit explicitement les champs à inclure
+    // depuis "Gestion des champs du formulaire".
+    "ALTER TABLE `forms` ADD COLUMN `visible_saisie_multiple` TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE `forms` ADD COLUMN `required_saisie_multiple` TINYINT(1) NOT NULL DEFAULT 0",
 ];
 
 $results = [];
@@ -227,6 +235,63 @@ try {
     }
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $formsMontantSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Pré-cocher "Bulk visible" + "Bulk requis" pour les 5 champs essentiels du
+// mode "Ajout multiple" : nom, prenom, email, entreprise, montant_du.
+//   - nom, prenom, montant_du : affichés dans chaque carte "Personne #N"
+//   - email, entreprise       : champs partagés dans l'en-tête bulk
+//
+// Deux blocs :
+//   A) First-time : aucun champ encore bulk-visible → coche les 5 essentiels
+//   B) Catch-up   : ancienne migration trop stricte → rattrape email,
+//                   entreprise, montant_du si encore à 0. Idempotent au
+//                   niveau SQL (WHERE visible_saisie_multiple = 0).
+// ─────────────────────────────────────────────────────────────────────────
+$bulkAutoCheckSql = "Pré-cocher Bulk visible/requis pour les 5 champs essentiels (nom, prenom, email, entreprise, montant_du)";
+try {
+    // Vérifie que la colonne existe (ALTER a réussi)
+    $colCheck = $pdo->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'forms'
+            AND COLUMN_NAME = 'visible_saisie_multiple'"
+    )->fetchColumn();
+    if (!$colCheck) {
+        $results[] = ['status' => 'skip', 'sql' => $bulkAutoCheckSql, 'msg' => 'Colonne absente — ALTER non appliqué'];
+    } else {
+        $alreadyChecked = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `visible_saisie_multiple` = 1")->fetchColumn();
+
+        if ($alreadyChecked === 0) {
+            // Bloc A — first-time : on coche les 5 essentiels
+            $stmt = $pdo->prepare(
+                "UPDATE `forms`
+                    SET `visible_saisie_multiple` = 1, `required_saisie_multiple` = 1
+                  WHERE `bdd_column` IN ('nom', 'prenom', 'email', 'entreprise', 'montant_du')"
+            );
+            $stmt->execute();
+            $results[] = ['status' => 'success', 'sql' => $bulkAutoCheckSql, 'msg' => 'First-time : ' . $stmt->rowCount() . ' champ(s) pré-coché(s)'];
+        } else {
+            // Bloc B — catch-up : rattrape email/entreprise/montant_du si
+            // l'ancienne migration les a oubliés (filtres required=1 ou
+            // exclusion shared trop stricts dans versions antérieures).
+            $stmt = $pdo->prepare(
+                "UPDATE `forms`
+                    SET `visible_saisie_multiple` = 1, `required_saisie_multiple` = 1
+                  WHERE `bdd_column` IN ('email', 'entreprise', 'montant_du')
+                    AND `visible_saisie_multiple` = 0"
+            );
+            $stmt->execute();
+            $catchupCount = $stmt->rowCount();
+            if ($catchupCount > 0) {
+                $results[] = ['status' => 'success', 'sql' => $bulkAutoCheckSql, 'msg' => 'Catch-up : ' . $catchupCount . ' champ(s) ajouté(s)'];
+            } else {
+                $results[] = ['status' => 'skip', 'sql' => $bulkAutoCheckSql, 'msg' => 'Déjà appliqué (' . $alreadyChecked . ' champs)'];
+            }
+        }
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $bulkAutoCheckSql, 'msg' => $e->getMessage()];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

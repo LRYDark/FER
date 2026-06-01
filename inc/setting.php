@@ -1474,26 +1474,60 @@ if (isset($_POST['reglementation'])) {
 -------------------------------------------------------------------------- */
 // Sauvegarde des champs formulaire
 if (isset($_POST['save_fields'])) {
+    // Détecte la présence des colonnes "saisie multiple" (peuvent être absentes
+    // si update.php n'a pas encore été lancé pour appliquer la migration).
+    $hasBulkCols = true;
+    try {
+        $pdo->query('SELECT visible_saisie_multiple FROM forms LIMIT 0');
+    } catch (\PDOException $e) {
+        $hasBulkCols = false;
+    }
+
+    $sqlBase = 'UPDATE forms SET active = :active, required = :req,
+                 visible_admin = :va, visible_saisie = :vs, visible_qr = :vq';
+    $sqlBulk = $hasBulkCols
+        ? ', visible_saisie_multiple = :vsm, required_saisie_multiple = :rsm'
+        : '';
+    $sqlUpd = $sqlBase . $sqlBulk . ' WHERE id = :id';
+
     foreach ($allFields as $f) {
         $id = $f['id'];
         $isLocked = (int) $f['is_locked'];
 
-        // Champs verrouillés : on ne touche ni active, ni required, ni visibilité
-        if ($isLocked) continue;
+        if ($isLocked) {
+            // Champs verrouillés : on autorise UNIQUEMENT la modification
+            // de Bulk visible / Bulk requis. Les autres colonnes (active,
+            // required, visible_admin/saisie/qr) restent figées.
+            if ($hasBulkCols) {
+                $updBulk = $pdo->prepare(
+                    'UPDATE forms SET visible_saisie_multiple = :vsm,
+                                       required_saisie_multiple = :rsm
+                     WHERE id = :id'
+                );
+                $updBulk->execute([
+                    'vsm' => isset($_POST["vsm_{$id}"]) ? 1 : 0,
+                    'rsm' => isset($_POST["rsm_{$id}"]) ? 1 : 0,
+                    'id'  => $id,
+                ]);
+            }
+            continue;
+        }
 
-        $upd = $pdo->prepare(
-            'UPDATE forms SET active = :active, required = :req,
-             visible_admin = :va, visible_saisie = :vs, visible_qr = :vq
-             WHERE id = :id'
-        );
-        $upd->execute([
+        // Champs non-verrouillés : update complet
+        $upd = $pdo->prepare($sqlUpd);
+        $params = [
             'active' => isset($_POST["active_{$id}"]) ? 1 : 0,
             'req'    => isset($_POST["required_{$id}"]) ? 1 : 0,
             'va'     => isset($_POST["va_{$id}"]) ? 1 : 0,
             'vs'     => isset($_POST["vs_{$id}"]) ? 1 : 0,
             'vq'     => isset($_POST["vq_{$id}"]) ? 1 : 0,
             'id'     => $id,
-        ]);
+        ];
+        if ($hasBulkCols) {
+            $params['vsm'] = isset($_POST["vsm_{$id}"]) ? 1 : 0;
+            $params['rsm'] = isset($_POST["rsm_{$id}"]) ? 1 : 0;
+        }
+        $upd->execute($params);
     }
     addToast('success', 'Configuration des champs enregistrée !');
     // Recharger
@@ -1531,12 +1565,28 @@ if (isset($_POST['add_custom_field'])) {
                 // Trouver le prochain sort_order
                 $maxSort = (int) $pdo->query('SELECT MAX(sort_order) FROM forms')->fetchColumn();
 
-                $ins = $pdo->prepare(
-                    'INSERT INTO forms (fields, label, field_type, bdd_column, active, required,
-                     is_locked, is_default, visible_public, visible_admin, visible_saisie, visible_qr,
-                     sort_order, options_list, encrypted)
-                     VALUES (?, ?, ?, ?, 1, 0, 0, 0, 1, 1, 1, 1, ?, ?, 1)'
-                );
+                // Détecte la présence des colonnes "saisie multiple" pour bâtir
+                // un INSERT compatible même si la migration n'a pas tourné.
+                $hasBulkCols = true;
+                try { $pdo->query('SELECT visible_saisie_multiple FROM forms LIMIT 0'); }
+                catch (\PDOException $e) { $hasBulkCols = false; }
+
+                if ($hasBulkCols) {
+                    $ins = $pdo->prepare(
+                        'INSERT INTO forms (fields, label, field_type, bdd_column, active, required,
+                         is_locked, is_default, visible_public, visible_admin, visible_saisie, visible_qr,
+                         visible_saisie_multiple, required_saisie_multiple,
+                         sort_order, options_list, encrypted)
+                         VALUES (?, ?, ?, ?, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, ?, ?, 1)'
+                    );
+                } else {
+                    $ins = $pdo->prepare(
+                        'INSERT INTO forms (fields, label, field_type, bdd_column, active, required,
+                         is_locked, is_default, visible_public, visible_admin, visible_saisie, visible_qr,
+                         sort_order, options_list, encrypted)
+                         VALUES (?, ?, ?, ?, 1, 0, 0, 0, 1, 1, 1, 1, ?, ?, 1)'
+                    );
+                }
                 $ins->execute([
                     'custom_' . uniqid(), $newLabel, $newType, $colName,
                     $maxSort + 1, $newOpts ?: null
@@ -3833,6 +3883,8 @@ if (!$canTab($activeTab)) {
                   <th class="text-center" style="width:70px" title="Modal admin (dashboard)">Admin</th>
                   <th class="text-center" style="width:70px" title="Formulaire saisie">Saisie</th>
                   <th class="text-center" style="width:70px" title="Formulaire d'inscription via QR Code (scan)">Inscr. QR</th>
+                  <th class="text-center" style="width:75px" title="Visible dans le formulaire d'ajout multiple (saisie en lot)">Bulk visible</th>
+                  <th class="text-center" style="width:75px" title="Champ obligatoire en mode ajout multiple">Bulk requis</th>
                   <th class="text-center" style="width:60px">Type</th>
                   <th class="text-center" style="width:70px"></th>
                 </tr>
@@ -3885,6 +3937,12 @@ if (!$canTab($activeTab)) {
                     <?php else: ?>
                       <input type="checkbox" name="vq_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_qr'] ?? 1) ? 'checked' : '' ?>>
                     <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <input type="checkbox" name="vsm_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_saisie_multiple'] ?? 0) ? 'checked' : '' ?>>
+                  </td>
+                  <td class="text-center">
+                    <input type="checkbox" name="rsm_<?= $id ?>" class="form-check-input" <?= (int)($f['required_saisie_multiple'] ?? 0) ? 'checked' : '' ?>>
                   </td>
                   <td class="text-center"><small><?= htmlspecialchars($f['field_type'] ?? 'text') ?></small></td>
                   <td class="text-center">

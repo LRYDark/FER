@@ -1841,6 +1841,256 @@ if ($route === 'registrations-stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
+/* ───── BULK CREATE (permission dashboard.bulk_create) ────────────────────
+ * Saisie en lot : N inscrits d'une même entreprise créés en une seule requête.
+ * Champs partagés (entreprise, email, paiement_mode) saisis 1×, puis liste de
+ * personnes avec leurs champs propres. Envoie 1 seul mail récap (sans QR codes
+ * individuels) à l'email partagé. Les QR codes sont quand même générables en
+ * BDD (inscription_no présent) pour le scan T-shirts ultérieur.
+ */
+if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireAction('dashboard.bulk_create');
+
+    // Vérifie que la migration BDD a été appliquée (update.php).
+    try { $pdo->query('SELECT visible_saisie_multiple FROM forms LIMIT 0'); }
+    catch (\PDOException $e) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => "Migration BDD manquante : lancez update.php pour activer l'ajout multiple"]);
+        exit;
+    }
+
+    $payload = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($payload) || !isset($payload['shared']) || !isset($payload['rows'])) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Format invalide']);
+        exit;
+    }
+
+    $shared = $payload['shared'];
+    $rows   = $payload['rows'];
+
+    // Validation des champs partagés
+    $sharedEntreprise   = mb_substr(trim($shared['entreprise'] ?? ''), 0, 255);
+    $sharedEmail        = trim($shared['email'] ?? '');
+    $sharedPaiement     = mb_substr(trim($shared['paiement_mode'] ?? ''), 0, 50);
+    $sharedOrigine      = mb_substr(trim($shared['origine'] ?? 'Admin'), 0, 100);
+
+    if ($sharedEntreprise === '' || $sharedEmail === '' || $sharedPaiement === '') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Entreprise, email et mode de paiement sont obligatoires']);
+        exit;
+    }
+    if (!filter_var($sharedEmail, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Email invalide']);
+        exit;
+    }
+    if (!is_array($rows) || count($rows) === 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Aucune personne à inscrire']);
+        exit;
+    }
+    if (count($rows) > 50) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Limite : 50 personnes maximum par lot']);
+        exit;
+    }
+
+    try {
+        require_once __DIR__ . '/form_fields.php';
+
+        // Champs requis en mode bulk (depuis forms.required_saisie_multiple)
+        $bulkFields = $pdo->query(
+            "SELECT bdd_column, encrypted, required_saisie_multiple, field_type
+               FROM forms
+              WHERE active = 1 AND visible_saisie_multiple = 1
+              ORDER BY sort_order ASC"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        $requiredBulk = [];
+        foreach ($bulkFields as $bf) {
+            if ((int)($bf['required_saisie_multiple'] ?? 0) === 1) {
+                $requiredBulk[] = $bf['bdd_column'];
+            }
+        }
+
+        // Colonnes BDD à insérer dynamiquement (toutes les colonnes formulaire actives)
+        $allCols = getAllActiveFieldColumns($pdo);
+
+        // Tarif global (utilisé si le client n'envoie pas de montant)
+        $registrationFee = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
+
+        // Compteur d'inscription
+        $counterExists = false;
+        try {
+            $pdo->query('SELECT next_no FROM inscription_counter LIMIT 0');
+            $counterExists = true;
+        } catch (PDOException $e) {}
+
+        $created = 0;
+        $errors  = [];
+        $createdRegistrants = []; // pour le mail récap
+
+        $pdo->beginTransaction();
+
+        foreach ($rows as $idx => $row) {
+            if (!is_array($row)) {
+                $errors[] = ['index' => $idx, 'reason' => 'Format de ligne invalide'];
+                continue;
+            }
+
+            // Force les champs partagés sur chaque ligne
+            $row['entreprise']    = $sharedEntreprise;
+            $row['email']         = $sharedEmail;
+            $row['paiement_mode'] = $sharedPaiement;
+
+            // Validation des champs requis bulk
+            $missing = [];
+            foreach ($requiredBulk as $req) {
+                if (trim((string)($row[$req] ?? '')) === '') $missing[] = $req;
+            }
+            // Nom + prénom toujours requis pour une inscription valide
+            if (trim((string)($row['nom'] ?? '')) === '')    $missing[] = 'nom';
+            if (trim((string)($row['prenom'] ?? '')) === '') $missing[] = 'prenom';
+
+            if ($missing) {
+                $errors[] = ['index' => $idx, 'reason' => 'Champ(s) manquant(s) : ' . implode(', ', array_unique($missing))];
+                continue;
+            }
+
+            // Numéro d'inscription
+            if ($counterExists) {
+                $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
+                $no = 'S' . (int)$pdo->lastInsertId();
+            } else {
+                $no = 'S' . ((int)($pdo->query("SELECT MAX(CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED)) FROM registrations")->fetchColumn() ?: 0) + 1);
+            }
+
+            // Construction de l'INSERT dynamique
+            $cols = ['inscription_no'];
+            $phs  = ['?'];
+            $vals = [$no];
+
+            foreach ($allCols as $col => $meta) {
+                $raw = (string) ($row[$col] ?? '');
+                // Sexe non renseigné en saisie multiple → "Autre" par défaut
+                if ($col === 'sexe' && trim($raw) === '') {
+                    $raw = 'Autre';
+                }
+                // Taille T-shirt non renseignée → "-" par défaut (valeur enum valide)
+                if ($col === 'tshirt_size' && trim($raw) === '') {
+                    $raw = '-';
+                }
+                $cols[] = "`{$col}`";
+                $phs[]  = '?';
+                $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
+            }
+
+            // Calcul du montant : valeur du formulaire si présente, sinon 0 si gratuit, sinon tarif global
+            $montantDu = $registrationFee;
+            if (isset($row['montant_du']) && is_numeric($row['montant_du'])) {
+                $montantDu = (float) $row['montant_du'];
+            } elseif (strcasecmp($sharedPaiement, 'gratuit') === 0) {
+                $montantDu = 0.0;
+            }
+
+            $cols[] = 'origine';      $phs[] = '?'; $vals[] = $sharedOrigine;
+            $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $sharedPaiement;
+            $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
+            $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
+
+            $sql = "INSERT INTO registrations (" . implode(',', $cols) . ") VALUES (" . implode(',', $phs) . ")";
+            try {
+                $pdo->prepare($sql)->execute($vals);
+                $created++;
+                $createdRegistrants[] = [
+                    'inscription_no' => $no,
+                    'nom'            => $row['nom'] ?? '',
+                    'prenom'         => $row['prenom'] ?? '',
+                    'montant_du'     => $montantDu,
+                ];
+            } catch (\Throwable $insErr) {
+                $errors[] = ['index' => $idx, 'reason' => 'Erreur BDD : ' . $insErr->getMessage()];
+            }
+        }
+
+        $pdo->commit();
+
+        // Envoi du mail récap (1 seul mail à l'email partagé)
+        $mailSent = false;
+        $mailError = null;
+        if ($created > 0) {
+            try {
+                require_once __DIR__ . '/googleMail.php';
+                $totalDu = array_sum(array_column($createdRegistrants, 'montant_du'));
+
+                $listHtml = '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;">'
+                          . '<thead><tr style="background:#fdf2f6;">'
+                          . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
+                          . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
+                          . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
+                          . '<th style="text-align:right;padding:8px;border:1px solid #fbcfe8;">Montant</th>'
+                          . '</tr></thead><tbody>';
+                foreach ($createdRegistrants as $r) {
+                    $listHtml .= '<tr>'
+                              . '<td style="padding:8px;border:1px solid #fbcfe8;font-family:monospace;">' . htmlspecialchars($r['inscription_no']) . '</td>'
+                              . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['nom']) . '</td>'
+                              . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['prenom']) . '</td>'
+                              . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($r['montant_du'], 2, ',', ' ') . ' €</td>'
+                              . '</tr>';
+                }
+                $listHtml .= '</tbody><tfoot><tr style="background:#fdf2f6;font-weight:700;">'
+                          . '<td colspan="3" style="padding:8px;border:1px solid #fbcfe8;text-align:right;">Total</td>'
+                          . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($totalDu, 2, ',', ' ') . ' €</td>'
+                          . '</tr></tfoot></table>';
+
+                $description = '<p style="font-size:15px;line-height:1.6;color:#334155;">'
+                             . 'Bonjour,<br><br>'
+                             . 'Nous confirmons l\'inscription des <strong>' . $created . '</strong> personne(s) de '
+                             . '<strong>' . htmlspecialchars($sharedEntreprise) . '</strong> à la course Forbach en Rose.<br><br>'
+                             . 'Le jour de la course, <strong>présentez ce mail à l\'accueil</strong> au nom de '
+                             . '<em>' . htmlspecialchars($sharedEntreprise) . '</em> pour récupérer les dossards.'
+                             . '</p>'
+                             . $listHtml;
+
+                $ok = sendMail(
+                    $sharedEmail,
+                    'Inscriptions enregistrées (' . $sharedEntreprise . ') - Forbach en Rose',
+                    'Inscriptions ' . $sharedEntreprise,
+                    $description,
+                    null, null,
+                    'info', null,
+                    'bulk_recap'
+                );
+                $mailSent = ($ok !== false);
+                if (!$mailSent) {
+                    global $lastMailError;
+                    $mailError = $lastMailError ?? 'Échec inconnu';
+                }
+            } catch (\Throwable $mailErr) {
+                error_log('[BULK-CREATE][MAIL] ' . $mailErr->getMessage());
+                $mailError = $mailErr->getMessage();
+            }
+        }
+
+        echo json_encode([
+            'ok'         => true,
+            'created'    => $created,
+            'errors'     => $errors,
+            'mail_sent'  => $mailSent,
+            'mail_error' => $mailError,
+        ]);
+        exit;
+
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[BULK-CREATE] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Une erreur est survenue : ' . $e->getMessage()]);
+        exit;
+    }
+}
+
 /* ───── IMPORT EXCEL (permission dashboard.import_excel) ─────────────────── */
 if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     requireAction('dashboard.import_excel');
