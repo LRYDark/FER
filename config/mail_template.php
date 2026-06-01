@@ -33,7 +33,7 @@ $visibility = $mtc['visibility'] ?? [];
 // on garantit qu'elle reste toujours visible pour ces sous-types, quelle que
 // soit la configuration de visibilité enregistrée (un mail vide n'a aucun sens).
 if (isset($visibility['description']) && is_array($visibility['description'])) {
-    foreach (['new_article', 'password_reset'] as $_forcedSubtype) {
+    foreach (['new_article', 'password_reset', 'bulk_recap'] as $_forcedSubtype) {
         if (!in_array($_forcedSubtype, $visibility['description'], true)) {
             $visibility['description'][] = $_forcedSubtype;
         }

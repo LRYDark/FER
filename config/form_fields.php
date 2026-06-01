@@ -15,6 +15,7 @@ function getActiveFields(PDO $pdo, string $context = 'public'): array
     $col = match ($context) {
         'admin'  => 'visible_admin',
         'saisie' => 'visible_saisie',
+        'bulk'   => 'visible_saisie_multiple',
         default  => 'visible_qr',
     };
 

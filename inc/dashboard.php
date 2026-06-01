@@ -4,6 +4,7 @@ require_once '../config/csrf.php';
 requirePage('dashboard');
 $role = currentRole();
 $canCreateReg  = canDoAction('dashboard.create_registration');
+$canBulkCreate = canDoAction('dashboard.bulk_create');
 $canEditReg    = canDoAction('dashboard.edit_registration');
 $canDeleteReg  = canDoAction('dashboard.delete_registration');
 $canArchive    = canDoAction('dashboard.archive');
@@ -42,6 +43,62 @@ $adminFields = getActiveFields($pdo, 'admin');
 $stmtAllFields = $pdo->prepare('SELECT * FROM forms WHERE active = 1 ORDER BY sort_order ASC');
 $stmtAllFields->execute();
 $allActiveFields = $stmtAllFields->fetchAll(PDO::FETCH_ASSOC);
+
+// Champs pour le formulaire "Ajout multiple" (saisie en lot).
+// Les champs partagés (entreprise/email/paiement_mode) sont gérés à part dans
+// l'en-tête du formulaire bulk, on les exclut donc des champs "par personne".
+$bulkSharedCols = ['entreprise', 'email', 'paiement_mode'];
+$bulkRowFields = [];
+if ($canBulkCreate) {
+    // Vérifie que la migration a été appliquée (update.php). Si la colonne
+    // n'existe pas, on désactive proprement l'onglet "Ajout multiple" plutôt
+    // que de provoquer une fatal error au chargement du dashboard.
+    $bulkMigrationOk = false;
+    try {
+        $pdo->query('SELECT visible_saisie_multiple FROM forms LIMIT 0');
+        $bulkMigrationOk = true;
+    } catch (\PDOException $e) {
+        $canBulkCreate = false;
+    }
+
+    if ($bulkMigrationOk) {
+        $rawBulkFields = getActiveFields($pdo, 'bulk');
+        foreach ($rawBulkFields as $bf) {
+            if (!in_array($bf['bdd_column'] ?? '', $bulkSharedCols, true)) {
+                $bulkRowFields[] = $bf;
+            }
+        }
+        // Garantit que nom + prenom sont toujours présents dans le formulaire bulk,
+        // même si l'admin a oublié de les cocher en "Bulk visible". Sans ces 2
+        // champs, aucune inscription ne peut être créée (rejet par l'API).
+        $bulkRowCols = array_column($bulkRowFields, 'bdd_column');
+        foreach (['prenom' => 'Prénom', 'nom' => 'Nom'] as $col => $label) {
+            if (!in_array($col, $bulkRowCols, true)) {
+                $stmtFb = $pdo->prepare('SELECT * FROM forms WHERE bdd_column = ? LIMIT 1');
+                $stmtFb->execute([$col]);
+                $f = $stmtFb->fetch(PDO::FETCH_ASSOC);
+                if ($f) {
+                    $f['required_saisie_multiple'] = 1;
+                    array_unshift($bulkRowFields, $f);
+                }
+            }
+        }
+
+        // Cas particulier de montant_du : la colonne est `active=0` par défaut
+        // (sa valeur est auto-calculée d'après le paiement dans les autres
+        // contextes), donc getActiveFields() ne la renvoie pas même si l'admin
+        // a coché "Bulk visible". On l'ajoute manuellement ici si présente
+        // avec visible_saisie_multiple=1 en BDD.
+        if (!in_array('montant_du', array_column($bulkRowFields, 'bdd_column'), true)) {
+            $stmtMd = $pdo->prepare('SELECT * FROM forms WHERE bdd_column = ? AND visible_saisie_multiple = 1 LIMIT 1');
+            $stmtMd->execute(['montant_du']);
+            $mdField = $stmtMd->fetch(PDO::FETCH_ASSOC);
+            if ($mdField) {
+                $bulkRowFields[] = $mdField;
+            }
+        }
+    }
+}
 
 ?>
 <!doctype html>
@@ -174,6 +231,83 @@ $allActiveFields = $stmtAllFields->fetchAll(PDO::FETCH_ASSOC);
 tr.filters th { background: #fff !important; padding: 6px 8px !important; }
 tr.filters select, tr.filters input {
   font-size: 12px; border: 1px solid #d4c4cb; border-radius: 4px; padding: 4px 6px;
+}
+
+/* ═══ Onglets du modal "Nouvel inscrit" (rose theme) ═══ */
+#addModalTabs {
+  border-bottom: 2px solid #f0e8eb;
+  margin: 0 -1rem 0;
+  padding: 0 1.25rem;
+}
+#addModalTabs .nav-link {
+  color: #94818a;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  padding: 12px 18px;
+  margin-bottom: -2px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+#addModalTabs .nav-link:hover {
+  color: #db2777;
+  border-bottom-color: #fbcfe8;
+}
+#addModalTabs .nav-link.active {
+  color: #db2777;
+  border-bottom-color: #db2777;
+  background: transparent;
+}
+
+/* ═══ Ajout multiple : lignes compactes ═══ */
+.bulk-row {
+  background: #fff;
+  border: 1px solid #f0e8eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: border-color 0.15s;
+}
+.bulk-row:hover { border-color: #fbcfe8; }
+.bulk-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.bulk-row-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #db2777;
+  background: #fdf2f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+.bulk-row-remove {
+  margin-left: auto;
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+}
+.bulk-row .form-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+.bulk-row .form-control,
+.bulk-row .form-select {
+  font-size: 13px;
+  padding: 5px 8px;
+  height: auto;
+}
+#bulkRows {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 /* Colonnes redimensionnables */
@@ -319,30 +453,145 @@ tr.filters select{
 <!-- ═════════ MODALES ═════════ -->
 
 <!-- Autres modales existantes... -->
-<div class="modal fade xl-modal" id="addModal" tabindex="-1"><div class="modal-dialog">
-  <div class="modal-content"><div class="modal-header">
+<div class="modal fade xl-modal" id="addModal" tabindex="-1"><div class="modal-dialog <?= $canBulkCreate ? 'modal-xl' : '' ?>">
+  <div class="modal-content"><div class="modal-header pb-0 border-0">
     <h5 class="modal-title">Nouvel inscrit</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <form id="fAdd">
-      <div class="modal-body row g-2">
-        <input type="hidden" name="origine" value="Admin">
-        <?php foreach ($adminFields as $f): ?>
-          <?= renderFormField($f) ?>
-        <?php endforeach; ?>
-        <div class="col-md-6">
-          <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
-          <select name="paiement_mode" class="form-select paiement-select" required>
-            <option value="" disabled selected hidden>Choisir…</option>
-            <option value="CB">CB</option>
-            <option value="espece">Espèce</option>
-            <option value="cheque">Chèque</option>
-            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
-          </select>
-          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
-        </div>
+
+    <?php if ($canBulkCreate): ?>
+    <ul class="nav nav-tabs px-3" id="addModalTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-single-btn" data-bs-toggle="tab" data-bs-target="#tab-single" type="button" role="tab">Inscrit unique</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-bulk-btn" data-bs-toggle="tab" data-bs-target="#tab-bulk" type="button" role="tab">Ajout multiple</button>
+      </li>
+    </ul>
+    <?php endif; ?>
+
+    <div class="tab-content">
+      <!-- ───── ONGLET 1 : INSCRIT UNIQUE (formulaire existant) ───── -->
+      <div class="tab-pane fade show active" id="tab-single" role="tabpanel">
+        <form id="fAdd">
+          <div class="modal-body row g-2">
+            <input type="hidden" name="origine" value="Admin">
+            <?php foreach ($adminFields as $f): ?>
+              <?= renderFormField($f) ?>
+            <?php endforeach; ?>
+            <div class="col-md-6">
+              <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+              <select name="paiement_mode" class="form-select paiement-select" required>
+                <option value="" disabled selected hidden>Choisir…</option>
+                <option value="CB">CB</option>
+                <option value="espece">Espèce</option>
+                <option value="cheque">Chèque</option>
+                <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+              </select>
+              <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+            </div>
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
+        </form>
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
-    </form>
-  </div></div></div>
+
+      <?php if ($canBulkCreate): ?>
+      <!-- ───── ONGLET 2 : AJOUT MULTIPLE (saisie en lot) ───── -->
+      <div class="tab-pane fade" id="tab-bulk" role="tabpanel">
+        <form id="fBulkAdd">
+          <input type="hidden" name="origine" value="Admin">
+          <div class="modal-body">
+            <!-- Champs partagés -->
+            <div class="row g-2 mb-3 p-3 rounded" style="background:#fdf2f6;border:1px solid #fbcfe8;">
+              <div class="col-12 mb-1"><strong class="text-muted" style="font-size:13px;">Données communes à tous les inscrits</strong></div>
+              <div class="col-md-4">
+                <label class="form-label">Entreprise <span style="color:#ef4444">*</span></label>
+                <input type="text" name="shared_entreprise" class="form-control" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Email (1 seul mail récap envoyé) <span style="color:#ef4444">*</span></label>
+                <input type="email" name="shared_email" class="form-control" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+                <select name="shared_paiement_mode" class="form-select" required>
+                  <option value="" disabled selected hidden>Choisir…</option>
+                  <option value="CB">CB</option>
+                  <option value="espece">Espèce</option>
+                  <option value="cheque">Chèque</option>
+                  <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Liste dynamique des personnes -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <strong class="text-muted" style="font-size:13px;">Personnes à inscrire</strong>
+              <div>
+                <button type="button" id="bulkDuplicateBtn" class="btn btn-outline-secondary btn-sm me-1"><i class="bi bi-files"></i> Dupliquer la dernière</button>
+                <button type="button" id="bulkAddBtn" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Ajouter une personne</button>
+              </div>
+            </div>
+            <div id="bulkRows"></div>
+
+            <div id="bulkProgress" class="mt-3" style="display:none">
+              <div id="bulkProgressLog" style="max-height:200px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
+              <div id="bulkRecap" class="mt-3" style="display:none"></div>
+            </div>
+          </div>
+          <div class="modal-footer justify-content-between">
+            <span id="bulkSummary" class="text-muted small"></span>
+            <div>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+              <button type="button" id="btnBulkClose" class="btn btn-primary" style="display:none">Fermer et actualiser</button>
+              <button type="submit" id="btnBulkSubmit" class="btn btn-rose">Valider les saisies</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Template caché pour générer une nouvelle ligne d'inscrit (compact) -->
+      <template id="bulkRowTemplate">
+        <div class="bulk-row">
+          <div class="bulk-row-header">
+            <span class="bulk-row-num bulk-row-title">#1</span>
+            <button type="button" class="btn btn-sm btn-outline-danger bulk-row-remove" title="Retirer cette personne"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="row g-2">
+            <?php foreach ($bulkRowFields as $bf):
+              $req = (int) ($bf['required_saisie_multiple'] ?? 0);
+              $type = $bf['field_type'] ?? 'text';
+              $bdd  = htmlspecialchars($bf['bdd_column']);
+              $lbl  = htmlspecialchars($bf['label']);
+              $star = $req ? ' <span style="color:#ef4444">*</span>' : '';
+              $reqAttr = $req ? ' data-required="1"' : '';
+            ?>
+              <div class="col-md-3">
+                <label class="form-label"><?= $lbl ?><?= $star ?></label>
+                <?php if ($type === 'select'):
+                  $opts = array_map('trim', explode(',', $bf['options_list'] ?? '')); ?>
+                  <select data-bdd="<?= $bdd ?>" class="form-select bulk-field"<?= $reqAttr ?>>
+                    <option value="">—</option>
+                    <?php foreach ($opts as $opt): ?>
+                      <option value="<?= htmlspecialchars($opt) ?>"><?= htmlspecialchars($opt) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                <?php elseif ($type === 'date'): ?>
+                  <input type="date" data-bdd="<?= $bdd ?>" class="form-control bulk-field"<?= $reqAttr ?>>
+                <?php elseif ($type === 'number'): ?>
+                  <input type="number" step="0.01" min="0" data-bdd="<?= $bdd ?>" class="form-control bulk-field<?= $bdd === 'montant_du' ? ' bulk-montant' : '' ?>"<?= $reqAttr ?><?= $bdd === 'montant_du' ? ' value="' . htmlspecialchars((string) $registration_fee) . '"' : '' ?>>
+                <?php elseif ($type === 'email'): ?>
+                  <input type="email" data-bdd="<?= $bdd ?>" class="form-control bulk-field"<?= $reqAttr ?>>
+                <?php else: ?>
+                  <input type="text" data-bdd="<?= $bdd ?>" class="form-control bulk-field"<?= $reqAttr ?>>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      </template>
+      <?php endif; ?>
+    </div>
+  </div>
+</div></div>
 
 <div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog">
   <div class="modal-content"><div class="modal-header">
@@ -921,6 +1170,226 @@ function showInscriptionToast(inscriptionNo){
   showToast(html, 'success', 9000);
 }
 
+
+<?php if ($canBulkCreate): ?>
+/* ══ AJOUT MULTIPLE — saisie en lot ════════════════════════════ */
+(function() {
+  const tmpl       = document.getElementById('bulkRowTemplate');
+  const container  = document.getElementById('bulkRows');
+  const addBtn     = document.getElementById('bulkAddBtn');
+  const dupBtn     = document.getElementById('bulkDuplicateBtn');
+  const summary    = document.getElementById('bulkSummary');
+  const submitBtn  = document.getElementById('btnBulkSubmit');
+  const closeBtn   = document.getElementById('btnBulkClose');
+  const progress   = document.getElementById('bulkProgress');
+  const logDiv     = document.getElementById('bulkProgressLog');
+  const recapDiv   = document.getElementById('bulkRecap');
+  const defaultFee = <?= json_encode((float) $registration_fee) ?>;
+  const MAX_BULK   = 50; // Limite côté serveur : api.php route bulk-create
+
+  if (!tmpl || !container) return;
+
+  function renumber() {
+    const rows = container.querySelectorAll('.bulk-row');
+    rows.forEach((r, i) => {
+      const t = r.querySelector('.bulk-row-title');
+      if (t) t.textContent = '#' + (i + 1);
+      // Le bouton "retirer" est désactivé s'il ne reste qu'une personne
+      const rm = r.querySelector('.bulk-row-remove');
+      if (rm) rm.disabled = (rows.length <= 1);
+    });
+    updateSummary();
+    updateAddButtons();
+  }
+
+  function updateAddButtons() {
+    const count = container.querySelectorAll('.bulk-row').length;
+    const atMax = count >= MAX_BULK;
+    addBtn.disabled = atMax;
+    dupBtn.disabled = atMax;
+    addBtn.title = atMax ? 'Limite de ' + MAX_BULK + ' inscrits atteinte' : '';
+    dupBtn.title = atMax ? 'Limite de ' + MAX_BULK + ' inscrits atteinte' : '';
+  }
+
+  function updateSummary() {
+    const rows = container.querySelectorAll('.bulk-row');
+    const sharedSel = document.querySelector('#fBulkAdd [name="shared_paiement_mode"]');
+    const isGratuit = sharedSel && sharedSel.value === 'gratuit';
+    let total = 0;
+    rows.forEach(r => {
+      const m = r.querySelector('.bulk-montant');
+      let v;
+      if (m) {
+        v = parseFloat(m.value);
+        if (isNaN(v)) v = 0;
+      } else {
+        // Pas de champ Montant dû dans la ligne (non bulk-visible)
+        // → montant calculé serveur-side d'après le paiement partagé
+        v = isGratuit ? 0 : defaultFee;
+      }
+      total += v;
+    });
+    const max = ' / ' + MAX_BULK + ' max';
+    summary.textContent = rows.length + ' personne(s)' + max + ' — Total : ' + total.toFixed(2).replace(/\.00$/, '') + ' €';
+  }
+
+  function addRow(sourceRow) {
+    // Refuse l'ajout au-delà de la limite
+    if (container.querySelectorAll('.bulk-row').length >= MAX_BULK) return;
+    const clone = tmpl.content.firstElementChild.cloneNode(true);
+    // Si on duplique, recopier les valeurs SAUF nom/prénom (à saisir individuellement)
+    if (sourceRow) {
+      const skip = ['nom', 'prenom'];
+      clone.querySelectorAll('.bulk-field').forEach(f => {
+        const bdd = f.dataset.bdd;
+        if (skip.includes(bdd)) return;
+        const src = sourceRow.querySelector('.bulk-field[data-bdd="' + bdd + '"]');
+        if (src) f.value = src.value;
+      });
+    }
+    container.appendChild(clone);
+    renumber();
+  }
+
+  container.addEventListener('click', e => {
+    const btn = e.target.closest('.bulk-row-remove');
+    if (!btn) return;
+    const row = btn.closest('.bulk-row');
+    if (container.querySelectorAll('.bulk-row').length <= 1) return;
+    row.remove();
+    renumber();
+  });
+
+  container.addEventListener('input', e => {
+    if (e.target.classList.contains('bulk-montant')) updateSummary();
+  });
+
+  addBtn.addEventListener('click', () => addRow());
+  dupBtn.addEventListener('click', () => {
+    const rows = container.querySelectorAll('.bulk-row');
+    addRow(rows[rows.length - 1] || null);
+  });
+
+  // Si le paiement partagé passe à "gratuit", on met tous les montants à 0
+  const sharedPaiement = document.querySelector('#fBulkAdd [name="shared_paiement_mode"]');
+  if (sharedPaiement) {
+    sharedPaiement.addEventListener('change', () => {
+      const isGratuit = sharedPaiement.value === 'gratuit';
+      container.querySelectorAll('.bulk-montant').forEach(m => {
+        m.value = isGratuit ? '0' : defaultFee;
+      });
+      updateSummary();
+    });
+  }
+
+  // Réinitialise le formulaire à chaque ouverture/fermeture du modal
+  document.getElementById('addModal').addEventListener('show.bs.modal', () => {
+    // Si le panneau bulk n'a aucune ligne, on en ajoute une
+    if (container.querySelectorAll('.bulk-row').length === 0) addRow();
+  });
+  document.getElementById('addModal').addEventListener('hidden.bs.modal', () => {
+    const f = document.getElementById('fBulkAdd');
+    if (f) f.reset();
+    container.innerHTML = '';
+    progress.style.display = 'none';
+    logDiv.innerHTML = '';
+    recapDiv.style.display = 'none';
+    submitBtn.style.display = 'inline-block';
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = 'Valider les saisies';
+    closeBtn.style.display = 'none';
+    addRow();
+  });
+
+  function bulkLog(icon, text, color) {
+    const line = document.createElement('div');
+    line.style.cssText = 'padding:2px 0;color:' + (color || '#333');
+    line.innerHTML = icon + ' ' + text;
+    logDiv.appendChild(line);
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  document.getElementById('fBulkAdd').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.target;
+
+    const shared = {
+      entreprise:    form.shared_entreprise.value.trim(),
+      email:         form.shared_email.value.trim(),
+      paiement_mode: form.shared_paiement_mode.value,
+      origine:       form.origine.value,
+    };
+
+    const rows = [];
+    container.querySelectorAll('.bulk-row').forEach(rowEl => {
+      const row = {};
+      rowEl.querySelectorAll('.bulk-field').forEach(f => {
+        row[f.dataset.bdd] = f.value.trim();
+      });
+      rows.push(row);
+    });
+
+    if (rows.length === 0) {
+      alert('Ajoutez au moins une personne avant de valider.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validation…';
+    progress.style.display = 'block';
+    logDiv.innerHTML = '';
+    recapDiv.style.display = 'none';
+    bulkLog('⏳', 'Envoi de ' + rows.length + ' inscription(s)…', '#666');
+
+    try {
+      const res = await fetch('../config/api.php?route=bulk-create', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
+        body:    JSON.stringify({ shared, rows }),
+        credentials: 'same-origin'
+      });
+
+      if (!res.ok) {
+        let msg = res.status + ' ' + res.statusText;
+        try {
+          const j = await res.json();
+          if (j && (j.error || j.err)) msg = j.error || j.err;
+        } catch (_) {}
+        throw new Error(msg);
+      }
+
+      const j = await res.json();
+      const created = j.created || 0;
+      const skipped = (j.errors || []).length;
+
+      bulkLog('✅', '<strong>' + created + '</strong> inscription(s) créée(s)', '#198754');
+      (j.errors || []).forEach(err => {
+        bulkLog('⚠️', 'Ligne ' + (err.index + 1) + ' ignorée : ' + err.reason, '#e67e22');
+      });
+      if (j.mail_sent) bulkLog('📧', 'Mail récapitulatif envoyé à ' + shared.email, '#0d6efd');
+      else if (j.mail_error) bulkLog('❌', 'Mail récap échoué : ' + j.mail_error, '#dc3545');
+
+      recapDiv.style.display = 'block';
+      recapDiv.innerHTML = '<div class="d-flex gap-3 flex-wrap">'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-success"><div class="text-muted" style="font-size:12px">Créées</div><div class="fw-bold fs-5 text-success">' + created + '</div></div>'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-warning"><div class="text-muted" style="font-size:12px">Ignorées</div><div class="fw-bold fs-5 text-warning">' + skipped + '</div></div>'
+        + '</div>';
+
+      submitBtn.style.display = 'none';
+      closeBtn.style.display = 'inline-block';
+    } catch (err) {
+      bulkLog('❌', 'Erreur : ' + err.message, '#dc3545');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Valider les saisies';
+    }
+  });
+
+  closeBtn.addEventListener('click', () => {
+    bootstrap.Modal.getInstance('#addModal').hide();
+    tbl.ajax.reload(null, false);
+  });
+})();
+<?php endif; ?>
 
 /* ══ ÉDITION ════ */
 $('#tbl').on('click','button.edit',function(){
