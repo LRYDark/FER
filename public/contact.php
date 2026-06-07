@@ -65,14 +65,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($fallback) $recipients = [$fallback];
         }
 
+        // ── Pièces jointes (facultatives) : max 3, images/PDF/Word/texte, 5 Mo/fichier ──
+        // On ne stocke RIEN sur le serveur : on lit le fichier temporaire, on valide
+        // le vrai type MIME, puis on l'attache directement au mail.
+        $attachments = [];
+        $attachError = '';
+        if (!empty($_FILES['attachments']) && is_array($_FILES['attachments']['name'] ?? null)) {
+            $allowed = [
+                'jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','gif'=>'image/gif',
+                'webp'=>'image/webp','pdf'=>'application/pdf',
+                'doc'=>'application/msword',
+                'docx'=>'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'txt'=>'text/plain',
+            ];
+            $maxPerFile = 5 * 1024 * 1024;
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $names = $_FILES['attachments']['name'];
+            $kept = 0;
+            for ($i = 0; $i < count($names); $i++) {
+                $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
+                if ($err === UPLOAD_ERR_NO_FILE) continue;       // champ vide → ignorer
+                if ($err !== UPLOAD_ERR_OK) { $attachError = "Erreur lors de l'envoi d'une pièce jointe."; break; }
+                if (++$kept > 3) { $attachError = "3 pièces jointes maximum."; break; }
+                $tmp  = $_FILES['attachments']['tmp_name'][$i];
+                $size = (int)($_FILES['attachments']['size'][$i] ?? 0);
+                if ($size <= 0 || $size > $maxPerFile) { $attachError = "Chaque pièce jointe doit faire moins de 5 Mo."; break; }
+                $ext  = strtolower(pathinfo($names[$i], PATHINFO_EXTENSION));
+                $mime = is_uploaded_file($tmp) ? ($finfo->file($tmp) ?: '') : '';
+                if (!isset($allowed[$ext]) || $allowed[$ext] !== $mime) {
+                    $attachError = "Type de fichier non autorisé (images, PDF, Word ou texte uniquement)."; break;
+                }
+                $content = file_get_contents($tmp);
+                if ($content === false) { $attachError = "Lecture impossible d'une pièce jointe."; break; }
+                $safeName = preg_replace('/[^\w.\- ]+/u', '_', $names[$i]);
+                if ($safeName === '' || $safeName === null) $safeName = 'fichier.' . $ext;
+                $attachments[] = ['content' => $content, 'name' => $safeName, 'mime' => $mime];
+            }
+        }
+
         if (!$mailConfigured || empty($recipients)) {
             $error = "Une erreur est survenue, veuillez réessayer plus tard.";
+        } elseif ($attachError !== '') {
+            $error = $attachError;
         } else {
             $body = "Nouveau message depuis le formulaire de contact :<br><br>";
             $body .= "<strong>Nom :</strong> " . htmlspecialchars($nom) . "<br>";
             $body .= "<strong>Email :</strong> " . htmlspecialchars($email) . "<br>";
             $body .= "<strong>Sujet :</strong> " . htmlspecialchars($sujet) . "<br><br>";
             $body .= "<strong>Message :</strong><br>" . nl2br(htmlspecialchars($message));
+            if (!empty($attachments)) {
+                $body .= "<br><br><strong>Pièce(s) jointe(s) :</strong><br>"
+                       . implode("<br>", array_map(fn($a) => '• ' . htmlspecialchars($a['name']), $attachments));
+            }
 
             $contactEmail = count($recipients) === 1 ? $recipients[0] : $recipients;
 
@@ -80,7 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $contactEmail,
                 "Contact - " . $sujet,
                 "Nouveau message de contact",
-                $body
+                $body,
+                null, null, 'info', null, null,
+                $attachments
             );
 
             if ($sent) {
@@ -132,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <?php if (!$success): ?>
-    <form class="contact-form" method="post" action="">
+    <form class="contact-form" method="post" action="" enctype="multipart/form-data">
       <?= csrf_field() ?>
       <div>
         <label for="nom">Nom complet</label>
@@ -149,6 +195,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div>
         <label for="message">Message</label>
         <textarea id="message" name="message" required><?= htmlspecialchars($_POST['message'] ?? '') ?></textarea>
+      </div>
+      <div>
+        <label for="attachments">Pièces jointes <span style="font-weight:400;color:#64748b">(facultatif — jusqu'à 3 fichiers)</span></label>
+        <input type="file" id="attachments" name="attachments[]" multiple
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.txt,image/*,application/pdf">
+        <small style="display:block;margin-top:.35rem;color:#64748b;font-size:.82rem">
+          Images, PDF, Word ou texte — 5&nbsp;Mo max par fichier, 3 fichiers maximum.
+        </small>
+        <ul id="attachmentsList" class="attachments-list" aria-live="polite"></ul>
       </div>
 
       <!-- Vérification anti-robot (Turnstile ou maths selon config) -->
@@ -178,6 +233,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       .contact-captcha-reload:hover { background:#cbd5e1; }
       .contact-captcha-error { color:#b91c1c; font-size:.82rem; min-height:1.1em; margin-top:.4rem; }
       .contact-submit:disabled { opacity:.55; cursor:not-allowed; filter:grayscale(.4); }
+      /* Liste des pièces jointes sélectionnées */
+      .attachments-list { list-style:none; margin:.6rem 0 0; padding:0; display:flex; flex-direction:column; gap:.4rem; }
+      .attachments-list li { display:flex; align-items:center; gap:.6rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:.55rem; padding:.45rem .65rem; font-size:.85rem; }
+      .attachments-list .att-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1e293b; }
+      .attachments-list .att-size { color:#64748b; font-size:.78rem; flex-shrink:0; }
+      .attachments-list .att-remove { flex-shrink:0; border:none; background:#fee2e2; color:#b91c1c; width:1.5rem; height:1.5rem; border-radius:50%; font-size:1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+      .attachments-list .att-remove:hover { background:#fecaca; }
     </style>
     <?php endif; ?>
   </section>
@@ -340,6 +402,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
 
       initCaptcha();
+  })();
+  </script>
+
+  <!-- Gestion des pièces jointes : aperçu de la liste + suppression individuelle -->
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+  (function(){
+      var input = document.getElementById('attachments');
+      var list  = document.getElementById('attachmentsList');
+      if (!input || !list || typeof DataTransfer === 'undefined') return;
+
+      var MAX = 3, MAXSIZE = 5 * 1024 * 1024;
+      var dt = new DataTransfer();
+
+      function fmt(b){ if (b < 1024) return b + ' o'; if (b < 1048576) return Math.round(b/1024) + ' Ko'; return (b/1048576).toFixed(1) + ' Mo'; }
+      function esc(s){ var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+      function render(){
+          list.innerHTML = '';
+          Array.prototype.forEach.call(dt.files, function(f, i){
+              var over = f.size > MAXSIZE;
+              var li = document.createElement('li');
+              li.innerHTML = '<span class="att-name">' + esc(f.name) + '</span>'
+                           + '<span class="att-size">' + fmt(f.size) + (over ? ' ⚠️ trop volumineux' : '') + '</span>';
+              if (over) li.style.borderColor = '#fca5a5';
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'att-remove';
+              btn.setAttribute('aria-label', 'Retirer ' + f.name);
+              btn.textContent = '×';
+              btn.addEventListener('click', function(){ removeAt(i); });
+              li.appendChild(btn);
+              list.appendChild(li);
+          });
+      }
+      function sync(){ input.files = dt.files; render(); }
+      function removeAt(idx){
+          var ndt = new DataTransfer();
+          Array.prototype.forEach.call(dt.files, function(f, i){ if (i !== idx) ndt.items.add(f); });
+          dt = ndt;
+          sync();
+      }
+      input.addEventListener('change', function(){
+          Array.prototype.forEach.call(input.files, function(f){
+              if (dt.items.length >= MAX) return;
+              var dup = false;
+              Array.prototype.forEach.call(dt.files, function(ex){ if (ex.name === f.name && ex.size === f.size) dup = true; });
+              if (!dup) dt.items.add(f);
+          });
+          sync();
+      });
   })();
   </script>
 </body>

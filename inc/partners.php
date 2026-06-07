@@ -8,6 +8,8 @@ $canEdit   = canDoAction('partners.edit');
 $canTrash  = canDoAction('partners.trash');
 $canDelete = canDoAction('partners.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
+require_once __DIR__ . '/../config/content-log.php';
+$canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
 require 'navbar-data.php';
 
 // Détection de la migration pour choisir entre soft-delete (trash) et hard-delete.
@@ -153,6 +155,7 @@ if (isset($_POST['update_year'])) {
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
   }
+  logContentAction($pdo, 'partners', 'edit', $yearId, $title !== '' ? $title : $year, 'année');
   $_SESSION['reopen_modal'] = $yearId;
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise à jour.'];
   header("Location: " . $_SERVER['PHP_SELF']);
@@ -208,6 +211,7 @@ if (isset($_POST['update_album'])) {
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
   }
+  logContentAction($pdo, 'partners', 'edit', $albumId, $album_title, 'partenaire');
   $_SESSION['reopen_modal'] = $yearId;
   $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis à jour.'];
   header("Location: " . $_SERVER['PHP_SELF']);
@@ -239,6 +243,7 @@ if (isset($_POST['add_album'])) {
     }
     $stmt = $pdo->prepare("INSERT INTO partners_albums (year_id, album_title, album_img, album_desc) VALUES (?, ?, ?, ?)");
     $stmt->execute([$yearId, $album_title, $safeName, $album_desc]);
+    logContentAction($pdo, 'partners', 'create', (int)$pdo->lastInsertId(), $album_title, 'partenaire');
   } catch (PDOException $e) {
     error_log('[PARTNERS] add_album: ' . $e->getMessage());
     $_SESSION['reopen_modal'] = $yearId;
@@ -263,23 +268,23 @@ if (isset($_POST['delete_album'])) {
     exit;
   }
 
+  $delInfo = $pdo->query("SELECT album_title, album_img FROM partners_albums WHERE id = " . $albumId)->fetch(PDO::FETCH_ASSOC) ?: ['album_title' => '', 'album_img' => ''];
   try {
     if ($migrationDone) {
       $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE id = ?");
       $stmt->execute([$albumId]);
+      logContentAction($pdo, 'partners', 'trash', $albumId, (string)$delInfo['album_title'], 'partenaire');
       $_SESSION['reopen_modal'] = $yearId;
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire mis en corbeille.'];
       header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
     } else {
       // Hard delete (old behavior)
-      $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
-      $stmt->execute([$albumId]);
-      $img = $stmt->fetchColumn();
-      if ($img && file_exists("../files/_partners/" . $img)) {
-        unlink("../files/_partners/" . $img);
+      if ($delInfo['album_img'] && file_exists("../files/_partners/" . $delInfo['album_img'])) {
+        unlink("../files/_partners/" . $delInfo['album_img']);
       }
       $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
       $stmt->execute([$albumId]);
+      logContentAction($pdo, 'partners', 'delete', $albumId, (string)$delInfo['album_title'], 'partenaire');
       $_SESSION['reopen_modal'] = $yearId;
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Partenaire supprimé.'];
       header("Location: " . $_SERVER['PHP_SELF']);
@@ -312,6 +317,7 @@ if (isset($_POST['add_year'])) {
       $stmt = $pdo->prepare("INSERT INTO partners_years (year, title) VALUES (?, ?)");
       $stmt->execute([$year, $title]);
     }
+    logContentAction($pdo, 'partners', 'create', (int)$pdo->lastInsertId(), $title !== '' ? $title : $year, 'année');
   } catch (PDOException $e) {
     error_log('[PARTNERS] add_year: ' . $e->getMessage());
     $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de l\'ajout de l\'année.'];
@@ -365,6 +371,7 @@ if (isset($_POST['delete_year'])) {
     exit;
   }
 
+  $yearTitle = (string)$pdo->query("SELECT COALESCE(NULLIF(title,''), year) FROM partners_years WHERE id = " . $yearId)->fetchColumn();
   try {
     if ($migrationDone) {
       // Soft-delete the year
@@ -373,6 +380,7 @@ if (isset($_POST['delete_year'])) {
       // Soft-delete all child albums
       $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NOW() WHERE year_id = ?");
       $stmt->execute([$yearId]);
+      logContentAction($pdo, 'partners', 'trash', $yearId, $yearTitle, 'année');
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
       header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
     } else {
@@ -389,6 +397,7 @@ if (isset($_POST['delete_year'])) {
       $stmt1->execute([$yearId]);
       $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
       $stmt2->execute([$yearId]);
+      logContentAction($pdo, 'partners', 'delete', $yearId, $yearTitle, 'année');
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
       header("Location: " . $_SERVER['PHP_SELF']);
     }
@@ -412,11 +421,13 @@ if ($migrationDone) {
     }
 
     try {
+      $rTitle = (string)$pdo->query("SELECT COALESCE(NULLIF(title,''), year) FROM partners_years WHERE id = " . $yearId)->fetchColumn();
       $stmt = $pdo->prepare("UPDATE partners_years SET deleted_at = NULL WHERE id = ?");
       $stmt->execute([$yearId]);
 
       $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE year_id = ?");
       $stmt->execute([$yearId]);
+      logContentAction($pdo, 'partners', 'restore', $yearId, $rTitle, 'année');
     } catch (PDOException $e) {
       error_log('[PARTNERS] restore_year: ' . $e->getMessage());
       $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration.'];
@@ -441,8 +452,10 @@ if ($migrationDone) {
     }
 
     try {
+      $rTitle = (string)$pdo->query("SELECT album_title FROM partners_albums WHERE id = " . $albumId)->fetchColumn();
       $stmt = $pdo->prepare("UPDATE partners_albums SET deleted_at = NULL WHERE id = ?");
       $stmt->execute([$albumId]);
+      logContentAction($pdo, 'partners', 'restore', $albumId, $rTitle, 'partenaire');
     } catch (PDOException $e) {
       error_log('[PARTNERS] restore_album: ' . $e->getMessage());
       $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la restauration.'];
@@ -466,6 +479,7 @@ if ($migrationDone) {
       exit;
     }
 
+    $yearTitle = (string)$pdo->query("SELECT COALESCE(NULLIF(title,''), year) FROM partners_years WHERE id = " . $yearId)->fetchColumn();
     try {
       // Delete image files for all albums
       $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE year_id = ?");
@@ -494,6 +508,7 @@ if ($migrationDone) {
       $stmt1->execute([$yearId]);
       $stmt2 = $pdo->prepare("DELETE FROM partners_years WHERE id = ?");
       $stmt2->execute([$yearId]);
+      logContentAction($pdo, 'partners', 'delete', $yearId, $yearTitle, 'année');
     } catch (PDOException $e) {
       error_log('[PARTNERS] permanent_delete_year: ' . $e->getMessage());
       $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Erreur lors de la suppression définitive.'];
@@ -519,17 +534,18 @@ if ($migrationDone) {
 
     try {
       // Delete image file
-      $stmt = $pdo->prepare("SELECT album_img FROM partners_albums WHERE id = ?");
+      $stmt = $pdo->prepare("SELECT album_title, album_img FROM partners_albums WHERE id = ?");
       $stmt->execute([$albumId]);
-      $img = $stmt->fetchColumn();
+      $pInfo = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['album_title' => '', 'album_img' => ''];
 
-      if ($img && file_exists("../files/_partners/" . $img)) {
-        unlink("../files/_partners/" . $img);
+      if ($pInfo['album_img'] && file_exists("../files/_partners/" . $pInfo['album_img'])) {
+        unlink("../files/_partners/" . $pInfo['album_img']);
       }
 
       // Delete album permanently
       $stmt = $pdo->prepare("DELETE FROM partners_albums WHERE id = ?");
       $stmt->execute([$albumId]);
+      logContentAction($pdo, 'partners', 'delete', $albumId, (string)$pInfo['album_title'], 'partenaire');
     } catch (PDOException $e) {
       error_log('[PARTNERS] permanent_delete_album: ' . $e->getMessage());
       $_SESSION['reopen_modal'] = $yearId;
@@ -548,6 +564,8 @@ if ($migrationDone) {
 // ─── Filter logic ───
 $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
 $isTrashed = false;
+$isLogs = ($filter === 'logs' && $canViewLogs);
+$logs = $isLogs ? fetchContentLogs($pdo, 'partners') : [];
 
 if ($migrationDone) {
   $isTrashed = ($filter === 'trashed');
@@ -823,17 +841,24 @@ if ($migrationDone) {
                 <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
               </a>
               <?php endif; ?>
+              <?php if ($canViewLogs): ?>
+              <a href="?filter=logs" class="<?= $isLogs ? 'active' : '' ?>">
+                <i class="bi bi-clock-history"></i> Logs
+              </a>
+              <?php endif; ?>
             </div>
             <?php endif; ?>
 
-            <?php if (!$isTrashed && $canCreate): ?>
+            <?php if (!$isTrashed && !$isLogs && $canCreate): ?>
             <!-- Bouton pour ajouter une année -->
             <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">
               <i class="bi bi-plus-lg"></i> Ajouter une Année
             </button>
             <?php endif; ?>
 
-            <?php if (empty($years)): ?>
+            <?php if ($isLogs): ?>
+              <?= renderContentLogs($logs) ?>
+            <?php elseif (empty($years)): ?>
               <div class="text-center text-muted py-5">
                 <i class="bi bi-people" style="font-size:3rem;"></i>
                 <p class="mt-2"><?= $isTrashed ? 'La corbeille est vide.' : 'Aucune année trouvée.' ?></p>

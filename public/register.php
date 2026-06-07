@@ -151,6 +151,7 @@ try {
 
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
+$assoconnectUrl     = $data['assoconnect_url']    ?? '';
 $title  = $data['title']   ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 $course_km = $data['course_km'] ?? 7;
@@ -190,7 +191,7 @@ try {
       integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
       crossorigin="anonymous">
 <link rel="stylesheet" href="../css/fer-modern.css">
-<link rel="stylesheet" href="../css/register.css">
+<link rel="stylesheet" href="../css/register.css?v=<?= @filemtime(__DIR__ . '/../css/register.css') ?: time() ?>">
 <?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 
@@ -320,13 +321,28 @@ try {
 
       <?php
       // 🔒 [SEC-09] Validation domaine AssoConnect avant echo (CWE-79)
+      // Méthode DIV + Script (la seule supportée pour un site externe).
       if ($assoconnectIframe && preg_match('#^<div[^>]+data-collect-id=["\'][A-Z0-9]{26}["\']#i', trim($assoconnectIframe))) {
           echo $assoconnectIframe, PHP_EOL;
       }
       if ($assoconnectJs && preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', trim($assoconnectJs))) {
           echo $assoconnectJs, PHP_EOL;
       }
+
+      // Bouton de repli : lien direct AssoConnect (si le formulaire ne se charge pas)
+      $acUrlSafe = ($assoconnectUrl && filter_var($assoconnectUrl, FILTER_VALIDATE_URL) && preg_match('#^https://#i', $assoconnectUrl)) ? $assoconnectUrl : '';
       ?>
+      <?php if ($acUrlSafe): ?>
+        <div class="text-center mt-4">
+          <p class="text-muted small mb-2">Un problème avec le formulaire d'inscription&nbsp;? Ouvrez-le directement sur le site d'AssoConnect.</p>
+          <a href="<?= htmlspecialchars($acUrlSafe, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <path d="M15 3h6v6M10 14 21 3"/>
+            </svg>S'inscrire directement sur AssoConnect
+          </a>
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
   </div>
 </main>

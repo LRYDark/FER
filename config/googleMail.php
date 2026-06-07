@@ -294,7 +294,7 @@ $lastMailError = null;
 /**
  * Envoie un mail via SMTP (PHPMailer).
  */
-function sendMailSmtp($to, string $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null) {
+function sendMailSmtp($to, string $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null, array $attachments = []) {
     global $data, $lastMailError, $pdo;
     $lastMailError = null;
 
@@ -360,6 +360,13 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
         // QR Code en pièce jointe inline référencée par cid:qrcode_inline
         if ($qrPng !== null) {
             $mail->addStringEmbeddedImage($qrPng, 'qrcode_inline', 'qrcode.png', 'base64', 'image/png', 'inline');
+        }
+
+        // Pièces jointes (ex. formulaire de contact)
+        foreach ($attachments as $att) {
+            if (!empty($att['content']) && !empty($att['name'])) {
+                $mail->addStringAttachment($att['content'], $att['name'], 'base64', $att['mime'] ?? 'application/octet-stream');
+            }
         }
 
         $mail->send();
@@ -432,14 +439,14 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
 /**
  * Envoie un mail via le fournisseur actif (Google ou SMTP).
  */
-function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null) {
+function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null, array $attachments = []) {
     global $data, $lastMailError;
     $lastMailError = null;
 
     // Route vers SMTP si c'est le fournisseur actif
     $provider = $data['mail_provider'] ?? 'google';
     if ($provider === 'smtp') {
-        return sendMailSmtp($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+        return sendMailSmtp($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype, $attachments);
     }
 
     /* ---------- Auth Gmail ---------- */
@@ -492,25 +499,53 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     $raw .= "Subject: $encodedSubject\r\n";
     $raw .= "MIME-Version: 1.0\r\n";
 
-    if ($qrPng !== null) {
-        // multipart/related : HTML + image inline référencée par cid:qrcode_inline
-        // (Gmail/Outlook bloquent les data: URI dans les <img>, d'où l'embed CID).
-        // HTML et PNG sont tous deux encodés en base64 pour éviter tout problème
-        // de ligne longue ou de caractère spécial lors du transit.
-        $boundary = 'fer_' . bin2hex(random_bytes(12));
-        $raw .= "Content-Type: multipart/related; boundary=\"$boundary\"; type=\"text/html\"\r\n\r\n";
+    // Partie "contenu" : HTML seul, ou multipart/related (HTML + QR inline).
+    $relBoundary = 'fer_rel_' . bin2hex(random_bytes(10));
+    $buildContentPart = function () use ($qrPng, $body, $relBoundary) {
+        if ($qrPng !== null) {
+            // multipart/related : HTML + image inline référencée par cid:qrcode_inline
+            // (Gmail/Outlook bloquent les data: URI dans les <img>, d'où l'embed CID).
+            $p  = "Content-Type: multipart/related; boundary=\"$relBoundary\"; type=\"text/html\"\r\n\r\n";
+            $p .= "--$relBoundary\r\n";
+            $p .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $p .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $p .= chunk_split(base64_encode($body), 76, "\r\n") . "\r\n";
+            $p .= "--$relBoundary\r\n";
+            $p .= "Content-Type: image/png; name=\"qrcode.png\"\r\n";
+            $p .= "Content-Transfer-Encoding: base64\r\n";
+            $p .= "Content-ID: <qrcode_inline>\r\n";
+            $p .= "Content-Disposition: inline; filename=\"qrcode.png\"\r\n\r\n";
+            $p .= chunk_split(base64_encode($qrPng), 76, "\r\n") . "\r\n";
+            $p .= "--$relBoundary--\r\n";
+            return $p;
+        }
+        return "Content-Type: text/html; charset=UTF-8\r\n"
+             . "Content-Transfer-Encoding: base64\r\n\r\n"
+             . chunk_split(base64_encode($body), 76, "\r\n") . "\r\n";
+    };
+
+    if (!empty($attachments)) {
+        // multipart/mixed : partie contenu (HTML [+ QR]) + 1..N pièces jointes.
+        $mixBoundary = 'fer_mix_' . bin2hex(random_bytes(10));
+        $raw .= "Content-Type: multipart/mixed; boundary=\"$mixBoundary\"\r\n\r\n";
         $raw .= "This is a multi-part message in MIME format.\r\n\r\n";
-        $raw .= "--$boundary\r\n";
-        $raw .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $raw .= "Content-Transfer-Encoding: base64\r\n\r\n";
-        $raw .= chunk_split(base64_encode($body), 76, "\r\n") . "\r\n";
-        $raw .= "--$boundary\r\n";
-        $raw .= "Content-Type: image/png; name=\"qrcode.png\"\r\n";
-        $raw .= "Content-Transfer-Encoding: base64\r\n";
-        $raw .= "Content-ID: <qrcode_inline>\r\n";
-        $raw .= "Content-Disposition: inline; filename=\"qrcode.png\"\r\n\r\n";
-        $raw .= chunk_split(base64_encode($qrPng), 76, "\r\n") . "\r\n";
-        $raw .= "--$boundary--\r\n";
+        $raw .= "--$mixBoundary\r\n";
+        $raw .= $buildContentPart();
+        foreach ($attachments as $att) {
+            if (empty($att['content']) || empty($att['name'])) continue;
+            $attName = str_replace(['"', "\r", "\n"], '', $att['name']);
+            $attMime = preg_match('#^[a-z0-9.+/-]+$#i', $att['mime'] ?? '') ? $att['mime'] : 'application/octet-stream';
+            $raw .= "--$mixBoundary\r\n";
+            $raw .= "Content-Type: $attMime; name=\"$attName\"\r\n";
+            $raw .= "Content-Transfer-Encoding: base64\r\n";
+            $raw .= "Content-Disposition: attachment; filename=\"$attName\"\r\n\r\n";
+            $raw .= chunk_split(base64_encode($att['content']), 76, "\r\n") . "\r\n";
+        }
+        $raw .= "--$mixBoundary--\r\n";
+    } elseif ($qrPng !== null) {
+        // HTML + QR inline (sans pièce jointe). buildContentPart() commence par
+        // l'en-tête Content-Type, qui doit suivre immédiatement MIME-Version.
+        $raw .= $buildContentPart();
     } else {
         $raw .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
         $raw .= $body;

@@ -6,10 +6,11 @@ requirePage('mail-settings');
 $role = currentRole();
 $canWrite = canDoAction('mail.write'); // Template + Google + Notifications
 $canSend  = canDoAction('mail.send');  // Envoi de mail
+$canNewsletter = canDoAction('mail.newsletter'); // Abonnés newsletter (voir / supprimer)
 // Pas de $pageReadOnly global : on contrôle l'affichage onglet par onglet
 
-// Bloquer toute action POST si l'utilisateur n'a aucun des deux droits
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite && !$canSend) {
+// Bloquer toute action POST si l'utilisateur n'a aucun des droits de la page
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite && !$canSend && !$canNewsletter) {
     http_response_code(403);
     $_SESSION['flash_message'] = ['type' => 'error', 'message' => 'Action non autorisée (lecture seule).'];
     header("Location: " . $_SERVER['PHP_SELF']);
@@ -43,6 +44,16 @@ $adminUsers = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_a
 // Abonnés newsletter (pour le bouton "Newsletter" des destinataires)
 require_once '../config/newsletter.php';
 $newsletterEmails = newsletterSubscribedEmails($pdo);
+
+// Liste détaillée des abonnés (onglet "Abonnés newsletter" : statut + date)
+$newsletterSubscribers = [];
+try {
+    $newsletterSubscribers = $pdo->query(
+        "SELECT email, status, created_at, unsubscribed_at
+           FROM newsletter_subscribers
+          ORDER BY (status = 'subscribed') DESC, created_at DESC"
+    )->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {}
 
 // SMTP / mail provider
 $mail_provider   = $data['mail_provider'] ?? 'google';
@@ -338,6 +349,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
         addToast('success', 'Paramètres de notification enregistrés');
     }
 
+    // Newsletter — suppression manuelle d'un abonné
+    if (isset($_POST['delete_newsletter_subscriber']) && $canNewsletter) {
+        $delEmail = mb_strtolower(trim($_POST['newsletter_email'] ?? ''));
+        if ($delEmail !== '') {
+            try {
+                $stmt = $pdo->prepare('DELETE FROM newsletter_subscribers WHERE email = :e');
+                $stmt->execute(['e' => $delEmail]);
+                if ($stmt->rowCount() > 0) {
+                    addToast('success', 'Abonné supprimé : ' . htmlspecialchars($delEmail));
+                    // Recharger la liste pour refléter la suppression immédiatement
+                    try {
+                        $newsletterSubscribers = $pdo->query(
+                            "SELECT email, status, created_at, unsubscribed_at
+                               FROM newsletter_subscribers
+                              ORDER BY (status = 'subscribed') DESC, created_at DESC"
+                        )->fetchAll(PDO::FETCH_ASSOC);
+                    } catch (\Throwable $e) {}
+                } else {
+                    addToast('warning', 'Abonné introuvable');
+                }
+            } catch (\Throwable $e) {
+                addToast('danger', 'Erreur lors de la suppression');
+            }
+        }
+    }
+
     // Gmail actions
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
@@ -630,6 +667,7 @@ $tabPermAllowed = [
     'template'      => $configAllowed,
     'google'        => $configAllowed,
     'notifications' => $configAllowed,
+    'newsletter'    => $canNewsletter,
 ];
 if (empty($tabPermAllowed[$activeSubTab])) {
     // L'onglet demandé n'est pas autorisé : prendre le premier accessible
@@ -870,7 +908,7 @@ $jsConfig = json_encode([
 
 <h1 class="mb-3 fw-bold"><i class="bi bi-envelope me-2"></i>Paramètres mail</h1>
 
-<?php if (!$canWrite && !$canSend): ?>
+<?php if (!$canWrite && !$canSend && !$canNewsletter): ?>
   <!-- Accès en lecture seule : aucune section disponible -->
   <div class="text-center py-5 my-4" style="background:#fff;border-radius:12px;box-shadow:0 0 25px rgba(0,0,0,.05)">
     <i class="bi bi-shield-lock" style="font-size:4rem;color:#94a3b8"></i>
@@ -893,6 +931,9 @@ $jsConfig = json_encode([
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='template'?'active':'' ?>" href="#" data-pane="paneTemplate">Template email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='google'?'active':'' ?>" href="#" data-pane="paneGoogle">Google / Email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='notifications'?'active':'' ?>" href="#" data-pane="paneNotifications">Notifications</a></li>
+  <?php endif; ?>
+  <?php if ($canNewsletter): ?>
+  <li class="nav-item"><a class="nav-link <?= $activeSubTab==='newsletter'?'active':'' ?>" href="#" data-pane="paneNewsletter">Abonnés newsletter</a></li>
   <?php endif; ?>
 </ul>
 
@@ -1564,6 +1605,107 @@ $jsConfig = json_encode([
   </div>
 </div>
 
+<!-- ═══ ABONNÉS NEWSLETTER PANE (mail.newsletter) ═══ -->
+<?php if ($canNewsletter): ?>
+<div class="ed-pane <?= $activeSubTab==='newsletter'?'active':'' ?>" id="paneNewsletter" style="display:<?= $activeSubTab==='newsletter'?'block':'none' ?>;">
+  <div class="setting-card">
+    <?php
+      $nbSub = 0; $nbUnsub = 0;
+      foreach ($newsletterSubscribers as $s) {
+          if (($s['status'] ?? '') === 'subscribed') $nbSub++; else $nbUnsub++;
+      }
+      $nbTotal = count($newsletterSubscribers);
+    ?>
+    <h2><i class="bi bi-envelope-heart me-2"></i>Abonnés newsletter</h2>
+    <p class="text-muted mb-3">
+      <strong><?= $nbSub ?></strong> abonné<?= $nbSub > 1 ? 's' : '' ?> actif<?= $nbSub > 1 ? 's' : '' ?> à la newsletter.
+      Les inscriptions se font depuis la section « Rester informé » de la page d'accueil.
+      Vous pouvez supprimer manuellement une adresse de la liste.
+    </p>
+    <?php if (empty($newsletterSubscribers)): ?>
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-inbox" style="font-size:3rem;opacity:.4"></i>
+        <p class="mt-3 mb-0">Aucun abonné pour le moment.</p>
+      </div>
+    <?php else: ?>
+      <div class="btn-group mb-3" role="group" id="nlFilter">
+        <button type="button" class="btn btn-outline-secondary active" data-filter="all">
+          Tous <span class="badge bg-secondary ms-1"><?= $nbTotal ?></span>
+        </button>
+        <button type="button" class="btn btn-outline-success" data-filter="subscribed">
+          Abonnés <span class="badge bg-success ms-1"><?= $nbSub ?></span>
+        </button>
+        <button type="button" class="btn btn-outline-secondary" data-filter="unsubscribed">
+          Désabonnés <span class="badge bg-secondary ms-1"><?= $nbUnsub ?></span>
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Statut</th>
+              <th>Date d'inscription</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody id="nlTableBody">
+            <?php foreach ($newsletterSubscribers as $s):
+              $isSub = ($s['status'] ?? '') === 'subscribed'; ?>
+              <tr data-status="<?= $isSub ? 'subscribed' : 'unsubscribed' ?>">
+                <td><?= htmlspecialchars($s['email']) ?></td>
+                <td>
+                  <?php if ($isSub): ?>
+                    <span class="badge bg-success">Abonné</span>
+                  <?php else: ?>
+                    <span class="badge bg-secondary">Désabonné</span>
+                  <?php endif; ?>
+                </td>
+                <td><?= !empty($s['created_at']) ? htmlspecialchars(date('d/m/Y à H:i', strtotime($s['created_at']))) : '—' ?></td>
+                <td class="text-end">
+                  <form method="post" style="display:inline" data-confirm="Supprimer définitivement <?= htmlspecialchars($s['email']) ?> de la liste ?">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="active_subtab" value="newsletter">
+                    <input type="hidden" name="newsletter_email" value="<?= htmlspecialchars($s['email']) ?>">
+                    <button type="submit" name="delete_newsletter_subscriber" value="1" class="btn btn-sm btn-outline-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div id="nlEmptyFilter" class="text-center py-4 text-muted" style="display:none;">
+        <i class="bi bi-funnel" style="font-size:2rem;opacity:.4"></i>
+        <p class="mt-2 mb-0">Aucun abonné dans cette catégorie.</p>
+      </div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var group = document.getElementById('nlFilter');
+  if (!group) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#nlTableBody tr[data-status]'));
+  var empty = document.getElementById('nlEmptyFilter');
+  group.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-filter]');
+    if (!b) return;
+    group.querySelectorAll('button').forEach(function(x){ x.classList.remove('active'); });
+    b.classList.add('active');
+    var f = b.dataset.filter, shown = 0;
+    rows.forEach(function(tr){
+      var ok = (f === 'all') || (tr.dataset.status === f);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    if (empty) empty.style.display = shown === 0 ? 'block' : 'none';
+  });
+})();
+</script>
+
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
   var btn = document.getElementById('btnTurnstileTest');
@@ -1712,7 +1854,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       $$('#mailSettingsTabs .nav-link').forEach(function(x){ x.classList.remove('active'); });
       this.classList.add('active');
       var id = this.dataset.pane;
-      ['paneEnvoi','paneTemplate','paneGoogle','paneNotifications'].forEach(function(pId){
+      ['paneEnvoi','paneTemplate','paneGoogle','paneNotifications','paneNewsletter'].forEach(function(pId){
         var el = $('#' + pId);
         if (el) {
           el.classList.toggle('active', id === pId);

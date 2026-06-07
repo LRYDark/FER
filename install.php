@@ -530,6 +530,8 @@ function getCreateTableStatements(): array
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `assoconnect_js` longtext DEFAULT NULL,
           `assoconnect_iframe` longtext DEFAULT NULL,
+          `assoconnect_url` varchar(512) DEFAULT NULL,
+          `assoconnect_csp_domains` text DEFAULT NULL,
           `title` TEXT DEFAULT NULL,
           `registration_fee` int(10) DEFAULT NULL,
           `course_km` int(10) DEFAULT 7,
@@ -881,6 +883,20 @@ function getCreateTableStatements(): array
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_ip` (`ip_address`),
           INDEX `idx_user` (`user_id`),
+          INDEX `idx_created` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `content_logs` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `content_type` VARCHAR(20) NOT NULL,
+          `entity_type` VARCHAR(40) DEFAULT NULL,
+          `entity_id` INT DEFAULT NULL,
+          `entity_title` VARCHAR(255) DEFAULT NULL,
+          `action` VARCHAR(20) NOT NULL,
+          `user_id` INT DEFAULT NULL,
+          `user_email` VARCHAR(255) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_content` (`content_type`, `created_at`),
           INDEX `idx_created` (`created_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 

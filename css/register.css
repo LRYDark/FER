@@ -25,10 +25,19 @@ body{
   display: flex;
   align-items: center;
   gap: 1rem;
-  max-width: 75rem;
+  /* Aligné sur la carte du formulaire (.card-form = 68.75rem + padding 1.5rem) :
+     le bouton retour s'aligne sur le bord gauche de l'iframe et le badge sur le
+     bord droit.
+     width:100% est indispensable : sans lui la barre se réduit à la largeur de
+     son contenu et se centre (effet « trop centré »). Avec width:100% elle
+     occupe toute la largeur (jusqu'à max-width) et le flex:1 du titre pousse le
+     badge à droite / le bouton retour à gauche. */
+  width: 100%;
+  max-width: 68.75rem;
   margin: 2rem auto 1.5rem;
   padding: 0 1.5rem;
   flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 /* Back-btn identique au pattern .partners-title-bar / .photos-hero / .gallery-hero */
@@ -89,9 +98,16 @@ body{
     padding: 0 1rem;
     gap: 0.75rem;
   }
+  /* Le titre occupe assez de place pour forcer le badge sur sa propre ligne… */
+  .register-title-info{
+    flex: 1 1 70%;
+  }
   .register-donation-badge{
     font-size: 0.85rem;
     padding: 0.4rem 0.75rem;
+    /* …et le badge (largeur naturelle) est centré au milieu de la page sur mobile */
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
@@ -159,7 +175,7 @@ body{
   border-radius: var(--radius, 12px) !important;
 }
 
-/* ─── AssoConnect iframe ─── */
+/* ─── AssoConnect iframe (méthode DIV + Script) ─── */
 .iframe-asc-container,
 .iframe-asc-container iframe{
   width: 68.75rem !important;
@@ -366,3 +382,15 @@ body.dark-theme .modal-footer .btn-secondary:hover{
   background: rgba(255,255,255,.18);
   color: #ffffff;
 }
+
+/* ─── Anti grand vide blanc ───────────────────────────────────────────────
+   Le <main> global (fer-modern.css) impose `padding: 1.25rem 0 8.75rem`
+   → 8.75rem (~140px) de padding-bottom, ce qui crée le grand vide entre la
+   carte et le bouton « réglementation ». Il a aussi flex-grow:1 qui l'étire.
+   Sur la page inscription on neutralise les deux : padding-bottom réduit et
+   pas d'étirement. Le footer reste collé en bas via margin-top:auto. */
+main.flex-grow-1{
+  flex-grow: 0 !important;
+  padding-bottom: 1.5rem !important;
+}
+.site-footer{ margin-top: auto; }

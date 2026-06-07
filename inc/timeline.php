@@ -8,6 +8,8 @@ $canEdit   = canDoAction('timeline.edit');
 $canTrash  = canDoAction('timeline.trash');
 $canDelete = canDoAction('timeline.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
+require_once __DIR__ . '/../config/content-log.php';
+$canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
 require 'navbar-data.php';
 
 // ─── Ensure _TimeLine directory exists ───
@@ -108,6 +110,7 @@ if (isset($_POST['add_item'])) {
         }
     }
 
+    logContentAction($pdo, 'timeline', 'create', (int)$lastId, $title, 'item');
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement ajouté.'];
     header("Location: " . $_SERVER['PHP_SELF']);
     exit;
@@ -182,6 +185,7 @@ if (isset($_POST['update_item'])) {
         }
     }
 
+    logContentAction($pdo, 'timeline', 'edit', $itemId, $title, 'item');
     $_SESSION['reopen_modal'] = $itemId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement mis à jour.'];
     header("Location: " . $_SERVER['PHP_SELF']);
@@ -191,18 +195,20 @@ if (isset($_POST['update_item'])) {
 // Delete item (soft delete if available, hard delete otherwise)
 if (isset($_POST['delete_item'])) {
     $itemId = (int)$_POST['item_id'];
+    $infoStmt = $pdo->prepare("SELECT title, image FROM timeline_items WHERE id = ?");
+    $infoStmt->execute([$itemId]);
+    $info = $infoStmt->fetch(PDO::FETCH_ASSOC) ?: ['title' => '', 'image' => null];
 
     if ($hasDeletedAt) {
         $pdo->prepare("UPDATE timeline_items SET deleted_at = NOW() WHERE id = ?")->execute([$itemId]);
+        logContentAction($pdo, 'timeline', 'trash', $itemId, (string)$info['title'], 'item');
         $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement mis en corbeille.'];
     } else {
-        $stmt = $pdo->prepare("SELECT image FROM timeline_items WHERE id = ?");
-        $stmt->execute([$itemId]);
-        $img = $stmt->fetchColumn();
-        if ($img && file_exists($timelineDir . $img)) {
-            unlink($timelineDir . $img);
+        if ($info['image'] && file_exists($timelineDir . $info['image'])) {
+            unlink($timelineDir . $info['image']);
         }
         $pdo->prepare("DELETE FROM timeline_items WHERE id = ?")->execute([$itemId]);
+        logContentAction($pdo, 'timeline', 'delete', $itemId, (string)$info['title'], 'item');
         $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement supprimé.'];
     }
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
@@ -212,7 +218,9 @@ if (isset($_POST['delete_item'])) {
 // Restore item from trash
 if (isset($_POST['restore_item']) && $hasDeletedAt) {
     $itemId = (int)$_POST['item_id'];
+    $rTitle = (string)$pdo->query("SELECT title FROM timeline_items WHERE id = " . $itemId)->fetchColumn();
     $pdo->prepare("UPDATE timeline_items SET deleted_at = NULL WHERE id = ?")->execute([$itemId]);
+    logContentAction($pdo, 'timeline', 'restore', $itemId, $rTitle, 'item');
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement restauré.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
@@ -221,14 +229,15 @@ if (isset($_POST['restore_item']) && $hasDeletedAt) {
 // Permanent delete item
 if (isset($_POST['permanent_delete_item']) && $hasDeletedAt) {
     $itemId = (int)$_POST['item_id'];
-    $stmt = $pdo->prepare("SELECT image FROM timeline_items WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT title, image FROM timeline_items WHERE id = ?");
     $stmt->execute([$itemId]);
-    $img = $stmt->fetchColumn();
-    if ($img && file_exists($timelineDir . $img)) {
-        unlink($timelineDir . $img);
+    $info = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['title' => '', 'image' => null];
+    if ($info['image'] && file_exists($timelineDir . $info['image'])) {
+        unlink($timelineDir . $info['image']);
     }
     $pdo->prepare("DELETE FROM timeline_elements WHERE item_id = ?")->execute([$itemId]);
     $pdo->prepare("DELETE FROM timeline_items WHERE id = ?")->execute([$itemId]);
+    logContentAction($pdo, 'timeline', 'delete', $itemId, (string)$info['title'], 'item');
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Événement supprimé définitivement.'];
     header("Location: " . $_SERVER['PHP_SELF'] . "?filter=trashed");
     exit;
@@ -260,6 +269,8 @@ if (isset($_POST['move_item'])) {
 // ─── Filter & Fetch data ───
 $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
 $isTrashed = false;
+$isLogs = ($filter === 'logs' && $canViewLogs);
+$logs = $isLogs ? fetchContentLogs($pdo, 'timeline') : [];
 
 if ($hasDeletedAt) {
     $isTrashed = ($filter === 'trashed');
@@ -363,7 +374,7 @@ foreach ($items as $item) {
 
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
           <h1 class="mb-3 fw-bold"><i class="bi bi-clock-history me-2"></i>Gestion de la Timeline</h1>
-          <?php if (!$isTrashed && $canCreate): ?>
+          <?php if (!$isTrashed && !$isLogs && $canCreate): ?>
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddItem">
             <i class="bi bi-plus-lg me-1"></i>Ajouter un item
           </button>
@@ -388,10 +399,17 @@ foreach ($items as $item) {
             <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
           </a>
           <?php endif; ?>
+          <?php if ($canViewLogs): ?>
+          <a href="?filter=logs" class="<?= $isLogs ? 'active' : '' ?>">
+            <i class="bi bi-clock-history"></i> Logs
+          </a>
+          <?php endif; ?>
         </div>
         <?php endif; ?>
 
-        <?php if (empty($items)): ?>
+        <?php if ($isLogs): ?>
+          <?= renderContentLogs($logs) ?>
+        <?php elseif (empty($items)): ?>
           <div class="text-center text-muted py-5">
             <i class="bi bi-clock-history" style="font-size:3rem;"></i>
             <p class="mt-2"><?= $isTrashed ? 'La corbeille est vide.' : 'Aucun item dans la timeline.' ?></p>

@@ -276,8 +276,10 @@ function permCatalog(): array
             'timeline.create','timeline.edit','timeline.trash','timeline.delete',
             'partners.create','partners.edit','partners.trash','partners.delete',
             'albums.create','albums.edit','albums.trash','albums.delete',
+            // Journal d'activité des contenus (droit global de consultation)
+            'content.logs.view',
             // Pages d'administration (write actions)
-            'settings.write','mail.write','mail.send','qrcode.write','connexions.write','logs.write',
+            'settings.write','mail.write','mail.send','mail.newsletter','qrcode.write','connexions.write','logs.write',
             // Sous-onglets des Réglages (granularité par onglet)
             'settings.tab.personnalisation','settings.tab.accueil','settings.tab.inscription',
             'settings.tab.parcours','settings.tab.reglementation','settings.tab.formulaire',
@@ -285,7 +287,7 @@ function permCatalog(): array
             // Cartes de l'onglet Accueil
             'settings.accueil.params','settings.accueil.custom',
             // Cartes de l'onglet Inscription
-            'settings.inscription.header','settings.inscription.params','settings.inscription.assoconnect',
+            'settings.inscription.header','settings.inscription.params','settings.inscription.assoconnect','settings.inscription.cspdomains',
         ],
     ];
 }
@@ -1180,18 +1182,41 @@ function _sanitizeNode(DOMNode $node, array $allowedTags, array $allowedAttrs, a
 // 🔒 [SEC-15] img-src https: requis pour les images externes du contenu riche
 // 🔒 [SEC-17] frame-src *.assoconnect.com — idéalement spécifier le sous-domaine exact
 $GLOBALS['csp_nonce'] = base64_encode(random_bytes(16));
+
+// ── Domaines AssoConnect autorisés dans la CSP ────────────────────────────────
+// Gérables depuis Réglages → Inscription → « Liaison AssoConnect » (colonne
+// setting.assoconnect_csp_domains, un domaine par ligne). Injectés dans
+// frame-src / script-src / connect-src pour que le formulaire + le paiement
+// AssoConnect (Adyen / team.blue) puissent se charger. Si la liste est vide ou
+// la colonne absente (avant migration), on retombe sur des valeurs par défaut.
+$cspAssoDefault = ['https://*.assoconnect.com', 'https://*.team.blue', 'https://*.adyen.com'];
+$cspAssoDomains = [];
+try {
+    $rawDom = $pdo->query("SELECT assoconnect_csp_domains FROM setting WHERE id = 1")->fetchColumn();
+    if ($rawDom) {
+        foreach (preg_split('/[\s,]+/', $rawDom) as $d) {
+            $d = trim($d);
+            // Sécurité : on n'accepte que des origines https valides (sous-domaine
+            // joker autorisé). Pas de schéma http, data:, 'unsafe-*', etc.
+            if ($d !== '' && preg_match('#^https://(\*\.)?[a-z0-9.-]+\.[a-z]{2,}$#i', $d)) {
+                $cspAssoDomains[] = $d;
+            }
+        }
+    }
+} catch (\Throwable $e) { /* colonne absente avant migration → défauts */ }
+if (empty($cspAssoDomains)) $cspAssoDomains = $cspAssoDefault;
+$cspAsso = implode(' ', array_unique($cspAssoDomains));
+
 header(
     "Content-Security-Policy: " .
     "default-src 'self'; " .
     "script-src 'self' 'nonce-" . $GLOBALS['csp_nonce'] . "' " .
-        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net https://*.assoconnect.com https://challenges.cloudflare.com; " .
+        "https://cdn.jsdelivr.net https://code.jquery.com https://cdn.tiny.cloud https://cdn.datatables.net https://challenges.cloudflare.com " . $cspAsso . "; " .
     "style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net 'unsafe-inline'; " .
     "img-src 'self' data: blob: https:; " .
     "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://cdn.datatables.net; " .
-    "frame-src 'self' https://*.assoconnect.com https://challenges.cloudflare.com " .
-        "https://www.google.com https://maps.google.com; " .
-    "connect-src 'self' https://*.assoconnect.com https://cdn.jsdelivr.net https://challenges.cloudflare.com " .
-        "https://photon.komoot.io; " .
+    "frame-src 'self' https://challenges.cloudflare.com https://www.google.com https://maps.google.com " . $cspAsso . "; " .
+    "connect-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com https://photon.komoot.io " . $cspAsso . "; " .
     "object-src 'none'; " .
     "base-uri 'self';"
 );
