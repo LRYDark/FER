@@ -271,6 +271,15 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
           <?php endforeach; ?>
           <?php endforeach; ?>
 
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">Journal d'activité des contenus</td></tr>
+          <tr>
+            <td>Voir les logs (Timeline, Actualités, Partenaires, Albums)</td>
+            <?= permCell('admin',  'actions', 'content.logs.view', $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   'actions', 'content.logs.view', $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', 'actions', 'content.logs.view', $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', 'actions', 'content.logs.view', $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+
           <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">Actions sur les pages d'administration</td></tr>
 
           <?php
@@ -278,6 +287,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'settings.write'    => 'Modifier les Réglages',
             'mail.write'        => 'Modifier les paramètres mail (Template / Google / Notifications)',
             'mail.send'         => 'Envoyer des mails (onglet « Envoi de mail »)',
+            'mail.newsletter'   => 'Gérer les abonnés newsletter (voir / supprimer)',
             'qrcode.write'      => 'Créer / supprimer des QR Codes',
             'connexions.write'  => 'Bannir / débannir IP, révoquer appareils (Connexions)',
             'logs.write'        => 'Vider les fichiers de logs',
@@ -354,6 +364,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'settings.inscription.header'      => 'En-tête du site d\'inscription',
             'settings.inscription.params'      => 'Paramètres d\'inscription',
             'settings.inscription.assoconnect' => 'Liaison AssoConnect',
+            'settings.inscription.cspdomains'  => 'Domaines autorisés AssoConnect (CSP)',
           ];
           foreach ($inscriptionCardActions as $k => $label): ?>
           <tr>
@@ -652,10 +663,13 @@ const ALL_ACTIONS = [
   { key: 'albums.create',                 label: 'Albums : cr\u00e9er',       group: 'albums' },
   { key: 'albums.edit',                   label: 'Albums : modifier',         group: 'albums' },
   { key: 'albums.delete',                 label: 'Albums : supprimer',        group: 'albums' },
+  // Journal d'activité des contenus
+  { key: 'content.logs.view',             label: 'Voir les logs des contenus', group: 'content' },
   // Pages d'admin
   { key: 'settings.write',                label: 'Modifier les R\u00e9glages',     group: 'admin' },
   { key: 'mail.write',                    label: 'Modifier les param\u00e8tres mail',group: 'admin' },
   { key: 'mail.send',                     label: 'Envoyer des mails',              group: 'admin' },
+  { key: 'mail.newsletter',               label: 'G\u00e9rer abonn\u00e9s newsletter', group: 'admin' },
   { key: 'qrcode.write',                  label: 'Cr\u00e9er/supprimer QR',        group: 'admin' },
   { key: 'connexions.write',              label: 'G\u00e9rer connexions',          group: 'admin' },
   { key: 'logs.write',                    label: 'Vider les logs',                 group: 'admin' },
@@ -675,6 +689,7 @@ const ALL_ACTIONS = [
   { key: 'settings.inscription.header',      label: 'Inscription : En-tête du site', group: 'settings' },
   { key: 'settings.inscription.params',      label: 'Inscription : Paramètres d\'inscription', group: 'settings' },
   { key: 'settings.inscription.assoconnect', label: 'Inscription : Liaison AssoConnect',   group: 'settings' },
+  { key: 'settings.inscription.cspdomains',  label: 'Inscription : Domaines autorisés AssoConnect', group: 'settings' },
 ];
 // Initialisé depuis PHP avec les vrais défauts (BDD ou hardcodés) — mis à jour en live
 // quand l'admin modifie le tableau "Droits par rôle".

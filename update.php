@@ -105,6 +105,28 @@ $migrations = [
     // depuis "Gestion des champs du formulaire".
     "ALTER TABLE `forms` ADD COLUMN `visible_saisie_multiple` TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE `forms` ADD COLUMN `required_saisie_multiple` TINYINT(1) NOT NULL DEFAULT 0",
+
+    // AssoConnect : lien direct (bouton de repli affiché sous le formulaire intégré).
+    "ALTER TABLE `setting` ADD COLUMN `assoconnect_url` VARCHAR(512) DEFAULT NULL",
+    // AssoConnect : domaines autorisés dans la CSP (gérables depuis les Réglages).
+    "ALTER TABLE `setting` ADD COLUMN `assoconnect_csp_domains` TEXT DEFAULT NULL",
+
+    // Journal d'activité des contenus (albums, partenaires, actualités, timeline) :
+    // trace création / modification / corbeille / restauration / suppression définitive
+    // et l'auteur de chaque action. Affiché via l'onglet « Logs » (droit content.logs.view).
+    "CREATE TABLE IF NOT EXISTS `content_logs` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `content_type` VARCHAR(20) NOT NULL,
+      `entity_type` VARCHAR(40) DEFAULT NULL,
+      `entity_id` INT DEFAULT NULL,
+      `entity_title` VARCHAR(255) DEFAULT NULL,
+      `action` VARCHAR(20) NOT NULL,
+      `user_id` INT DEFAULT NULL,
+      `user_email` VARCHAR(255) DEFAULT NULL,
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX `idx_content` (`content_type`, `created_at`),
+      INDEX `idx_created` (`created_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 ];
 
 $results = [];

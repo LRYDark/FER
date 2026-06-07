@@ -3,7 +3,10 @@
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
-    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    # payment=* : autorise l'iframe de paiement AssoConnect (page d'inscription) à
+    # utiliser l'API de paiement (Adyen / 3D-Secure). Sans ça, le navigateur bloque
+    # le paiement dans l'iframe ("Permissions policy 'Payment' check failed").
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=*"
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
     # CSP géré dynamiquement par PHP (config/config.php) avec nonce par requête
 </IfModule>

@@ -8,6 +8,8 @@ $canEdit   = canDoAction('albums.edit');
 $canTrash  = canDoAction('albums.trash');
 $canDelete = canDoAction('albums.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
+require_once __DIR__ . '/../config/content-log.php';
+$canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
 require 'navbar-data.php';
 
 // Détection de la migration pour choisir entre soft-delete (trash) et hard-delete.
@@ -110,6 +112,7 @@ if (isset($_POST['update_year'])) {
       $stmt->execute([$year, $title, $yearId]);
     }
 
+    logContentAction($pdo, 'albums', 'edit', $yearId, $title !== '' ? $title : $year, 'année');
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise à jour.'];
   } catch (PDOException $e) {
@@ -171,6 +174,7 @@ if (isset($_POST['update_album'])) {
       $stmt = $pdo->prepare("UPDATE photo_albums SET album_title = ?, album_link = ?, album_desc = ? WHERE id = ?");
       $stmt->execute([$album_title, $album_link, $album_desc, $albumId]);
     }
+    logContentAction($pdo, 'albums', 'edit', $albumId, $album_title, 'album');
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album mis à jour.'];
   } catch (PDOException $e) {
@@ -208,6 +212,7 @@ if (isset($_POST['add_album'])) {
     }
   }
 
+  $newId = null;
   try {
     if ($albumType === 'local') {
       // Create album first, then create folder with album ID
@@ -226,9 +231,11 @@ if (isset($_POST['add_album'])) {
       if ($safeName) {
         $stmt = $pdo->prepare("INSERT INTO photo_albums (year_id, album_title, album_link, album_type, album_img, album_desc) VALUES (?, ?, ?, 'link', ?, ?)");
         $stmt->execute([$yearId, $album_title, $album_link, $safeName, $album_desc]);
+        $newId = $pdo->lastInsertId();
       }
     }
 
+    if ($newId) logContentAction($pdo, 'albums', 'create', (int)$newId, $album_title, 'album');
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album ajouté.'];
   } catch (PDOException $e) {
@@ -253,7 +260,7 @@ if (isset($_POST['delete_album'])) {
 
   try {
     // Get album info to check type
-    $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT album_title, album_img, album_type, album_link FROM photo_albums WHERE id = ?");
     $stmt->execute([$albumId]);
     $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -275,6 +282,7 @@ if (isset($_POST['delete_album'])) {
     $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
     $stmt->execute([$albumId]);
 
+    logContentAction($pdo, 'albums', 'delete', $albumId, (string)($albumRow['album_title'] ?? ''), 'album');
     $_SESSION['reopen_modal'] = $yearId;
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé définitivement.'];
   } catch (PDOException $e) {
@@ -305,6 +313,7 @@ if (isset($_POST['add_year'])) {
       $stmt = $pdo->prepare("INSERT INTO photo_years (year, title) VALUES (?, ?)");
       $stmt->execute([$year, $title]);
     }
+    logContentAction($pdo, 'albums', 'create', (int)$pdo->lastInsertId(), $title !== '' ? $title : $year, 'année');
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année ajoutée.'];
   } catch (PDOException $e) {
     error_log('[ALBUMS] add_year: ' . $e->getMessage());
@@ -355,6 +364,7 @@ if (isset($_POST['delete_year'])) {
     exit;
   }
 
+  $yearTitle = (string)$pdo->query("SELECT COALESCE(NULLIF(title,''), year) FROM photo_years WHERE id = " . $yearId)->fetchColumn();
   try {
     if ($migrationDone) {
       // Soft-delete the year
@@ -363,6 +373,7 @@ if (isset($_POST['delete_year'])) {
       // Soft-delete all child albums
       $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NOW() WHERE year_id = ?");
       $stmt->execute([$yearId]);
+      logContentAction($pdo, 'albums', 'trash', $yearId, $yearTitle, 'année');
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année mise en corbeille.'];
       header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
     } else {
@@ -383,6 +394,7 @@ if (isset($_POST['delete_year'])) {
       $stmt1->execute([$yearId]);
       $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
       $stmt2->execute([$yearId]);
+      logContentAction($pdo, 'albums', 'delete', $yearId, $yearTitle, 'année');
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée.'];
       header("Location: " . $_SERVER['PHP_SELF']);
     }
@@ -406,12 +418,14 @@ if ($migrationDone) {
     }
 
     try {
+      $rTitle = (string)$pdo->query("SELECT COALESCE(NULLIF(title,''), year) FROM photo_years WHERE id = " . $yearId)->fetchColumn();
       $stmt = $pdo->prepare("UPDATE photo_years SET deleted_at = NULL WHERE id = ?");
       $stmt->execute([$yearId]);
 
       $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NULL WHERE year_id = ?");
       $stmt->execute([$yearId]);
 
+      logContentAction($pdo, 'albums', 'restore', $yearId, $rTitle, 'année');
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année restaurée.'];
     } catch (PDOException $e) {
       error_log('[ALBUMS] restore_year: ' . $e->getMessage());
@@ -433,9 +447,11 @@ if ($migrationDone) {
     }
 
     try {
+      $rTitle = (string)$pdo->query("SELECT album_title FROM photo_albums WHERE id = " . $albumId)->fetchColumn();
       $stmt = $pdo->prepare("UPDATE photo_albums SET deleted_at = NULL WHERE id = ?");
       $stmt->execute([$albumId]);
 
+      logContentAction($pdo, 'albums', 'restore', $albumId, $rTitle, 'album');
       $_SESSION['reopen_modal'] = $yearId;
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album restauré.'];
     } catch (PDOException $e) {
@@ -458,6 +474,7 @@ if ($migrationDone) {
     }
 
     try {
+      $yearTitle = (string)$pdo->query("SELECT COALESCE(NULLIF(title,''), year) FROM photo_years WHERE id = " . $yearId)->fetchColumn();
       // Delete image files and local folders for all albums
       $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE year_id = ?");
       $stmt->execute([$yearId]);
@@ -478,6 +495,7 @@ if ($migrationDone) {
       $stmt2 = $pdo->prepare("DELETE FROM photo_years WHERE id = ?");
       $stmt2->execute([$yearId]);
 
+      logContentAction($pdo, 'albums', 'delete', $yearId, $yearTitle, 'année');
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Année supprimée définitivement.'];
     } catch (PDOException $e) {
       error_log('[ALBUMS] permanent_delete_year: ' . $e->getMessage());
@@ -500,7 +518,7 @@ if ($migrationDone) {
 
     try {
       // Get album info
-      $stmt = $pdo->prepare("SELECT album_img, album_type, album_link FROM photo_albums WHERE id = ?");
+      $stmt = $pdo->prepare("SELECT album_title, album_img, album_type, album_link FROM photo_albums WHERE id = ?");
       $stmt->execute([$albumId]);
       $albumRow = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -522,6 +540,7 @@ if ($migrationDone) {
       $stmt = $pdo->prepare("DELETE FROM photo_albums WHERE id = ?");
       $stmt->execute([$albumId]);
 
+      logContentAction($pdo, 'albums', 'delete', $albumId, (string)($albumRow['album_title'] ?? ''), 'album');
       $_SESSION['reopen_modal'] = $yearId;
       $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album supprimé définitivement.'];
     } catch (PDOException $e) {
@@ -537,6 +556,8 @@ if ($migrationDone) {
 // ─── Filter logic ───
 $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
 $isTrashed = false;
+$isLogs = ($filter === 'logs' && $canViewLogs);
+$logs = $isLogs ? fetchContentLogs($pdo, 'albums') : [];
 $years = [];
 $albumsByYear = [];
 $countAll = 0;
@@ -760,17 +781,24 @@ try {
                 <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
               </a>
               <?php endif; ?>
+              <?php if ($canViewLogs): ?>
+              <a href="?filter=logs" class="<?= $isLogs ? 'active' : '' ?>">
+                <i class="bi bi-clock-history"></i> Logs
+              </a>
+              <?php endif; ?>
             </div>
             <?php endif; ?>
 
-            <?php if (!$isTrashed && $canCreate): ?>
+            <?php if (!$isTrashed && !$isLogs && $canCreate): ?>
             <!-- Bouton pour ajouter une année -->
             <button class="btn btn-primary mb-4" data-bs-toggle="modal" data-bs-target="#modalAddYear">
               <i class="bi bi-plus-lg"></i> Ajouter une Année
             </button>
             <?php endif; ?>
 
-            <?php if (empty($years)): ?>
+            <?php if ($isLogs): ?>
+              <?= renderContentLogs($logs) ?>
+            <?php elseif (empty($years)): ?>
               <div class="text-center text-muted py-5">
                 <i class="bi bi-images" style="font-size:3rem;"></i>
                 <p class="mt-2"><?= $isTrashed ? 'La corbeille est vide.' : 'Aucune année trouvée.' ?></p>

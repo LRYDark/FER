@@ -8,6 +8,8 @@ $canEdit   = canDoAction('news.edit');
 $canTrash  = canDoAction('news.trash');
 $canDelete = canDoAction('news.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
+require_once __DIR__ . '/../config/content-log.php';
+$canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -112,10 +114,12 @@ if (isset($_POST['add_news'])) {
             $status = isset($_POST['status']) && in_array($_POST['status'], ['published', 'draft']) ? $_POST['status'] : 'draft';
             $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`, status) VALUES (?, ?, ?, NOW(), 0, 0, ?)");
             $stmt->execute([$imgName, $title, $desc, $status]);
-            newsArticleMaybeNotify($pdo, (int)$pdo->lastInsertId());
+            $newId = (int)$pdo->lastInsertId();
+            newsArticleMaybeNotify($pdo, $newId);
         } else {
             $stmt = $pdo->prepare("INSERT INTO news (img_article, title_article, desc_article, date_publication, `like`, `dislike`) VALUES (?, ?, ?, NOW(), 0, 0)");
             $stmt->execute([$imgName, $title, $desc]);
+            $newId = (int)$pdo->lastInsertId();
         }
     } catch (PDOException $e) {
         error_log('[NEWS] add_news: ' . $e->getMessage());
@@ -128,6 +132,7 @@ if (isset($_POST['add_news'])) {
         header("Location: " . $_SERVER['PHP_SELF']);
         exit;
     }
+    logContentAction($pdo, 'news', 'create', $newId ?? null, $title, 'article');
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article ajouté avec succès.'];
     if ($isAjax) {
         header('Content-Type: application/json');
@@ -198,6 +203,7 @@ if (isset($_POST['update_news'])) {
         exit;
     }
 
+    logContentAction($pdo, 'news', 'edit', $id, $title, 'article');
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis à jour avec succès.'];
     $_SESSION['reopen_news_modal'] = $id;
     if ($isAjax) {
@@ -217,21 +223,23 @@ if (isset($_POST['update_news'])) {
 // ─── Delete news ───
 if (isset($_POST['delete_news'])) {
     $id = (int)($_POST['news_id'] ?? 0);
+    $delInfoStmt = $pdo->prepare("SELECT title_article, img_article FROM news WHERE id = ?");
+    $delInfoStmt->execute([$id]);
+    $delInfo = $delInfoStmt->fetch(PDO::FETCH_ASSOC) ?: ['title_article' => '', 'img_article' => ''];
     try {
         if ($migrationDone) {
             $stmt = $pdo->prepare("UPDATE news SET deleted_at = NOW() WHERE id = ?");
             $stmt->execute([$id]);
+            logContentAction($pdo, 'news', 'trash', $id, (string)$delInfo['title_article'], 'article');
             $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article mis en corbeille.'];
             header("Location: " . $_SERVER['PHP_SELF'] . "?filter=" . ($_GET['filter'] ?? ''));
         } else {
-            $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
-            $stmt->execute([$id]);
-            $img = $stmt->fetchColumn();
-            if ($img && file_exists("../files/_news/" . $img)) {
-                unlink("../files/_news/" . $img);
+            if ($delInfo['img_article'] && file_exists("../files/_news/" . $delInfo['img_article'])) {
+                unlink("../files/_news/" . $delInfo['img_article']);
             }
             $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
             $stmt->execute([$id]);
+            logContentAction($pdo, 'news', 'delete', $id, (string)$delInfo['title_article'], 'article');
             $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé.'];
             header("Location: " . $_SERVER['PHP_SELF']);
         }
@@ -248,8 +256,10 @@ if ($migrationDone) {
     if (isset($_POST['restore_news'])) {
         $id = (int)($_POST['news_id'] ?? 0);
         try {
+            $rTitle = (string)$pdo->query("SELECT title_article FROM news WHERE id = " . $id)->fetchColumn();
             $stmt = $pdo->prepare("UPDATE news SET deleted_at = NULL WHERE id = ?");
             $stmt->execute([$id]);
+            logContentAction($pdo, 'news', 'restore', $id, $rTitle, 'article');
             $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article restauré.'];
         } catch (PDOException $e) {
             error_log('[NEWS] restore_news: ' . $e->getMessage());
@@ -263,16 +273,17 @@ if ($migrationDone) {
     if (isset($_POST['permanent_delete_news'])) {
         $id = (int)($_POST['news_id'] ?? 0);
         try {
-            $stmt = $pdo->prepare("SELECT img_article FROM news WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT title_article, img_article FROM news WHERE id = ?");
             $stmt->execute([$id]);
-            $img = $stmt->fetchColumn();
+            $pInfo = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['title_article' => '', 'img_article' => ''];
 
-            if ($img && file_exists("../files/_news/" . $img)) {
-                unlink("../files/_news/" . $img);
+            if ($pInfo['img_article'] && file_exists("../files/_news/" . $pInfo['img_article'])) {
+                unlink("../files/_news/" . $pInfo['img_article']);
             }
 
             $stmt = $pdo->prepare("DELETE FROM news WHERE id = ?");
             $stmt->execute([$id]);
+            logContentAction($pdo, 'news', 'delete', $id, (string)$pInfo['title_article'], 'article');
             $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Article supprimé définitivement.'];
         } catch (PDOException $e) {
             error_log('[NEWS] permanent_delete_news: ' . $e->getMessage());
@@ -287,6 +298,8 @@ if ($migrationDone) {
 $filter = isset($_GET['filter']) ? $_GET['filter'] : '';
 $search = trim($_GET['q'] ?? '');
 $isTrashed = false;
+$isLogs = ($filter === 'logs' && $canViewLogs);
+$logs = $isLogs ? fetchContentLogs($pdo, 'news') : [];
 $perPage = 12;
 $page = max(1, (int) ($_GET['page'] ?? 1));
 
@@ -503,10 +516,16 @@ if ($migrationDone) {
       <i class="bi bi-trash3"></i> Corbeille <span class="badge bg-danger"><?= $countTrashed ?></span>
     </a>
     <?php endif; ?>
+    <?php if ($canViewLogs): ?>
+    <a href="?filter=logs" class="<?= $isLogs ? 'active' : '' ?>">
+      <i class="bi bi-clock-history"></i> Logs
+    </a>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 
   <!-- Search bar + Add button row -->
+  <?php if (!$isLogs): ?>
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <form class="news-search-bar" method="get" action="">
       <input type="hidden" name="filter" value="<?= htmlspecialchars($filter) ?>">
@@ -524,6 +543,13 @@ if ($migrationDone) {
     </button>
     <?php endif; ?>
   </div>
+  <?php endif; ?>
+
+  <?php if ($isLogs): ?>
+  <div class="content-loaded" style="display:none;">
+    <?= renderContentLogs($logs) ?>
+  </div>
+  <?php else: ?>
 
   <!-- Spinner de chargement -->
   <div id="loadingSpinner" class="text-center py-5">
@@ -747,6 +773,7 @@ if ($migrationDone) {
   <?php endif; ?>
 
   <?php endif; ?>
+  <?php endif; /* fin vue normale vs logs */ ?>
 
   <!-- Modal Ajouter -->
   <div class="modal fade" id="modalAddNews" tabindex="-1">

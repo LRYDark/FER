@@ -38,6 +38,7 @@ $postCardMap = [
     'save_header'              => ['inscription', 'header'],
     'save_inscription_params'  => ['inscription', 'params'],
     'LinkAssoConnect'          => ['inscription', 'assoconnect'],
+    'save_csp_domains'         => ['inscription', 'cspdomains'],
     // Parcours
     'parcours'                 => ['parcours', null],
     'uploadGalerie'            => ['parcours', null],
@@ -94,6 +95,11 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 $assoconnectJs      = $data['assoconnect_js']     ?? null;
 $assoconnectIframe  = $data['assoconnect_iframe'] ?? null;
+$assoconnectUrl     = $data['assoconnect_url']    ?? '';
+// Domaines autorisés dans la CSP pour AssoConnect (carte dédiée). Vide = défauts
+// appliqués par config.php. On préremplit l'affichage avec ces défauts.
+$assoconnectCspDomains = trim((string)($data['assoconnect_csp_domains'] ?? ''));
+$assoconnectCspDefault = "https://*.assoconnect.com\nhttps://*.team.blue\nhttps://*.adyen.com";
 $title  = $data['title']   ?? '';
 $navbar_logo = $data['navbar_logo'] ?? 'logo_fer_rose.png';
 $footer_logo = $data['footer_logo'] ?? 'logo_blanc.png';
@@ -1078,33 +1084,52 @@ if (isset($_POST['save_inscription_params'])) {
 -------------------------------------------------------------------------- */
 if (isset($_POST['LinkAssoConnect'])) {
 
-    /* a) Décodage Base64 des champs (encodés côté JS pour contourner le WAF) */
+    /* a) Décodage Base64 des champs HTML (encodés côté JS pour contourner le WAF) */
     $iframe = $isAjax ? trim(decodeHtmlField($_POST['assoconnect_iframe'] ?? '')) : trim($_POST['assoconnect_iframe'] ?? '');
     $script = $isAjax ? trim(decodeHtmlField($_POST['assoconnect_js']     ?? '')) : trim($_POST['assoconnect_js']     ?? '');
+    $url    = trim($_POST['assoconnect_url'] ?? '');
 
+    /* b) Validation */
+    $errors = [];
+
+    // Lien direct (facultatif) : doit être une URL https valide si fourni
+    if ($url !== '' && (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https://#i', $url))) {
+        $errors[] = 'Le lien direct AssoConnect doit être une URL valide commençant par https://.';
+    }
+
+    // Code DIV + Script : obligatoires et au bon format
     if ($iframe === '' || $script === '') {
-         addToast('danger', 'Les deux champs sont obligatoires.');
-    } elseif (!preg_match('#^<div[^>]+data-collect-id=["\'][A-Z0-9]{26}["\']#i', $iframe)) {
-         addToast('danger', 'Le code DIV doit contenir un data-collect-id AssoConnect valide.');
-    } elseif (!preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', $script)) {
-         addToast('danger', 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).');
+        $errors[] = 'Le code DIV et le code script sont obligatoires.';
+    } else {
+        if (!preg_match('#^<div[^>]+data-collect-id=["\'][A-Z0-9]{26}["\']#i', $iframe)) {
+            $errors[] = 'Le code DIV doit contenir un data-collect-id AssoConnect valide.';
+        }
+        if (!preg_match('#^<script[^>]+src=["\']https://[a-z0-9.-]*\.assoconnect\.com/#i', $script)) {
+            $errors[] = 'Le script doit pointer vers un domaine AssoConnect (https://xxx.assoconnect.com).';
+        }
+    }
+
+    if (!empty($errors)) {
+        foreach ($errors as $e) addToast('danger', $e, 10000);
     } else {
 
-        /* b) Requête préparée — on stocke le tag complet */
+        /* c) Requête préparée — code DIV + script + lien direct */
         $upd = $pdo->prepare(
             'UPDATE setting
                 SET assoconnect_iframe = :iframe,
-                    assoconnect_js     = :script
+                    assoconnect_js     = :script,
+                    assoconnect_url    = :url
               WHERE id = :id'
         );
 
         $ok = $upd->execute([
             'iframe' => $iframe,
             'script' => $script,
+            'url'    => $url !== '' ? $url : null,
             'id'     => 1
         ]);
 
-        /* c) Gestion du résultat */
+        /* d) Gestion du résultat */
         if ($ok) {
             if ($upd->rowCount() > 0) {
                 addToast('success', 'Liaison AssoConnect enregistrée !');
@@ -1114,6 +1139,7 @@ if (isset($_POST['LinkAssoConnect'])) {
 
             $assoconnectIframe = $iframe;
             $assoconnectJs     = $script;
+            $assoconnectUrl    = $url;
         } else {
             $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
             addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
@@ -1124,6 +1150,33 @@ if (isset($_POST['LinkAssoConnect'])) {
         echo json_encode(['ok' => true]);
         exit;
     }
+}
+
+/* --------------------------------------------------------------------------
+   Domaines autorisés AssoConnect (CSP) — carte dédiée
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_csp_domains'])) {
+    $raw   = (string)($_POST['assoconnect_csp_domains'] ?? '');
+    $valid = [];
+    $rejected = [];
+    foreach (preg_split('/[\r\n,]+/', $raw) as $d) {
+        $d = trim($d);
+        if ($d === '') continue;
+        // Sécurité : uniquement des origines https (sous-domaine joker autorisé).
+        if (preg_match('#^https://(\*\.)?[a-z0-9.-]+\.[a-z]{2,}$#i', $d)) {
+            $valid[$d] = true; // clé = dédoublonnage
+        } else {
+            $rejected[] = $d;
+        }
+    }
+    $store = implode("\n", array_keys($valid));
+    $pdo->prepare('UPDATE setting SET assoconnect_csp_domains = :d WHERE id = 1')
+        ->execute(['d' => $store !== '' ? $store : null]);
+    $assoconnectCspDomains = $store;
+    if (!empty($rejected)) {
+        addToast('warning', count($rejected) . ' domaine(s) ignoré(s) (format invalide, attendu https://...) : ' . htmlspecialchars(implode(', ', $rejected)), 10000);
+    }
+    addToast('success', 'Domaines autorisés enregistrés. Rechargez la page d\'inscription pour appliquer.');
 }
 
 /* --------------------------------------------------------------------------
@@ -2574,7 +2627,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
     elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
-    elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params'])) $activeTab = 'inscription';
+    elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params']) || isset($_POST['save_csp_domains'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
     elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
@@ -3606,36 +3659,80 @@ if (!$canTab($activeTab)) {
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Liaison AssoConnect</h2>
-                    <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+        <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+          .ac-form .ac-label{font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+          .ac-form .ac-label .ac-opt{font-weight:500;color:#94a3b8;font-size:11px}
+          .ac-hint{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.45}
+          .ac-field{margin-bottom:14px}.ac-field:last-child{margin-bottom:0}
+          .ac-form input.ac-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+          .ac-form input::placeholder{color:#cbd5e1;opacity:1;font-style:italic}
+          .ac-form input::-webkit-input-placeholder{color:#cbd5e1;font-style:italic}
+          .ac-form input:-ms-input-placeholder{color:#cbd5e1;font-style:italic}
+          .ac-divider{border:0;border-top:1px solid #f0e8eb;margin:18px 0}
+        </style>
+                    <form action="" method="post" enctype="multipart/form-data" class="ac-form">
                         <?= csrf_field() ?>
-                        <div class="form-group mb-3">
-                            <label for="divCode">Code DIV Assoconnect</label>
-                            <input type="text"
-                                class="form-control"
-                                id="divCode"
-                                name="assoconnect_iframe"
-                                placeholder="&lt;div class=&quot;iframe-asc-container&quot; ...&gt;&lt;/div&gt;"
-                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
+
+                        <p class="ac-hint" style="margin-top:0">Collez le code fourni par AssoConnect (onglet « Diffusion » &rarr; « Afficher le formulaire de campagne sur un site externe »).</p>
+
+                        <div class="ac-field">
+                            <label class="ac-label" for="divCode"><i class="bi bi-file-earmark-code"></i>Code DIV</label>
+                            <input type="text" class="form-control ac-code" id="divCode" name="assoconnect_iframe"
+                                placeholder='<div class="iframe-asc-container" data-type="collect" ...></div>'
+                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>">
+                        </div>
+                        <div class="ac-field">
+                            <label class="ac-label" for="scriptCode"><i class="bi bi-filetype-js"></i>Code Script</label>
+                            <input type="text" class="form-control ac-code" id="scriptCode" name="assoconnect_js"
+                                placeholder='<script src="https://....assoconnect.com/..."></script>'
+                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>">
                         </div>
 
-                        <div class="form-group mb-3">
-                            <label for="scriptCode">Code Script Assoconnect</label>
-                            <input type="text"
-                                class="form-control"
-                                id="scriptCode"
-                                name="assoconnect_js"
-                                placeholder="&lt;script src=&quot;https://...assoconnect.com/...&quot;&gt;&lt;/script&gt;"
-                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>"
-                                required>
+                        <hr class="ac-divider">
+
+                        <!-- Lien direct (bouton de repli) -->
+                        <div class="ac-field">
+                            <label class="ac-label" for="acUrl"><i class="bi bi-box-arrow-up-right"></i>Lien direct AssoConnect <span class="ac-opt">(facultatif)</span></label>
+                            <input type="url" class="form-control" id="acUrl" name="assoconnect_url"
+                                placeholder="https://www.assoconnect.com/collect/..."
+                                value="<?= htmlspecialchars($assoconnectUrl, ENT_QUOTES, 'UTF-8'); ?>">
+                            <p class="ac-hint">Affiché comme bouton de secours sous le formulaire sur la page d'inscription, dès qu'un lien valide est saisi — utile si le formulaire intégré ne se charge pas.</p>
                         </div>
-                        <div class="col-12 text-end">
+
+                        <div class="text-end mt-3">
                             <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
                         </div>
                     </form>
       </div><!-- /setting-card asso -->
     </div><!-- /col-lg-6 -->
     <?php endif; // canCard('inscription','assoconnect') ?>
+
+    <?php if ($canCard('inscription', 'cspdomains')): ?>
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Domaines autorisés (AssoConnect)</h2>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <input type="hidden" name="active_tab" value="inscription">
+          <div class="col-12">
+            <label class="form-label fw-semibold" for="cspDomains"><i class="bi bi-shield-lock me-1"></i>Domaines autorisés dans la politique de sécurité (CSP)</label>
+            <textarea class="form-control" id="cspDomains" name="assoconnect_csp_domains" rows="5"
+              style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px"
+              placeholder="https://*.assoconnect.com&#10;https://*.team.blue&#10;https://*.adyen.com"><?= htmlspecialchars($assoconnectCspDomains !== '' ? $assoconnectCspDomains : $assoconnectCspDefault, ENT_QUOTES, 'UTF-8'); ?></textarea>
+            <div class="form-text">
+              Un domaine par ligne (format <code>https://...</code>, sous-domaine joker autorisé, ex&nbsp;: <code>https://*.assoconnect.com</code>).
+              Ces domaines sont autorisés à charger le formulaire et le paiement AssoConnect (iframe, scripts, paiement Adyen).
+              Si AssoConnect change un domaine et que le formulaire ne se charge plus, ajoutez-le ici — sans toucher au code.
+              Laisser vide réapplique les domaines par défaut.
+            </div>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_csp_domains" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div><!-- /setting-card csp -->
+    </div><!-- /col-lg-6 -->
+    <?php endif; // canCard('inscription','cspdomains') ?>
 
   </div><!-- /row -->
 </div><!-- /tab-inscription -->
