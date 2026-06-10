@@ -232,7 +232,7 @@ if (!empty($textsRaw)) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Bebas+Neue&family=Oswald:wght@700&family=Montserrat:wght@700;900&family=Dancing+Script:wght@700&family=Lobster&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../css/accueil.css">
+  <link rel="stylesheet" href="../css/accueil.css?v=<?= @filemtime(__DIR__ . '/../css/accueil.css') ?: time() ?>">
 <?php include __DIR__ . '/../config/theme.php'; ?>
 </head>
 
@@ -699,6 +699,9 @@ if (!empty($textsRaw)) {
         'geometry'                => $accueilGeometry,
         'texts'                   => $accueilTexts,
         '_editor'                 => $isEditorMode,
+        // Accès BDD pour les placeholders {count_last}/{count_YYYY} et la source
+        // "dernière archive" du compteur d'inscrits
+        'pdo'                     => $pdo,
     ];
 
     // ── Anciennes closures (NON UTILISÉES — gardées dead code, le rendu réel est dans config/accueil_sections.php) ──
@@ -2363,13 +2366,19 @@ foreach ($accueilLayout as $_row) {
   //   (PAS de fallback sur la taille desktop, sinon l'admin voyait "100% sur slider mais
   //    élément plus grand" car la taille desktop fuyait visuellement et numériquement).
   // - En desktop : on lit data-edit-size-current.
+  // EXCEPTION reg_bar.* : le CSS de la card inscriptions hérite volontairement de la
+  // taille desktop en mobile (var(--rb-scale-m, var(--rb-scale, 1))). Tant qu'aucune
+  // taille mobile n'a été sauvée, la valeur EFFECTIVE en mobile est donc la valeur
+  // desktop — le slider doit l'afficher, sinon "100% au slider mais élément plus
+  // grand" et saut visuel au premier mouvement.
   function getEditPayload(ed, type) {
     var src = '';
     if (ed.tagName === 'IMG') src = ed.getAttribute('src') || '';
     else if (ed.querySelector('source')) src = ed.querySelector('source').getAttribute('src') || '';
     var isMobileView = window.innerWidth < 1040;
+    var isRbSize = (ed.dataset.editSize || '').indexOf('reg_bar.') === 0;
     var sizeCurrentRaw = isMobileView
-      ? (ed.dataset.editSizeCurrentMobile || '100')
+      ? (ed.dataset.editSizeCurrentMobile || (isRbSize ? (ed.dataset.editSizeCurrent || '100') : '100'))
       : (ed.dataset.editSizeCurrent       || '100');
     return {
       type: type,
@@ -2877,6 +2886,12 @@ foreach ($accueilLayout as $_row) {
         if (typeof window.__applyHeroPositionPct === 'function') {
           window.__applyHeroPositionPct();
         }
+        // Re-poste aussi la structure (rects des rows) au parent : après un switch
+        // device, le reflow change la largeur/les positions des rows mais PAS forcément
+        // la hauteur du document → debouncedSend (filtré sur la hauteur) ne se déclenche
+        // pas, et les overlays/traits pointillés gardent les positions de l'ancien layout
+        // (d'où le chevauchement). Appel direct = contourne ce filtre.
+        if (typeof sendLayoutStructure === 'function') sendLayoutStructure();
       }
       reapply();
       setTimeout(reapply, 50);
@@ -2981,12 +2996,20 @@ foreach ($accueilLayout as $_row) {
     // Édition déclenchée depuis la sidebar parent (clic sur un bouton "Modifier ce texte")
     // → simule un dblclick sur l'élément correspondant pour réutiliser le flow existant
     // (édition inline pour text simple, modal pour tinymce/image/video, etc.)
+    // Cas size-only (hero_timer, reg_bar.value…) : le dblclick est ignoré par design
+    // (rien à éditer en texte) → on émet une SÉLECTION à la place, ce qui ouvre le
+    // slider de taille dans la sidebar — sinon le bouton de la liste était sans effet.
     if (e.data.type === 'parent-trigger-edit' && e.data.field) {
       var target = document.querySelector('[data-edit-field="' + e.data.field + '"]');
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        var evt = new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window });
-        target.dispatchEvent(evt);
+        if (target.dataset.editKind === 'size-only') {
+          __lastEditField = target;
+          parent.postMessage(getEditPayload(target, 'editor-select-edit'), '*');
+        } else {
+          var evt = new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window });
+          target.dispatchEvent(evt);
+        }
       }
       return;
     }
@@ -3128,6 +3151,30 @@ foreach ($accueilLayout as $_row) {
         // on renvoie la structure au parent pour qu'il repositionne le contour
         // pointillé de la section (sinon il reste figé à l'ancienne hauteur).
         requestAnimationFrame(function() { sendLayoutStructure(); });
+        return;
+      }
+      // Tailles des textes de la card inscriptions (reg_bar.*_size[_mobile]) :
+      // appliquées via les CSS vars --rb-scale / --rb-scale-m (cf. accueil.css),
+      // jamais via font-size inline (qui écraserait les baselines responsive).
+      // L'élément est ciblé par data-edit-size (la clé de taille est partagée
+      // entre variantes urgence/solidaire, indépendante de data-edit-field).
+      // --rb-scale-m peut être posée même en vue desktop : elle n'a d'effet que
+      // sous le @media mobile, donc pas besoin du report "shouldApplyVisually".
+      if (/^reg_bar\..+_size(_mobile)?$/.test(key)) {
+        var rbMobile = /_mobile$/.test(key);
+        var rbBase = rbMobile ? key.replace(/_mobile$/, '') : key;
+        var rbVal = parseInt(val, 10) || 100;
+        document.querySelectorAll('[data-edit-size="' + rbBase + '"]').forEach(function(el) {
+          if (rbMobile) {
+            // Sync data-edit-size-current-mobile : sans ça le slider "oublierait"
+            // la valeur à la prochaine sélection (même piège que pour le hero).
+            el.dataset.editSizeCurrentMobile = String(rbVal);
+            el.style.setProperty('--rb-scale-m', rbVal / 100);
+          } else {
+            el.dataset.editSizeCurrent = String(rbVal);
+            el.style.setProperty('--rb-scale', rbVal / 100);
+          }
+        });
         return;
       }
       var isMobileKey  = /_size_mobile$/.test(key);
