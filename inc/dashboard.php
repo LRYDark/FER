@@ -341,6 +341,22 @@ tr.filters select, tr.filters input {
 }
 .col-toggle-dropdown label:hover { background: #fdf8f9; }
 
+/* « Show X entries » (DataTables) : garder tout sur une ligne et éviter que la
+   flèche du <select> ne chevauche le « 10 » (le select hérite parfois de
+   .form-select = block + width:100%, d'où l'empilement Show / 10 / entries). */
+#tbl_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: #475569; font-weight: 400; }
+#tbl_length select, #tbl_length .form-select {
+  display: inline-block !important;
+  width: auto !important;
+  min-width: 64px;
+  padding: 5px 30px 5px 10px;   /* place à droite pour la flèche */
+  font-size: 13px;
+  border: 1px solid #d4c4cb;
+  border-radius: 6px;
+  background-color: #fff;
+  background-position: right 9px center;  /* repositionne la flèche (Bootstrap .form-select) */
+}
+
 /* ═══ Petite retouche des filtres sous l'en-tête =========================== */
 tr.filters th{
   background:#f2f4f8;
@@ -1826,10 +1842,41 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     wrap.appendChild(dropdown);
     bar.appendChild(wrap);
 
-    // Insert bar before the table
+    // Insère la barre AU-DESSUS du tableau, mais HORS du conteneur à défilement
+    // horizontal (.table-responsive). Sinon la barre vit dans la zone qui défile :
+    // elle s'étire à la largeur (large) du tableau, donc le bouton « Colonnes »
+    // collé à droite part au milieu de la page quand on scrolle horizontalement.
+    // En la plaçant avant .table-responsive, elle reste à la largeur de la page
+    // (bouton toujours à droite) tout en gardant l'ordre : recherche → barre → tableau.
     var tableEl = document.getElementById('tbl');
-    var dtScroll = tableEl.closest('.dataTables_scrollBody') || tableEl.closest('.dataTables_wrapper table') || tableEl;
-    dtScroll.parentElement.insertBefore(bar, dtScroll);
+    var scrollBox = tableEl.closest('.table-responsive')
+                 || tableEl.closest('.dataTables_scrollBody')
+                 || tableEl.closest('.dataTables_wrapper')
+                 || tableEl.parentElement;
+    scrollBox.parentElement.insertBefore(bar, scrollBox);
+  }
+
+  // ── Sort le pied de tableau (info "Showing X to Y" + pagination) HORS du
+  //    conteneur à défilement horizontal (.table-responsive), pour qu'il reste
+  //    à la largeur de la page. Seul le tableau défile, pas l'info/pagination. ──
+  function moveTableFooterOut() {
+    var tableEl = document.getElementById('tbl');
+    if (!tableEl) return;
+    var scrollBox = tableEl.closest('.table-responsive');
+    if (!scrollBox) return;
+    var info     = document.getElementById('tbl_info');
+    var paginate = document.getElementById('tbl_paginate');
+    if (!info && !paginate) return;
+
+    var footer = document.getElementById('tblFooterBar');
+    if (!footer) {
+      footer = document.createElement('div');
+      footer.id = 'tblFooterBar';
+      footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;';
+      scrollBox.parentElement.insertBefore(footer, scrollBox.nextSibling); // juste après le tableau scrollable
+    }
+    if (info     && info.parentElement     !== footer) footer.appendChild(info);     // gauche
+    if (paginate && paginate.parentElement !== footer) footer.appendChild(paginate); // droite
   }
 
   // ── Init ──
@@ -1837,9 +1884,10 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     $('#tbl').on('init.dt', function() {
       restoreVisibility();
       buildColToggle();
+      moveTableFooterOut();
       initResize();
     });
-    $('#tbl').on('draw.dt', initResize);
+    $('#tbl').on('draw.dt', function() { moveTableFooterOut(); initResize(); });
   }
 })();
 

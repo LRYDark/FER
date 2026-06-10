@@ -36,6 +36,12 @@ function accueilEditableTexts(): array
 {
     return [
         'reg_bar.kicker_open'     => ['label' => 'Compteur — kicker (ouvert)', 'default' => 'Déjà inscrits'],
+        // Variantes du bloc gauche de la card inscriptions (option reg_bar.display_style).
+        // Le placeholder {count} est remplacé par le nombre d'inscrits au rendu.
+        'reg_bar.urgency_title'   => ['label' => 'Compteur — titre (version urgence)', 'default' => 'Inscrivez-vous vite !'],
+        'reg_bar.urgency_text'    => ['label' => 'Compteur — texte (version urgence)', 'default' => 'Les 100 premiers inscrits recevront un t-shirt offert 🎁'],
+        'reg_bar.moti_title'      => ['label' => 'Compteur — titre (version solidaire)', 'default' => 'Rejoignez le mouvement 💗'],
+        'reg_bar.moti_text'       => ['label' => 'Compteur — texte (version solidaire)', 'default' => 'Chaque inscription soutient la lutte contre le cancer. Ensemble, faisons la différence le jour J !'],
         'reg_bar.title_search'    => ['label' => 'Compteur — titre recherche', 'default' => 'Vérifier mon inscription'],
         'reg_bar.placeholder'     => ['label' => 'Compteur — placeholder email', 'default' => 'Votre adresse email'],
         'reg_bar.btn_check'       => ['label' => 'Compteur — bouton vérifier', 'default' => 'Vérifier'],
@@ -160,7 +166,41 @@ function buildAccueilSectionContext(PDO $pdo, array $data, array $actualites = [
         'styles'                  => $styles,
         'texts'                   => $texts,
         'geometry'                => $geometry,
+        // Accès BDD pour les placeholders {count_last}/{count_YYYY} (archives)
+        'pdo'                     => $pdo,
     ];
+}
+
+/**
+ * Helper : nombre d'inscrits d'une année ARCHIVÉE (tables registrations_YYYY créées
+ * par la route api archive-current). $year = null → dernière archive disponible.
+ * Retourne null si aucune archive (ou erreur SQL) ; résultats mémoïsés par requête.
+ */
+function accueilArchiveCount(?PDO $pdo, ?int $year = null): ?int
+{
+    static $cache = [];
+    if (!$pdo) return null;
+    $key = $year ?? 'last';
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    $result = null;
+    try {
+        // Liste des tables d'archives registrations_YYYY (filtrage strict par regex :
+        // pas d'injection possible, le nom recomposé ne contient que des chiffres).
+        $tables = $pdo->query("SHOW TABLES LIKE 'registrations%'")->fetchAll(PDO::FETCH_COLUMN);
+        $years = [];
+        foreach ($tables as $t) {
+            if (preg_match('/^registrations_(\d{4})$/', (string)$t, $m)) $years[] = (int)$m[1];
+        }
+        $target = $year !== null ? ($year && in_array($year, $years, true) ? $year : null)
+                                 : ($years ? max($years) : null);
+        if ($target !== null) {
+            $result = (int)$pdo->query("SELECT COUNT(*) FROM `registrations_{$target}`")->fetchColumn();
+        }
+    } catch (\Throwable $e) {
+        $result = null;
+    }
+    $cache[$key] = $result;
+    return $result;
 }
 
 /**
@@ -321,16 +361,100 @@ function renderAccueilSection_reg_bar(array $ctx): void {
     $placeholder = getAccueilText($ctx, 'reg_bar.placeholder',    'Votre adresse email');
     $btnCheck    = getAccueilText($ctx, 'reg_bar.btn_check',      'Vérifier');
     $hint        = getAccueilText($ctx, 'reg_bar.hint',           "Saisissez l'email utilisé lors de votre inscription.");
+    // Version du bloc gauche (option éditeur, comme news.card_style) :
+    //   'counter'    → kicker + nombre d'inscrits (par défaut, version historique)
+    //   'urgency'    → message d'urgence ("Inscrivez-vous vite", t-shirt offert…)
+    //   'motivation' → message solidaire, sans compteur
+    $displayStyle = (string)($ctx['styles']['reg_bar.display_style'] ?? 'counter');
+    if (!in_array($displayStyle, ['counter', 'urgency', 'motivation'], true)) $displayStyle = 'counter';
+    // Source du grand nombre de la version compteur :
+    //   'live'    → inscriptions de l'année en cours (défaut)
+    //   'archive' → dernière année archivée (tables registrations_YYYY)
+    $counterSource = (string)($ctx['styles']['reg_bar.counter_source'] ?? 'live');
+    if (!in_array($counterSource, ['live', 'archive'], true)) $counterSource = 'live';
+    $pdo = $ctx['pdo'] ?? null;
+    $displayCount = $count;
+    if ($counterSource === 'archive') {
+        // Fallback sur le compteur live si aucune archive n'existe encore.
+        $displayCount = accueilArchiveCount($pdo, null) ?? $count;
+    }
+    // Placeholders dans les textes de la card (kicker + variantes) :
+    //   {count}      → inscrits en direct (année en cours)
+    //   {count_last} → inscrits de la dernière année archivée
+    //   {count_2025} → inscrits d'une année archivée précise
+    // En mode éditeur on laisse les placeholders visibles tels quels pour que
+    // l'admin les édite sans figer le nombre courant.
+    $replaceCount = function (string $s) use ($count, $editable, $pdo): string {
+        if ($editable) return $s;
+        $s = str_replace('{count}', number_format($count, 0, ',', ' '), $s);
+        if (strpos($s, '{count_') !== false) {
+            $s = preg_replace_callback('/\{count_(last|\d{4})\}/', function ($m) use ($pdo) {
+                $n = accueilArchiveCount($pdo, $m[1] === 'last' ? null : (int)$m[1]);
+                return $n === null ? '0' : number_format($n, 0, ',', ' ');
+            }, $s);
+        }
+        return $s;
+    };
+    if ($displayStyle === 'urgency') {
+        $msgTitleKey = 'reg_bar.urgency_title';
+        $msgTextKey  = 'reg_bar.urgency_text';
+        $msgTitle    = getAccueilText($ctx, $msgTitleKey, 'Inscrivez-vous vite !');
+        $msgText     = getAccueilText($ctx, $msgTextKey,  'Les 100 premiers inscrits recevront un t-shirt offert 🎁');
+    } elseif ($displayStyle === 'motivation') {
+        $msgTitleKey = 'reg_bar.moti_title';
+        $msgTextKey  = 'reg_bar.moti_text';
+        $msgTitle    = getAccueilText($ctx, $msgTitleKey, 'Rejoignez le mouvement 💗');
+        $msgText     = getAccueilText($ctx, $msgTextKey,  'Chaque inscription soutient la lutte contre le cancer. Ensemble, faisons la différence le jour J !');
+    }
+    // Tailles personnalisées des textes de la card (slider de l'éditeur, 50-300 %).
+    // Appliquées via les variables CSS --rb-scale (desktop) / --rb-scale-m (mobile)
+    // multipliées par les tailles de base dans accueil.css (calc) — JAMAIS via
+    // font-size inline, qui écraserait les baselines responsive (les éléments de
+    // cette card sont des nœuds uniques, sans jumeaux PC/mobile comme le Hero).
+    // Les clés sont par EMPLACEMENT (msg_title partagé entre urgence/solidaire) :
+    // changer de version conserve les tailles réglées.
+    $rbSize = function (string $sizeKey) use ($ctx, $editable): array {
+        $styles = $ctx['styles'] ?? [];
+        $size = (int)($styles[$sizeKey] ?? 100);
+        if ($size < 50 || $size > 300) $size = 100;
+        $sizeMobile = isset($styles[$sizeKey . '_mobile']) ? (int)$styles[$sizeKey . '_mobile'] : null;
+        if ($sizeMobile !== null && ($sizeMobile < 50 || $sizeMobile > 300)) $sizeMobile = null;
+        $css = '';
+        if ($size !== 100) $css .= '--rb-scale:' . ($size / 100) . ';';
+        // ATTENTION : contrairement au desktop (fallback CSS = 1), une valeur mobile
+        // sauvée à 100 doit être émise quand même — le fallback CSS mobile est
+        // var(--rb-scale, 1) (héritage desktop), donc omettre --rb-scale-m:1 ferait
+        // ré-hériter la taille desktop au lieu de figer 100 %.
+        if ($sizeMobile !== null) $css .= '--rb-scale-m:' . ($sizeMobile / 100) . ';';
+        $attrs = '';
+        if ($editable) {
+            // data-edit-size déclenche le slider de taille de la sidebar (générique).
+            // Convention hero : data-edit-size-current-mobile émis uniquement si une
+            // valeur mobile a été explicitement sauvée.
+            $attrs = ' data-edit-size="' . $sizeKey . '" data-edit-size-current="' . $size . '"';
+            if ($sizeMobile !== null) {
+                $attrs .= ' data-edit-size-current-mobile="' . $sizeMobile . '"';
+            }
+        }
+        return [$css, $attrs];
+    };
+    [$cssRbKicker,   $attrsRbKicker]   = $rbSize('reg_bar.kicker_size');
+    [$cssRbValue,    $attrsRbValue]    = $rbSize('reg_bar.value_size');
+    [$cssRbMsgTitle, $attrsRbMsgTitle] = $rbSize('reg_bar.msg_title_size');
+    [$cssRbMsgText,  $attrsRbMsgText]  = $rbSize('reg_bar.msg_text_size');
+    [$cssRbTitleS,   $attrsRbTitleS]   = $rbSize('reg_bar.title_search_size');
+    [$cssRbBtn,      $attrsRbBtn]      = $rbSize('reg_bar.btn_check_size');
+    [$cssRbHint,     $attrsRbHint]     = $rbSize('reg_bar.hint_size');
     ?>
     <section class="reg-bar" id="reg-bar" aria-label="Inscriptions">
       <div class="reg-card">
         <?php if ($count === 0 && $accueil_active === 0): ?>
         <div class="reg-count">
-          <div class="reg-kicker">Inscriptions</div>
-          <div class="reg-value" style="font-size:1.2rem;">Fermées</div>
+          <div class="reg-kicker" style="<?= $cssRbKicker ?>">Inscriptions</div>
+          <div class="reg-value reg-value--closed" style="<?= $cssRbValue ?>">Fermées</div>
         </div>
         <div class="reg-search">
-          <div class="reg-title" style="display:flex;align-items:center;justify-content:center;"><span>Inscriptions actuellement fermées</span></div>
+          <div class="reg-title" style="display:flex;align-items:center;justify-content:center;<?= $cssRbTitleS ?>"><span>Inscriptions actuellement fermées</span></div>
           <?php if ($autoOpen && $now < $autoOpen): ?>
             <p style="margin-top:10px;font-size:1.075rem;color:#b5366b;display:flex;align-items:center;justify-content:center;">
               <span>Ouverture le <strong><?= $autoOpen->format('d/m/Y') ?></strong> à <strong><?= $autoOpen->format('H\hi') ?></strong></span>
@@ -340,21 +464,28 @@ function renderAccueilSection_reg_bar(array $ctx): void {
           <?php endif; ?>
         </div>
         <?php else: ?>
+        <?php if ($displayStyle === 'counter'): ?>
         <div class="reg-count">
-          <div class="reg-kicker" style="<?= getAccueilAlignStyle($ctx, 'reg_bar.kicker_open') ?>" <?= $editable ? 'data-edit-field="reg_bar.kicker_open" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($kickerOpen) ?></div>
-          <div class="reg-value"><?= number_format($count, 0, ',', ' ') ?></div>
+          <div class="reg-kicker" style="<?= getAccueilAlignStyle($ctx, 'reg_bar.kicker_open') . $cssRbKicker ?>"<?= $attrsRbKicker ?> <?= $editable ? 'data-edit-field="reg_bar.kicker_open" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($replaceCount($kickerOpen)) ?></div>
+          <div class="reg-value" style="<?= $cssRbValue ?>"<?= $attrsRbValue ?> <?= $editable ? 'data-edit-field="reg_bar.value" data-edit-kind="size-only" data-edit-section="reg_bar"' : '' ?>><?= number_format($displayCount, 0, ',', ' ') ?></div>
         </div>
+        <?php else: ?>
+        <div class="reg-count reg-count--message">
+          <div class="reg-msg-title" style="<?= getAccueilAlignStyle($ctx, $msgTitleKey) . $cssRbMsgTitle ?>"<?= $attrsRbMsgTitle ?> <?= $editable ? 'data-edit-field="' . $msgTitleKey . '" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($replaceCount($msgTitle)) ?></div>
+          <div class="reg-msg-text" style="<?= getAccueilAlignStyle($ctx, $msgTextKey) . $cssRbMsgText ?>"<?= $attrsRbMsgText ?> <?= $editable ? 'data-edit-field="' . $msgTextKey . '" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($replaceCount($msgText)) ?></div>
+        </div>
+        <?php endif; ?>
         <div class="reg-search">
-          <div class="reg-title" style="<?= getAccueilAlignStyle($ctx, 'reg_bar.title_search') ?>" <?= $editable ? 'data-edit-field="reg_bar.title_search" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($titleSearch) ?></div>
+          <div class="reg-title" style="<?= getAccueilAlignStyle($ctx, 'reg_bar.title_search') . $cssRbTitleS ?>"<?= $attrsRbTitleS ?> <?= $editable ? 'data-edit-field="reg_bar.title_search" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($titleSearch) ?></div>
           <form class="reg-form" method="get" action="accueil#reg-bar">
             <input type="hidden" name="check_registration" value="1">
             <input class="reg-input" type="email" name="search_email" placeholder="<?= htmlspecialchars($placeholder) ?>"
                   value="<?= htmlspecialchars($searchEmail) ?>" autocomplete="email" required>
-            <button class="reg-submit" type="submit" <?= $editable ? 'data-edit-field="reg_bar.btn_check" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($btnCheck) ?></button>
+            <button class="reg-submit" type="submit" style="<?= $cssRbBtn ?>"<?= $attrsRbBtn ?> <?= $editable ? 'data-edit-field="reg_bar.btn_check" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($btnCheck) ?></button>
           </form>
           <p id="regResult" class="reg-result <?= htmlspecialchars($searchStatus) ?>" aria-live="polite"
              style="<?= $searchMessage !== '' ? '' : 'display:none;' ?>"><?= htmlspecialchars($searchMessage) ?></p>
-          <p id="regHint" class="reg-hint" style="<?= $searchMessage !== '' ? 'display:none;' : '' ?>"
+          <p id="regHint" class="reg-hint" style="<?= ($searchMessage !== '' ? 'display:none;' : '') . $cssRbHint ?>"<?= $attrsRbHint ?>
              <?= $editable ? 'data-edit-field="reg_bar.hint" data-edit-kind="text" data-edit-section="reg_bar"' : '' ?>><?= htmlspecialchars($hint) ?></p>
           <?php if (!$editable && $searchMessage !== ''): ?>
           <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">

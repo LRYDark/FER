@@ -294,8 +294,11 @@
       mask-size: 100% 100%;
     }
 
+    /* Tailles des textes de la card : baselines multipliées par --rb-scale
+       (desktop) / --rb-scale-m (mobile), posées inline par l'éditeur d'accueil
+       (slider de taille, 50-300 %). Sans réglage, var() retombe sur 1. */
     .reg-count .reg-kicker {
-      font-size: 0.8125rem; /* +2px */
+      font-size: calc(0.8125rem * var(--rb-scale, 1)); /* +2px */
       color: var(--secondary-text, #fff); opacity: .5;
       text-transform: uppercase;
       letter-spacing: .12em;
@@ -304,15 +307,40 @@
     }
 
     .reg-count .reg-value {
-      font-size: 3.5rem;
+      font-size: calc(3.5rem * var(--rb-scale, 1));
       font-weight: 900;
       color: var(--secondary-text, #fff);
       line-height: 1;
       letter-spacing: -.03em;
     }
 
+    /* État "Fermées" : baseline réduite, même mécanique de scale que le compteur */
+    .reg-count .reg-value--closed {
+      font-size: calc(1.2rem * var(--rb-scale, 1));
+    }
+
     .reg-count .reg-note {
       display: none; /* Caché dans cette version */
+    }
+
+    /* Variantes "urgence" / "solidaire" du bloc gauche (reg_bar.display_style) :
+       remplacent le compteur par un titre accrocheur + un texte court.
+       Couleur en !important : le fond de .reg-count est toujours --secondary (foncé),
+       on garantit le contraste quel que soit le thème / les overrides. */
+    .reg-count .reg-msg-title {
+      font-size: calc(1.9rem * var(--rb-scale, 1));
+      font-weight: 900;
+      color: var(--secondary-text, #fff) !important;
+      line-height: 1.15;
+      letter-spacing: -.01em;
+    }
+    .reg-count .reg-msg-text {
+      margin-top: 0.625rem;
+      font-size: calc(1.1rem * var(--rb-scale, 1));
+      font-weight: 600;
+      color: var(--secondary-text, #fff) !important;
+      opacity: .92;
+      line-height: 1.45;
     }
 
     .reg-search {
@@ -326,7 +354,7 @@
     }
 
     .reg-title {
-      font-size: 1rem; /* +2px */
+      font-size: calc(1rem * var(--rb-scale, 1)); /* +2px */
       font-weight: 700;
       color: var(--page-text);
       margin: 0 0 0.625rem;
@@ -370,7 +398,7 @@
       color: #ffffff;
       font-family: inherit;
       font-weight: 800;
-      font-size: .95rem;
+      font-size: calc(.95rem * var(--rb-scale, 1));
       text-transform: none;
       letter-spacing: .01em;
       padding: .65rem 1.6rem;
@@ -382,7 +410,7 @@
     .reg-hint {
       margin: 0.75rem 0 0;
       color: #6b7280;
-      font-size: 0.75rem;
+      font-size: calc(0.75rem * var(--rb-scale, 1));
     }
 
     /* Message de retour : encart blanc + pastille-icône — copie exacte du
@@ -452,16 +480,37 @@
         mask-size: 100% 100%;
       }
       
+      /* En mobile, la taille personnalisée vient de --rb-scale-m si l'admin a
+         réglé une taille en vue mobile, sinon retombe sur --rb-scale (desktop). */
       .reg-count .reg-kicker {
         margin-bottom: 0;
         margin-top: 0.375rem;
+        font-size: calc(0.8125rem * var(--rb-scale-m, var(--rb-scale, 1)));
       }
-      
+
       .reg-count .reg-value {
-        font-size: 2.5rem;
+        font-size: calc(2.5rem * var(--rb-scale-m, var(--rb-scale, 1)));
         margin-top: 0.375rem;
       }
-      
+      .reg-count .reg-value--closed {
+        font-size: calc(1.2rem * var(--rb-scale-m, var(--rb-scale, 1)));
+      }
+
+      /* Variantes message : en mobile, .reg-count passe en row pour le compteur,
+         mais un titre + paragraphe se lisent mieux empilés. */
+      .reg-count--message {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+      }
+      .reg-count--message .reg-msg-title {
+        font-size: calc(1.5rem * var(--rb-scale-m, var(--rb-scale, 1)));
+      }
+      .reg-count--message .reg-msg-text {
+        margin-top: 0.25rem;
+        font-size: calc(1rem * var(--rb-scale-m, var(--rb-scale, 1)));
+      }
+
       .reg-search {
         padding: 1.5rem;
         margin-top: 3px;
@@ -469,6 +518,10 @@
       .reg-title{
         text-align: center;
         margin-top: 0.5rem;
+        font-size: calc(1rem * var(--rb-scale-m, var(--rb-scale, 1)));
+      }
+      .reg-hint {
+        font-size: calc(0.75rem * var(--rb-scale-m, var(--rb-scale, 1)));
       }
       
       /* Mobile : bouton SOUS le champ, tous deux pleine largeur (même taille).
@@ -493,7 +546,7 @@
         width: 100%;
         /* Même hauteur que le champ : padding vertical + font-size identiques. */
         padding: .6rem 1.6rem;
-        font-size: 1rem;
+        font-size: calc(1rem * var(--rb-scale-m, var(--rb-scale, 1)));
       }
     }
 

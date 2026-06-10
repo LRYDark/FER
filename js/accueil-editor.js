@@ -1824,21 +1824,80 @@
   }
 
   // Affiche les options spécifiques à un type de section (ex: pour news, toggle "Avec image")
+  // Chaque type de section a son propre bloc → plusieurs peuvent coexister dans une
+  // même ligne multi-colonnes (ex: compteur d'inscrits + actualités côte à côte).
   function renderSectionOptions(row) {
     var existing = document.getElementById('ifeSbSectionOptions');
     if (existing) existing.remove();
     // Detect si une colonne contient un type de section avec options
     var hasNews = row.columns.some(function(c) { return c.section.type === 'news'; });
     var hasStartPoint = row.columns.some(function(c) { return c.section.type === 'start_point'; });
-    if (!hasNews && !hasStartPoint) return;
+    var hasRegBar = row.columns.some(function(c) { return c.section.type === 'reg_bar'; });
+    if (!hasNews && !hasStartPoint && !hasRegBar) return;
     var styles = window.AccueilEditor.accueilStyles || {};
     var panel = document.createElement('div');
     panel.id = 'ifeSbSectionOptions';
     panel.className = 'ife-sb-section-options';
 
+    if (hasRegBar) {
+      var rbBlock = document.createElement('div');
+      var currentRegBar = styles['reg_bar.display_style'] || 'counter';
+      var currentRbSource = styles['reg_bar.counter_source'] || 'live';
+      rbBlock.innerHTML = ''
+        + '<div class="ife-sb-section-label">Options "Compteur d\'inscrits"</div>'
+        + '<div class="ife-sb-toggle-row">'
+        +   '<label>Version de la card</label>'
+        +   '<div class="btn-group-vertical btn-group-sm w-100" id="ifeSbRegBarStyle">'
+        +     '<button type="button" class="btn btn-outline-secondary text-start' + (currentRegBar === 'counter' ? ' active' : '') + '" data-regbar-style="counter" title="Affiche le nombre d\'inscrits (version historique)"><i class="bi bi-123"></i> Compteur d\'inscrits</button>'
+        +     '<button type="button" class="btn btn-outline-secondary text-start' + (currentRegBar === 'urgency' ? ' active' : '') + '" data-regbar-style="urgency" title="Message d\'urgence : inscrivez-vous vite, les X premiers inscrits…"><i class="bi bi-lightning-charge"></i> Urgence (offre limitée)</button>'
+        +     '<button type="button" class="btn btn-outline-secondary text-start' + (currentRegBar === 'motivation' ? ' active' : '') + '" data-regbar-style="motivation" title="Message solidaire, sans afficher le nombre d\'inscrits"><i class="bi bi-heart"></i> Solidaire (sans compteur)</button>'
+        +   '</div>'
+        + '</div>'
+        + '<div class="ife-sb-toggle-row" id="ifeSbRegBarSourceRow"' + (currentRegBar === 'counter' ? '' : ' style="display:none"') + '>'
+        +   '<label>Nombre affiché (version compteur)</label>'
+        +   '<div class="btn-group btn-group-sm" id="ifeSbRegBarSource">'
+        +     '<button type="button" class="btn btn-outline-secondary' + (currentRbSource === 'live' ? ' active' : '') + '" data-regbar-source="live" title="Inscriptions de cette année, en temps réel"><i class="bi bi-broadcast"></i> En direct</button>'
+        +     '<button type="button" class="btn btn-outline-secondary' + (currentRbSource === 'archive' ? ' active' : '') + '" data-regbar-source="archive" title="Inscriptions de la dernière année archivée (bouton Archiver du dashboard)"><i class="bi bi-archive"></i> Dernière archive</button>'
+        +   '</div>'
+        +   '<small class="text-muted">"Dernière archive" = total de la dernière année archivée. Pensez à adapter le libellé (ex : "Inscrits en 2025"). S\'il n\'existe aucune archive, le compteur en direct est affiché.</small>'
+        + '</div>'
+        + '<small class="text-muted">Le titre et le texte des versions Urgence / Solidaire se modifient en double-cliquant dessus dans l\'aperçu. Astuces dans les textes : {count} = inscrits en direct, {count_last} = inscrits de la dernière archive, {count_2025} = inscrits d\'une année précise.</small>';
+      rbBlock.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-regbar-style]');
+        if (btn) {
+          var newRegBar = btn.dataset.regbarStyle;
+          if (newRegBar === (styles['reg_bar.display_style'] || 'counter')) return;
+          styles['reg_bar.display_style'] = newRegBar;
+          window.AccueilEditor.accueilStyles = styles;
+          rbBlock.querySelectorAll('[data-regbar-style]').forEach(function(b) {
+            b.classList.toggle('active', b === btn);
+          });
+          var srcRow = rbBlock.querySelector('#ifeSbRegBarSourceRow');
+          if (srcRow) srcRow.style.display = (newRegBar === 'counter') ? '' : 'none';
+          saveStyleKey('reg_bar.display_style', newRegBar);
+          setTimeout(function() { reloadIframe(); }, 200);
+          return;
+        }
+        var srcBtn = e.target.closest('[data-regbar-source]');
+        if (srcBtn) {
+          var newSource = srcBtn.dataset.regbarSource;
+          if (newSource === (styles['reg_bar.counter_source'] || 'live')) return;
+          styles['reg_bar.counter_source'] = newSource;
+          window.AccueilEditor.accueilStyles = styles;
+          rbBlock.querySelectorAll('[data-regbar-source]').forEach(function(b) {
+            b.classList.toggle('active', b === srcBtn);
+          });
+          saveStyleKey('reg_bar.counter_source', newSource);
+          setTimeout(function() { reloadIframe(); }, 200);
+        }
+      });
+      panel.appendChild(rbBlock);
+    }
+
     if (hasNews) {
+      var newsBlock = document.createElement('div');
       var currentStyle = styles['news.card_style'] || 'simple';
-      panel.innerHTML = ''
+      newsBlock.innerHTML = ''
         + '<div class="ife-sb-section-label">Options "Dernières actualités"</div>'
         + '<div class="ife-sb-toggle-row">'
         +   '<label>Affichage des cards</label>'
@@ -1848,21 +1907,26 @@
         +     '<button type="button" class="btn btn-outline-secondary' + (currentStyle === 'with-image-side' ? ' active' : '') + '" data-card-style="with-image-side" title="Cards avec image à gauche (style page actualités)"><i class="bi bi-layout-text-window-reverse"></i> Image à gauche</button>'
         +   '</div>'
         + '</div>';
-      panel.addEventListener('click', function(e) {
+      newsBlock.addEventListener('click', function(e) {
         var btn = e.target.closest('[data-card-style]');
         if (!btn) return;
         var newStyle = btn.dataset.cardStyle;
-        if (newStyle === currentStyle) return;
+        if (newStyle === (styles['news.card_style'] || 'simple')) return;
         styles['news.card_style'] = newStyle;
         window.AccueilEditor.accueilStyles = styles;
-        panel.querySelectorAll('[data-card-style]').forEach(function(b) {
+        newsBlock.querySelectorAll('[data-card-style]').forEach(function(b) {
           b.classList.toggle('active', b === btn);
         });
         saveStyleKey('news.card_style', newStyle);
         setTimeout(function() { reloadIframe(); }, 200);
       });
-    } else if (hasStartPoint) {
-      buildStartPointPanel(panel, styles);
+      panel.appendChild(newsBlock);
+    }
+
+    if (hasStartPoint) {
+      var spBlock = document.createElement('div');
+      buildStartPointPanel(spBlock, styles);
+      panel.appendChild(spBlock);
     }
     var propsEl = document.getElementById('ifeSbProps');
     if (propsEl) propsEl.appendChild(panel);
@@ -2158,6 +2222,15 @@
       hero_timer: 'Compte à rebours',
       video_accueil: 'Vidéo Hero',
       picture_partner: 'Image partenaires',
+      'reg_bar.kicker_open': 'Compteur — libellé',
+      'reg_bar.value': 'Compteur — nombre (taille)',
+      'reg_bar.title_search': 'Titre recherche inscription',
+      'reg_bar.btn_check': 'Bouton vérifier',
+      'reg_bar.hint': 'Texte d\'aide recherche',
+      'reg_bar.urgency_title': 'Titre (version urgence)',
+      'reg_bar.urgency_text': 'Texte (version urgence)',
+      'reg_bar.moti_title': 'Titre (version solidaire)',
+      'reg_bar.moti_text': 'Texte (version solidaire)',
       'start_point.title': 'Titre de la section',
       'newsletter.title': 'Newsletter — titre',
       'newsletter.subtitle': 'Newsletter — sous-titre',

@@ -720,10 +720,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])
         // séparées desktop / mobile.
         'start_point_map_height', 'start_point_map_height_mobile',
         'start_point_map_width',  'start_point_map_width_mobile',
+        // Tailles des textes de la card inscriptions (reg_bar), en % (50-300).
+        // Appliquées via les CSS vars --rb-scale / --rb-scale-m (cf. accueil.css).
+        // Les deux variantes (base + _mobile) doivent être listées : le suffixe
+        // _mobile est ajouté AVANT le contrôle in_array ci-dessous.
+        'reg_bar.kicker_size',       'reg_bar.kicker_size_mobile',
+        'reg_bar.value_size',        'reg_bar.value_size_mobile',
+        'reg_bar.msg_title_size',    'reg_bar.msg_title_size_mobile',
+        'reg_bar.msg_text_size',     'reg_bar.msg_text_size_mobile',
+        'reg_bar.title_search_size', 'reg_bar.title_search_size_mobile',
+        'reg_bar.btn_check_size',    'reg_bar.btn_check_size_mobile',
+        'reg_bar.hint_size',         'reg_bar.hint_size_mobile',
     ];
     // Options (enum) : clé → valeurs autorisées
     $allowedOptionKeys = [
         'news.card_style' => ['simple', 'with-image', 'with-image-side'],
+        // Version du bloc gauche de la card inscriptions (compteur / urgence / solidaire)
+        'reg_bar.display_style' => ['counter', 'urgency', 'motivation'],
+        // Source du grand nombre de la version compteur : en direct ou dernière archive
+        'reg_bar.counter_source' => ['live', 'archive'],
         // Pleine largeur du Hero (vidéo qui sort de la container du main).
         'hero_card_fullwidth' => ['0', '1'],
         'hero_card_fullwidth_mobile' => ['0', '1'],
@@ -2117,6 +2132,12 @@ document.addEventListener('DOMContentLoaded', function() {
     margin: 12px 0 6px; padding-top: 8px; border-top: 1px solid #e2e8f0;
   }
   .ife-sb-section-label:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+  /* Blocs d'options de section empilés (ex: reg_bar + news dans une même ligne) :
+     chaque bloc est un div wrapper, donc son label est :first-child — on restaure
+     le séparateur pour tous les blocs sauf le tout premier du panneau. */
+  .ife-sb-section-options > div:not(:first-child) > .ife-sb-section-label:first-child {
+    border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 12px;
+  }
   /* Icône info à côté d'un label de section : déclenche un tooltip Bootstrap */
   .ife-sb-info-icon {
     color: #94a3b8; font-size: 12px; margin-left: 4px;
@@ -2234,11 +2255,36 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-preview-wrap {
     flex: 1; min-width: 0;
     position: relative;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
-    overflow: hidden;
-    /* Scroll horizontal si l'iframe (min-width:1100 en desktop) dépasse la zone. */
-    overflow-x: auto;
+    /* Volontairement SANS overflow : un conteneur de défilement ici casserait le
+       position:sticky de la toolbar. Le visuel (bordure/fond/coins arrondis) et le
+       scroll horizontal de l'iframe large sont portés par .ife-preview-scroll. */
   }
+  /* Conteneur interne : scroll horizontal (iframe min-width:1100 en desktop) + clip. */
+  .ife-preview-scroll {
+    position: relative;
+    overflow-x: auto;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  }
+  /* Spinner de chargement de l'éditeur : recouvre l'aperçu (.ife-preview-wrap est
+     position:relative) jusqu'à ce que l'iframe + les overlays soient prêts. */
+  .ife-loader {
+    position: absolute; inset: 0; z-index: 50;
+    /* centré horizontalement, mais en HAUT (pas centré verticalement) */
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding-top: 48px;
+    gap: 14px; background: #fff; border-radius: 10px;
+    color: #64748b; font-size: 14px; font-weight: 500;
+    transition: opacity .35s ease;
+  }
+  .ife-loader.is-hidden { opacity: 0; pointer-events: none; }
+  .ife-loader p { margin: 0; }
+  .ife-loader-spin {
+    width: 2.75rem; height: 2.75rem;
+    border: 3px solid #fce7f3; border-top-color: #F42182;
+    border-radius: 50%;
+    animation: ife-spin .8s linear infinite;
+  }
+  @keyframes ife-spin { to { transform: rotate(360deg); } }
   .ife-preview-wrap iframe {
     display: block; width: 100%; min-height: 600px;
     /* CRITIQUE : min-width simule un viewport "large desktop" (>1040px) pour que
@@ -2257,25 +2303,33 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Mode mobile : largeur d'aperçu contrainte pour simuler un téléphone.
      Le min-width:1100px est retiré : l'iframe doit pouvoir être étroite (≤420px)
      pour que le CSS @media max-width:1040px s'active dans accueil.php. */
-  .ife-preview-wrap.is-mobile { background: #1f2937; }
-  /* En mode mobile, le wrap a un fond noir et l'iframe est centrée en max-width:420px.
-     overflow caché sur les 2 axes : la scrollbar verticale du wrap est INUTILE (la nav
-     interne se fait via l'iframe), et celle horizontale révélait un débordement parasite. */
-  .ife-preview-wrap.is-mobile { overflow: hidden; }
+  /* En mode mobile : fond sombre + iframe centrée en max-width:420px, sur le conteneur
+     interne (qui porte désormais l'overflow). overflow:hidden masque la scrollbar
+     horizontale parasite (la nav interne se fait via l'iframe). */
+  .ife-preview-wrap.is-mobile .ife-preview-scroll { background: #1f2937; overflow: hidden; }
   .ife-preview-wrap.is-mobile iframe {
     max-width: 420px;
     min-width: 0;
     margin: 0 auto;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
   }
-  /* Barre d'outils flottante : toggle device + migration legacy.
-     position:fixed → reste en haut à droite du viewport même quand on scrolle
-     tout en bas de l'éditeur. Comme la barre est dans le DOM de l'onglet
-     "Accueil", elle est masquée automatiquement (ancêtre display:none) sur les
-     autres onglets des Réglages. */
+  /* Barre d'outils : toggle device + migration/restauration.
+     - float:right + placée juste avant le <h2> → elle s'affiche EN FACE du titre
+       « Mise en page de l'accueil » (le titre coule à sa gauche).
+     - position:sticky;top:8px → elle reste collée en haut au scroll. Son conteneur
+       de stickiness est la carte (.setting-card, haute) → elle reste accrochée
+       PENDANT TOUT le défilement de l'éditeur, puis se détache quand on dépasse la carte.
+     - À droite ⇒ aucun chevauchement avec la sidebar (sticky, à gauche). */
   .ife-preview-toolbar {
-    position: fixed; top: 72px; right: 24px;
-    display: flex; gap: 6px; align-items: center;
+    /* top négatif : compense le padding-top (~28px) de #oc-content pour que, une
+       fois collée, la barre soit proche de la barre d'admin fixe (moins d'espace).
+       margin-top négatif : remonte la barre flottée pour la CENTRER sur le texte
+       du titre (la barre ~38px est plus haute que le texte) — elle ne coupe donc
+       plus le trait sans avoir à descendre celui-ci. */
+    position: sticky; top: -20px;
+    float: right;
+    margin: -15px 0 6px 12px;
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
     z-index: 1000; pointer-events: auto;
     background: rgba(255,255,255,.96);
     border: 1px solid #e2e8f0; border-radius: 8px;
@@ -3001,6 +3055,27 @@ if (!$canTab($activeTab)) {
     ?>
     <div class="col-12">
       <div class="setting-card">
+        <!-- Barre d'outils : flottée À DROITE (en face du titre) + position:sticky.
+             Son conteneur est la carte (.setting-card, haute) → elle reste collée
+             en haut PENDANT TOUT le scroll de l'éditeur. À droite ⇒ aucun
+             chevauchement avec la sidebar (qui est sticky à gauche).
+             La délégation de clic est rebranchée sur la carte (voir JS). -->
+        <div class="ife-preview-toolbar">
+          <div class="ife-device-group" role="group" aria-label="Aperçu device">
+            <button type="button" class="ife-device-btn is-active" data-device="desktop" title="Aperçu desktop">
+              <i class="bi bi-laptop"></i><span>Desktop</span>
+            </button>
+            <button type="button" class="ife-device-btn" data-device="mobile" title="Aperçu mobile">
+              <i class="bi bi-phone"></i><span>Mobile</span>
+            </button>
+          </div>
+          <button type="button" class="ife-migrate-btn" id="ifeMigrateBtn" title="Convertir les anciennes positions en pourcentage vers le nouveau format ancré">
+            <i class="bi bi-arrow-repeat"></i><span>Migrer positions</span>
+          </button>
+          <button type="button" class="ife-restore-btn" id="ifeRestoreBtn" title="Restaurer toutes les positions et tailles du hero aux valeurs par défaut pour le device courant (CSS d'origine)">
+            <i class="bi bi-arrow-counterclockwise"></i><span>Restaurer hero</span>
+          </button>
+        </div>
         <h2><i class="bi bi-grid-3x3-gap-fill me-2"></i>Mise en page de l'accueil</h2>
         <p class="text-muted mb-3">
           L'aperçu ci-dessous est le <strong>vrai rendu de la page d'accueil</strong>. Survolez une section pour voir les contrôles, cliquez pour la sélectionner. Cliquez sur un texte/image éditable pour l'ouvrir dans le menu de gauche.
@@ -3105,7 +3180,7 @@ if (!$canTab($activeTab)) {
                   </div>
                   <div class="ife-sb-row" id="ifeSbSizeRow" style="display:none;">
                     <label for="ifeSbSize">Taille</label>
-                    <input type="range" class="form-range" id="ifeSbSize" min="50" max="250" step="5" value="100" style="flex:1;">
+                    <input type="range" class="form-range" id="ifeSbSize" min="50" max="300" step="5" value="100" style="flex:1;">
                     <span class="small text-muted" id="ifeSbSizeVal" style="min-width:40px;">100%</span>
                   </div>
                   <hr>
@@ -3154,25 +3229,22 @@ if (!$canTab($activeTab)) {
 
           <!-- ── Aperçu : iframe avec la home + overlay layer ── -->
           <div class="ife-preview-wrap" id="ifePreviewWrap">
-            <!-- Toolbar : bascule device + migration des positions legacy. -->
-            <div class="ife-preview-toolbar">
-              <div class="ife-device-group" role="group" aria-label="Aperçu device">
-                <button type="button" class="ife-device-btn is-active" data-device="desktop" title="Aperçu desktop">
-                  <i class="bi bi-laptop"></i><span>Desktop</span>
-                </button>
-                <button type="button" class="ife-device-btn" data-device="mobile" title="Aperçu mobile">
-                  <i class="bi bi-phone"></i><span>Mobile</span>
-                </button>
-              </div>
-              <button type="button" class="ife-migrate-btn" id="ifeMigrateBtn" title="Convertir les anciennes positions en pourcentage vers le nouveau format ancré">
-                <i class="bi bi-arrow-repeat"></i><span>Migrer positions</span>
-              </button>
-              <button type="button" class="ife-restore-btn" id="ifeRestoreBtn" title="Restaurer toutes les positions et tailles du hero aux valeurs par défaut pour le device courant (CSS d'origine)">
-                <i class="bi bi-arrow-counterclockwise"></i><span>Restaurer hero</span>
-              </button>
+            <!-- Spinner de chargement : couvre l'aperçu tant que l'iframe + les
+                 overlays (traits/marqueurs « Glisser pour réorganiser… ») ne sont
+                 pas prêts. Masqué dès le 1er message editor-layout (voir JS). -->
+            <div id="ifeLoader" class="ife-loader">
+              <div class="ife-loader-spin" aria-hidden="true"></div>
+              <p>Chargement de l'aperçu…</p>
             </div>
-            <iframe id="ifePreview" src="../public/accueil.php?editor=1" frameborder="0"></iframe>
-            <div id="ifeOverlay" class="ife-overlay"></div>
+            <!-- Conteneur interne porteur du scroll horizontal : il isole le
+                 overflow de l'iframe pour que .ife-preview-wrap ne soit PAS un
+                 conteneur de défilement → la toolbar peut devenir position:sticky
+                 (collée en haut de l'éditeur) relative à la page. L'overlay reste
+                 dans ce conteneur avec l'iframe → alignement des marqueurs conservé. -->
+            <div class="ife-preview-scroll">
+              <iframe id="ifePreview" src="../public/accueil.php?editor=1" frameborder="0"></iframe>
+              <div id="ifeOverlay" class="ife-overlay"></div>
+            </div>
           </div>
           <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
           (function(){
@@ -3186,6 +3258,31 @@ if (!$canTab($activeTab)) {
               var wrap   = document.getElementById('ifePreviewWrap');
               var iframe = document.getElementById('ifePreview');
               if (!wrap || !iframe) return;
+              // La barre d'outils a été déplacée HORS de #ifePreviewWrap (en face du
+              // titre). On délègue donc les clics sur la carte entière, qui contient
+              // à la fois la barre ET l'aperçu.
+              var clickRoot = wrap.closest('.setting-card') || wrap;
+
+              // ── Spinner de chargement ──────────────────────────────────────
+              // Couvre l'aperçu tant que tout n'est pas prêt. On le masque dès que
+              // les overlays sont dessinés = 1er message 'editor-layout' (+ petit
+              // délai pour laisser les traits apparaître). Replis : au load de
+              // l'iframe (+1,5 s) et un filet de sécurité à 20 s.
+              (function(){
+                var loader = document.getElementById('ifeLoader');
+                if (!loader) return;
+                var done = false;
+                function hideLoader(){
+                  if (done) return; done = true;
+                  loader.classList.add('is-hidden');
+                  setTimeout(function(){ loader.style.display = 'none'; }, 400);
+                }
+                window.addEventListener('message', function(e){
+                  if (e && e.data && e.data.type === 'editor-layout') setTimeout(hideLoader, 300);
+                });
+                iframe.addEventListener('load', function(){ setTimeout(hideLoader, 1500); });
+                setTimeout(hideLoader, 20000);
+              })();
 
               var STORE_KEY = 'ife_editor_device';
               var device = 'desktop';
@@ -3212,7 +3309,9 @@ if (!$canTab($activeTab)) {
                 device = (next === 'mobile') ? 'mobile' : 'desktop';
                 try { localStorage.setItem(STORE_KEY, device); } catch(e) {}
                 wrap.classList.toggle('is-mobile', device === 'mobile');
-                wrap.querySelectorAll('.ife-device-btn').forEach(function(b){
+                // Les boutons device sont désormais hors de #ifePreviewWrap (barre en
+                // face du titre) → on les cherche dans la carte entière.
+                clickRoot.querySelectorAll('.ife-device-btn').forEach(function(b){
                   b.classList.toggle('is-active', b.getAttribute('data-device') === device);
                 });
                 notifyIframe();
@@ -3225,9 +3324,9 @@ if (!$canTab($activeTab)) {
               }
 
               // Délégation de clic : robuste même si les boutons sont recréés.
-              wrap.addEventListener('click', function(e){
+              clickRoot.addEventListener('click', function(e){
                 var devBtn = e.target.closest && e.target.closest('.ife-device-btn');
-                if (devBtn && wrap.contains(devBtn)) {
+                if (devBtn && clickRoot.contains(devBtn)) {
                   e.preventDefault();
                   applyDevice(devBtn.getAttribute('data-device'));
                   return;
