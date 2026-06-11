@@ -309,7 +309,7 @@ let tbl = $('#tbl').DataTable({
       if(type!=='display') return val;
       var lc = String(val||'').toLowerCase();
       if(lc === 'enfant_tshirt')  return 'Enfant -12 +T-shirt';
-      if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit)';
+      if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit sans t-shirt)';
       if(lc === 'tarif_unique')   return 'Tarif unique';
       return '–';
     }}
