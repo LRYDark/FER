@@ -501,6 +501,7 @@ tr.filters select{
                 <option value="espece">Espèce</option>
                 <option value="cheque">Chèque</option>
                 <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+                <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
               </select>
               <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
             </div>
@@ -534,6 +535,7 @@ tr.filters select{
                   <option value="espece">Espèce</option>
                   <option value="cheque">Chèque</option>
                   <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+                  <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
                 </select>
               </div>
             </div>
@@ -626,6 +628,7 @@ tr.filters select{
             <option value="espece">Espèce</option>
             <option value="cheque">Chèque</option>
             <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+            <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
           </select>
           <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
         </div>
@@ -892,7 +895,9 @@ const tbl=$('#tbl').DataTable({
       // (sinon les filtres et la recherche par regex ^gratuit$ ne fonctionnent plus).
       if(type==='display'){
         if(!val) return '';
-        if(String(val).toLowerCase() === 'gratuit') return 'Gratuit/-12ans';
+        var lc = String(val).toLowerCase();
+        if(lc === 'gratuit') return 'Gratuit/-12ans';
+        if(lc === 'enfant_tshirt') return 'Enfant -12 +T-shirt';
         return val;
       }
       return val;
@@ -907,7 +912,21 @@ const tbl=$('#tbl').DataTable({
       if(type==='display'||type==='filter'){ if(!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
       return val;
     }, width:'110px', className:'text-nowrap text-center'},
-    {data:'origine',title:'Origine',defaultContent:''}
+    {data:'origine',title:'Origine',defaultContent:''},
+    {data:'prestation',title:'Prestation',defaultContent:'',render:function(val,type,row){
+      if(type==='display'){
+        var lc = String(val||'').toLowerCase();
+        if(lc === 'enfant_tshirt')  return 'Enfant -12 +T-shirt';
+        if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit)';
+        if(lc === 'tarif_unique')   return 'Tarif unique';
+        // Repli (anciens inscrits sans prestation) : déduire du mode de paiement.
+        var pm = String((row && row.paiement_mode) || '').toLowerCase();
+        if(pm === 'gratuit') return 'Enfant -12 (gratuit)';
+        if(pm === 'enfant_tshirt') return 'Enfant -12 +T-shirt';
+        return val ? val : 'Tarif unique';
+      }
+      return val;
+    }}
     <?php if($canEditReg || $canDeleteReg): ?>,
     {
       data:null,
@@ -1007,7 +1026,7 @@ $('#quickSearch').on('keyup',function(){tbl.search(this.value).draw();});
 /* ══ Stats ════ */
 function updateStats(data){
   const total=data.length, oldest={H:null,F:null}, byEnt={};
-  let tshirtCount=0;
+  let tshirtCount=0, enfantTshirtCount=0;
   data.forEach(r=>{
     const a=ageFromBirth(r.naissance);
     if(a!==null&&(r.sexe==='H'||r.sexe==='F')){
@@ -1018,6 +1037,10 @@ function updateStats(data){
     // T-shirt récupéré = taille renseignée (≠ vide et ≠ "-")
     const sz=(r.tshirt_size||'').toString().trim();
     if(sz && sz!=='-') tshirtCount++;
+    // Enfant -12 ans AVEC t-shirt (catégorie payante distincte)
+    const presta=(r.prestation||'').toString().toLowerCase();
+    const pm=(r.paiement_mode||'').toString().toLowerCase();
+    if(presta==='enfant_tshirt' || pm==='enfant_tshirt') enfantTshirtCount++;
   });
   const [eTop,eCnt]=Object.entries(byEnt).sort((a,b)=>b[1]-a[1])[0]||['–',0];
   $('#stats').html(`
@@ -1027,6 +1050,9 @@ function updateStats(data){
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h5 class="card-title mb-1">T-shirts récupérés</h5>
       <p class="display-6 fw-bold mb-0">${tshirtCount}</p></div></div>
+    <div class="card statCard flex-fill text-center"><div class="card-body">
+      <h6 class="card-title text-muted mb-1">Enfants -12 +T-shirt</h6>
+      <p class="display-6 fw-bold mb-0">${enfantTshirtCount}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h6 class="card-title text-muted mb-1">+ Vieux H</h6>
       <p class="fw-semibold mb-0">${oldest.H?oldest.H.nom+' ('+oldest.H.age+' ans)':'–'}</p></div></div>
@@ -1049,7 +1075,7 @@ function buildFilters(api){
   api.columns().every(function(i){
     const title=$(this.header()).text().trim(), $cell=$f.find('th').eq(i);
     if(!this.visible()){ $cell.hide(); return; }
-    if(['T-shirt','Sexe','Paiement','Entreprise','Origine'].includes(title)){
+    if(['T-shirt','Sexe','Paiement','Prestation','Entreprise','Origine'].includes(title)){
       const $sel=$('<select class="form-select form-select-sm"><option value="">Tous</option></select>')
         .appendTo($cell)
         .on('change',function(){
@@ -1064,9 +1090,18 @@ function buildFilters(api){
         });
       this.data().unique().sort().each(function(v){
         if(!v) return;
-        // Libellé convivial pour le paiement « gratuit » ; valeur brute conservée
-        var label = (title === 'Paiement' && String(v).toLowerCase() === 'gratuit')
-                  ? 'Gratuit/-12ans' : v;
+        // Libellé convivial pour les paiements « catégorie » ; valeur brute conservée
+        var label = v;
+        if(title === 'Paiement'){
+          var lcv = String(v).toLowerCase();
+          if(lcv === 'gratuit') label = 'Gratuit/-12ans';
+          else if(lcv === 'enfant_tshirt') label = 'Enfant -12 +T-shirt';
+        } else if(title === 'Prestation'){
+          var lcp = String(v).toLowerCase();
+          if(lcp === 'tarif_unique') label = 'Tarif unique';
+          else if(lcp === 'enfant_gratuit') label = 'Enfant -12 (gratuit)';
+          else if(lcp === 'enfant_tshirt') label = 'Enfant -12 +T-shirt';
+        }
         var optVal = $('<div/>').text(v).html();   // échappe HTML
         var optLbl = $('<div/>').text(label).html();
         $sel.append('<option value="'+optVal+'">'+optLbl+'</option>');

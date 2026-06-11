@@ -876,7 +876,7 @@ html, body {
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.0.8</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.0.9</div>
   </aside>
 
   <!-- ═══════ CONTENT (opened here, closed in admin-footer.php) ═══════ -->

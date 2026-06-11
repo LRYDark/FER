@@ -1667,6 +1667,7 @@ if ($route==='registrations'){
         // Champs système
         $cols[] = 'origine';      $phs[] = '?'; $vals[] = $origine;
         $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $d['paiement_mode'] ?? null;
+        $cols[] = 'prestation';   $phs[] = '?'; $vals[] = prestationFromPaiement($d['paiement_mode'] ?? null);
         $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
@@ -1775,7 +1776,7 @@ if ($route==='registrations'){
         /* 4. Champs autorisés dynamiques depuis la table forms + champs système */
         require_once __DIR__ . '/form_fields.php';
         $fieldCols = getAllActiveFieldColumns($pdo);
-        $systemCols = ['origine', 'paiement_mode', 'montant_du'];
+        $systemCols = ['origine', 'paiement_mode', 'prestation', 'montant_du'];
 
         $params = ['id' => $d['id']];
         $setParts = [];
@@ -1798,6 +1799,12 @@ if ($route==='registrations'){
             } else {
                 $d['montant_du'] = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
             }
+        }
+
+        // Si le mode de paiement change, on resynchronise la catégorie (prestation),
+        // sauf si le client la fournit déjà explicitement.
+        if (array_key_exists('paiement_mode', $d) && !array_key_exists('prestation', $d)) {
+            $d['prestation'] = prestationFromPaiement((string) $d['paiement_mode']);
         }
 
         foreach ($systemCols as $sc) {
@@ -1996,6 +2003,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $cols[] = 'origine';      $phs[] = '?'; $vals[] = $sharedOrigine;
             $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $sharedPaiement;
+            $cols[] = 'prestation';   $phs[] = '?'; $vals[] = prestationFromPaiement($sharedPaiement);
             $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
             $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
@@ -2165,6 +2173,12 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($montantLabel !== false) {
             $optionalLabels[] = $montantLabel; // déjà normalisé
         }
+        // « Prestations » est optionnelle : un export sans cette colonne reste
+        // importable (les enfants -12 avec t-shirt ne seront simplement pas détectés).
+        $prestationLabel = array_search('prestation', $mapFields, true);
+        if ($prestationLabel !== false) {
+            $optionalLabels[] = $prestationLabel;
+        }
         $required = array_diff(array_keys($mapFields), $optionalLabels);
         $missing  = array_diff($required, array_keys($headerMap));
 
@@ -2197,9 +2211,14 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'INSERT INTO registrations
              (inscription_no, nom, prenom, tel, email, naissance, sexe,
               tshirt_size, ville, entreprise, origine, paiement_mode,
-              montant_du, created_at, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+              prestation, montant_du, created_at, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
+
+        // Colonne « Prestations » (catégorie AssoConnect), lue directement par
+        // en-tête car non mappée dans la table `import`. Permet de distinguer
+        // l'enfant -12 ans AVEC t-shirt (payant) d'un adulte au même montant.
+        $prestaCol = $headerMap[normaliseLabel('Prestations')] ?? null;
 
         // 6. Parsing de toutes les lignes
         $parsedRows = [];
@@ -2232,6 +2251,15 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     ? ($value === null ? null : (float) $value)
                     : ($value ?: null);
             }
+
+            // Détection « Enfant -12 ans avec t-shirt » via la colonne Prestations :
+            // valeur lue par le mapping `import` (configurable), avec repli sur
+            // l'en-tête « Prestations » par défaut si le mapping n'est pas défini.
+            $prestaRaw = (string) ($values['prestation'] ?? '');
+            if ($prestaRaw === '' && $prestaCol) {
+                $prestaRaw = trim((string) ($row[$prestaCol] ?? ''));
+            }
+            $values['_enfant_tshirt'] = ($prestaRaw !== '' && str_contains(normaliseLabel($prestaRaw), 'tshirt'));
 
             if (!$values['inscription_no'] || !$values['nom'] || !$values['prenom']) {
                 $skipped++;
@@ -2280,19 +2308,24 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $montant = $registrationFee;
             }
 
-            // Si le montant est à 0, on force le mode de paiement à 'gratuit'
-            // (ex. ligne AssoConnect "Carte bancaire" + 0€ = enfant -12 ans gratuit).
+            // Détermination du mode de paiement et de la catégorie :
+            //  - prestation « avec t-shirt » → enfant_tshirt (payant, compté QR) ;
+            //  - sinon montant à 0 → gratuit (enfant -12 ans, non compté) ;
+            //  - sinon moyen de paiement normalisé du fichier (ex. Carte bancaire).
             $paiementMode = normalisePaiementMode($values['paiement_mode'] ?? null);
-            if ((float) $montant <= 0) {
+            if (!empty($values['_enfant_tshirt'])) {
+                $paiementMode = 'enfant_tshirt';
+            } elseif ((float) $montant <= 0) {
                 $paiementMode = 'gratuit';
             }
+            $prestation = prestationFromPaiement($paiementMode);
 
             $stmt->execute([
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
                 encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
                 '-', encrypt($values['ville']), encrypt($values['entreprise']),
                 ($values['origine'] ?? null) ?: 'AssoConnect',
-                $paiementMode, (float) $montant, $values['created_at'], currentUserId()
+                $paiementMode, $prestation, (float) $montant, $values['created_at'], currentUserId()
             ]);
 
             $added++;
@@ -2465,6 +2498,20 @@ function normalisePaiementMode(?string $val): string {
     return 'en ligne (CB)';
 }
 
+/**
+ * Catégorie d'inscrit (« prestation ») déduite du mode de paiement.
+ *   gratuit        → enfant_gratuit  (enfant -12 ans, ne compte pas pour le QR)
+ *   enfant_tshirt  → enfant_tshirt   (enfant -12 ans AVEC t-shirt, payant, compte pour le QR)
+ *   tout le reste  → tarif_unique    (adulte / inscription normale)
+ * NB : le couple (paiement_mode, montant_du) reste l'indicateur d'éligibilité QR (montant > 0).
+ */
+function prestationFromPaiement(?string $paiementMode): string {
+    $p = strtolower(trim((string) $paiementMode));
+    if ($p === 'gratuit')       return 'enfant_gratuit';
+    if ($p === 'enfant_tshirt') return 'enfant_tshirt';
+    return 'tarif_unique';
+}
+
 function convertExcelDate($value): ?string {
     if (is_numeric($value)) {
         return date('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($value));
@@ -2497,26 +2544,48 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     /* 1. Entêtes */
     $headers = ['No', 'Nom', 'Prénom', 'Tel', 'Email', 'Naissance',
                 'Sexe', 'T-shirt', 'Ville', 'Entreprise', 'Origine',
-                'Paiement', 'Montant dû', 'Créé le', 'Créé par'];
+                'Paiement', 'Prestation', 'Montant dû', 'Créé le', 'Créé par'];
     $sheet->fromArray($headers, null, 'A1');
 
     /* 2. Données (déchiffrer les PII) */
     $rows = $pdo->query(
         "SELECT r.inscription_no, r.nom, r.prenom, r.tel, r.email, r.naissance,
                 r.sexe, r.tshirt_size, r.ville, r.entreprise, r.origine,
-                r.paiement_mode, r.montant_du, r.created_at, COALESCE(u.email, r.created_by) AS created_by
+                r.paiement_mode, r.prestation, r.montant_du, r.created_at, COALESCE(u.email, r.created_by) AS created_by
          FROM registrations r
          LEFT JOIN users u ON r.created_by = u.id
          ORDER BY CAST(REPLACE(REPLACE(r.inscription_no, 'S', ''), 'E', '') AS UNSIGNED)"
     )->fetchAll(PDO::FETCH_ASSOC);
     $rows = decryptRows($rows);
+
+    // Libellés lisibles pour la colonne Paiement et la colonne Prestation (catégorie).
+    $paiementLabels = [
+        'gratuit'       => 'Gratuit / -12 ans',
+        'enfant_tshirt' => 'Enfant -12 + T-shirt',
+        'espece'        => 'Espèce',
+        'cheque'        => 'Chèque',
+    ];
+    $prestationLabels = [
+        'tarif_unique'   => 'Tarif unique',
+        'enfant_gratuit' => 'Enfant -12 ans (gratuit)',
+        'enfant_tshirt'  => 'Enfant -12 ans (avec t-shirt)',
+    ];
+    foreach ($rows as &$expRow) {
+        $pm = strtolower((string) ($expRow['paiement_mode'] ?? ''));
+        $expRow['paiement_mode'] = $paiementLabels[$pm] ?? ($expRow['paiement_mode'] ?? '');
+        $pr = strtolower((string) ($expRow['prestation'] ?? ''));
+        // NULL/vide (anciens inscrits) considéré comme « Tarif unique ».
+        $expRow['prestation'] = $prestationLabels[$pr] ?? ($pr === '' ? 'Tarif unique' : ($expRow['prestation'] ?? ''));
+    }
+    unset($expRow);
+
     $rows = array_map('array_values', $rows); // Convertir en tableau numérique pour fromArray
 
     $sheet->fromArray($rows, null, 'A2');
 
     /* 3. Style minimal */
-    $sheet->getStyle('A1:O1')->getFont()->setBold(true);
-    foreach (range('A', 'O') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+    $sheet->getStyle('A1:P1')->getFont()->setBold(true);
+    foreach (range('A', 'P') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
 
     /* 4. Téléchargement */
     $filename = 'inscriptions_'.date('Ymd_His').'.xlsx';
@@ -2542,6 +2611,10 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /* 1) Créer la table archive si nécessaire */
     $pdo->exec("CREATE TABLE IF NOT EXISTS `$tableArchive` LIKE registrations");
+    // Si l'archive a été créée par une version antérieure (sans `prestation`),
+    // on aligne son schéma pour que `INSERT ... SELECT *` ne casse pas.
+    try { $pdo->exec("ALTER TABLE `$tableArchive` ADD COLUMN `prestation` VARCHAR(30) DEFAULT NULL"); }
+    catch (\Throwable $e) { /* colonne déjà présente : rien à faire */ }
 
     /* 2) Copier toutes les lignes */
     $pdo->beginTransaction();
@@ -2680,8 +2753,15 @@ if ($route === 'registrations-archive') {
             exit;
         }
 
+        // La colonne `prestation` n'existe pas dans les archives antérieures à la
+        // mise à jour : on l'inclut seulement si présente, sinon on renvoie NULL.
+        $hasPrestation = ((int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$tableArchive' AND COLUMN_NAME = 'prestation'"
+        )->fetchColumn()) > 0;
+        $prestaSelect = $hasPrestation ? 'prestation' : 'NULL AS prestation';
         $registrations = $pdo->query(
-            "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size
+            "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size,$prestaSelect
              FROM `$tableArchive`
              ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC"
         )->fetchAll(PDO::FETCH_ASSOC);

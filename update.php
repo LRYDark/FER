@@ -98,6 +98,11 @@ $migrations = [
     // Suivi du paiement : montant dû par inscrit (0 = non payé / gratuit / enfant -12 ans).
     "ALTER TABLE `registrations` ADD COLUMN `montant_du` DECIMAL(10,2) NOT NULL DEFAULT 0",
 
+    // Catégorie d'inscrit (« prestation » AssoConnect) : tarif_unique / enfant_gratuit / enfant_tshirt.
+    // Permet de distinguer un enfant -12 ans AVEC t-shirt (payant, compté pour le QR/t-shirt)
+    // d'un adulte « tarif unique » alors qu'ils ont le même montant. NULL = ancien inscrit (= tarif unique).
+    "ALTER TABLE `registrations` ADD COLUMN `prestation` VARCHAR(30) DEFAULT NULL",
+
     // Mode "Ajout multiple" (saisie en lot, ex. entreprise avec N inscrits) :
     //   - visible_saisie_multiple : champ affiché dans le formulaire bulk ?
     //   - required_saisie_multiple : champ obligatoire en mode bulk ?
@@ -219,6 +224,42 @@ try {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Classement des inscrits existants dans `registrations.prestation`.
+// Idempotent : ne touche que les lignes encore NULL/vides. Un ancien enfant
+// -12 ans AVEC t-shirt est indissociable d'un adulte (même montant) faute de
+// donnée source — il est donc classé « tarif_unique » comme les adultes.
+// ─────────────────────────────────────────────────────────────────────────
+$initPrestationSql = "Classer registrations.prestation pour les inscrits existants";
+try {
+    $colExists = (int) $pdo->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations' AND COLUMN_NAME = 'prestation'"
+    )->fetchColumn();
+    if ($colExists === 0) {
+        $results[] = ['status' => 'skip', 'sql' => $initPrestationSql, 'msg' => 'Colonne absente (migration non appliquée)'];
+    } else {
+        $remaining = (int) $pdo->query("SELECT COUNT(*) FROM `registrations` WHERE `prestation` IS NULL OR `prestation` = ''")->fetchColumn();
+        if ($remaining === 0) {
+            $results[] = ['status' => 'skip', 'sql' => $initPrestationSql, 'msg' => 'Déjà appliqué'];
+        } else {
+            $stmt = $pdo->prepare(
+                "UPDATE `registrations`
+                 SET `prestation` = CASE
+                     WHEN `paiement_mode` = 'enfant_tshirt' THEN 'enfant_tshirt'
+                     WHEN `paiement_mode` = 'gratuit' OR `montant_du` <= 0 THEN 'enfant_gratuit'
+                     ELSE 'tarif_unique'
+                 END
+                 WHERE `prestation` IS NULL OR `prestation` = ''"
+            );
+            $stmt->execute();
+            $results[] = ['status' => 'success', 'sql' => $initPrestationSql, 'msg' => $stmt->rowCount() . ' ligne(s) classées'];
+        }
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $initPrestationSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Mapping de la colonne Excel « Montant dû » dans la table `import`.
 // ─────────────────────────────────────────────────────────────────────────
 $importMapSql = "Ajouter le mapping import « Montant dû » (id 13)";
@@ -233,6 +274,24 @@ try {
     }
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $importMapSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Mapping de la colonne Excel « Prestations » dans la table `import`.
+// Permet de configurer/renommer la colonne depuis Réglages → Import Excel.
+// ─────────────────────────────────────────────────────────────────────────
+$importPrestationSql = "Ajouter le mapping import « Prestations » (id 14)";
+try {
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `import` WHERE `fields_bdd` = 'prestation'")->fetchColumn();
+    if ($exists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $importPrestationSql, 'msg' => 'Existe déjà'];
+    } else {
+        $pdo->prepare("INSERT INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES (14, 'prestation', 'Prestations')")
+            ->execute();
+        $results[] = ['status' => 'success', 'sql' => $importPrestationSql, 'msg' => 'Mapping ajouté'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $importPrestationSql, 'msg' => $e->getMessage()];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
