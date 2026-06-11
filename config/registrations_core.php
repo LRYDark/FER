@@ -58,6 +58,15 @@ function regcore_prestationFromPaiement(?string $paiementMode): string
     return 'tarif_unique';
 }
 
+/**
+ * Mode de paiement à STOCKER à partir du choix. Copie conforme de storedPaiementMode().
+ * « enfant_tshirt » (a payé) → « en ligne (CB) » ; « gratuit » et moyens réels conservés.
+ */
+function regcore_storedPaiementMode(?string $choice): ?string
+{
+    return strtolower(trim((string) $choice)) === 'enfant_tshirt' ? 'en ligne (CB)' : $choice;
+}
+
 /** Normalise une valeur de sexe. Copie conforme de normaliseSexe(). */
 function regcore_normaliseSexe(?string $val): ?string
 {
@@ -174,7 +183,7 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
 
         /* Champs système */
         $cols[] = 'origine';       $phs[] = '?'; $vals[] = $origine ?: ($d['origine'] ?? 'API');
-        $cols[] = 'paiement_mode'; $phs[] = '?'; $vals[] = $d['paiement_mode'] ?? null;
+        $cols[] = 'paiement_mode'; $phs[] = '?'; $vals[] = regcore_storedPaiementMode($d['paiement_mode'] ?? null);
         $cols[] = 'prestation';    $phs[] = '?'; $vals[] = regcore_prestationFromPaiement($d['paiement_mode'] ?? null);
         $cols[] = 'montant_du';    $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';    $phs[] = '?'; $vals[] = null; // créé via API : aucun utilisateur
@@ -399,16 +408,20 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
                 if ($montant === null) {
                     $montant = $registrationFee;
                 }
-                // Catégorie : prestation « avec t-shirt » → enfant_tshirt (payant, compté QR) ;
-                // sinon montant à 0 → gratuit (enfant -12 ans) ; sinon paiement en ligne (CB).
+                // Mode de paiement = moyen réel ; la catégorie (prestation) discrimine :
+                //  - « avec t-shirt » → enfant_tshirt (payant, en ligne (CB)) ;
+                //  - montant à 0 → vraiment gratuit (paiement_mode 'gratuit') ;
+                //  - sinon tarif_unique (en ligne (CB)).
                 if (!empty($v['_enfant_tshirt'])) {
-                    $paiementMode = 'enfant_tshirt';
+                    $paiementMode = 'en ligne (CB)';
+                    $prestation   = 'enfant_tshirt';
                 } elseif ((float) $montant <= 0) {
                     $paiementMode = 'gratuit';
+                    $prestation   = 'enfant_gratuit';
                 } else {
                     $paiementMode = 'en ligne (CB)';
+                    $prestation   = 'tarif_unique';
                 }
-                $prestation = regcore_prestationFromPaiement($paiementMode);
                 $insert->execute([
                     $v['inscription_no'], encrypt($v['nom']), encrypt($v['prenom']),
                     encrypt($v['tel']), encrypt($v['email']), encrypt($v['naissance']), $v['sexe'],

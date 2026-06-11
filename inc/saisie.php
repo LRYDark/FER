@@ -431,7 +431,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
           if (!val) return '';
           var lc = String(val).toLowerCase();
           if (lc === 'gratuit') return 'Gratuit/-12ans';
-          if (lc === 'enfant_tshirt') return 'Enfant -12 +T-shirt';
+          if (lc === 'enfant_tshirt') return 'en ligne (CB)'; // legacy : catégorie déplacée dans Prestation
           return val;
         }
         return val;
@@ -538,6 +538,11 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     Object.entries(d).forEach(function(kv){
       $('#fEditSaisie [name="' + kv[0] + '"]').val(kv[1]);
     });
+    // Catégorie « enfant t-shirt » : paiement_mode stocké = 'en ligne (CB)', on
+    // resélectionne le bon choix du menu d'après la prestation.
+    if(String(d.prestation||'').toLowerCase()==='enfant_tshirt'){
+      $('#fEditSaisie [name="paiement_mode"]').val('enfant_tshirt');
+    }
     new bootstrap.Modal('#editModalSaisie').show();
   });
 
