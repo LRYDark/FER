@@ -114,6 +114,14 @@ if ($_POST) {
             $columns[] = '`montant_du`';
             $placeholders[] = ':montant_du';
 
+            // Catégorie (prestation) déduite du paiement, pour rester cohérent avec
+            // l'admin et l'import : gratuit → enfant_gratuit ; sinon tarif_unique.
+            $pmPub = strtolower(trim((string)($formData['paiement_mode'] ?? '')));
+            $formData['prestation'] = ($pmPub === 'gratuit') ? 'enfant_gratuit'
+                                    : (($pmPub === 'enfant_tshirt') ? 'enfant_tshirt' : 'tarif_unique');
+            $columns[] = '`prestation`';
+            $placeholders[] = ':prestation';
+
             $columns[] = 'created_at';
             $placeholders[] = 'NOW()';
 

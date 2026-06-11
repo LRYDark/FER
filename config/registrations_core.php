@@ -45,6 +45,19 @@ function regcore_normaliseLabel(string $label): string
     return strtolower(trim(preg_replace('/\s+/', ' ', $label)));
 }
 
+/**
+ * Catégorie d'inscrit (« prestation ») déduite du mode de paiement.
+ * Copie conforme de prestationFromPaiement() de config/api.php :
+ *   gratuit → enfant_gratuit ; enfant_tshirt → enfant_tshirt ; sinon → tarif_unique.
+ */
+function regcore_prestationFromPaiement(?string $paiementMode): string
+{
+    $p = strtolower(trim((string) $paiementMode));
+    if ($p === 'gratuit')       return 'enfant_gratuit';
+    if ($p === 'enfant_tshirt') return 'enfant_tshirt';
+    return 'tarif_unique';
+}
+
 /** Normalise une valeur de sexe. Copie conforme de normaliseSexe(). */
 function regcore_normaliseSexe(?string $val): ?string
 {
@@ -162,6 +175,7 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
         /* Champs système */
         $cols[] = 'origine';       $phs[] = '?'; $vals[] = $origine ?: ($d['origine'] ?? 'API');
         $cols[] = 'paiement_mode'; $phs[] = '?'; $vals[] = $d['paiement_mode'] ?? null;
+        $cols[] = 'prestation';    $phs[] = '?'; $vals[] = regcore_prestationFromPaiement($d['paiement_mode'] ?? null);
         $cols[] = 'montant_du';    $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';    $phs[] = '?'; $vals[] = null; // créé via API : aucun utilisateur
 
@@ -273,6 +287,11 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
         if ($montantLabel !== false) {
             $optionalLabels[] = $montantLabel; // déjà normalisé
         }
+        // « Prestations » optionnelle (export sans cette colonne reste importable).
+        $prestationLabel = array_search('prestation', $mapFields, true);
+        if ($prestationLabel !== false) {
+            $optionalLabels[] = $prestationLabel;
+        }
         $required = array_diff(array_keys($mapFields), $optionalLabels);
         $missing  = array_diff($required, array_keys($headerMap));
         if ($missing) {
@@ -298,9 +317,12 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
             'INSERT INTO registrations
              (inscription_no, nom, prenom, tel, email, naissance, sexe,
               tshirt_size, ville, entreprise, origine, paiement_mode,
-              montant_du, created_at, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+              prestation, montant_du, created_at, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
+
+        /* Colonne « Prestations » (catégorie AssoConnect), lue par en-tête. */
+        $prestaCol = $headerMap[regcore_normaliseLabel('Prestations')] ?? null;
 
         /* 6. Parsing des lignes */
         $parsedRows = [];
@@ -335,6 +357,15 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
                     : ($value ?: null);
             }
 
+            // Détection « Enfant -12 ans avec t-shirt » via la colonne Prestations :
+            // valeur lue par le mapping `import` (configurable), avec repli sur
+            // l'en-tête « Prestations » par défaut si le mapping n'est pas défini.
+            $prestaRaw = (string) ($values['prestation'] ?? '');
+            if ($prestaRaw === '' && $prestaCol) {
+                $prestaRaw = trim((string) ($row[$prestaCol] ?? ''));
+            }
+            $values['_enfant_tshirt'] = ($prestaRaw !== '' && str_contains(regcore_normaliseLabel($prestaRaw), 'tshirt'));
+
             if (empty($values['inscription_no']) || empty($values['nom']) || empty($values['prenom'])) {
                 $skipped++;
                 $errors[] = ['ligne' => $idx, 'erreur' => 'Données manquantes'];
@@ -368,12 +399,22 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
                 if ($montant === null) {
                     $montant = $registrationFee;
                 }
+                // Catégorie : prestation « avec t-shirt » → enfant_tshirt (payant, compté QR) ;
+                // sinon montant à 0 → gratuit (enfant -12 ans) ; sinon paiement en ligne (CB).
+                if (!empty($v['_enfant_tshirt'])) {
+                    $paiementMode = 'enfant_tshirt';
+                } elseif ((float) $montant <= 0) {
+                    $paiementMode = 'gratuit';
+                } else {
+                    $paiementMode = 'en ligne (CB)';
+                }
+                $prestation = regcore_prestationFromPaiement($paiementMode);
                 $insert->execute([
                     $v['inscription_no'], encrypt($v['nom']), encrypt($v['prenom']),
                     encrypt($v['tel']), encrypt($v['email']), encrypt($v['naissance']), $v['sexe'],
                     '-', encrypt($v['ville']), encrypt($v['entreprise']),
                     ($v['origine'] ?? null) ?: 'AssoConnect',
-                    'en ligne (CB)', (float) $montant, $v['created_at'], null,
+                    $paiementMode, $prestation, (float) $montant, $v['created_at'], null,
                 ]);
                 $added++;
                 if (!empty($v['email'])) {

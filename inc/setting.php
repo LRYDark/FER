@@ -884,7 +884,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $import_fields[$row['fields_bdd']] = $row['fields_excel'] ?? '';
 }
 
-$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'paiement_mode', 'montant_du', 'created_at'];
+$fields = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe', 'ville', 'entreprise', 'paiement_mode', 'prestation', 'montant_du', 'created_at'];
 foreach ($fields as $field) {
     $$field = $import_fields[$field] ?? '';
 }
@@ -1714,6 +1714,7 @@ if (isset($_POST['importExcel'])) {
         'sexe',
         'ville',
         'paiement_mode',
+        'prestation',
         'montant_du',
         'created_at',
         'entreprise',
@@ -4242,6 +4243,10 @@ if (!$canTab($activeTab)) {
                     </div>
                     <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
                         <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Prestation =</label>
+                        <input type="text" class="form-control" name="prestation" value="<?= htmlspecialchars($prestation, ENT_QUOTES, 'UTF-8'); ?>">
+                        <div class="form-text">Colonne AssoConnect qui distingue « Enfant -12 ans avec t-shirt » (laisser « Prestations » par défaut).</div>
                     </div>
                     <div class="col-md-4"><label class="form-label">Montant dû =</label>
                         <input type="text" class="form-control" name="montant_du" value="<?= htmlspecialchars($montant_du, ENT_QUOTES, 'UTF-8'); ?>">

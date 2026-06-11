@@ -191,7 +191,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
       <thead class="table-light">
         <tr>
           <th>#</th><th>Nom</th><th>Prénom</th><th>Tél</th><th>Email</th>
-          <th>Naissance</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th>
+          <th>Naissance</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th><th>Prestation</th>
         </tr>
       </thead>
     </table>
@@ -304,7 +304,15 @@ let tbl = $('#tbl').DataTable({
     {data:'naissance'},
     {data:'sexe'},
     {data:'ville'},
-    {data:'tshirt_size'}
+    {data:'tshirt_size'},
+    {data:'prestation',defaultContent:'',render:function(val,type){
+      if(type!=='display') return val;
+      var lc = String(val||'').toLowerCase();
+      if(lc === 'enfant_tshirt')  return 'Enfant -12 +T-shirt';
+      if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit)';
+      if(lc === 'tarif_unique')   return 'Tarif unique';
+      return '–';
+    }}
   ],
   order:[[0,'desc']],
   pageLength:25,

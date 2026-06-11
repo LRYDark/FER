@@ -731,6 +731,7 @@ function getCreateTableStatements(): array
           `entreprise` varchar(255) DEFAULT NULL,
           `origine` varchar(40) DEFAULT 'en ligne',
           `paiement_mode` varchar(50) DEFAULT NULL,
+          `prestation` varchar(30) DEFAULT NULL,
           `montant_du` decimal(10,2) NOT NULL DEFAULT 0,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           `created_by` int(11) DEFAULT NULL,
@@ -989,7 +990,8 @@ function getDefaultInserts(): array
           (10, 'paiement_mode', 'Moyen de paiement'),
           (11, 'origine', 'pays'),
           (12, 'created_at', 'date de creation'),
-          (13, 'montant_du', 'Montant du')",
+          (13, 'montant_du', 'Montant du'),
+          (14, 'prestation', 'Prestations')",
 
         // Compteur atomique pour inscription_no (évite la race condition CWE-362)
         "INSERT IGNORE INTO `inscription_counter` (`id`, `next_no`) VALUES (1, 0)",

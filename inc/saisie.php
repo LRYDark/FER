@@ -235,6 +235,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
           <option value="espece">Esp&egrave;ces</option>
           <option value="cheque">Ch&egrave;que</option>
           <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+          <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
         </select>
         <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
       </div>
@@ -283,6 +284,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
             <option value="espece">Espèce</option>
             <option value="cheque">Chèque</option>
             <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
+            <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
           </select>
           <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
         </div>
@@ -427,7 +429,9 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         // pour que la recherche rapide « gratuit » trouve bien les lignes.
         if (type === 'display') {
           if (!val) return '';
-          if (String(val).toLowerCase() === 'gratuit') return 'Gratuit/-12ans';
+          var lc = String(val).toLowerCase();
+          if (lc === 'gratuit') return 'Gratuit/-12ans';
+          if (lc === 'enfant_tshirt') return 'Enfant -12 +T-shirt';
           return val;
         }
         return val;
