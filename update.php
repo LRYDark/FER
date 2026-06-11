@@ -260,6 +260,23 @@ try {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Normalisation du mode de paiement : « enfant_tshirt » n'est pas un moyen de
+// paiement (l'enfant -12 ans AVEC t-shirt a payé). On le remplace par
+// « en ligne (CB) » — la catégorie est déjà conservée dans `prestation`
+// (classée juste au-dessus). « gratuit » (vraiment gratuit) est conservé tel quel.
+// ─────────────────────────────────────────────────────────────────────────
+$normPaiementSql = "Normaliser paiement_mode « enfant_tshirt » → « en ligne (CB) »";
+try {
+    $stmt = $pdo->prepare("UPDATE `registrations` SET `paiement_mode` = 'en ligne (CB)' WHERE `paiement_mode` = 'enfant_tshirt'");
+    $stmt->execute();
+    $n = $stmt->rowCount();
+    $results[] = ['status' => $n > 0 ? 'success' : 'skip', 'sql' => $normPaiementSql,
+                  'msg' => $n > 0 ? ($n . ' ligne(s) mises à jour') : 'Rien à normaliser'];
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $normPaiementSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Mapping de la colonne Excel « Montant dû » dans la table `import`.
 // ─────────────────────────────────────────────────────────────────────────
 $importMapSql = "Ajouter le mapping import « Montant dû » (id 13)";

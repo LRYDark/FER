@@ -1666,7 +1666,7 @@ if ($route==='registrations'){
 
         // Champs système
         $cols[] = 'origine';      $phs[] = '?'; $vals[] = $origine;
-        $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $d['paiement_mode'] ?? null;
+        $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = storedPaiementMode($d['paiement_mode'] ?? null);
         $cols[] = 'prestation';   $phs[] = '?'; $vals[] = prestationFromPaiement($d['paiement_mode'] ?? null);
         $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
@@ -1801,10 +1801,13 @@ if ($route==='registrations'){
             }
         }
 
-        // Si le mode de paiement change, on resynchronise la catégorie (prestation),
-        // sauf si le client la fournit déjà explicitement.
-        if (array_key_exists('paiement_mode', $d) && !array_key_exists('prestation', $d)) {
-            $d['prestation'] = prestationFromPaiement((string) $d['paiement_mode']);
+        // Si le mode de paiement change, on resynchronise la catégorie (prestation)
+        // puis on normalise le mode stocké (enfant_tshirt → en ligne (CB)).
+        if (array_key_exists('paiement_mode', $d)) {
+            if (!array_key_exists('prestation', $d)) {
+                $d['prestation'] = prestationFromPaiement((string) $d['paiement_mode']);
+            }
+            $d['paiement_mode'] = storedPaiementMode((string) $d['paiement_mode']);
         }
 
         foreach ($systemCols as $sc) {
@@ -2002,7 +2005,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $cols[] = 'origine';      $phs[] = '?'; $vals[] = $sharedOrigine;
-            $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = $sharedPaiement;
+            $cols[] = 'paiement_mode';$phs[] = '?'; $vals[] = storedPaiementMode($sharedPaiement);
             $cols[] = 'prestation';   $phs[] = '?'; $vals[] = prestationFromPaiement($sharedPaiement);
             $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
             $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
@@ -2308,17 +2311,20 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $montant = $registrationFee;
             }
 
-            // Détermination du mode de paiement et de la catégorie :
-            //  - prestation « avec t-shirt » → enfant_tshirt (payant, compté QR) ;
-            //  - sinon montant à 0 → gratuit (enfant -12 ans, non compté) ;
-            //  - sinon moyen de paiement normalisé du fichier (ex. Carte bancaire).
+            // Mode de paiement = moyen RÉEL du fichier (ex. Carte bancaire → en ligne (CB)).
+            // La catégorie (prestation) fait la distinction :
+            //  - « avec t-shirt » → enfant_tshirt (payant, compté QR), le moyen réel est conservé ;
+            //  - sinon montant à 0 → vraiment gratuit (paiement_mode 'gratuit', non compté) ;
+            //  - sinon tarif_unique.
             $paiementMode = normalisePaiementMode($values['paiement_mode'] ?? null);
             if (!empty($values['_enfant_tshirt'])) {
-                $paiementMode = 'enfant_tshirt';
+                $prestation = 'enfant_tshirt';
             } elseif ((float) $montant <= 0) {
                 $paiementMode = 'gratuit';
+                $prestation = 'enfant_gratuit';
+            } else {
+                $prestation = 'tarif_unique';
             }
-            $prestation = prestationFromPaiement($paiementMode);
 
             $stmt->execute([
                 $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
@@ -2512,6 +2518,16 @@ function prestationFromPaiement(?string $paiementMode): string {
     return 'tarif_unique';
 }
 
+/**
+ * Mode de paiement à STOCKER à partir du choix du menu.
+ * « enfant_tshirt » n'est pas un vrai moyen de paiement : l'enfant -12 ans avec
+ * t-shirt a payé, on stocke donc « en ligne (CB) » (la catégorie va dans `prestation`).
+ * « gratuit » (vraiment gratuit) et les moyens réels (CB/espece/cheque/...) sont conservés.
+ */
+function storedPaiementMode(?string $choice): ?string {
+    return strtolower(trim((string) $choice)) === 'enfant_tshirt' ? 'en ligne (CB)' : $choice;
+}
+
 function convertExcelDate($value): ?string {
     if (is_numeric($value)) {
         return date('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($value));
@@ -2561,7 +2577,7 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     // Libellés lisibles pour la colonne Paiement et la colonne Prestation (catégorie).
     $paiementLabels = [
         'gratuit'       => 'Gratuit / -12 ans',
-        'enfant_tshirt' => 'Enfant -12 + T-shirt',
+        'enfant_tshirt' => 'en ligne (CB)',
         'espece'        => 'Espèce',
         'cheque'        => 'Chèque',
     ];

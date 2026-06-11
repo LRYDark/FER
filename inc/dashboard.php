@@ -897,7 +897,7 @@ const tbl=$('#tbl').DataTable({
         if(!val) return '';
         var lc = String(val).toLowerCase();
         if(lc === 'gratuit') return 'Gratuit/-12ans';
-        if(lc === 'enfant_tshirt') return 'Enfant -12 +T-shirt';
+        if(lc === 'enfant_tshirt') return 'en ligne (CB)'; // legacy : la catégorie est désormais dans Prestation
         return val;
       }
       return val;
@@ -1095,7 +1095,7 @@ function buildFilters(api){
         if(title === 'Paiement'){
           var lcv = String(v).toLowerCase();
           if(lcv === 'gratuit') label = 'Gratuit/-12ans';
-          else if(lcv === 'enfant_tshirt') label = 'Enfant -12 +T-shirt';
+          else if(lcv === 'enfant_tshirt') label = 'en ligne (CB)';
         } else if(title === 'Prestation'){
           var lcp = String(v).toLowerCase();
           if(lcp === 'tarif_unique') label = 'Tarif unique';
@@ -1446,6 +1446,11 @@ function showInscriptionToast(inscriptionNo){
 $('#tbl').on('click','button.edit',function(){
   const d=tbl.row($(this).closest('tr')).data();
   Object.entries(d).forEach(([k,v])=>$('#fEdit [name="'+k+'"]').val(v));
+  // La catégorie « enfant t-shirt » est stockée avec paiement_mode='en ligne (CB)' :
+  // on resélectionne le bon choix du menu d'après la prestation.
+  if(String(d.prestation||'').toLowerCase()==='enfant_tshirt'){
+    $('#fEdit [name="paiement_mode"]').val('enfant_tshirt');
+  }
   new bootstrap.Modal('#editModal').show();
 });
 $('#fEdit').on('submit',e=>{
