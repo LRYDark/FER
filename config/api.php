@@ -2583,7 +2583,7 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     ];
     $prestationLabels = [
         'tarif_unique'   => 'Tarif unique',
-        'enfant_gratuit' => 'Enfant -12 ans (gratuit)',
+        'enfant_gratuit' => 'Enfant -12 ans (gratuit sans t-shirt)',
         'enfant_tshirt'  => 'Enfant -12 ans (avec t-shirt)',
     ];
     foreach ($rows as &$expRow) {

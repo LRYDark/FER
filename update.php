@@ -204,17 +204,19 @@ foreach ($migrations as $sql) {
 // ─────────────────────────────────────────────────────────────────────────
 // Pré-remplissage de `registrations.montant_du` pour les inscrits existants.
 // Idempotent : si toutes les lignes ont déjà un montant > 0, on n'agit pas.
+// IMPORTANT : on EXCLUT les inscrits « gratuit » (enfant -12 ans sans t-shirt),
+// qui doivent rester à 0 € — sinon ils seraient à tort facturés au tarif.
 // ─────────────────────────────────────────────────────────────────────────
 $initMontantSql = "Pré-remplir registrations.montant_du = registration_fee pour les inscrits existants";
 try {
-    $remaining = (int) $pdo->query("SELECT COUNT(*) FROM `registrations` WHERE `montant_du` = 0")->fetchColumn();
+    $remaining = (int) $pdo->query("SELECT COUNT(*) FROM `registrations` WHERE `montant_du` = 0 AND (`paiement_mode` IS NULL OR `paiement_mode` <> 'gratuit')")->fetchColumn();
     if ($remaining === 0) {
         $results[] = ['status' => 'skip', 'sql' => $initMontantSql, 'msg' => 'Déjà appliqué'];
     } else {
         $stmt = $pdo->prepare(
             "UPDATE `registrations` r JOIN `setting` s ON s.id = 1
              SET r.montant_du = COALESCE(s.registration_fee, 0)
-             WHERE r.montant_du = 0"
+             WHERE r.montant_du = 0 AND (r.paiement_mode IS NULL OR r.paiement_mode <> 'gratuit')"
         );
         $stmt->execute();
         $results[] = ['status' => 'success', 'sql' => $initMontantSql, 'msg' => $stmt->rowCount() . ' ligne(s) mises à jour'];
@@ -257,6 +259,25 @@ try {
     }
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $initPrestationSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Correction : un enfant -12 ans GRATUIT (sans t-shirt) doit avoir un montant
+// de 0 €. Les versions antérieures du pré-remplissage ci-dessus avaient pu les
+// passer au tarif (12 €) ; on les remet à 0 € (sinon comptés à tort pour le QR).
+// ─────────────────────────────────────────────────────────────────────────
+$fixGratuitMontantSql = "Remettre à 0 € le montant des enfants -12 ans gratuits";
+try {
+    $stmt = $pdo->prepare(
+        "UPDATE `registrations` SET `montant_du` = 0
+         WHERE (`prestation` = 'enfant_gratuit' OR `paiement_mode` = 'gratuit') AND `montant_du` <> 0"
+    );
+    $stmt->execute();
+    $n = $stmt->rowCount();
+    $results[] = ['status' => $n > 0 ? 'success' : 'skip', 'sql' => $fixGratuitMontantSql,
+                  'msg' => $n > 0 ? ($n . ' ligne(s) corrigées') : 'Rien à corriger'];
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $fixGratuitMontantSql, 'msg' => $e->getMessage()];
 }
 
 // ─────────────────────────────────────────────────────────────────────────

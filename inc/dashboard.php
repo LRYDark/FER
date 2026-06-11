@@ -917,7 +917,7 @@ const tbl=$('#tbl').DataTable({
       if(type==='display'){
         var lc = String(val||'').toLowerCase();
         if(lc === 'enfant_tshirt')  return 'Enfant -12 +T-shirt';
-        if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit)';
+        if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit sans t-shirt)';
         if(lc === 'tarif_unique')   return 'Tarif unique';
         // Repli (anciens inscrits sans prestation) : déduire du mode de paiement.
         var pm = String((row && row.paiement_mode) || '').toLowerCase();
@@ -1099,7 +1099,7 @@ function buildFilters(api){
         } else if(title === 'Prestation'){
           var lcp = String(v).toLowerCase();
           if(lcp === 'tarif_unique') label = 'Tarif unique';
-          else if(lcp === 'enfant_gratuit') label = 'Enfant -12 (gratuit)';
+          else if(lcp === 'enfant_gratuit') label = 'Enfant -12 (gratuit sans t-shirt)';
           else if(lcp === 'enfant_tshirt') label = 'Enfant -12 +T-shirt';
         }
         var optVal = $('<div/>').text(v).html();   // échappe HTML
