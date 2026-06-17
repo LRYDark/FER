@@ -953,6 +953,29 @@ function getCreateTableStatements(): array
           `next_no` int(11) NOT NULL DEFAULT 0,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Import automatique AssoConnect : configuration à ligne unique (id=1).
+        // Mot de passe AssoConnect chiffré (AES-256-GCM, ENCRYPTION_KEY du site) dans ac_password_enc.
+        // Le QR n'est PAS une option : il suit le réglage global qrcode_mail_mode.
+        // Le token partagé des endpoints (worker_token) est auto-généré et géré depuis l'UI.
+        "CREATE TABLE IF NOT EXISTS `sync_assoconnect` (
+          `id` TINYINT(1) NOT NULL DEFAULT 1,
+          `enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          `ac_login_url` VARCHAR(500) DEFAULT NULL,
+          `ac_registrants_url` VARCHAR(500) DEFAULT NULL,
+          `ac_email` VARCHAR(190) DEFAULT NULL,
+          `ac_password_enc` BLOB DEFAULT NULL,
+          `worker_token` VARCHAR(64) DEFAULT NULL,
+          `import_send_mail` TINYINT(1) NOT NULL DEFAULT 1,
+          `interval_min` INT NOT NULL DEFAULT 30,
+          `run_requested` TINYINT(1) NOT NULL DEFAULT 0,
+          `test_requested` TINYINT(1) NOT NULL DEFAULT 0,
+          `last_run_at` DATETIME DEFAULT NULL,
+          `last_status` ENUM('ok','error','running','idle') NOT NULL DEFAULT 'idle',
+          `last_message` TEXT DEFAULT NULL,
+          `last_rows` INT NOT NULL DEFAULT 0,
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
     ];
 }
 
@@ -995,6 +1018,9 @@ function getDefaultInserts(): array
 
         // Compteur atomique pour inscription_no (évite la race condition CWE-362)
         "INSERT IGNORE INTO `inscription_counter` (`id`, `next_no`) VALUES (1, 0)",
+
+        // Ligne unique de configuration de l'import automatique AssoConnect
+        "INSERT IGNORE INTO `sync_assoconnect` (`id`) VALUES (1)",
     ];
 }
 
