@@ -2112,316 +2112,43 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Validation extension + MIME
-    $xlsExt  = strtolower(pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION));
-    $xlsMime = mime_content_type($_FILES['file']['tmp_name']);
-    $allowedXlsExts  = ['xlsx', 'xls'];
-    $allowedXlsMimes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-        'application/vnd.ms-excel',                                           // xls
-        'application/zip',                                                    // xlsx détecté comme zip sur certains serveurs
-        'text/xml',                                                            // xls exporté en XML (AssoConnect)
-        'application/xml',                                                     // variante XML
-        'text/html',                                                           // xls exporté en HTML (certains exports)
-    ];
-    // Détection par signature binaire : selon le serveur, mime_content_type()
-    // peut renvoyer application/octet-stream (ou autre) pour un .xlsx pourtant
-    // valide. On vérifie alors les octets magiques du fichier :
-    //   - xlsx (= archive ZIP)       -> "PK\x03\x04"
-    //   - xls binaire (OLE Compound) -> "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
-    $xlsSig = (string) file_get_contents($_FILES['file']['tmp_name'], false, null, 0, 8);
-    $isXlsZip = strncmp($xlsSig, "PK\x03\x04", 4) === 0;
-    $isXlsOle = strncmp($xlsSig, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8) === 0;
-    $xlsMimeOk = in_array($xlsMime, $allowedXlsMimes, true) || $isXlsZip || $isXlsOle;
+    require_once __DIR__ . '/registrations_core.php';
 
-    if (!in_array($xlsExt, $allowedXlsExts, true) || !$xlsMimeOk) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls)']);
-        exit;
-    }
-
-    try {
-        require_once __DIR__ . '/../vendor/autoload.php';
-
-        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($_FILES['file']['tmp_name'])
-                     ->getActiveSheet()
-                     ->toArray(null, true, true, true); // A, B, C...
-
-        if (empty($sheet) || count($sheet) < 2) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Le fichier Excel semble vide']);
-            exit;
+    // Émetteur de progression : bascule la réponse en flux NDJSON dès le 1er
+    // événement (post-commit). Une erreur AVANT le streaming (format invalide,
+    // colonnes manquantes…) n'émet rien → réponse JSON classique : le contrat
+    // attendu par le JS du dashboard reste strictement identique.
+    $emitted = false;
+    $emit = function (array $evt) use (&$emitted) {
+        if (!$emitted) {
+            header('Content-Type: application/x-ndjson; charset=utf-8');
+            header('X-Accel-Buffering: no');
+            if (ob_get_level()) ob_end_flush();
+            $emitted = true;
         }
+        echo json_encode($evt, JSON_UNESCAPED_UNICODE) . "\n";
+        flush();
+    };
 
-        // 1. Récupération des correspondances depuis la BDD
-        $mapFields = []; // ['numero billet' => 'inscription_no']
-        $stmt = $pdo->query('SELECT fields_bdd, fields_excel FROM import');
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $mapFields[ normaliseLabel($row['fields_excel']) ] = $row['fields_bdd'];
-        }
+    // Import via la fonction CANONIQUE partagée (même logique que l'API externe
+    // et l'import automatique). created_by = utilisateur courant, comme avant.
+    $res = importInscritsExcel(
+        $pdo,
+        $_FILES['file']['tmp_name'],
+        $_FILES['file']['name'],
+        ['send_mail' => isset($_POST['send_mails']), 'created_by' => currentUserId(), 'origine' => 'AssoConnect'],
+        $emit
+    );
 
-        // 2. Mapping des entêtes Excel
-        $headerMap = []; // ['numero billet' => 'A']
-        foreach ($sheet[1] as $col => $label) {
-            if (!$label) continue;
-            $headerMap[ normaliseLabel($label) ] = $col;
-        }
-
-        // 3. Vérification des colonnes requises
-        //    "pays" et "Montant dû" sont optionnelles : si elles sont absentes,
-        //    `origine` reçoit la valeur par défaut et `montant_du` est pré-rempli
-        //    au tarif standard (existants → considérés payés).
-        $optionalLabels = [ normaliseLabel('pays') ];
-        $montantLabel   = array_search('montant_du', $mapFields, true);
-        if ($montantLabel !== false) {
-            $optionalLabels[] = $montantLabel; // déjà normalisé
-        }
-        // « Prestations » est optionnelle : un export sans cette colonne reste
-        // importable (les enfants -12 avec t-shirt ne seront simplement pas détectés).
-        $prestationLabel = array_search('prestation', $mapFields, true);
-        if ($prestationLabel !== false) {
-            $optionalLabels[] = $prestationLabel;
-        }
-        $required = array_diff(array_keys($mapFields), $optionalLabels);
-        $missing  = array_diff($required, array_keys($headerMap));
-
-        // Log de debug supprimé (ne pas écrire dans le webroot)
-
-        if ($missing) {
-            logImportError([
-                'type' => 'colonnes manquantes',
-                'missing' => array_values($missing),
-                'headerMap' => array_keys($headerMap),
-                'required' => $required
-            ]);
-            http_response_code(422);
-            echo json_encode([
-                'error'   => 'Colonnes manquantes',
-                'missing' => array_values($missing)
-            ]);
-            exit;
-        }
-
-        // 4. Tickets déjà existants
-        $existingTickets = $pdo->query('SELECT inscription_no FROM registrations')
-                               ->fetchAll(PDO::FETCH_COLUMN, 0);
-
-        // Tarif inscription pour pré-remplir le montant dû quand la colonne Excel est absente
-        $registrationFee = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
-
-        // 5. Préparation de la requête
-        $stmt = $pdo->prepare(
-            'INSERT INTO registrations
-             (inscription_no, nom, prenom, tel, email, naissance, sexe,
-              tshirt_size, ville, entreprise, origine, paiement_mode,
-              prestation, montant_du, created_at, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-        );
-
-        // Colonne « Prestations » (catégorie AssoConnect), lue directement par
-        // en-tête car non mappée dans la table `import`. Permet de distinguer
-        // l'enfant -12 ans AVEC t-shirt (payant) d'un adulte au même montant.
-        $prestaCol = $headerMap[normaliseLabel('Prestations')] ?? null;
-
-        // 6. Parsing de toutes les lignes
-        $parsedRows = [];
-        $skipped = 0;
-        $duplicates = $errors = [];
-
-        foreach ($sheet as $idx => $row) {
-            if ($idx === 1) continue;
-
-            $values = [];
-            foreach ($mapFields as $excelLabel => $bddField) {
-                $col = $headerMap[$excelLabel] ?? null;
-                $value = $col ? trim($row[$col]) : null;
-
-                if ($bddField === 'inscription_no') {
-                    $value = 'E' . trim($value);
-                } elseif ($bddField === 'naissance') {
-                    $value = (is_numeric($value) && $value >= 1900 && $value <= date('Y')) ? $value : null;
-                } elseif ($bddField === 'created_at') {
-                    $value = convertExcelDate($value);
-                } elseif ($bddField === 'sexe') {
-                    $value = normaliseSexe($value);
-                } elseif ($bddField === 'montant_du') {
-                    $clean = preg_replace('/[^0-9.,\-]/', '', (string) $value);
-                    $clean = str_replace(',', '.', $clean);
-                    $value = is_numeric($clean) ? (float) $clean : null;
-                }
-
-                $values[$bddField] = ($bddField === 'montant_du')
-                    ? ($value === null ? null : (float) $value)
-                    : ($value ?: null);
-            }
-
-            // Détection « Enfant -12 ans avec t-shirt » via la colonne Prestations :
-            // valeur lue par le mapping `import` (configurable), avec repli sur
-            // l'en-tête « Prestations » par défaut si le mapping n'est pas défini.
-            $prestaRaw = (string) ($values['prestation'] ?? '');
-            if ($prestaRaw === '' && $prestaCol) {
-                $prestaRaw = trim((string) ($row[$prestaCol] ?? ''));
-            }
-            $values['_enfant_tshirt'] = ($prestaRaw !== '' && str_contains(normaliseLabel($prestaRaw), 'tshirt'));
-
-            if (!$values['inscription_no'] || !$values['nom'] || !$values['prenom']) {
-                $skipped++;
-                $errors[] = ['ligne' => $idx, 'erreur' => 'Données manquantes'];
-                logImportError([
-                    'type' => 'ligne ignorée',
-                    'ligne' => $idx,
-                    'raison' => 'Données manquantes',
-                    'valeurs' => $values
-                ]);
-                continue;
-            }
-
-            if (in_array($values['inscription_no'], $existingTickets, true)) {
-                $skipped++;
-                $duplicates[] = ['ligne' => $idx, 'ticket' => $values['inscription_no']];
-                logImportError([
-                    'type' => 'doublon',
-                    'ligne' => $idx,
-                    'ticket' => $values['inscription_no']
-                ]);
-                continue;
-            }
-
-            $existingTickets[] = $values['inscription_no'];
-            $parsedRows[] = ['ligne' => $idx, 'values' => $values];
-        }
-
-        // 7. Tri par date de création (du plus ancien au plus récent)
-        usort($parsedRows, function ($a, $b) {
-            $dateA = $a['values']['created_at'] ?? '9999-12-31';
-            $dateB = $b['values']['created_at'] ?? '9999-12-31';
-            return strcmp($dateA, $dateB);
-        });
-
-        // 8. Insertion en BDD dans l'ordre chronologique
-        $pdo->beginTransaction();
-        $added = 0;
-        $newRegistrants = [];
-
-        foreach ($parsedRows as $parsed) {
-            $values = $parsed['values'];
-
-            $montant = $values['montant_du'] ?? null;
-            if ($montant === null) {
-                $montant = $registrationFee;
-            }
-
-            // Mode de paiement = moyen RÉEL du fichier (ex. Carte bancaire → en ligne (CB)).
-            // La catégorie (prestation) fait la distinction :
-            //  - « avec t-shirt » → enfant_tshirt (payant, compté QR), le moyen réel est conservé ;
-            //  - sinon montant à 0 → vraiment gratuit (paiement_mode 'gratuit', non compté) ;
-            //  - sinon tarif_unique.
-            $paiementMode = normalisePaiementMode($values['paiement_mode'] ?? null);
-            if (!empty($values['_enfant_tshirt'])) {
-                $prestation = 'enfant_tshirt';
-            } elseif ((float) $montant <= 0) {
-                $paiementMode = 'gratuit';
-                $prestation = 'enfant_gratuit';
-            } else {
-                $prestation = 'tarif_unique';
-            }
-
-            $stmt->execute([
-                $values['inscription_no'], encrypt($values['nom']), encrypt($values['prenom']),
-                encrypt($values['tel']), encrypt($values['email']), encrypt($values['naissance']), $values['sexe'],
-                '-', encrypt($values['ville']), encrypt($values['entreprise']),
-                ($values['origine'] ?? null) ?: 'AssoConnect',
-                $paiementMode, $prestation, (float) $montant, $values['created_at'], currentUserId()
-            ]);
-
-            $added++;
-
-            // Collecter les nouveaux inscrits pour envoi mail après commit (ordre chronologique)
-            if (!empty($values['email'])) {
-                $newRegistrants[] = [
-                    'email'          => $values['email'],
-                    'nom'            => $values['nom'],
-                    'prenom'         => $values['prenom'],
-                    'inscription_no' => $values['inscription_no'],
-                ];
-            }
-        }
-
-        $pdo->commit();
-
-        // Streaming : passer en NDJSON pour le temps réel
-        header('Content-Type: application/x-ndjson; charset=utf-8');
-        header('X-Accel-Buffering: no');
-        if (ob_get_level()) ob_end_flush();
-
-        $sendEvent = function($data) {
-            echo json_encode($data, JSON_UNESCAPED_UNICODE) . "\n";
-            flush();
-        };
-
-        // Événement : import terminé
-        $sendEvent(['type' => 'import_ok', 'count' => $added]);
-        if ($skipped > 0) {
-            $sendEvent(['type' => 'import_skip', 'count' => $skipped, 'duplicates' => count($duplicates)]);
-        }
-
-        // Envoi des mails de confirmation aux nouveaux inscrits (hors transaction)
-        $mailsSent = 0;
-        $sendMails = isset($_POST['send_mails']);
-
-        if ($sendMails && !empty($newRegistrants)) {
-            require_once __DIR__ . '/googleMail.php';
-            $subject = 'Inscription enregistrée - Forbach en Rose';
-            foreach ($newRegistrants as $reg) {
-                try {
-                    $hasQr = shouldIncludeQrCode($reg['inscription_no']);
-                    sendMail(
-                        $reg['email'],
-                        $subject,
-                        null,
-                        null,
-                        $reg['nom'],
-                        $reg['prenom'],
-                        'inscription',
-                        $reg['inscription_no']
-                    );
-                    $mailsSent++;
-                    $sendEvent(['type' => 'mail_sent', 'inscription_no' => $reg['inscription_no'], 'qrcode' => $hasQr]);
-                } catch (\Throwable $mailErr) {
-                    writeLog("⚠️ Mail import échoué pour {$reg['email']} : " . $mailErr->getMessage());
-                    $sendEvent(['type' => 'mail_error', 'inscription_no' => $reg['inscription_no'], 'error' => $mailErr->getMessage()]);
-                }
-            }
-        } elseif (!$sendMails) {
-            $sendEvent(['type' => 'mail_skip']);
-        }
-
-        // Récap final
-        $sendEvent([
-            'type'          => 'done',
-            'rows_added'    => $added,
-            'rows_skipped'  => $skipped,
-            'mails_sent'    => $mailsSent,
-            'duplicates'    => count($duplicates),
-        ]);
-        exit;
-
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        logImportError([
-            'type' => 'exception',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        error_log('Import Excel : '.$e->getMessage());
-        http_response_code(500);
+    // Échec survenu AVANT tout streaming → réponse JSON d'erreur (le JS lit j.error).
+    if (empty($res['ok']) && !$emitted) {
+        http_response_code($res['http'] ?? 500);
         echo json_encode([
-            'ok'     => false,
-            'error'  => 'import_error',
-            'detail' => $e->getMessage()
+            'error'   => $res['message'] ?? "Erreur lors de l'import.",
+            'missing' => $res['missing'] ?? null,
         ]);
-        exit;
     }
+    exit;
 }
 
 // ═══ Vérification doublons avant import ═══
@@ -2529,13 +2256,29 @@ function storedPaiementMode(?string $choice): ?string {
 }
 
 function convertExcelDate($value): ?string {
+    if ($value === null || $value === '') {
+        return date('Y-m-d H:i:s');
+    }
+    // Numéro de série Excel : conversion NON ambiguë (seul ce cas l'est vraiment).
+    // gmdate (et non date) : excelToTimestamp interprète la série en UTC ; gmdate
+    // restitue donc la valeur faciale exacte, sans décalage selon le fuseau PHP.
     if (is_numeric($value)) {
-        return date('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($value));
-    } else {
-        $formats = ['d/m/Y H:i:s', 'd/m/Y', 'Y-m-d'];
-        foreach ($formats as $f) {
-            $dt = DateTime::createFromFormat($f, $value);
-            if ($dt) return $dt->format('Y-m-d H:i:s');
+        return gmdate('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp((float) $value));
+    }
+    // Repli TEXTE : interprété en d/m/Y (français). ⚠ Une date fournie en texte au
+    // format US (mm/dd) RESTE ambiguë et peut être inversée — contrairement à la
+    // branche numérique ci-dessus. Le « ! » remet l'heure à 00:00:00 et tout
+    // débordement (ex. mois 13 d'une date US mal lue) est rejeté plutôt que de
+    // basculer silencieusement la date dans le futur.
+    $value = trim((string) $value);
+    error_log('[IMPORT][DATE-TEXTE] date non numérique interprétée en d/m/Y : ' . substr($value, 0, 40));
+    $formats = ['d/m/Y H:i:s', 'd/m/Y', 'Y-m-d H:i:s', 'Y-m-d'];
+    foreach ($formats as $f) {
+        $dt   = DateTime::createFromFormat('!' . $f, $value);
+        $errs = DateTime::getLastErrors();
+        $hasErr = is_array($errs) && (($errs['warning_count'] ?? 0) > 0 || ($errs['error_count'] ?? 0) > 0);
+        if ($dt && !$hasErr) {
+            return $dt->format('Y-m-d H:i:s');
         }
     }
     return date('Y-m-d H:i:s');

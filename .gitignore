@@ -4,6 +4,9 @@ config/.env.test
 config/.install.lock
 token.json
 config/token.json
+# Exports d'inscrits AssoConnect (données personnelles) — jamais dans le dépôt
+/export.xlsx
+/export_test.xlsx
 
 # Logs
 *.log

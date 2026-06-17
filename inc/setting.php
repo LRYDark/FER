@@ -57,6 +57,9 @@ $postCardMap = [
     // API
     'save_api'                 => ['api', null],
     'regenerate_api'           => ['api', null],
+    // Import automatique AssoConnect
+    'save_import_auto'         => ['import_auto', null],
+    'regenerate_worker_token'  => ['import_auto', null],
 ];
 
 // Bloquer toute action POST si pas le droit d'écriture
@@ -2676,6 +2679,78 @@ document.addEventListener('DOMContentLoaded', function() {
 </style>
 
 <?php
+// ── Import automatique AssoConnect : sauvegarde de la configuration ──────────
+// (CSRF + permission settings.tab.import_auto déjà vérifiés plus haut.)
+// Le bouton porte name="save_import_auto" value="save|run|test" : on enregistre
+// toujours la config saisie, et on positionne le drapeau run/test si demandé.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_import_auto'])) {
+    require_once __DIR__ . '/../config/sync_assoconnect.php';
+
+    $action = in_array($_POST['save_import_auto'], ['save', 'run', 'test'], true) ? $_POST['save_import_auto'] : 'save';
+
+    $enabled        = isset($_POST['ac_enabled']) ? 1 : 0;
+    $importSendMail = isset($_POST['ac_import_send_mail']) ? 1 : 0;
+    $loginUrl       = trim((string) ($_POST['ac_login_url'] ?? ''));
+    $registUrl      = trim((string) ($_POST['ac_registrants_url'] ?? ''));
+    $email          = trim((string) ($_POST['ac_email'] ?? ''));
+    $interval       = (int) ($_POST['ac_interval_min'] ?? 30);
+    if ($interval < 5)    $interval = 5;     // borne basse = résolution du cron (5 min)
+    if ($interval > 1440) $interval = 1440;  // borne haute = 1 jour
+
+    // URLs : autorisées vides, sinon https:// valide.
+    $urlOk = static function (string $u): bool {
+        return $u === '' || (filter_var($u, FILTER_VALIDATE_URL) !== false && str_starts_with($u, 'https://'));
+    };
+
+    if (!$urlOk($loginUrl) || !$urlOk($registUrl)) {
+        addToast('danger', 'URL AssoConnect invalide (elle doit commencer par https://).');
+    } else {
+        $fields = ['enabled = ?', 'ac_login_url = ?', 'ac_registrants_url = ?',
+                   'ac_email = ?', 'import_send_mail = ?', 'interval_min = ?'];
+        $params = [$enabled, $loginUrl ?: null, $registUrl ?: null, $email ?: null, $importSendMail, $interval];
+
+        // Mot de passe WRITE-ONLY : on ne le (re)chiffre que s'il a été saisi.
+        // Chiffrement = celui du site (encrypt()/ENCRYPTION_KEY, AES-256-GCM).
+        $newPass = (string) ($_POST['ac_password'] ?? '');
+        if ($newPass !== '') {
+            $fields[] = 'ac_password_enc = ?';
+            $params[] = encrypt($newPass);
+        }
+
+        if ($action === 'run') { $fields[] = 'run_requested = 1'; }
+
+        try {
+            $pdo->prepare('UPDATE sync_assoconnect SET ' . implode(', ', $fields) . ' WHERE id = 1')
+                ->execute($params);
+
+            if ($action === 'test') {
+                // Test SYNCHRONE : connexion + export immédiats (sans import) → résultat tout de suite.
+                @set_time_limit(120);
+                $r = sync_run_import($pdo, 'test');
+                if (!empty($r['ok'])) addToast('success', 'Test réussi : connexion + export AssoConnect OK.');
+                else                  addToast('danger', 'Test échoué : ' . ($r['message'] ?? 'erreur inconnue'));
+            } elseif ($action === 'run') {
+                addToast('info', 'Import lancé — il sera traité au prochain passage du cron.');
+            } else {
+                addToast('success', "Configuration de l'import automatique enregistrée.");
+            }
+        } catch (\Throwable $e) {
+            addToast('danger', "Erreur lors de l'enregistrement : " . $e->getMessage());
+        }
+    }
+}
+
+// Régénération du token (sécurise l'URL du cron : commande à mettre à jour dans le panel).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_token'])) {
+    require_once __DIR__ . '/../config/sync_assoconnect.php';
+    try {
+        sync_regenerate_token($pdo);
+        addToast('success', "Nouveau token généré. Mettez à jour la commande du cron (URL) dans votre panel d'hébergement.");
+    } catch (\Throwable $e) {
+        addToast('danger', 'Impossible de régénérer le token : ' . $e->getMessage());
+    }
+}
+
 // Determine active tab based on which form was submitted
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -2688,14 +2763,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
     elseif (isset($_POST['importExcel'])) $activeTab = 'import';
     elseif (isset($_POST['save_api']) || isset($_POST['regenerate_api'])) $activeTab = 'api';
+    elseif (isset($_POST['save_import_auto']) || isset($_POST['regenerate_worker_token'])) $activeTab = 'import_auto';
 }
 // Also check URL hash
-if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance','api'])) {
+if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','import_auto','maintenance','api'])) {
     $activeTab = $_GET['tab'];
 }
 
 // Si l'onglet actif n'est pas accessible, basculer sur le premier accessible
-$allTabs = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','maintenance','api'];
+$allTabs = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','import_auto','maintenance','api'];
 if (!$canTab($activeTab)) {
     $activeTab = '';
     foreach ($allTabs as $t) { if ($canTab($t)) { $activeTab = $t; break; } }
@@ -2713,6 +2789,7 @@ if (!$canTab($activeTab)) {
   <?php if ($canTab('reglementation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li><?php endif; ?>
   <?php if ($canTab('formulaire')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li><?php endif; ?>
   <?php if ($canTab('import')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li><?php endif; ?>
+  <?php if ($canTab('import_auto')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import_auto' ? 'active' : '' ?>" href="#" data-tab="import_auto">Import auto</a></li><?php endif; ?>
   <?php if ($canTab('maintenance')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'maintenance' ? 'active' : '' ?>" href="#" data-tab="maintenance">Maintenance</a></li><?php endif; ?>
   <?php if ($canTab('api')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'api' ? 'active' : '' ?>" href="#" data-tab="api">API</a></li><?php endif; ?>
 </ul>
@@ -4263,6 +4340,255 @@ if (!$canTab($activeTab)) {
   </div><!-- /row -->
 </div><!-- /tab-import -->
 <?php endif; // canTab('import') ?>
+
+<!-- ═══ TAB: Import automatique ═══ -->
+<?php if ($canTab('import_auto')):
+    require_once __DIR__ . '/../config/sync_assoconnect.php';
+    $syncCfg     = sync_get_config($pdo);
+    $acEnabled   = (int) ($syncCfg['enabled'] ?? 0) === 1;
+    $acSendMail  = (int) ($syncCfg['import_send_mail'] ?? 1) === 1;
+    $acHasPass   = !empty($syncCfg['ac_password_enc']);
+    $acInterval  = (int) ($syncCfg['interval_min'] ?? 30);
+    $acStatus    = $syncCfg['last_status'] ?? 'idle';
+    $acStBadge   = ['ok'=>'success','error'=>'danger','running'=>'info','idle'=>'secondary'][$acStatus] ?? 'secondary';
+    $acStLabel   = ['ok'=>'OK','error'=>'Erreur','running'=>'En cours','idle'=>'Au repos'][$acStatus] ?? $acStatus;
+    $acPresets   = [5=>'Toutes les 5 min', 15=>'Toutes les 15 min', 30=>'Toutes les 30 min', 60=>'Toutes les heures', 360=>'Toutes les 6 heures', 1440=>'Une fois par jour'];
+
+    // ── Automatisation (cron) : commande prête à coller dans le panel d'hébergement ──
+    $wkToken = sync_get_or_create_token($pdo); // token du cron, auto-généré en base
+    $wk_projectRoot = realpath(__DIR__ . '/..');
+    $wk_docRoot     = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
+    if ($wk_projectRoot === $wk_docRoot || $wk_projectRoot === false || $wk_docRoot === false) {
+        $wk_baseDir = '';
+    } else {
+        $wk_baseDir = str_replace('\\', '/', substr($wk_projectRoot, strlen($wk_docRoot)));
+    }
+    $cronUrl = rtrim(getAppBaseUrl(), '/') . $wk_baseDir . '/inc/import_auto_cron.php';
+    $cronAbs = str_replace('\\', '/', (string) realpath(__DIR__ . '/import_auto_cron.php'));
+    // Forme wget (URL + token) — recommandée : marche sans connaître le chemin serveur.
+    $cronWget = "wget -O - -q '{$cronUrl}?token={$wkToken}' --user-agent=\"CRON\" >/dev/null 2>&1";
+    // Forme PHP-CLI (pas de token : exécution locale par le compte d'hébergement).
+    $cronCli  = $cronAbs !== '' ? "php -q {$cronAbs} >/dev/null 2>&1" : 'php -q /home/<votre-compte>/.../inc/import_auto_cron.php >/dev/null 2>&1';
+?>
+<div class="settings-section <?= $activeTab === 'import_auto' ? 'active' : '' ?>" id="tab-import_auto">
+  <div class="row g-4">
+
+    <!-- Carte : configuration -->
+    <div class="col-12 col-lg-7">
+      <div class="setting-card">
+        <h2><i class="bi bi-arrow-repeat me-2"></i>Import automatique AssoConnect</h2>
+        <p class="text-muted" style="font-size:14px">
+          Récupère automatiquement le fichier des inscrits depuis AssoConnect et l'importe
+          avec <strong>exactement</strong> la même logique que l'import manuel. L'option « Envoyer les mails »
+          ci-dessous se comporte comme la case de l'import manuel ; le QR Code suit le réglage global
+          (Réglages → QR Code), comme en manuel.
+        </p>
+
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="ac_enabled" id="ac_enabled" <?= $acEnabled ? 'checked' : '' ?>>
+              <label class="form-check-label" for="ac_enabled">
+                Activer l'import automatique
+                <?= $acEnabled ? '<span class="badge bg-success ms-1">Activé</span>' : '<span class="badge bg-secondary ms-1">Désactivé</span>' ?>
+              </label>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">URL de connexion AssoConnect</label>
+            <input type="url" class="form-control" name="ac_login_url" placeholder="https://…/contacts/login"
+                   value="<?= htmlspecialchars($syncCfg['ac_login_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">URL de la liste des inscrits</label>
+            <input type="url" class="form-control" name="ac_registrants_url" placeholder="https://…/collect/registrants/<ULID>"
+                   value="<?= htmlspecialchars($syncCfg['ac_registrants_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+            <div class="form-text">L'identifiant (ULID) change à chaque édition : il suffit de mettre cette URL à jour ici.</div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Identifiant (email) AssoConnect</label>
+            <input type="email" class="form-control" name="ac_email" autocomplete="off"
+                   value="<?= htmlspecialchars($syncCfg['ac_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Mot de passe AssoConnect</label>
+            <input type="password" class="form-control" name="ac_password" autocomplete="new-password"
+                   placeholder="<?= $acHasPass ? '•••••••• (laisser vide pour conserver)' : 'Saisir le mot de passe' ?>">
+            <div class="form-text">
+              <i class="bi bi-shield-lock me-1"></i>Chiffré (AES-256-GCM) avant stockage — jamais réaffiché.
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="ac_import_send_mail" id="ac_import_send_mail" <?= $acSendMail ? 'checked' : '' ?>>
+              <label class="form-check-label" for="ac_import_send_mail">Envoyer les mails d'inscription (avec QR Code selon le réglage global)</label>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Fréquence d'exécution</label>
+            <select name="ac_interval_min" class="form-select">
+              <?php foreach ($acPresets as $val => $lbl): ?>
+                <option value="<?= $val ?>" <?= $acInterval === $val ? 'selected' : '' ?>><?= $lbl ?></option>
+              <?php endforeach; ?>
+              <?php if (!isset($acPresets[$acInterval])): ?>
+                <option value="<?= (int) $acInterval ?>" selected>Personnalisé : <?= (int) $acInterval ?> min</option>
+              <?php endif; ?>
+            </select>
+            <div class="form-text">Prend effet immédiatement, sans toucher au cron (qui tourne toutes les 5 min).</div>
+          </div>
+
+          <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
+            <button type="submit" name="save_import_auto" value="test" class="btn btn-outline-secondary w-auto">
+              <i class="bi bi-plug me-1"></i>Tester la connexion
+            </button>
+            <button type="submit" name="save_import_auto" value="run" class="btn btn-outline-primary w-auto">
+              <i class="bi bi-play-fill me-1"></i>Lancer maintenant
+            </button>
+            <button type="submit" name="save_import_auto" value="save" class="btn btn-primary w-auto">
+              <i class="bi bi-save me-1"></i>Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Carte : statut -->
+    <div class="col-12 col-lg-5">
+      <div class="setting-card">
+        <h2><i class="bi bi-activity me-2"></i>Statut</h2>
+        <ul class="list-unstyled mb-0" style="font-size:14px">
+          <li class="d-flex justify-content-between py-2 border-bottom">
+            <span class="text-muted">État</span>
+            <span class="badge bg-<?= $acStBadge ?>"><?= htmlspecialchars($acStLabel, ENT_QUOTES, 'UTF-8') ?></span>
+          </li>
+          <li class="d-flex justify-content-between py-2 border-bottom">
+            <span class="text-muted">Dernière exécution</span>
+            <strong><?= $syncCfg['last_run_at'] ? htmlspecialchars($syncCfg['last_run_at'], ENT_QUOTES, 'UTF-8') : '—' ?></strong>
+          </li>
+          <li class="d-flex justify-content-between py-2 border-bottom">
+            <span class="text-muted">Lignes importées (dernier run)</span>
+            <strong><?= (int) ($syncCfg['last_rows'] ?? 0) ?></strong>
+          </li>
+          <li class="pt-2">
+            <span class="text-muted d-block mb-1">Dernier message</span>
+            <div class="border rounded p-2 bg-light" style="font-size:13px;white-space:pre-wrap;word-break:break-word">
+              <?= $syncCfg['last_message'] ? htmlspecialchars($syncCfg['last_message'], ENT_QUOTES, 'UTF-8') : '—' ?>
+            </div>
+          </li>
+        </ul>
+        <p class="text-muted mt-3 mb-0" style="font-size:12px">
+          <i class="bi bi-info-circle me-1"></i>« Tester » s'exécute immédiatement. « Lancer maintenant » et l'import
+          automatique sont déclenchés par la tâche Cron (ci-dessous), à la fréquence choisie ci-contre.
+        </p>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+
+  <!-- Carte : automatisation (tâche Cron de l'hébergeur) -->
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2><i class="bi bi-clock-history me-2"></i>Automatisation (tâche Cron)</h2>
+        <p class="text-muted" style="font-size:14px">
+          L'import manuel (« Lancer maintenant ») fonctionne déjà depuis cette page. Pour qu'il se déclenche
+          <strong>tout seul</strong> à la fréquence choisie ci-dessus, ajoutez <strong>une seule</strong> tâche Cron
+          chez votre hébergeur (PlanetHoster → <em>Crons</em> → <em>Ajouter</em>) avec la commande ci-dessous,
+          réglée par exemple sur <code>*/5</code> minutes. Rien à installer, aucun accès serveur.
+        </p>
+
+        <div class="mb-3">
+          <label class="form-label">Commande à coller <span class="badge bg-success ms-1">recommandée</span></label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="cronWgetField" value="<?= htmlspecialchars($cronWget, ENT_QUOTES, 'UTF-8') ?>" readonly style="font-family:Consolas,monospace;font-size:12px">
+            <button class="btn btn-outline-secondary" type="button" data-wkcopy="cronWgetField"><i class="bi bi-clipboard"></i> Copier</button>
+          </div>
+          <div class="form-text">PlanetHoster : <em>Crons → Ajouter</em>, mettez « <code>*/5</code> » dans Minute, et collez ceci dans le champ « Commande ».</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Variante en ligne de commande (PHP)</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="cronCliField" value="<?= htmlspecialchars($cronCli, ENT_QUOTES, 'UTF-8') ?>" readonly style="font-family:Consolas,monospace;font-size:12px">
+            <button class="btn btn-outline-secondary" type="button" data-wkcopy="cronCliField"><i class="bi bi-clipboard"></i> Copier</button>
+          </div>
+          <div class="form-text">Au choix : certains préfèrent cette forme (exécution locale, sans token dans l'URL).</div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <input type="password" id="cronTokenView" value="<?= htmlspecialchars($wkToken, ENT_QUOTES, 'UTF-8') ?>" readonly class="form-control" style="max-width:330px;font-family:Consolas,monospace;font-size:12px">
+          <button class="btn btn-outline-secondary" type="button" data-wktoggle="cronTokenView"><i class="bi bi-eye"></i> Voir le token</button>
+          <form action="" method="post" class="d-inline" id="regenWorkerForm">
+            <?= csrf_field() ?>
+            <button type="submit" name="regenerate_worker_token" class="btn btn-outline-danger">
+              <i class="bi bi-arrow-repeat me-1"></i>Régénérer le token
+            </button>
+          </form>
+        </div>
+        <small class="text-muted d-block mt-2">
+          <i class="bi bi-shield-lock me-1"></i>Le token sécurise l'URL du cron (comparé en temps constant, HTTPS).
+          Régénérer le token impose de mettre à jour la commande dans le panel de l'hébergeur.
+        </small>
+      </div>
+    </div>
+  </div><!-- /row cron -->
+</div><!-- /tab-import_auto -->
+
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var root = document.getElementById('tab-import_auto');
+  if(!root) return;
+  // Copier (champ ou textarea) — attributs dédiés (data-wkcopy/data-wktoggle) pour
+  // ne jamais entrer en conflit avec le JS de l'onglet API (data-copy global).
+  root.querySelectorAll('[data-wkcopy]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var field = document.getElementById(btn.getAttribute('data-wkcopy'));
+      if(!field) return;
+      var wasPassword = field.type === 'password';
+      if(wasPassword) field.type = 'text';
+      field.select();
+      try { field.setSelectionRange(0, 99999); } catch(e){}
+      var done = function(){
+        var old = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check2"></i> Copié';
+        setTimeout(function(){ btn.innerHTML = old; }, 1500);
+      };
+      if(navigator.clipboard){
+        navigator.clipboard.writeText(field.value).then(done, function(){ try{document.execCommand('copy');done();}catch(e){} });
+      } else {
+        try{ document.execCommand('copy'); done(); }catch(e){}
+      }
+      if(wasPassword) field.type = 'password';
+      if(window.getSelection) window.getSelection().removeAllRanges();
+    });
+  });
+  // Afficher / masquer le token
+  root.querySelectorAll('[data-wktoggle]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var field = document.getElementById(btn.getAttribute('data-wktoggle'));
+      if(!field) return;
+      field.type = (field.type === 'password') ? 'text' : 'password';
+      btn.innerHTML = (field.type === 'password') ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+    });
+  });
+  // Confirmation avant régénération du token
+  var regen = document.getElementById('regenWorkerForm');
+  if(regen){
+    regen.addEventListener('submit', function(e){
+      if(!confirm('Régénérer le token ? Le cron cessera de fonctionner tant que vous n\'aurez pas mis à jour la commande (avec le nouveau token) dans votre panel d\'hébergement.')){
+        e.preventDefault();
+      }
+    });
+  }
+})();
+</script>
+<?php endif; // canTab('import_auto') ?>
 
 <!-- ═══ TAB: Maintenance ═══ -->
 <?php if ($canTab('maintenance')): ?>

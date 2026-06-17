@@ -283,7 +283,7 @@ function permCatalog(): array
             // Sous-onglets des Réglages (granularité par onglet)
             'settings.tab.personnalisation','settings.tab.accueil','settings.tab.inscription',
             'settings.tab.parcours','settings.tab.reglementation','settings.tab.formulaire',
-            'settings.tab.import','settings.tab.maintenance',
+            'settings.tab.import','settings.tab.import_auto','settings.tab.maintenance',
             // Cartes de l'onglet Accueil
             'settings.accueil.params','settings.accueil.custom',
             // Cartes de l'onglet Inscription

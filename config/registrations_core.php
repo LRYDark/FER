@@ -67,6 +67,23 @@ function regcore_storedPaiementMode(?string $choice): ?string
     return strtolower(trim((string) $choice)) === 'enfant_tshirt' ? 'en ligne (CB)' : $choice;
 }
 
+/**
+ * Normalise le « Moyen de paiement » Excel (AssoConnect) vers la valeur stockée.
+ * Copie conforme de normalisePaiementMode() de config/api.php : un import
+ * AssoConnect = paiement en ligne, donc carte → 'en ligne (CB)'. Conserve le
+ * vrai moyen (cheque/espece/gratuit) ; repli 'en ligne (CB)'.
+ */
+function regcore_normalisePaiementMode(?string $val): string
+{
+    $v = strtolower(trim($val ?? ''));
+    if ($v === '') return 'en ligne (CB)';
+    if (str_contains($v, 'gratuit'))                              return 'gratuit';
+    if (str_contains($v, 'cheque') || str_contains($v, 'chèque')) return 'cheque';
+    if (str_contains($v, 'espece') || str_contains($v, 'espèce')) return 'espece';
+    if (str_contains($v, 'carte') || str_contains($v, 'cb') || str_contains($v, 'bancaire')) return 'en ligne (CB)';
+    return 'en ligne (CB)';
+}
+
 /** Normalise une valeur de sexe. Copie conforme de normaliseSexe(). */
 function regcore_normaliseSexe(?string $val): ?string
 {
@@ -82,13 +99,30 @@ function regcore_normaliseSexe(?string $val): ?string
 /** Convertit une date Excel (numérique ou texte) en 'Y-m-d H:i:s'. */
 function regcore_convertExcelDate($value): ?string
 {
-    if (is_numeric($value)) {
-        return date('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($value));
+    if ($value === null || $value === '') {
+        return date('Y-m-d H:i:s');
     }
-    $formats = ['d/m/Y H:i:s', 'd/m/Y', 'Y-m-d'];
+    // Numéro de série Excel : conversion NON ambiguë (seul ce cas l'est vraiment).
+    // gmdate (et non date) : excelToTimestamp interprète la série en UTC ; gmdate
+    // restitue donc la valeur faciale exacte, sans décalage selon le fuseau PHP.
+    if (is_numeric($value)) {
+        return gmdate('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp((float) $value));
+    }
+    // Repli TEXTE : interprété en d/m/Y (français). ⚠ Une date fournie en texte au
+    // format US (mm/dd) RESTE ambiguë et peut être inversée — contrairement à la
+    // branche numérique ci-dessus. Le « ! » remet l'heure à 00:00:00 et tout
+    // débordement (ex. mois 13 d'une date US mal lue) est rejeté plutôt que de
+    // basculer silencieusement la date dans le futur.
+    $value = trim((string) $value);
+    error_log('[IMPORT][DATE-TEXTE] date non numérique interprétée en d/m/Y : ' . substr($value, 0, 40));
+    $formats = ['d/m/Y H:i:s', 'd/m/Y', 'Y-m-d H:i:s', 'Y-m-d'];
     foreach ($formats as $f) {
-        $dt = DateTime::createFromFormat($f, (string) $value);
-        if ($dt) return $dt->format('Y-m-d H:i:s');
+        $dt   = DateTime::createFromFormat('!' . $f, $value);
+        $errs = DateTime::getLastErrors();
+        $hasErr = is_array($errs) && (($errs['warning_count'] ?? 0) > 0 || ($errs['error_count'] ?? 0) > 0);
+        if ($dt && !$hasErr) {
+            return $dt->format('Y-m-d H:i:s');
+        }
     }
     return date('Y-m-d H:i:s');
 }
@@ -231,22 +265,40 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
 /* ───────────────────────── Import Excel (Phase 1) ─────────────────────── */
 
 /**
- * Importe un fichier Excel d'inscrits, exactement comme l'import du dashboard :
- * mapping des colonnes via la table `import`, détection des doublons, tri
- * chronologique, chiffrement des données personnelles, puis envoi optionnel
- * des mails de confirmation (avec QR Code selon la configuration).
+ * Fonction CANONIQUE d'import des inscrits, partagée par TOUS les chemins :
+ *   - l'import manuel du dashboard (config/api.php route `import-excel`),
+ *   - l'API externe (api.php),
+ *   - l'import automatique AssoConnect (config/sync_assoconnect.php → sync_run_import).
  *
- * @param PDO    $pdo
- * @param string $tmpFile      Chemin du fichier temporaire uploadé.
- * @param string $originalName Nom d'origine du fichier (pour valider l'extension).
- * @param bool   $sendMails    Envoyer les mails de confirmation aux nouveaux inscrits.
- * @return array  Résultat structuré (clé 'ok' à true/false).
+ * Comportement strictement identique à l'import manuel : mapping des colonnes
+ * via la table `import`, détection des doublons, tri chronologique, chiffrement
+ * des données personnelles, montant pré-rempli au tarif si absent, puis envoi
+ * optionnel des mails de confirmation. Le QR Code suit le réglage GLOBAL
+ * `qrcode_mail_mode` (via shouldIncludeQrCode), exactement comme en manuel — ce
+ * n'est PAS une option d'import.
+ *
+ * @param PDO           $pdo
+ * @param string        $filePath     Chemin du fichier (uploadé ou local).
+ * @param string        $originalName Nom d'origine (validation d'extension).
+ * @param array         $options      ['send_mail'=>bool, 'created_by'=>?int, 'origine'=>?string]
+ * @param callable|null $emit         Callback de progression optionnel (streaming NDJSON
+ *                                    du dashboard). Reçoit un tableau d'événement à émettre.
+ *                                    Null pour l'API externe / l'import auto (pas de streaming).
+ * @return array  Sur succès : ['ok'=>true,'rows'=>int,'added'=>int,'skipped'=>int,
+ *                'duplicates'=>int,'mails_sent'=>int,'mail_errors'=>int,'message'=>string,...].
+ *                Sur échec   : ['ok'=>false,'http'=>int,'error'=>code,'message'=>texte,'missing'?=>[]].
  */
-function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bool $sendMails = false): array
+function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, array $options = [], ?callable $emit = null): array
 {
-    /* Validation extension + type MIME (identique au dashboard) */
+    $sendMail      = !empty($options['send_mail']);
+    $createdBy     = $options['created_by'] ?? null;
+    $defaultOrig   = $options['origine'] ?? 'AssoConnect';
+    $emitFn        = is_callable($emit) ? $emit : null;
+    $streamStarted = false;
+
+    /* Validation extension + signature (identique au dashboard) */
     $ext  = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-    $mime = @mime_content_type($tmpFile) ?: '';
+    $mime = @mime_content_type($filePath) ?: '';
     $allowedExts  = ['xlsx', 'xls'];
     $allowedMimes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -256,24 +308,27 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
         'application/xml',
         'text/html',
     ];
-    $sig      = (string) @file_get_contents($tmpFile, false, null, 0, 8);
-    $isZip    = strncmp($sig, "PK\x03\x04", 4) === 0;
-    $isOle    = strncmp($sig, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8) === 0;
-    $mimeOk   = in_array($mime, $allowedMimes, true) || $isZip || $isOle;
+    $sig    = (string) @file_get_contents($filePath, false, null, 0, 8);
+    $isZip  = strncmp($sig, "PK\x03\x04", 4) === 0;
+    $isOle  = strncmp($sig, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8) === 0;
+    $mimeOk = in_array($mime, $allowedMimes, true) || $isZip || $isOle;
 
     if (!in_array($ext, $allowedExts, true) || !$mimeOk) {
-        return ['ok' => false, 'error' => 'invalid_format',
-                'message' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls).'];
+        return ['ok' => false, 'http' => 400, 'error' => 'invalid_format',
+                'message' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls)'];
     }
 
     try {
-        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmpFile)
-                     ->getActiveSheet()
-                     ->toArray(null, true, true, true); // colonnes A, B, C...
+        $ws = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath)->getActiveSheet();
+        $sheet    = $ws->toArray(null, true, true,  true); // valeurs formatées (A, B, C...)
+        // Lecture BRUTE en parallèle : les dates restent des numéros de série Excel,
+        // ce qui rend leur conversion indépendante du format d'affichage de la cellule
+        // (un export au format US « mm/dd/yyyy » ne provoque plus d'inversion jour/mois).
+        $sheetRaw = $ws->toArray(null, true, false, true);
 
         if (empty($sheet) || count($sheet) < 2) {
-            return ['ok' => false, 'error' => 'empty_file',
-                    'message' => 'Le fichier Excel semble vide.'];
+            return ['ok' => false, 'http' => 400, 'error' => 'empty_file',
+                    'message' => 'Le fichier Excel semble vide'];
         }
 
         /* 1. Correspondances depuis la table `import` */
@@ -290,13 +345,12 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
             $headerMap[regcore_normaliseLabel($label)] = $col;
         }
 
-        /* 3. Vérification des colonnes requises ('pays' et 'Montant dû' optionnelles) */
+        /* 3. Vérification des colonnes requises ('pays', 'Montant dû', 'Prestations' optionnelles) */
         $optionalLabels = [regcore_normaliseLabel('pays')];
         $montantLabel   = array_search('montant_du', $mapFields, true);
         if ($montantLabel !== false) {
             $optionalLabels[] = $montantLabel; // déjà normalisé
         }
-        // « Prestations » optionnelle (export sans cette colonne reste importable).
         $prestationLabel = array_search('prestation', $mapFields, true);
         if ($prestationLabel !== false) {
             $optionalLabels[] = $prestationLabel;
@@ -307,9 +361,8 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
             regcore_logImportError([
                 'type' => 'colonnes manquantes',
                 'missing' => array_values($missing),
-                'source' => 'API',
             ]);
-            return ['ok' => false, 'error' => 'missing_columns',
+            return ['ok' => false, 'http' => 422, 'error' => 'missing_columns',
                     'message' => 'Colonnes manquantes dans le fichier Excel.',
                     'missing' => array_values($missing)];
         }
@@ -352,7 +405,10 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
                 } elseif ($bddField === 'naissance') {
                     $value = (is_numeric($value) && $value >= 1900 && $value <= date('Y')) ? $value : null;
                 } elseif ($bddField === 'created_at') {
-                    $value = regcore_convertExcelDate($value);
+                    // Valeur BRUTE (série Excel) plutôt que la valeur formatée :
+                    // évite toute ambiguïté de format (US mm/dd vs EU dd/mm).
+                    $rawDate = ($col !== null) ? ($sheetRaw[$idx][$col] ?? null) : null;
+                    $value = regcore_convertExcelDate($rawDate);
                 } elseif ($bddField === 'sexe') {
                     $value = regcore_normaliseSexe($value);
                 } elseif ($bddField === 'montant_du') {
@@ -366,9 +422,7 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
                     : ($value ?: null);
             }
 
-            // Détection « Enfant -12 ans avec t-shirt » via la colonne Prestations :
-            // valeur lue par le mapping `import` (configurable), avec repli sur
-            // l'en-tête « Prestations » par défaut si le mapping n'est pas défini.
+            // Détection « Enfant -12 ans avec t-shirt » via la colonne Prestations.
             $prestaRaw = (string) ($values['prestation'] ?? '');
             if ($prestaRaw === '' && $prestaCol) {
                 $prestaRaw = trim((string) ($row[$prestaCol] ?? ''));
@@ -378,11 +432,15 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
             if (empty($values['inscription_no']) || empty($values['nom']) || empty($values['prenom'])) {
                 $skipped++;
                 $errors[] = ['ligne' => $idx, 'erreur' => 'Données manquantes'];
+                regcore_logImportError(['type' => 'ligne ignorée', 'ligne' => $idx,
+                    'raison' => 'Données manquantes', 'valeurs' => $values]);
                 continue;
             }
             if (in_array($values['inscription_no'], $existingTickets, true)) {
                 $skipped++;
                 $duplicates[] = ['ligne' => $idx, 'ticket' => $values['inscription_no']];
+                regcore_logImportError(['type' => 'doublon', 'ligne' => $idx,
+                    'ticket' => $values['inscription_no']]);
                 continue;
             }
             $existingTickets[] = $values['inscription_no'];
@@ -402,32 +460,31 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
         try {
             foreach ($parsedRows as $parsed) {
                 $v = $parsed['values'];
-                // Si la colonne « Montant dû » est présente dans l'Excel on l'utilise,
-                // sinon on pré-remplit avec le tarif standard (existants → considérés payés).
+                // Montant : valeur du fichier si présente, sinon tarif standard.
                 $montant = $v['montant_du'] ?? null;
                 if ($montant === null) {
                     $montant = $registrationFee;
                 }
-                // Mode de paiement = moyen réel ; la catégorie (prestation) discrimine :
-                //  - « avec t-shirt » → enfant_tshirt (payant, en ligne (CB)) ;
-                //  - montant à 0 → vraiment gratuit (paiement_mode 'gratuit') ;
-                //  - sinon tarif_unique (en ligne (CB)).
+                // Mode de paiement = moyen RÉEL du fichier (comme l'import manuel) ;
+                // la catégorie (prestation) discrimine :
+                //  - « avec t-shirt » → enfant_tshirt (payant), moyen réel conservé ;
+                //  - montant ≤ 0 → vraiment gratuit (paiement_mode 'gratuit') ;
+                //  - sinon tarif_unique (moyen réel conservé).
+                $paiementMode = regcore_normalisePaiementMode($v['paiement_mode'] ?? null);
                 if (!empty($v['_enfant_tshirt'])) {
-                    $paiementMode = 'en ligne (CB)';
-                    $prestation   = 'enfant_tshirt';
+                    $prestation = 'enfant_tshirt';
                 } elseif ((float) $montant <= 0) {
                     $paiementMode = 'gratuit';
                     $prestation   = 'enfant_gratuit';
                 } else {
-                    $paiementMode = 'en ligne (CB)';
-                    $prestation   = 'tarif_unique';
+                    $prestation = 'tarif_unique';
                 }
                 $insert->execute([
                     $v['inscription_no'], encrypt($v['nom']), encrypt($v['prenom']),
                     encrypt($v['tel']), encrypt($v['email']), encrypt($v['naissance']), $v['sexe'],
                     '-', encrypt($v['ville']), encrypt($v['entreprise']),
-                    ($v['origine'] ?? null) ?: 'AssoConnect',
-                    $paiementMode, $prestation, (float) $montant, $v['created_at'], null,
+                    ($v['origine'] ?? null) ?: $defaultOrig,
+                    $paiementMode, $prestation, (float) $montant, $v['created_at'], $createdBy,
                 ]);
                 $added++;
                 if (!empty($v['email'])) {
@@ -445,13 +502,23 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
             throw $e;
         }
 
-        /* 9. Mails de confirmation (hors transaction) */
-        $mailsSent = 0;
+        /* Streaming post-commit (dashboard) : événements identiques à l'historique. */
+        $streamStarted = true;
+        if ($emitFn) {
+            $emitFn(['type' => 'import_ok', 'count' => $added]);
+            if ($skipped > 0) {
+                $emitFn(['type' => 'import_skip', 'count' => $skipped, 'duplicates' => count($duplicates)]);
+            }
+        }
+
+        /* 9. Mails de confirmation (hors transaction). QR via réglage global. */
+        $mailsSent  = 0;
         $mailErrors = 0;
-        if ($sendMails && !empty($newRegistrants)) {
+        if ($sendMail && !empty($newRegistrants)) {
             require_once __DIR__ . '/googleMail.php';
             foreach ($newRegistrants as $reg) {
                 try {
+                    $hasQr = function_exists('shouldIncludeQrCode') ? shouldIncludeQrCode($reg['inscription_no']) : false;
                     sendMail(
                         $reg['email'],
                         'Inscription enregistrée - Forbach en Rose',
@@ -460,29 +527,202 @@ function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bo
                         'inscription', $reg['inscription_no']
                     );
                     $mailsSent++;
+                    if ($emitFn) $emitFn(['type' => 'mail_sent', 'inscription_no' => $reg['inscription_no'], 'qrcode' => $hasQr]);
                 } catch (\Throwable $mailErr) {
                     $mailErrors++;
-                    error_log('[REGCORE][IMPORT][MAIL] ' . $reg['inscription_no'] . ' : ' . $mailErr->getMessage());
+                    error_log('[IMPORT][MAIL] ' . $reg['inscription_no'] . ' : ' . $mailErr->getMessage());
+                    if ($emitFn) $emitFn(['type' => 'mail_error', 'inscription_no' => $reg['inscription_no'], 'error' => $mailErr->getMessage()]);
                 }
             }
+        } elseif (!$sendMail && $emitFn) {
+            $emitFn(['type' => 'mail_skip']);
+        }
+
+        if ($emitFn) {
+            $emitFn([
+                'type'         => 'done',
+                'rows_added'   => $added,
+                'rows_skipped' => $skipped,
+                'mails_sent'   => $mailsSent,
+                'duplicates'   => count($duplicates),
+            ]);
         }
 
         return [
-            'ok'           => true,
-            'added'        => $added,
-            'skipped'      => $skipped,
-            'duplicates'   => count($duplicates),
-            'mails_sent'   => $mailsSent,
-            'mail_errors'  => $mailErrors,
-            'errors'       => array_slice($errors, 0, 50),
+            'ok'                => true,
+            'rows'              => $added,
+            'added'             => $added,
+            'skipped'           => $skipped,
+            'duplicates'        => count($duplicates),
+            'mails_sent'        => $mailsSent,
+            'mail_errors'       => $mailErrors,
+            'errors'            => array_slice($errors, 0, 50),
             'detail_duplicates' => array_slice($duplicates, 0, 50),
+            'message'           => "Import terminé : {$added} inscrit(s) ajouté(s).",
         ];
 
     } catch (\Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        regcore_logImportError(['type' => 'exception', 'source' => 'API', 'message' => $e->getMessage()]);
-        error_log('[REGCORE][IMPORT] ' . $e->getMessage());
-        return ['ok' => false, 'error' => 'import_error',
+        regcore_logImportError(['type' => 'exception', 'message' => $e->getMessage()]);
+        error_log('[IMPORT] ' . $e->getMessage());
+        // Si le streaming avait déjà commencé, on signale l'erreur dans le flux ;
+        // sinon le caller renverra une réponse JSON d'erreur.
+        if ($emitFn && $streamStarted) {
+            $emitFn(['type' => 'error', 'message' => "Erreur lors de l'import."]);
+        }
+        return ['ok' => false, 'http' => 500, 'error' => 'import_error',
+                'message' => 'Erreur lors de la lecture du fichier Excel.'];
+    }
+}
+
+/**
+ * Wrapper de compatibilité pour l'API externe (api.php). Délègue à la fonction
+ * canonique importInscritsExcel(). Conserve la signature historique.
+ */
+function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bool $sendMails = false): array
+{
+    return importInscritsExcel($pdo, $tmpFile, $originalName, [
+        'send_mail'  => $sendMails,
+        'created_by' => null,
+        'origine'    => 'AssoConnect',
+    ]);
+}
+
+/* ──────────────── Réparation des dates « date d'ajout » (created_at) ──────────────── */
+
+/**
+ * Recorrige les `created_at` corrompus par l'ancien bug d'inversion jour/mois
+ * (date « Date de création » relue au format US mm/dd puis interprétée en d/m/Y).
+ *
+ * La VRAIE date est relue depuis le fichier source via la valeur BRUTE (numéro de
+ * série Excel) — non ambiguë, indépendante du format d'affichage. Seules les
+ * inscriptions dont la DATE (jour/mois/année) diffère réellement sont corrigées :
+ * l'opération est donc idempotente (relancer ne change plus rien).
+ *
+ * @param PDO    $pdo
+ * @param string $tmpFile      Chemin du fichier temporaire uploadé.
+ * @param string $originalName Nom d'origine (validation d'extension).
+ * @param bool   $apply        false = aperçu (dry-run, n'écrit rien) ; true = applique.
+ * @return array  ['ok'=>bool, 'source_count'=>int, 'fixes'=>[...],
+ *                 'future_unmatched'=>[...], 'applied'=>int, 'dry_run'=>bool, ...]
+ */
+function regcore_repairCreatedAtDates(PDO $pdo, string $tmpFile, string $originalName, bool $apply = false): array
+{
+    /* Validation extension + signature (mêmes garde-fous que l'import) */
+    $ext   = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    $sig   = (string) @file_get_contents($tmpFile, false, null, 0, 8);
+    $isZip = strncmp($sig, "PK\x03\x04", 4) === 0;
+    $isOle = strncmp($sig, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8) === 0;
+    if (!in_array($ext, ['xlsx', 'xls'], true) || !($isZip || $isOle)) {
+        return ['ok' => false, 'error' => 'invalid_format',
+                'message' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls).'];
+    }
+
+    try {
+        /* 1. Mapping colonnes via la table `import` (mêmes libellés que l'import) */
+        $mapFields = [];
+        foreach ($pdo->query('SELECT fields_bdd, fields_excel FROM import') as $row) {
+            $mapFields[regcore_normaliseLabel($row['fields_excel'])] = $row['fields_bdd'];
+        }
+        $labelBillet  = array_search('inscription_no', $mapFields, true) ?: regcore_normaliseLabel('Numéro billet');
+        $labelCreated = array_search('created_at',     $mapFields, true) ?: regcore_normaliseLabel('Date de création');
+
+        /* 2. Lecture BRUTE du fichier (formatData=false → dates = séries Excel) */
+        $ws   = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmpFile)->getActiveSheet();
+        $rows = $ws->toArray(null, true, false, true);
+        if (count($rows) < 2) {
+            return ['ok' => false, 'error' => 'empty_file', 'message' => 'Le fichier Excel semble vide.'];
+        }
+
+        /* 3. Repérage des colonnes par en-tête */
+        $colBillet = $colCreated = null;
+        foreach ($rows[1] as $col => $label) {
+            if ($label === null || $label === '') continue;
+            $norm = regcore_normaliseLabel((string) $label);
+            if ($norm === $labelBillet)  $colBillet  = $col;
+            if ($norm === $labelCreated) $colCreated = $col;
+        }
+        if ($colBillet === null || $colCreated === null) {
+            return ['ok' => false, 'error' => 'missing_columns',
+                    'message' => 'Colonnes « Numéro billet » et/ou « Date de création » introuvables dans le fichier.'];
+        }
+
+        /* 4. Timestamp correct par numéro d'inscription.
+         *    On ne fait CONFIANCE qu'aux dates fournies en numéro de série Excel
+         *    (non ambiguës). Une cellule vide ou une date en TEXTE (format US
+         *    possible → ambiguë) est ignorée : la réparation ne pourra JAMAIS
+         *    écraser une date correcte par une valeur fausse ou par « aujourd'hui ».
+         *    On conserve l'heure réelle (pas de troncature à minuit). */
+        $correctByNo = [];
+        foreach ($rows as $idx => $r) {
+            if ($idx === 1) continue;
+            $billet = trim((string) ($r[$colBillet] ?? ''));
+            if ($billet === '') continue;
+            $raw = $r[$colCreated] ?? null;
+            if (!is_numeric($raw)) continue;                  // ni vide ni texte ambigu
+            $correctByNo['E' . $billet] = regcore_convertExcelDate($raw); // 'Y-m-d H:i:s'
+        }
+
+        /* 5. Comparaison avec la base. On décide sur la DATE seule (idempotent),
+         *    mais on écrit le timestamp complet (heure réelle préservée).
+         *    $today est lu côté connexion (CURDATE()) pour rester cohérent avec le
+         *    fuseau de created_at (la connexion est en +02:00, cf. config.php). */
+        $dbRows = $pdo->query('SELECT id, inscription_no, created_at FROM registrations')
+                      ->fetchAll(PDO::FETCH_ASSOC);
+        $today           = (string) $pdo->query('SELECT CURDATE()')->fetchColumn();
+        $fixes           = [];
+        $futureUnmatched = [];
+        foreach ($dbRows as $r) {
+            $no  = $r['inscription_no'];
+            $cur = substr((string) $r['created_at'], 0, 10);
+            if (isset($correctByNo[$no])) {
+                $correctDate = substr($correctByNo[$no], 0, 10);
+                if ($correctDate !== $cur) {
+                    $fixes[] = [
+                        'id'  => $r['id'],
+                        'no'  => $no,
+                        'old' => $r['created_at'],
+                        'new' => $correctByNo[$no],   // timestamp complet (heure réelle)
+                    ];
+                }
+            } elseif ($cur > $today) {
+                // Date dans le futur mais inscription absente du fichier fourni :
+                // non réparable automatiquement, on la signale.
+                $futureUnmatched[] = ['no' => $no, 'created_at' => $r['created_at']];
+            }
+        }
+
+        /* 6. Application éventuelle (transaction) */
+        $applied = 0;
+        if ($apply && $fixes) {
+            $upd = $pdo->prepare('UPDATE registrations SET created_at = ? WHERE id = ?');
+            $pdo->beginTransaction();
+            try {
+                foreach ($fixes as $f) {
+                    $upd->execute([$f['new'], $f['id']]);
+                    $applied++;
+                }
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[REGCORE][REPAIR] ' . $e->getMessage());
+                return ['ok' => false, 'error' => 'db_error',
+                        'message' => 'Erreur lors de l\'écriture en base (transaction annulée).'];
+            }
+        }
+
+        return [
+            'ok'               => true,
+            'source_count'     => count($correctByNo),
+            'fixes'            => $fixes,
+            'future_unmatched' => $futureUnmatched,
+            'applied'          => $applied,
+            'dry_run'          => !$apply,
+        ];
+
+    } catch (\Throwable $e) {
+        error_log('[REGCORE][REPAIR] ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'exception',
                 'message' => 'Erreur lors de la lecture du fichier Excel.'];
     }
 }

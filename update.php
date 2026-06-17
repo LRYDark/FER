@@ -4,6 +4,191 @@
  * Lance ce fichier une seule fois via le navigateur puis supprime-le.
  */
 require __DIR__ . '/config/config.php';
+require_once __DIR__ . '/config/csrf.php';
+require_once __DIR__ . '/config/registrations_core.php';
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * OUTIL : Réparation des dates d'inscription (created_at)
+ * ----------------------------------------------------------------------------
+ * Sous-page dédiée (update.php?tool=repair-dates) : on ouvre le fichier d'export
+ * AssoConnect d'origine, et on recorrige UNIQUEMENT les inscriptions dont la date
+ * d'ajout a été inversée jour/mois par l'ancien bug d'import. Aperçu par défaut
+ * (n'écrit rien) ; l'écriture nécessite de cocher explicitement « Appliquer ».
+ * Cette branche se termine par exit : elle ne déclenche JAMAIS les migrations.
+ * ════════════════════════════════════════════════════════════════════════════ */
+if (($_GET['tool'] ?? '') === 'repair-dates') {
+
+    $report   = null;
+    $errorMsg = null;
+    $applied  = false;
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!csrf_verify()) {
+            $errorMsg = 'Jeton de sécurité invalide. Rechargez la page et réessayez.';
+        } elseif (empty($_FILES['repair_file']) || ($_FILES['repair_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $errorMsg = 'Aucun fichier reçu (ou upload échoué). Sélectionnez un fichier Excel (.xlsx / .xls).';
+        } else {
+            $apply  = !empty($_POST['apply']);
+            $report = regcore_repairCreatedAtDates(
+                $pdo,
+                $_FILES['repair_file']['tmp_name'],
+                (string) $_FILES['repair_file']['name'],
+                $apply
+            );
+            if (empty($report['ok'])) {
+                $errorMsg = $report['message'] ?? 'Erreur inconnue lors du traitement du fichier.';
+                $report   = null;
+            } else {
+                $applied = $apply;
+            }
+        }
+    }
+
+    /* Affichage JJ/MM/AAAA d'une valeur 'Y-m-d H:i:s' */
+    $fmtDate = static function ($ymdhms): string {
+        $p = explode('-', substr((string) $ymdhms, 0, 10));
+        return count($p) === 3 ? "{$p[2]}/{$p[1]}/{$p[0]}" : htmlspecialchars((string) $ymdhms);
+    };
+    ?>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Réparer les dates d'inscription — Forbach en Rose</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f8f7f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 760px; width: 100%; overflow: hidden; }
+  .hd { background: linear-gradient(135deg, #F42182, #db2777); padding: 28px 32px; color: #fff; }
+  .hd h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .hd p { font-size: 13px; opacity: .9; }
+  .bd { padding: 24px 32px 28px; }
+  .intro { font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 20px; }
+  .field { margin-bottom: 16px; }
+  .field label.lbl { display: block; font-size: 13px; font-weight: 600; color: #1e293b; margin-bottom: 6px; }
+  input[type=file] { width: 100%; font-size: 13px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #faf7f8; }
+  .apply-row { display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; font-size: 13px; color: #92400e; margin-bottom: 16px; }
+  .apply-row input { width: 16px; height: 16px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #F42182, #db2777); color: #fff; border: none; border-radius: 10px; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .btn:hover { opacity: .92; }
+  .btn-sec { background: #f1f5f9; color: #475569; }
+  .alert { border-radius: 10px; padding: 14px 16px; font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
+  .alert-err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .alert-ok  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+  .alert-info{ background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .alert-warn{ background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 4px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f0e8eb; }
+  th { color: #64748b; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  td.no { font-family: 'SFMono-Regular', Consolas, monospace; }
+  .old { color: #dc2626; text-decoration: line-through; }
+  .new { color: #059669; font-weight: 700; }
+  .scroll { max-height: 320px; overflow: auto; border: 1px solid #f0e8eb; border-radius: 10px; }
+  .ft { padding: 16px 32px; background: #faf7f8; border-top: 1px solid #f0e8eb; text-align: center; font-size: 12px; color: #94a3b8; }
+  .ft a { color: #F42182; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hd">
+    <h1><i class="bi bi-calendar-check me-2"></i>Réparer les dates d'inscription</h1>
+    <p>Recorrige les « dates d'ajout » inversées (jour/mois) à partir du fichier d'export AssoConnect d'origine.</p>
+  </div>
+  <div class="bd">
+
+    <?php if ($errorMsg !== null): ?>
+      <div class="alert alert-err"><i class="bi bi-exclamation-triangle me-1"></i><?= htmlspecialchars($errorMsg) ?></div>
+    <?php endif; ?>
+
+    <?php if ($report !== null): ?>
+      <?php
+        $nbFix    = count($report['fixes']);
+        $nbFuture = count($report['future_unmatched']);
+      ?>
+      <?php if ($applied): ?>
+        <div class="alert alert-ok"><i class="bi bi-check-circle me-1"></i>
+          <strong><?= (int) $report['applied'] ?></strong> date(s) corrigée(s) en base.</div>
+      <?php elseif ($nbFix > 0): ?>
+        <div class="alert alert-info"><i class="bi bi-eye me-1"></i>
+          <strong>Aperçu</strong> — <?= $nbFix ?> date(s) seraient corrigées. <em>Rien n'a été modifié.</em>
+          Pour appliquer : re-sélectionnez le fichier, cochez « Appliquer » puis relancez.</div>
+      <?php else: ?>
+        <div class="alert alert-ok"><i class="bi bi-check-circle me-1"></i>
+          Aucune date à corriger : tout est cohérent avec le fichier
+          (<?= (int) $report['source_count'] ?> inscription(s) lues).</div>
+      <?php endif; ?>
+
+      <?php if ($nbFix > 0): ?>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>N° inscription</th><th>Date actuelle</th><th></th><th>Date corrigée</th></tr></thead>
+            <tbody>
+            <?php foreach ($report['fixes'] as $f): ?>
+              <tr>
+                <td class="no"><?= htmlspecialchars($f['no']) ?></td>
+                <td class="old"><?= $fmtDate($f['old']) ?></td>
+                <td><i class="bi bi-arrow-right"></i></td>
+                <td class="new"><?= $fmtDate($f['new']) ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($nbFuture > 0): ?>
+        <div class="alert alert-warn" style="margin-top:16px;">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <strong><?= $nbFuture ?> inscription(s)</strong> ont une date dans le futur mais ne sont
+          <strong>pas</strong> dans ce fichier — à corriger à la main, ou relancez avec le fichier
+          d'import qui les contient :
+          <div class="scroll" style="margin-top:8px;max-height:160px;">
+            <table>
+              <thead><tr><th>N° inscription</th><th>Date actuelle</th></tr></thead>
+              <tbody>
+              <?php foreach ($report['future_unmatched'] as $u): ?>
+                <tr><td class="no"><?= htmlspecialchars($u['no']) ?></td><td><?= $fmtDate($u['created_at']) ?></td></tr>
+              <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <?php endif; ?>
+    <?php else: ?>
+      <p class="intro">
+        Sélectionnez le <strong>fichier d'export AssoConnect</strong> (le même que pour l'import).
+        L'outil relit la vraie date de création (valeur brute, non ambiguë) et compare avec la base.
+        Par défaut c'est un <strong>aperçu</strong> : rien n'est modifié tant que vous ne cochez pas
+        « Appliquer ». <strong>Pensez à sauvegarder la base avant d'appliquer.</strong>
+      </p>
+    <?php endif; ?>
+
+    <form method="post" action="?tool=repair-dates" enctype="multipart/form-data" style="margin-top:8px;">
+      <?= csrf_field() ?>
+      <div class="field">
+        <label class="lbl" for="repair_file">Fichier Excel d'export (.xlsx / .xls)</label>
+        <input type="file" id="repair_file" name="repair_file" accept=".xlsx,.xls" required>
+      </div>
+      <label class="apply-row">
+        <input type="checkbox" name="apply" value="1">
+        <span><strong>Appliquer réellement</strong> les corrections en base (sinon : aperçu seulement)</span>
+      </label>
+      <button type="submit" class="btn"><i class="bi bi-play-fill"></i> Analyser / Corriger</button>
+      <a href="inc/dashboard.php" class="btn btn-sec"><i class="bi bi-arrow-left"></i> Dashboard</a>
+    </form>
+
+  </div>
+  <div class="ft">
+    Outil ponctuel — pensez à <a href="update.php">revenir aux migrations</a> ou à supprimer ce fichier après usage.
+  </div>
+</div>
+</body>
+</html>
+    <?php
+    exit;
+}
 
 $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `mail_template_config` TEXT DEFAULT NULL",
@@ -132,6 +317,32 @@ $migrations = [
       INDEX `idx_content` (`content_type`, `created_at`),
       INDEX `idx_created` (`created_at`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // Import automatique AssoConnect : table de configuration à ligne unique (id=1).
+    // Le mot de passe AssoConnect est chiffré (AES-256-GCM, ENCRYPTION_KEY du site) dans ac_password_enc.
+    // Le QR n'est PAS une option : il suit le réglage global qrcode_mail_mode, comme l'import manuel.
+    // Le token partagé des endpoints (worker_token) est AUTO-GÉNÉRÉ et géré depuis l'UI.
+    "CREATE TABLE IF NOT EXISTS `sync_assoconnect` (
+      `id` TINYINT(1) NOT NULL DEFAULT 1,
+      `enabled` TINYINT(1) NOT NULL DEFAULT 0,
+      `ac_login_url` VARCHAR(500) DEFAULT NULL,
+      `ac_registrants_url` VARCHAR(500) DEFAULT NULL,
+      `ac_email` VARCHAR(190) DEFAULT NULL,
+      `ac_password_enc` BLOB DEFAULT NULL,
+      `worker_token` VARCHAR(64) DEFAULT NULL,
+      `import_send_mail` TINYINT(1) NOT NULL DEFAULT 1,
+      `interval_min` INT NOT NULL DEFAULT 30,
+      `run_requested` TINYINT(1) NOT NULL DEFAULT 0,
+      `test_requested` TINYINT(1) NOT NULL DEFAULT 0,
+      `last_run_at` DATETIME DEFAULT NULL,
+      `last_status` ENUM('ok','error','running','idle') NOT NULL DEFAULT 'idle',
+      `last_message` TEXT DEFAULT NULL,
+      `last_rows` INT NOT NULL DEFAULT 0,
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    "INSERT IGNORE INTO `sync_assoconnect` (`id`) VALUES (1)",
+    // Tables déjà créées par une version antérieure : on ajoute la colonne du token.
+    "ALTER TABLE `sync_assoconnect` ADD COLUMN `worker_token` VARCHAR(64) DEFAULT NULL",
 ];
 
 $results = [];
@@ -605,6 +816,37 @@ try {
     $results[] = ['status' => 'error', 'sql' => 'MIGRATE setting.role_permissions', 'msg' => $e->getMessage()];
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Import auto : le token partagé passe de config/.env vers la base (géré depuis
+// l'UI, plus aucune édition de fichier). On reprend l'éventuel SYNC_WORKER_TOKEN
+// déjà présent dans .env pour ne PAS casser un worker déjà configuré ; sinon il
+// sera auto-généré au premier affichage de l'onglet « Import auto ».
+// ─────────────────────────────────────────────────────────────────────────
+$syncTokenSql = "Reprendre SYNC_WORKER_TOKEN (.env) → sync_assoconnect.worker_token";
+try {
+    $colExists = (int) $pdo->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sync_assoconnect'
+            AND COLUMN_NAME = 'worker_token'"
+    )->fetchColumn();
+    if ($colExists === 0) {
+        $results[] = ['status' => 'skip', 'sql' => $syncTokenSql, 'msg' => 'Colonne absente — ALTER non appliqué'];
+    } else {
+        $cur    = $pdo->query("SELECT worker_token FROM sync_assoconnect WHERE id = 1")->fetchColumn();
+        $envTok = trim((string) ($_ENV['SYNC_WORKER_TOKEN'] ?? getenv('SYNC_WORKER_TOKEN') ?: ''));
+        if (!empty($cur)) {
+            $results[] = ['status' => 'skip', 'sql' => $syncTokenSql, 'msg' => 'Token déjà en base'];
+        } elseif ($envTok !== '') {
+            $pdo->prepare("UPDATE sync_assoconnect SET worker_token = ? WHERE id = 1")->execute([$envTok]);
+            $results[] = ['status' => 'success', 'sql' => $syncTokenSql, 'msg' => 'Token repris depuis .env'];
+        } else {
+            $results[] = ['status' => 'skip', 'sql' => $syncTokenSql, 'msg' => "Aucun token .env — auto-généré dans l'UI"];
+        }
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => $syncTokenSql, 'msg' => $e->getMessage()];
+}
+
 $countOk   = count(array_filter($results, fn($r) => $r['status'] === 'success'));
 $countSkip = count(array_filter($results, fn($r) => $r['status'] === 'skip'));
 $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
@@ -757,6 +999,11 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
   </div>
 
   <div class="update-footer">
+    <p style="margin-bottom:12px;">
+      <a href="update.php?tool=repair-dates" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#F42182,#db2777);color:#fff;border-radius:10px;padding:10px 18px;text-decoration:none;font-weight:600;font-size:13px;">
+        <i class="bi bi-calendar-check"></i> Réparer les dates d'inscription (jour/mois inversés)
+      </a>
+    </p>
     Terminé — tu peux <a href="inc/dashboard.php">retourner au dashboard</a> et supprimer ce fichier.
   </div>
 </div>
