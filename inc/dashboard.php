@@ -1210,9 +1210,14 @@ function buildFilters(api){
 /* ══ Bascule Remise T-shirts ════ */
 function applyTshirtMode() {
   const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Montant', 'Entreprise', 'Date ajout', 'Origine', 'Actions'];
+  // Masquage par clé de données : robuste même si l'admin renomme la colonne
+  // (le libellé « Commentaire » est paramétrable, contrairement à son bdd_column).
+  const hideData = ['prestation', 'commentaire', 'naissance', 'ville'];
+  const aoColumns = tbl.settings()[0].aoColumns;
   tbl.columns().every(function () {
     const h = $(this.header()).text().trim();
-    if (hideHeaders.includes(h)) this.visible(!tshirtMode, false);
+    const d = aoColumns[this.index()].data;
+    if (hideHeaders.includes(h) || hideData.includes(d)) this.visible(!tshirtMode, false);
   });
   $('.filters').toggle(!tshirtMode);
   if (tshirtMode) {
