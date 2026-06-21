@@ -227,7 +227,8 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'dashboard.edit_registration'   => 'Modifier un inscrit',
             'dashboard.delete_registration' => 'Supprimer un inscrit',
             'dashboard.archive'             => 'Archiver l\'année en cours',
-            'dashboard.import_excel'        => 'Importer un fichier Excel AssoConnect',
+            // dashboard.import_excel : déplacé dans le groupe « Réglages » (l'import
+            // manuel vit désormais dans l'onglet Réglages → Import AssoConnect).
             'dashboard.export_excel'        => 'Exporter en Excel',
             'dashboard.scan_qr'             => 'Scanner QR + remise des T-shirts (mode bénévole)',
           ];
@@ -318,6 +319,8 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'settings.tab.reglementation'   => 'Reglementation',
             'settings.tab.formulaire'       => 'Formulaire',
             'settings.tab.import'           => 'Import Excel',
+            'settings.tab.import_auto'      => 'Import AssoConnect (onglet + automatisation)',
+            'dashboard.import_excel'        => 'Import AssoConnect : import manuel (bouton)',
             'settings.tab.maintenance'      => 'Maintenance',
           ];
           foreach ($settingsTabActions as $k => $label): ?>
@@ -644,7 +647,6 @@ const ALL_ACTIONS = [
   { key: 'dashboard.edit_registration',   label: 'Modifier un inscrit',       group: 'dashboard' },
   { key: 'dashboard.delete_registration', label: 'Supprimer un inscrit',      group: 'dashboard' },
   { key: 'dashboard.archive',             label: 'Archiver l\u0027ann\u00e9e',group: 'dashboard' },
-  { key: 'dashboard.import_excel',        label: 'Importer Excel',            group: 'dashboard' },
   { key: 'dashboard.export_excel',        label: 'Exporter Excel',            group: 'dashboard' },
   { key: 'dashboard.scan_qr',             label: 'Scanner QR + remise T-shirts', group: 'dashboard' },
   // Timeline
@@ -681,6 +683,8 @@ const ALL_ACTIONS = [
   { key: 'settings.tab.reglementation',   label: 'Réglages : Reglementation',    group: 'settings' },
   { key: 'settings.tab.formulaire',       label: 'Réglages : Formulaire',        group: 'settings' },
   { key: 'settings.tab.import',           label: 'Réglages : Import Excel',      group: 'settings' },
+  { key: 'settings.tab.import_auto',      label: 'Réglages : Import AssoConnect (onglet + auto)', group: 'settings' },
+  { key: 'dashboard.import_excel',        label: 'Réglages : Import AssoConnect — bouton manuel', group: 'settings' },
   { key: 'settings.tab.maintenance',      label: 'Réglages : Maintenance',       group: 'settings' },
   // Cartes de l'onglet Accueil
   { key: 'settings.accueil.params',       label: 'Accueil : Paramètres page',    group: 'settings' },

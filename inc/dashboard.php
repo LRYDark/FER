@@ -8,7 +8,7 @@ $canBulkCreate = canDoAction('dashboard.bulk_create');
 $canEditReg    = canDoAction('dashboard.edit_registration');
 $canDeleteReg  = canDoAction('dashboard.delete_registration');
 $canArchive    = canDoAction('dashboard.archive');
-$canImportXls  = canDoAction('dashboard.import_excel');
+// dashboard.import_excel : l'import manuel a été déplacé dans Réglages → Import AssoConnect.
 $canExportXls  = canDoAction('dashboard.export_excel');
 $canScanQr     = canDoAction('dashboard.scan_qr');
 // Le mode "Remise T-shirts" est accessible si on peut scanner OU si on peut éditer
@@ -45,9 +45,12 @@ $stmtAllFields->execute();
 $allActiveFields = $stmtAllFields->fetchAll(PDO::FETCH_ASSOC);
 
 // Champs pour le formulaire "Ajout multiple" (saisie en lot).
-// Les champs partagés (entreprise/email/paiement_mode) sont gérés à part dans
-// l'en-tête du formulaire bulk, on les exclut donc des champs "par personne".
-$bulkSharedCols = ['entreprise', 'email', 'paiement_mode'];
+// Seul le mode de paiement est réellement commun à tout le lot.
+// `email` ET `entreprise` sont volontairement ABSENTS de cette liste : ils sont
+// saisis/mappés PAR PERSONNE. L'entreprise peut différer d'une ligne à l'autre
+// (ou être vide = particulier) ; un champ « entreprise commune » facultatif de
+// l'en-tête sert juste à pré-remplir les lignes laissées vides.
+$bulkSharedCols = ['paiement_mode'];
 $bulkRowFields = [];
 if ($canBulkCreate) {
     // Vérifie que la migration a été appliquée (update.php). Si la colonne
@@ -80,6 +83,23 @@ if ($canBulkCreate) {
                 if ($f) {
                     $f['required_saisie_multiple'] = 1;
                     array_unshift($bulkRowFields, $f);
+                }
+            }
+        }
+
+        // Garantit la présence des champs `email` et `entreprise` PAR PERSONNE
+        // (mappables depuis l'Excel), même si l'admin ne les a pas cochés
+        // "Bulk visible". Tous deux facultatifs : une ligne sans email est
+        // inscrite sans envoi ; une ligne sans entreprise = particulier (ou
+        // récupère l'« entreprise commune » facultative de l'en-tête).
+        foreach (['email', 'entreprise'] as $bulkOptCol) {
+            if (!in_array($bulkOptCol, array_column($bulkRowFields, 'bdd_column'), true)) {
+                $stmtOpt = $pdo->prepare('SELECT * FROM forms WHERE bdd_column = ? LIMIT 1');
+                $stmtOpt->execute([$bulkOptCol]);
+                $fOpt = $stmtOpt->fetch(PDO::FETCH_ASSOC);
+                if ($fOpt) {
+                    $fOpt['required_saisie_multiple'] = 0;
+                    $bulkRowFields[] = $fOpt;
                 }
             }
         }
@@ -236,7 +256,7 @@ tr.filters select, tr.filters input {
 /* ═══ Onglets du modal "Nouvel inscrit" (rose theme) ═══ */
 #addModalTabs {
   border-bottom: 2px solid #f0e8eb;
-  margin: 0 -1rem 0;
+  margin: 0;
   padding: 0 1.25rem;
 }
 #addModalTabs .nav-link {
@@ -515,9 +535,7 @@ tr.filters select{
         <?php if($canCreateReg): ?>
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
         <?php endif; ?>
-        <?php if($canImportXls): ?>
-          <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel AssoConnect</button>
-        <?php endif; ?>
+        <?php // Import Excel AssoConnect déplacé vers Réglages → onglet « Import AssoConnect » (droit dashboard.import_excel) ?>
         <?php if($canExportXls): ?>
           <button id="btnExport" class="btn btn-info">Export Excel</button>
             <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -628,18 +646,9 @@ tr.filters select{
           <input type="hidden" name="origine" value="Admin">
           <div class="modal-body">
             <!-- Champs partagés -->
-            <div class="row g-2 mb-3 p-3 rounded" style="background:#fdf2f6;border:1px solid #fbcfe8;">
-              <div class="col-12 mb-1"><strong class="text-muted" style="font-size:13px;">Données communes à tous les inscrits</strong></div>
-              <div class="col-md-4">
-                <label class="form-label">Entreprise <span style="color:#ef4444">*</span></label>
-                <input type="text" name="shared_entreprise" class="form-control" required>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Email (1 seul mail récap envoyé) <span style="color:#ef4444">*</span></label>
-                <input type="email" name="shared_email" class="form-control" required>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+            <div class="row g-2 mb-3 p-3 rounded align-items-end" style="background:#fdf2f6;border:1px solid #fbcfe8;">
+              <div class="col-md-7">
+                <label class="form-label mb-1">Paiement <span style="color:#ef4444">*</span></label>
                 <select name="shared_paiement_mode" class="form-select" required>
                   <option value="" disabled selected hidden>Choisir…</option>
                   <option value="CB">CB</option>
@@ -648,6 +657,45 @@ tr.filters select{
                   <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
                   <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
                 </select>
+              </div>
+              <div class="col-md-5 text-md-end">
+                <button type="button" id="bulkOptionsToggle" class="btn btn-sm btn-link text-decoration-none p-0" style="color:#db2777;" aria-expanded="false">
+                  <i class="bi bi-sliders me-1"></i><span id="bulkOptionsLabel">Options (entreprise, mails)</span>
+                  <i class="bi bi-chevron-down ms-1" id="bulkOptionsChevron" style="font-size:11px;"></i>
+                </button>
+                <div class="text-muted" style="font-size:11px;">Par défaut : 1 mail à chacun, entreprise par personne.</div>
+              </div>
+
+              <!-- Options avancées (repliées par défaut) -->
+              <div class="col-12" id="bulkOptions" style="display:none;">
+                <div class="row g-3 mt-1 pt-3" style="border-top:1px dashed #fbcfe8;">
+                  <!-- Entreprise commune -->
+                  <div class="col-md-6">
+                    <div class="form-check form-switch mb-1">
+                      <input class="form-check-input" type="checkbox" id="sharedEntrepriseToggle" role="switch">
+                      <label class="form-check-label" for="sharedEntrepriseToggle">Entreprise commune</label>
+                    </div>
+                    <input type="text" name="shared_entreprise" class="form-control form-control-sm" placeholder="Nom de l'entreprise / association" style="display:none">
+                    <div class="form-text" style="font-size:11px;">Activé = même entreprise pour tous. Sinon, entreprise par personne (ou particulier).</div>
+                  </div>
+                  <!-- Mode d'envoi des mails -->
+                  <div class="col-md-6">
+                    <label class="form-label mb-1">Envoi des mails</label>
+                    <div class="d-flex flex-column gap-1">
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="mail_mode" id="mailModeIndiv" value="individual" checked>
+                        <label class="form-check-label" for="mailModeIndiv" style="font-size:13px;">Individuel — 1 mail par personne</label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="radio" name="mail_mode" id="mailModeRecap" value="recap">
+                        <label class="form-check-label" for="mailModeRecap" style="font-size:13px;">Récap groupé — 1 seul mail</label>
+                      </div>
+                    </div>
+                    <div id="recapEmailWrap" class="mt-2" style="display:none;">
+                      <input type="email" name="recap_email" class="form-control form-control-sm" placeholder="Email de contact pour le récap">
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -813,31 +861,7 @@ tr.filters select{
     </form>
   </div></div></div>
 
-<div class="modal fade" id="importModal" tabindex="-1"><div class="modal-dialog modal-lg">
- <div class="modal-content"><div class="modal-header">
-   <h5 class="modal-title">Import Excel AssoConnect</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-  <form id="fImport" enctype="multipart/form-data"><div class="modal-body">
-    <input type="file" name="file" id="importFileInput" accept=".xlsx,.xls" class="form-control" required>
-    <div class="form-check form-switch mt-3">
-      <input class="form-check-input" type="checkbox" name="send_mails" id="importSendMails" checked>
-      <label class="form-check-label" for="importSendMails">Envoyer les mails d'inscription</label>
-    </div>
-    <div id="importPreview" class="mt-3" style="display:none">
-      <div id="importPreviewLoading" class="text-center text-muted py-2" style="display:none">
-        <span class="spinner-border spinner-border-sm me-1"></span>Analyse du fichier…
-      </div>
-      <div id="importPreviewResult" style="display:none"></div>
-    </div>
-    <div id="importProgress" class="mt-3" style="display:none">
-      <div id="importProgressLog" style="max-height:300px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
-      <div id="importRecap" class="mt-3" style="display:none"></div>
-    </div>
-  </div><div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-    <button type="button" id="btnImportClose" class="btn btn-primary" style="display:none">Fermer et actualiser</button>
-    <button type="submit" id="btnImportSubmit" class="btn btn-rose" disabled>Importer</button>
-  </div></form></div></div></div>
-
+<?php // Modale « Import Excel AssoConnect » déplacée vers inc/setting.php (onglet Import AssoConnect). ?>
 
 <!-- QR Scanner Modal -->
 <style>
@@ -937,7 +961,7 @@ tr.filters select{
 <script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<?php // SheetJS (XLSX) retiré : l'import manuel (seul usage client) a migré vers Réglages → Import AssoConnect. Le bulk « Ajout multiple » parse côté serveur. ?>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -1405,6 +1429,70 @@ function showInscriptionToast(inscriptionNo){
 
   if (!tmpl || !container) return;
 
+  // Mode d'envoi des mails. En mode « récap groupé », l'email par personne n'a
+  // plus de sens : on masque le champ « Email » de chaque ligne ET sa cible de
+  // mapping Excel, et on affiche le champ « email de contact » du récap.
+  const recapEmailWrap = document.getElementById('recapEmailWrap');
+  function isRecapMode() {
+    return document.querySelector('#fBulkAdd input[name="mail_mode"]:checked')?.value === 'recap';
+  }
+  function applyMailModeUI() {
+    const isRecap = isRecapMode();
+    if (recapEmailWrap) recapEmailWrap.style.display = isRecap ? '' : 'none';
+    // Champs « Email » dans les lignes « Personnes à inscrire »
+    container.querySelectorAll('.bulk-field[data-bdd="email"]').forEach(f => {
+      const col = f.closest('[class*="col-"]') || f.parentElement;
+      if (col) col.style.display = isRecap ? 'none' : '';
+    });
+    // Cible « Email » de l'écran de correspondance Excel
+    const mapEmail = document.querySelector('#bulkMapTargets .bulk-map-target[data-bdd="email"]');
+    if (mapEmail) mapEmail.style.display = isRecap ? 'none' : '';
+  }
+  document.querySelectorAll('#fBulkAdd input[name="mail_mode"]').forEach(radio => {
+    radio.addEventListener('change', applyMailModeUI);
+  });
+
+  // Entreprise commune (interrupteur). ON : une seule entreprise saisie dans
+  // l'en-tête, le champ « Entreprise » disparaît des lignes (et du mapping Excel).
+  // OFF : entreprise par personne (entreprises/associations différentes).
+  const sharedEntrepriseToggle = document.getElementById('sharedEntrepriseToggle');
+  const sharedEntrepriseInput   = document.querySelector('#fBulkAdd [name="shared_entreprise"]');
+  function isCommonEntreprise() {
+    return !!(sharedEntrepriseToggle && sharedEntrepriseToggle.checked);
+  }
+  function applyEntrepriseModeUI() {
+    const common = isCommonEntreprise();
+    if (sharedEntrepriseInput) {
+      sharedEntrepriseInput.style.display = common ? '' : 'none';
+      if (!common) sharedEntrepriseInput.value = ''; // évite un résidu en mode par personne
+    }
+    // Champs « Entreprise » dans les lignes « Personnes à inscrire »
+    container.querySelectorAll('.bulk-field[data-bdd="entreprise"]').forEach(f => {
+      const col = f.closest('[class*="col-"]') || f.parentElement;
+      if (col) col.style.display = common ? 'none' : '';
+    });
+    // Cible « Entreprise » de l'écran de correspondance Excel
+    const mapEnt = document.querySelector('#bulkMapTargets .bulk-map-target[data-bdd="entreprise"]');
+    if (mapEnt) mapEnt.style.display = common ? 'none' : '';
+  }
+  if (sharedEntrepriseToggle) {
+    sharedEntrepriseToggle.addEventListener('change', applyEntrepriseModeUI);
+  }
+
+  // Dépliant « Options » : replié par défaut pour ne pas effrayer. Tous les
+  // paramètres (entreprise commune, mode mail) restent accessibles en l'ouvrant.
+  const bulkOptionsToggle  = document.getElementById('bulkOptionsToggle');
+  const bulkOptions        = document.getElementById('bulkOptions');
+  const bulkOptionsChevron = document.getElementById('bulkOptionsChevron');
+  if (bulkOptionsToggle && bulkOptions) {
+    bulkOptionsToggle.addEventListener('click', () => {
+      const open = bulkOptions.style.display === 'none';
+      bulkOptions.style.display = open ? '' : 'none';
+      bulkOptionsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (bulkOptionsChevron) bulkOptionsChevron.style.transform = open ? 'rotate(180deg)' : '';
+    });
+  }
+
   function renumber() {
     const rows = container.querySelectorAll('.bulk-row');
     rows.forEach((r, i) => {
@@ -1416,6 +1504,8 @@ function showInscriptionToast(inscriptionNo){
     });
     updateSummary();
     updateAddButtons();
+    applyMailModeUI();
+    applyEntrepriseModeUI();
   }
 
   function updateAddButtons() {
@@ -1453,9 +1543,10 @@ function showInscriptionToast(inscriptionNo){
     // Refuse l'ajout au-delà de la limite
     if (container.querySelectorAll('.bulk-row').length >= MAX_BULK) return;
     const clone = tmpl.content.firstElementChild.cloneNode(true);
-    // Si on duplique, recopier les valeurs SAUF nom/prénom (à saisir individuellement)
+    // Si on duplique, recopier les valeurs SAUF nom/prénom/email (propres à chacun).
+    // L'entreprise est, elle, recopiée (souvent la même d'une ligne à l'autre).
     if (sourceRow) {
-      const skip = ['nom', 'prenom'];
+      const skip = ['nom', 'prenom', 'email'];
       clone.querySelectorAll('.bulk-field').forEach(f => {
         const bdd = f.dataset.bdd;
         if (skip.includes(bdd)) return;
@@ -1907,11 +1998,26 @@ function showInscriptionToast(inscriptionNo){
     e.preventDefault();
     const form = e.target;
 
+    const mailMode  = form.querySelector('input[name="mail_mode"]:checked')?.value || 'individual';
+    const recapEmail = form.recap_email ? form.recap_email.value.trim() : '';
+
+    // En mode récap groupé, l'email de contact est obligatoire et doit être valide.
+    if (mailMode === 'recap') {
+      if (!recapEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recapEmail)) {
+        // S'assure que le panneau « Options » est ouvert pour que le champ soit visible.
+        if (bulkOptions && bulkOptions.style.display === 'none' && bulkOptionsToggle) bulkOptionsToggle.click();
+        alert('Indiquez un email de contact valide pour le récap groupé.');
+        if (form.recap_email) form.recap_email.focus();
+        return;
+      }
+    }
+
     const shared = {
       entreprise:    form.shared_entreprise.value.trim(),
-      email:         form.shared_email.value.trim(),
       paiement_mode: form.shared_paiement_mode.value,
       origine:       form.origine.value,
+      mail_mode:     mailMode,
+      recap_email:   recapEmail,
     };
 
     const rows = [];
@@ -1965,8 +2071,18 @@ function showInscriptionToast(inscriptionNo){
       (j.errors || []).forEach(err => {
         bulkLog('⚠️', 'Ligne ' + (err.index + 1) + ' ignorée : ' + err.reason, '#e67e22');
       });
-      if (j.mail_sent) bulkLog('📧', 'Mail récapitulatif envoyé à ' + shared.email, '#0d6efd');
-      else if (j.mail_error) bulkLog('❌', 'Mail récap échoué : ' + j.mail_error, '#dc3545');
+      if (j.mail_mode === 'recap') {
+        if (j.recap_sent) bulkLog('📧', 'Mail récapitulatif envoyé à ' + (j.recap_email || ''), '#0d6efd');
+        else if (j.recap_error) bulkLog('❌', 'Mail récap échoué : ' + j.recap_error, '#dc3545');
+      } else {
+        const mailsSent = j.mails_sent || 0;
+        const mailsSkipped = j.mails_skipped || 0;
+        if (mailsSent > 0) bulkLog('📧', mailsSent + ' mail(s) de confirmation envoyé(s)', '#0d6efd');
+        if (mailsSkipped > 0) bulkLog('ℹ️', mailsSkipped + ' inscrit(s) sans email : aucun mail envoyé', '#6c757d');
+        (j.mail_errors || []).forEach(me => {
+          bulkLog('❌', 'Mail échoué (' + (me.email || '?') + ') : ' + me.reason, '#dc3545');
+        });
+      }
 
       recapDiv.style.display = 'block';
       recapDiv.innerHTML = '<div class="d-flex gap-3 flex-wrap">'
@@ -2011,264 +2127,7 @@ $('#fEdit').on('submit',e=>{
   .then(()=>{tbl.ajax.reload(null,false); bootstrap.Modal.getInstance('#editModal').hide();});
 });
 
-/* ══ IMPORT EXCEL — Preview on file select ════ */
-document.getElementById('importFileInput').addEventListener('change', async function() {
-  const file = this.files[0];
-  const preview = document.getElementById('importPreview');
-  const loading = document.getElementById('importPreviewLoading');
-  const result  = document.getElementById('importPreviewResult');
-  const btnImport = document.getElementById('btnImportSubmit');
-
-  btnImport.disabled = true;
-  result.style.display = 'none';
-  result.innerHTML = '';
-
-  if (!file) { preview.style.display = 'none'; return; }
-
-  preview.style.display = 'block';
-  loading.style.display = 'block';
-
-  try {
-    const data = await file.arrayBuffer();
-    const wb   = XLSX.read(data, {type:'array'});
-    const ws   = wb.Sheets[wb.SheetNames[0]];
-
-    // Certains exports Excel écrivent une plage (!ref) incorrecte ne couvrant
-    // que la 1re ligne (ex: dimension "A1:AB1" alors que la feuille contient
-    // plusieurs lignes). SheetJS se fie à cette plage et ignore alors les
-    // données -> "fichier semble vide". On recalcule la plage réelle à partir
-    // des cellules réellement présentes pour ne perdre aucune ligne.
-    (function fixSheetRange(){
-      var minR = Infinity, minC = Infinity, maxR = -1, maxC = -1;
-      for (var addr in ws) {
-        if (!ws.hasOwnProperty(addr) || addr.charAt(0) === '!') continue;
-        var cell = XLSX.utils.decode_cell(addr);
-        if (cell.r < minR) minR = cell.r;
-        if (cell.c < minC) minC = cell.c;
-        if (cell.r > maxR) maxR = cell.r;
-        if (cell.c > maxC) maxC = cell.c;
-      }
-      if (maxR >= 0) {
-        var realRef = XLSX.utils.encode_range({s:{r:minR,c:minC}, e:{r:maxR,c:maxC}});
-        if (ws['!ref'] !== realRef) ws['!ref'] = realRef;
-      }
-    })();
-
-    const rows = XLSX.utils.sheet_to_json(ws, {header:1});
-
-    if (rows.length < 2) {
-      loading.style.display = 'none';
-      result.style.display = 'block';
-      result.innerHTML = '<div class="alert alert-warning mb-0 py-2"><i class="bi bi-exclamation-triangle me-1"></i>Le fichier semble vide.</div>';
-      return;
-    }
-
-    const header = rows[0].map(function(h){ return (h||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,'').trim(); });
-
-    // Filter out empty rows (rows where all cells are empty/null/undefined)
-    var dataRows = [];
-    for (var r = 1; r < rows.length; r++) {
-      var row = rows[r];
-      if (!row || !row.length) continue;
-      var hasData = false;
-      for (var c = 0; c < row.length; c++) {
-        if (row[c] !== null && row[c] !== undefined && row[c].toString().trim() !== '') { hasData = true; break; }
-      }
-      if (hasData) dataRows.push(row);
-    }
-    const totalRows = dataRows.length;
-
-    // Find ticket column (numero billet)
-    var ticketCol = -1;
-    for (var i = 0; i < header.length; i++) {
-      if (header[i].indexOf('numero') !== -1 && header[i].indexOf('billet') !== -1) { ticketCol = i; break; }
-    }
-
-    var tickets = [];
-    if (ticketCol >= 0) {
-      for (var r = 0; r < dataRows.length; r++) {
-        var v = dataRows[r][ticketCol];
-        if (v && !isNaN(v)) tickets.push(parseInt(v));
-      }
-    }
-
-    // Check duplicates server-side
-    var dupCount = 0;
-    var dupTickets = [];
-    if (tickets.length > 0) {
-      try {
-        var res = await fetch('../config/api.php?route=check-duplicates', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': _csrfToken},
-          body: JSON.stringify({tickets: tickets}),
-          credentials: 'same-origin'
-        });
-        var json = await res.json();
-        dupTickets = json.duplicates || [];
-        dupCount = dupTickets.length;
-      } catch(e) { /* ignore, non-blocking */ }
-    }
-
-    loading.style.display = 'none';
-    result.style.display = 'block';
-
-    var html = '<div class="d-flex gap-3 flex-wrap">';
-    html += '<div class="border rounded px-3 py-2 text-center flex-fill" style="min-width:120px">';
-    html += '<div class="text-muted" style="font-size:12px">Inscrits</div>';
-    html += '<div class="fw-bold fs-5 text-primary">' + totalRows + '</div></div>';
-
-    if (dupCount > 0) {
-      html += '<div class="border rounded px-3 py-2 text-center flex-fill border-warning" style="min-width:120px">';
-      html += '<div class="text-muted" style="font-size:12px">Doublons</div>';
-      html += '<div class="fw-bold fs-5 text-warning">' + dupCount + '</div></div>';
-    } else {
-      html += '<div class="border rounded px-3 py-2 text-center flex-fill border-success" style="min-width:120px">';
-      html += '<div class="text-muted" style="font-size:12px">Doublons</div>';
-      html += '<div class="fw-bold fs-5 text-success">0</div></div>';
-    }
-
-    var newRows = totalRows - dupCount;
-    html += '<div class="border rounded px-3 py-2 text-center flex-fill" style="min-width:120px">';
-    html += '<div class="text-muted" style="font-size:12px">Nouveaux</div>';
-    html += '<div class="fw-bold fs-5 text-success">' + newRows + '</div></div>';
-    html += '</div>';
-
-    if (dupCount > 0) {
-      html += '<div class="alert alert-warning mt-2 mb-0 py-2" style="font-size:13px">';
-      html += '<i class="bi bi-info-circle me-1"></i>' + dupCount + ' doublon(s) seront ignorés lors de l\'import.';
-      html += '</div>';
-    }
-
-    result.innerHTML = html;
-    btnImport.disabled = false;
-
-  } catch(err) {
-    loading.style.display = 'none';
-    result.style.display = 'block';
-    result.innerHTML = '<div class="alert alert-danger mb-0 py-2">Impossible de lire le fichier : ' + err.message + '</div>';
-  }
-});
-
-// Reset preview when modal closes
-document.getElementById('importModal').addEventListener('hidden.bs.modal', function() {
-  document.getElementById('fImport').reset();
-  document.getElementById('importPreview').style.display = 'none';
-  document.getElementById('importPreviewResult').innerHTML = '';
-  document.getElementById('importProgress').style.display = 'none';
-  document.getElementById('importProgressLog').innerHTML = '';
-  document.getElementById('importRecap').style.display = 'none';
-  document.getElementById('btnImportSubmit').disabled = true;
-  document.getElementById('btnImportSubmit').style.display = 'inline-block';
-  document.getElementById('btnImportClose').style.display = 'none';
-});
-
-document.getElementById('btnImportClose').addEventListener('click', function() {
-  location.reload();
-});
-
-/* ══ IMPORT EXCEL — Submit ════ */
-document.getElementById('fImport').addEventListener('submit', async (e) => {
-  e.preventDefault();
-
-  const form   = e.target;
-  const button = document.getElementById('btnImportSubmit');
-  const data   = new FormData(form);
-  const progressDiv = document.getElementById('importProgress');
-  const logDiv = document.getElementById('importProgressLog');
-  const recapDiv = document.getElementById('importRecap');
-  const closeBtn = document.getElementById('btnImportClose');
-
-  button.disabled = true;
-  button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Import en cours…';
-  progressDiv.style.display = 'block';
-  logDiv.innerHTML = '';
-  recapDiv.style.display = 'none';
-
-  function addLog(icon, text, color) {
-    const line = document.createElement('div');
-    line.style.cssText = 'padding:3px 0;color:' + (color || '#333');
-    line.innerHTML = icon + ' ' + text;
-    logDiv.appendChild(line);
-    logDiv.scrollTop = logDiv.scrollHeight;
-  }
-
-  addLog('⏳', 'Import en cours…', '#666');
-
-  try {
-    const res = await fetch('../config/api.php?route=import-excel', {
-      method:      'POST',
-      headers:     {'X-CSRF-TOKEN': _csrfToken},
-      body:        data,
-      credentials: 'same-origin'
-    });
-
-    if (!res.ok) {
-      let msg = res.status + ' ' + res.statusText;
-      try {
-        const j = await res.json();
-        if (j && j.error) {
-          msg = j.error;
-          if (j.missing && j.missing.length) msg += ' — voir logs pour plus d\'infos';
-        }
-      } catch (e) { /* corps non-JSON, on garde le code HTTP */ }
-      throw new Error(msg);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalResult = null;
-
-    while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, {stream: true});
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const evt = JSON.parse(line);
-          if (evt.type === 'import_ok') {
-            addLog('✅', '<strong>' + evt.count + '</strong> inscription(s) importée(s) en BDD', '#198754');
-          } else if (evt.type === 'import_skip') {
-            addLog('⚠️', evt.count + ' ligne(s) ignorée(s) — ' + evt.duplicates + ' doublon(s)', '#e67e22');
-          } else if (evt.type === 'mail_sent') {
-            addLog('📧', 'Mail envoyé pour <strong>' + evt.inscription_no + '</strong>' + (evt.qrcode ? ' (avec QR code)' : ''), '#0d6efd');
-          } else if (evt.type === 'mail_error') {
-            addLog('❌', 'Échec mail pour ' + evt.inscription_no + ' : ' + evt.error, '#dc3545');
-          } else if (evt.type === 'mail_skip') {
-            addLog('⏭️', 'Mails non envoyés (désactivé)', '#666');
-          } else if (evt.type === 'done') {
-            finalResult = evt;
-          } else if (evt.type === 'error') {
-            addLog('❌', 'Erreur : ' + evt.message, '#dc3545');
-          }
-        } catch(e) {}
-      }
-    }
-
-    if (finalResult) {
-      recapDiv.style.display = 'block';
-      recapDiv.innerHTML = '<div class="d-flex gap-3 flex-wrap">'
-        + '<div class="border rounded px-3 py-2 text-center flex-fill border-success"><div class="text-muted" style="font-size:12px">Importées</div><div class="fw-bold fs-5 text-success">' + finalResult.rows_added + '</div></div>'
-        + '<div class="border rounded px-3 py-2 text-center flex-fill border-warning"><div class="text-muted" style="font-size:12px">Ignorées</div><div class="fw-bold fs-5 text-warning">' + finalResult.rows_skipped + '</div></div>'
-        + '<div class="border rounded px-3 py-2 text-center flex-fill border-primary"><div class="text-muted" style="font-size:12px">Mails envoyés</div><div class="fw-bold fs-5 text-primary">' + finalResult.mails_sent + '</div></div>'
-        + '</div>';
-    }
-
-    button.style.display = 'none';
-    closeBtn.style.display = 'inline-block';
-
-  } catch (err) {
-    addLog('❌', 'Erreur : ' + err.message, '#dc3545');
-    button.innerHTML = 'Importer';
-    button.style.display = 'inline-block';
-    button.disabled = false;
-  }
-});
+/* Import Excel AssoConnect : déplacé vers inc/setting.php (onglet Import AssoConnect, droit dashboard.import_excel). */
 
 
 /* ══ Colonnes redimensionnables + toggle visibilité ════ */
