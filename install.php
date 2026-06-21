@@ -1003,6 +1003,12 @@ function getDefaultInserts(): array
           (11,'custom_commentaire',     'Commentaire',      'textarea','commentaire',1, 0, 0, 1, 1, 1, 1, 1, 11, NULL, 1),
           (12,'guardian_authorization','Autorisation parentale (mineur)','guardian',NULL,1, 1, 0, 1, 1, 1, 1, 1, 12, '18', 0)",
 
+        // Champ « Date d'inscription » → colonne système created_at (saisie d'une date
+        // antérieure en Ajout multiple / admin, mappable Excel). Jamais public. INSERT
+        // séparé car il faut renseigner visible_saisie_multiple (absent de l'INSERT ci-dessus).
+        "INSERT IGNORE INTO `forms` (`id`, `fields`, `label`, `field_type`, `bdd_column`, `active`, `required`, `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`, `visible_saisie_multiple`, `required_saisie_multiple`, `sort_order`, `options_list`, `encrypted`) VALUES
+          (13, 'inscription_date', 'Date d''inscription', 'date', 'created_at', 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 13, NULL, 0)",
+
         "INSERT IGNORE INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES
           (1, 'inscription_no', 'numero billet'),
           (2, 'nom', 'prenom participant'),

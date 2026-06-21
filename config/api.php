@@ -1672,6 +1672,14 @@ if ($route==='registrations'){
         $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
+        // Date d'inscription (created_at) : autorisée UNIQUEMENT pour un admin connecté
+        // (un inscrit public ne doit jamais pouvoir s'antidater). Vide → DEFAULT du jour.
+        $rawCreatedAt = currentUserId() ? trim((string) ($d['created_at'] ?? '')) : '';
+        if ($rawCreatedAt !== '') {
+            require_once __DIR__ . '/registrations_core.php';
+            $cols[] = 'created_at'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawCreatedAt);
+        }
+
         $colStr = implode(',', $cols);
         $phStr  = implode(',', $phs);
         $st = $pdo->prepare("INSERT INTO registrations ({$colStr}) VALUES ({$phStr})");
@@ -1821,6 +1829,22 @@ if ($route==='registrations'){
             $setParts[] = "`{$sc}` = :{$sc}";
         }
 
+        // Date d'inscription (created_at) : corrigeable à l'édition (déjà gated
+        // dashboard.edit_registration). Valeur vide ignorée. On ne met à jour QUE si
+        // le JOUR change réellement → une édition qui ne touche pas la date préserve
+        // l'horodatage d'origine (heure comprise, utile au tri fin / classement QR).
+        if (array_key_exists('created_at', $d) && trim((string) $d['created_at']) !== '') {
+            require_once __DIR__ . '/registrations_core.php';
+            $newCreatedAt = regcore_convertExcelDate(trim((string) $d['created_at']));
+            $curStmt = $pdo->prepare('SELECT created_at FROM registrations WHERE id = ?');
+            $curStmt->execute([$d['id']]);
+            $curCreatedAt = (string) $curStmt->fetchColumn();
+            if (substr($curCreatedAt, 0, 10) !== substr($newCreatedAt, 0, 10)) {
+                $params['created_at'] = $newCreatedAt;
+                $setParts[] = "`created_at` = :created_at";
+            }
+        }
+
         if (empty($setParts)) {
             echo json_encode(['ok' => true]); exit;
         }
@@ -1919,6 +1943,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         require_once __DIR__ . '/form_fields.php';
+        require_once __DIR__ . '/registrations_core.php'; // regcore_convertExcelDate() pour la date d'inscription
 
         // Champs requis en mode bulk (depuis forms.required_saisie_multiple)
         $bulkFields = $pdo->query(
@@ -2030,6 +2055,15 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols[] = 'prestation';   $phs[] = '?'; $vals[] = prestationFromPaiement($sharedPaiement);
             $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
             $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
+
+            // Date d'inscription (colonne système created_at). Fournie par personne
+            // (champ « Date d'inscription ») ou mappée depuis l'Excel : on l'enregistre
+            // telle quelle (date antérieure possible). Vide → on N'AJOUTE PAS la colonne
+            // pour laisser le DEFAULT current_timestamp() = date du jour.
+            $rawCreatedAt = trim((string) ($row['created_at'] ?? ''));
+            if ($rawCreatedAt !== '') {
+                $cols[] = 'created_at'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawCreatedAt);
+            }
 
             $sql = "INSERT INTO registrations (" . implode(',', $cols) . ") VALUES (" . implode(',', $phs) . ")";
             try {
