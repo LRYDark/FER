@@ -92,6 +92,7 @@ if ($_POST) {
 
             foreach ($fieldCols as $col => $meta) {
                 $raw = $_POST[$col] ?? '';
+                if ($col === 'commentaire') $raw = mb_substr((string) $raw, 0, 2000);
                 $formData[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
                 $columns[] = "`{$col}`";
                 $placeholders[] = ":{$col}";
@@ -310,6 +311,22 @@ try {
         }
         sel.addEventListener('change', update);
         update();
+      })();
+      </script>
+      <script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+      <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+      (function(){
+        var form = document.getElementById('fPub');
+        if(!form || !window.FERInscription) return;
+        FERInscription.initForm(form);
+        form.addEventListener('submit', function(e){
+          // Inscrit mineur : responsable légal obligatoire (formulaire en novalidate).
+          if (!FERInscription.ensureGuardian(form)) { e.preventDefault(); return; }
+          // Compose le commentaire (autorisation responsable) puis normalise la naissance.
+          FERInscription.composeComment(form);
+          var b = form.querySelector('[name="naissance"]');
+          if (b) b.value = FERInscription.normalizeBirthValue(b.value);
+        });
       })();
       </script>
     <?php else: ?>

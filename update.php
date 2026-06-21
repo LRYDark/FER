@@ -343,6 +343,11 @@ $migrations = [
     "INSERT IGNORE INTO `sync_assoconnect` (`id`) VALUES (1)",
     // Tables déjà créées par une version antérieure : on ajoute la colonne du token.
     "ALTER TABLE `sync_assoconnect` ADD COLUMN `worker_token` VARCHAR(64) DEFAULT NULL",
+
+    // Champ libre « Commentaire » sur chaque inscription. Sert aussi à stocker
+    // l'autorisation du représentant légal pour les inscrits mineurs (nom/prénom).
+    // Chiffré (encrypted=1 dans `forms`) car il peut contenir des données personnelles.
+    "ALTER TABLE `registrations` ADD COLUMN `commentaire` TEXT DEFAULT NULL",
 ];
 
 $results = [];
@@ -565,6 +570,57 @@ try {
     }
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $formsMontantSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Champ « Commentaire » dans la gestion des champs (table `forms`).
+// Zone de texte libre, visible partout (admin / saisie / QR), chiffrée.
+// Stocke aussi l'autorisation du représentant légal des inscrits mineurs.
+// ─────────────────────────────────────────────────────────────────────────
+$formsCommentaireSql = "Ajouter le champ commentaire dans `forms` (zone de texte)";
+try {
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `bdd_column` = 'commentaire'")->fetchColumn();
+    if ($exists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $formsCommentaireSql, 'msg' => 'Existe déjà'];
+    } else {
+        $pdo->prepare(
+            "INSERT INTO `forms`
+              (`fields`, `label`, `field_type`, `bdd_column`, `active`, `required`,
+               `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`,
+               `sort_order`, `options_list`, `encrypted`)
+             VALUES ('custom_commentaire', 'Commentaire', 'textarea', 'commentaire', 1, 0,
+                     0, 1, 1, 1, 1, 1, 11, NULL, 1)"
+        )->execute();
+        $results[] = ['status' => 'success', 'sql' => $formsCommentaireSql, 'msg' => 'Champ ajouté'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $formsCommentaireSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ligne « Autorisation parentale (mineur) » dans la gestion des champs (`forms`).
+// Champ spécial (field_type='guardian', sans colonne BDD) : affiche un bloc
+// « responsable légal » quand l'âge saisi est inférieur au seuil (options_list).
+// Paramétrable depuis « Gestion des champs » : actif / requis / âge / visibilité.
+// ─────────────────────────────────────────────────────────────────────────
+$formsGuardianSql = "Ajouter le champ 'guardian' (autorisation parentale) dans `forms`";
+try {
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `field_type` = 'guardian' OR `fields` = 'guardian_authorization'")->fetchColumn();
+    if ($exists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $formsGuardianSql, 'msg' => 'Existe déjà'];
+    } else {
+        $pdo->prepare(
+            "INSERT INTO `forms`
+              (`fields`, `label`, `field_type`, `bdd_column`, `active`, `required`,
+               `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`,
+               `sort_order`, `options_list`, `encrypted`)
+             VALUES ('guardian_authorization', 'Autorisation parentale (mineur)', 'guardian', NULL, 1, 1,
+                     0, 1, 1, 1, 1, 1, 12, '18', 0)"
+        )->execute();
+        $results[] = ['status' => 'success', 'sql' => $formsGuardianSql, 'msg' => 'Champ ajouté'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $formsGuardianSql, 'msg' => $e->getMessage()];
 }
 
 // ─────────────────────────────────────────────────────────────────────────

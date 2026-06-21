@@ -729,6 +729,7 @@ function getCreateTableStatements(): array
           `tshirt_size` enum('-','XS','S','M','L','XL','XXL') DEFAULT '-',
           `ville` varchar(255) NOT NULL,
           `entreprise` varchar(255) DEFAULT NULL,
+          `commentaire` text DEFAULT NULL,
           `origine` varchar(40) DEFAULT 'en ligne',
           `paiement_mode` varchar(50) DEFAULT NULL,
           `prestation` varchar(30) DEFAULT NULL,
@@ -998,7 +999,9 @@ function getDefaultInserts(): array
           (7, 'required_city',          'Ville',            'text',   'ville',       1, 0, 0, 1, 1, 1, 1, 1, 7,  NULL, 1),
           (8, 'required_company',       'Entreprise',       'text',   'entreprise',  1, 0, 0, 1, 1, 1, 1, 1, 8,  NULL, 1),
           (9, 'required_tshirt',        'Taille T-shirt',   'select', 'tshirt_size', 0, 0, 0, 1, 0, 1, 0, 0, 9,  '-,XS,S,M,L,XL,XXL', 0),
-          (10,'required_montant',       'Montant dû',       'number', 'montant_du',  0, 0, 1, 1, 0, 1, 1, 0, 10, NULL, 0)",
+          (10,'required_montant',       'Montant dû',       'number', 'montant_du',  0, 0, 1, 1, 0, 1, 1, 0, 10, NULL, 0),
+          (11,'custom_commentaire',     'Commentaire',      'textarea','commentaire',1, 0, 0, 1, 1, 1, 1, 1, 11, NULL, 1),
+          (12,'guardian_authorization','Autorisation parentale (mineur)','guardian',NULL,1, 1, 0, 1, 1, 1, 1, 1, 12, '18', 0)",
 
         "INSERT IGNORE INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES
           (1, 'inscription_no', 'numero billet'),
