@@ -1612,6 +1612,13 @@ if (isset($_POST['save_fields'])) {
         if (($f['bdd_column'] ?? '') === 'commentaire' && $guardianActivePost) {
             $params['active'] = 1;
         }
+        // « Date d'inscription » (created_at) : champ réservé admin + ajout multiple.
+        // On force Saisie/QR à 0 quoi qu'il arrive (contextes grand public interdits) ;
+        // visible_public n'est de toute façon jamais touché par cette requête.
+        if (($f['bdd_column'] ?? '') === 'created_at') {
+            $params['vs'] = 0;
+            $params['vq'] = 0;
+        }
         $upd->execute($params);
 
         // Champ « Autorisation parentale (mineur) » : l'âge seuil de déclenchement
@@ -4217,6 +4224,9 @@ if (!$canTab($activeTab)) {
                   $default = (int) ($f['is_default'] ?? 1);
                   $active = (int) ($f['active'] ?? 0);
                   $commentaireLocked = (($f['bdd_column'] ?? '') === 'commentaire' && $guardianActiveNow);
+                  // Champ réservé à l'admin + ajout multiple : les contextes grand public
+                  // (Saisie, Inscr. QR) sont interdits → cases désactivées et forcées à 0.
+                  $adminOnlyField = (($f['bdd_column'] ?? '') === 'created_at');
                 ?>
                 <tr<?= $locked ? ' class="table-light"' : '' ?>>
                   <td>
@@ -4260,6 +4270,8 @@ if (!$canTab($activeTab)) {
                   <td class="text-center">
                     <?php if ($locked): ?>
                       <input type="checkbox" checked disabled class="form-check-input">
+                    <?php elseif ($adminOnlyField): ?>
+                      <span class="text-muted" title="Non applicable : champ réservé à l'admin / ajout multiple (jamais en saisie publique)">—</span>
                     <?php else: ?>
                       <input type="checkbox" name="vs_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_saisie'] ?? 1) ? 'checked' : '' ?>>
                     <?php endif; ?>
@@ -4267,6 +4279,8 @@ if (!$canTab($activeTab)) {
                   <td class="text-center">
                     <?php if ($locked): ?>
                       <input type="checkbox" checked disabled class="form-check-input">
+                    <?php elseif ($adminOnlyField): ?>
+                      <span class="text-muted" title="Non applicable : champ réservé à l'admin / ajout multiple (jamais via QR Code)">—</span>
                     <?php else: ?>
                       <input type="checkbox" name="vq_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_qr'] ?? 1) ? 'checked' : '' ?>>
                     <?php endif; ?>

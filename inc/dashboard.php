@@ -2110,6 +2110,9 @@ function showInscriptionToast(inscriptionNo){
 $('#tbl').on('click','button.edit',function(){
   const d=tbl.row($(this).closest('tr')).data();
   Object.entries(d).forEach(([k,v])=>$('#fEdit [name="'+k+'"]').val(v));
+  // created_at est un timestamp complet ; le champ <input type="date"> n'accepte
+  // que AAAA-MM-JJ → on tronque pour l'afficher correctement (date d'inscription).
+  if(d.created_at) $('#fEdit [name="created_at"]').val(String(d.created_at).slice(0,10));
   // La catégorie « enfant t-shirt » est stockée avec paiement_mode='en ligne (CB)' :
   // on resélectionne le bon choix du menu d'après la prestation.
   if(String(d.prestation||'').toLowerCase()==='enfant_tshirt'){

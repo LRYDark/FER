@@ -624,6 +624,46 @@ try {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Champ « Date d'inscription » dans la gestion des champs (table `forms`).
+// Pointe vers la colonne SYSTÈME `created_at` (PAS de nouvelle colonne/table) :
+// permet de saisir une date d'ajout antérieure en Ajout multiple / Inscrit unique
+// (admin) et de la mapper depuis un Excel. Vide → la BDD garde sa date du jour
+// (DEFAULT current_timestamp). Jamais exposé sur le formulaire public.
+// Reste géré explicitement à l'insertion (created_at est dans la liste réservée
+// de getAllActiveFieldColumns), donc pas de double insertion.
+// ─────────────────────────────────────────────────────────────────────────
+$formsCreatedAtSql = "Ajouter le champ 'Date d'inscription' (created_at) dans `forms`";
+try {
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `bdd_column` = 'created_at'")->fetchColumn();
+    if ($exists > 0) {
+        // Réparation idempotente : NON verrouillé (gérable dans « Gestion des champs »),
+        // mais JAMAIS exposé hors admin/bulk → on force public/saisie/QR à 0 (ces contextes
+        // sont grand public). Seuls Admin + Ajout multiple peuvent porter ce champ.
+        $pdo->prepare("UPDATE `forms` SET `is_locked` = 0, `visible_public` = 0, `visible_saisie` = 0, `visible_qr` = 0
+                        WHERE `bdd_column` = 'created_at'
+                          AND (`is_locked` <> 0 OR `visible_public` <> 0 OR `visible_saisie` <> 0 OR `visible_qr` <> 0)")
+            ->execute();
+        $results[] = ['status' => 'skip', 'sql' => $formsCreatedAtSql, 'msg' => 'Existe déjà (déverrouillé / admin+bulk seulement)'];
+    } else {
+        // is_locked=0 → l'admin gère actif/obligatoire/visible admin/bulk. public/saisie/QR=0
+        // → jamais exposé hors admin (la gestion des champs ne touche jamais visible_public,
+        // et les cases Saisie/QR sont désactivées pour ce champ côté UI + forcées à 0 serveur).
+        // is_default=1 → pas de bouton « supprimer » (anti-suppression accidentelle).
+        $pdo->prepare(
+            "INSERT INTO `forms`
+              (`fields`, `label`, `field_type`, `bdd_column`, `active`, `required`,
+               `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`,
+               `visible_saisie_multiple`, `required_saisie_multiple`, `sort_order`, `options_list`, `encrypted`)
+             VALUES ('inscription_date', 'Date d''inscription', 'date', 'created_at', 1, 0,
+                     0, 1, 0, 1, 0, 0, 1, 0, 13, NULL, 0)"
+        )->execute();
+        $results[] = ['status' => 'success', 'sql' => $formsCreatedAtSql, 'msg' => 'Champ ajouté'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $formsCreatedAtSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Pré-cocher "Bulk visible" + "Bulk requis" pour les 5 champs essentiels du
 // mode "Ajout multiple" : nom, prenom, email, entreprise, montant_du.
 //   - nom, prenom, montant_du : affichés dans chaque carte "Personne #N"
