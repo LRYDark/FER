@@ -1561,6 +1561,15 @@ if (isset($_POST['save_fields'])) {
         : '';
     $sqlUpd = $sqlBase . $sqlBulk . ' WHERE id = :id';
 
+    // Si l'« Autorisation parentale (mineur) » est active, le champ Commentaire doit
+    // rester actif (les infos du responsable légal y sont enregistrées) : on force
+    // son « actif » côté serveur, en plus du verrouillage de la case dans l'UI.
+    $guardianFieldId = null;
+    foreach ($allFields as $gf) {
+        if (($gf['field_type'] ?? '') === 'guardian') { $guardianFieldId = $gf['id']; break; }
+    }
+    $guardianActivePost = $guardianFieldId !== null && isset($_POST["active_{$guardianFieldId}"]);
+
     foreach ($allFields as $f) {
         $id = $f['id'];
         $isLocked = (int) $f['is_locked'];
@@ -1598,7 +1607,22 @@ if (isset($_POST['save_fields'])) {
             $params['vsm'] = isset($_POST["vsm_{$id}"]) ? 1 : 0;
             $params['rsm'] = isset($_POST["rsm_{$id}"]) ? 1 : 0;
         }
+        // Le champ Commentaire ne peut pas être désactivé tant que l'autorisation
+        // parentale est active (« Requis » et visibilité, eux, restent libres).
+        if (($f['bdd_column'] ?? '') === 'commentaire' && $guardianActivePost) {
+            $params['active'] = 1;
+        }
         $upd->execute($params);
+
+        // Champ « Autorisation parentale (mineur) » : l'âge seuil de déclenchement
+        // est stocké dans options_list (réutilisée comme paramètre du champ).
+        if (($f['field_type'] ?? '') === 'guardian' && isset($_POST['guardian_age'])) {
+            $gAge = (int) $_POST['guardian_age'];
+            if ($gAge < 1)   $gAge = 18;
+            if ($gAge > 120) $gAge = 120;
+            $pdo->prepare('UPDATE forms SET options_list = :a WHERE id = :id')
+                ->execute(['a' => (string) $gAge, 'id' => $id]);
+        }
     }
     addToast('success', 'Configuration des champs enregistrée !');
     // Recharger
@@ -4164,22 +4188,55 @@ if (!$canTab($activeTab)) {
                 </tr>
               </thead>
               <tbody>
-                <?php foreach ($allFields as $f):
+                <?php
+                  // Dépendance : si l'« Autorisation parentale (mineur) » est active, le
+                  // champ Commentaire ne peut pas être désactivé (les infos du responsable
+                  // légal y sont enregistrées). Seule sa case « Actif » est alors figée —
+                  // « Requis » et la visibilité restent librement modifiables.
+                  $guardianActiveNow = false;
+                  foreach ($allFields as $gf) {
+                      if (($gf['field_type'] ?? '') === 'guardian' && (int) ($gf['active'] ?? 0) === 1) { $guardianActiveNow = true; break; }
+                  }
+
+                  // Affichage uniquement : on regroupe les champs verrouillés en tête du
+                  // tableau (nom, prénom, email, montant dû…), puis les autres — chacun
+                  // gardant son ordre habituel. N'affecte PAS l'ordre dans les formulaires.
+                  $displayFields = $allFields;
+                  usort($displayFields, function ($a, $b) {
+                      $la = (int) ($a['is_locked'] ?? 0);
+                      $lb = (int) ($b['is_locked'] ?? 0);
+                      if ($la !== $lb) return $lb <=> $la; // verrouillés d'abord
+                      return (int) ($a['sort_order'] ?? 0) <=> (int) ($b['sort_order'] ?? 0);
+                  });
+                ?>
+                <?php foreach ($displayFields as $f):
                   $id = $f['id'];
                   $locked = (int) ($f['is_locked'] ?? 0);
                   $default = (int) ($f['is_default'] ?? 1);
                   $active = (int) ($f['active'] ?? 0);
+                  $commentaireLocked = (($f['bdd_column'] ?? '') === 'commentaire' && $guardianActiveNow);
                 ?>
                 <tr<?= $locked ? ' class="table-light"' : '' ?>>
                   <td>
                     <strong><?= htmlspecialchars($f['label'] ?? $f['fields']) ?></strong>
                     <?php if ($locked): ?><span class="badge bg-secondary ms-1" style="font-size:10px">verrouillé</span><?php endif; ?>
                     <?php if (!$default): ?><span class="badge bg-info ms-1" style="font-size:10px">personnalisé</span><?php endif; ?>
+                    <?php if ($commentaireLocked): ?><span class="badge bg-warning text-dark ms-1" style="font-size:10px" title="Les nom/prénom du responsable légal y sont enregistrés">requis par l'autorisation parentale</span><?php endif; ?>
                     <br><small class="text-muted"><?= htmlspecialchars($f['bdd_column'] ?? '') ?></small>
+                    <?php if (($f['field_type'] ?? '') === 'guardian'): ?>
+                      <div class="mt-1 d-flex align-items-center gap-1">
+                        <label class="form-label mb-0" style="font-size:11px">Mineur si &lt;</label>
+                        <input type="number" name="guardian_age" min="1" max="120" value="<?= (int) ($f['options_list'] ?? 18) ?>" class="form-control form-control-sm" style="width:72px">
+                        <small class="text-muted" style="font-size:11px">ans</small>
+                      </div>
+                    <?php endif; ?>
                   </td>
                   <td class="text-center">
                     <?php if ($locked): ?>
                       <input type="checkbox" checked disabled class="form-check-input">
+                    <?php elseif ($commentaireLocked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input" title="Actif requis par l'autorisation parentale (mineur)">
+                      <input type="hidden" name="active_<?= $id ?>" value="1">
                     <?php else: ?>
                       <input type="checkbox" name="active_<?= $id ?>" class="form-check-input" <?= $active ? 'checked' : '' ?>>
                     <?php endif; ?>
@@ -4258,6 +4315,7 @@ if (!$canTab($activeTab)) {
                 <label class="form-label">Type</label>
                 <select name="new_type" class="form-select">
                   <option value="text">Texte</option>
+                  <option value="textarea">Zone de texte (commentaire)</option>
                   <option value="number">Nombre</option>
                   <option value="date">Date</option>
                   <option value="select">Liste déroulante</option>

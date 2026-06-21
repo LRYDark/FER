@@ -1607,6 +1607,7 @@ if ($route==='registrations'){
         $d['tel']     = mb_substr(trim($d['tel'] ?? ''), 0, 50);
         $d['ville']   = mb_substr(trim($d['ville'] ?? ''), 0, 255);
         $d['entreprise'] = mb_substr(trim($d['entreprise'] ?? ''), 0, 255);
+        if (array_key_exists('commentaire', $d)) $d['commentaire'] = mb_substr((string) $d['commentaire'], 0, 2000);
         $d['paiement_mode'] = mb_substr(trim($d['paiement_mode'] ?? ''), 0, 50);
         $allowedTshirt = ['-', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
         $d['tshirt_size'] = in_array($d['tshirt_size'] ?? '', $allowedTshirt, true) ? $d['tshirt_size'] : '-';
@@ -1780,6 +1781,10 @@ if ($route==='registrations'){
 
         $params = ['id' => $d['id']];
         $setParts = [];
+
+        if (array_key_exists('commentaire', $d) && $d['commentaire'] !== null) {
+            $d['commentaire'] = mb_substr((string) $d['commentaire'], 0, 2000);
+        }
 
         foreach ($fieldCols as $col => $meta) {
             if (!array_key_exists($col, $d)) continue;
@@ -2100,6 +2105,103 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['ok' => false, 'error' => 'Une erreur est survenue : ' . $e->getMessage()]);
         exit;
     }
+}
+
+/* ───── BULK PARSE EXCEL (permission dashboard.bulk_create) ───────────────
+ * Lit un fichier Excel ARBITRAIRE (colonnes nommées librement, ordre quelconque)
+ * et renvoie ses en-têtes + ses lignes, SANS rien insérer en base. Le mapping
+ * colonne→champ (glisser-déposer) et le pré-remplissage des cards « Ajout
+ * multiple » se font côté client (inc/dashboard.php). La création réelle passe
+ * ensuite par la route `bulk-create` : aucune logique d'insertion n'est dupliquée
+ * ici, donc aucun risque de régression sur le mail récap groupé.
+ */
+if ($route === 'bulk-parse-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireAction('dashboard.bulk_create');
+
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Erreur lors du téléchargement du fichier.']);
+        exit;
+    }
+
+    $filePath     = $_FILES['file']['tmp_name'];
+    $originalName = $_FILES['file']['name'];
+
+    // Contrôle de format (extension + signature binaire), comme l'import canonique.
+    $ext   = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    $sig   = (string) @file_get_contents($filePath, false, null, 0, 8);
+    $isZip = strncmp($sig, "PK\x03\x04", 4) === 0;                       // .xlsx
+    $isOle = strncmp($sig, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 8) === 0; // .xls
+    if (!in_array($ext, ['xlsx', 'xls'], true) || !($isZip || $isOle)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Format invalide. Utilisez un fichier Excel (.xlsx ou .xls).']);
+        exit;
+    }
+
+    require_once __DIR__ . '/../vendor/autoload.php';
+
+    try {
+        $ws        = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath)->getActiveSheet();
+        $formatted = $ws->toArray(null, true, true, true); // valeurs affichées (dates lisibles)
+    } catch (\Throwable $e) {
+        error_log('[BULK-PARSE-EXCEL] ' . $e->getMessage());
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Lecture du fichier impossible.']);
+        exit;
+    }
+
+    if (empty($formatted) || count($formatted) < 2) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Le fichier semble vide (en-tête + au moins une ligne attendus).']);
+        exit;
+    }
+
+    // En-têtes = 1re ligne : on ne garde que les colonnes réellement nommées.
+    $columns = []; // [ ['col' => 'A', 'label' => 'Nom'], ... ]
+    foreach ($formatted[1] as $colLetter => $label) {
+        $label = trim((string) $label);
+        if ($label !== '') $columns[] = ['col' => $colLetter, 'label' => $label];
+    }
+    if (count($columns) === 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Aucune colonne nommée trouvée en première ligne.']);
+        exit;
+    }
+
+    // Lignes de données : valeurs alignées sur l'ordre de $columns, lignes vides ignorées.
+    $rows = [];
+    foreach ($formatted as $idx => $row) {
+        if ($idx === 1) continue; // en-tête
+        $cells = [];
+        $hasValue = false;
+        foreach ($columns as $c) {
+            $val = trim((string) ($row[$c['col']] ?? ''));
+            if ($val !== '') $hasValue = true;
+            $cells[] = $val;
+        }
+        if ($hasValue) $rows[] = $cells;
+    }
+
+    if (count($rows) === 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Aucune ligne de données exploitable dans le fichier.']);
+        exit;
+    }
+    // Blocage au-delà de la limite serveur du bulk-create (50 personnes / lot).
+    if (count($rows) > 50) {
+        http_response_code(400);
+        echo json_encode(['ok' => false,
+            'error' => 'Le fichier contient ' . count($rows) . ' lignes de données : la limite est de 50 personnes par lot. Réduisez le fichier puis réessayez.']);
+        exit;
+    }
+
+    echo json_encode([
+        'ok'      => true,
+        'columns' => array_column($columns, 'label'),
+        'rows'    => $rows,
+        'total'   => count($rows),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 /* ───── IMPORT EXCEL (permission dashboard.import_excel) ─────────────────── */

@@ -297,6 +297,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 <?php require 'admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <?php if ($activeTab === 'inscriptions'): ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
@@ -344,15 +345,20 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 
   document.getElementById('fAdd') && document.getElementById('fAdd').addEventListener('submit', function(e) {
     e.preventDefault();
+    if (window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
     var btn = document.getElementById('btnSave');
     btn.disabled = true; btn.textContent = 'Enregistrement…';
     var msg = document.getElementById('msg');
     msg.className = 'alert d-none';
 
+    if (window.FERInscription) FERInscription.composeComment(e.target);
+    var fd = new FormData(e.target);
+    if (window.FERInscription) FERInscription.normalizeBirth(fd);
+
     fetch('../config/api.php?route=registrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
-      body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+      body: JSON.stringify(Object.fromEntries(fd))
     })
     .then(function(r) { return r.json(); })
     .then(function(j) {
@@ -401,23 +407,11 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   var canEditReg   = <?= $canEditReg ? 'true' : 'false' ?>;
   var canDeleteReg = <?= $canDeleteReg ? 'true' : 'false' ?>;
 
-  function normalizeBirth(fd){
-    var v = (fd.get('naissance') || '').trim();
-    if (!v) return;
-    if (/^\d{4}$/.test(v)) { fd.set('naissance', v); return; }
-    v = v.replace(/-/g, '/').replace(/\s+/g, '');
-    var p = v.split('/');
-    if (p.length !== 3) { fd.delete('naissance'); return; }
-    var d = p[0].padStart(2, '0'), m = p[1].padStart(2, '0'), y = p[2].padStart(2, '0');
-    if (/^\d{4}$/.test(d)) { var t = d; d = y; y = t; }
-    if (d < 1 || d > 31 || m < 1 || m > 12 || y.length !== 4) { fd.delete('naissance'); return; }
-    fd.set('naissance', d + '/' + m + '/' + y);
-  }
-
   var columns = [
     { data: 'id', visible: false },
     { data: 'inscription_no', title: 'N°' },
     <?php foreach ($allActiveFields as $af):
+      if (empty($af['bdd_column'])) continue; // pas une colonne BDD (ex. autorisation parentale)
       $col = htmlspecialchars($af['bdd_column'], ENT_QUOTES);
       $lbl = htmlspecialchars($af['label'], ENT_QUOTES);
     ?>
@@ -543,13 +537,16 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     if(String(d.prestation||'').toLowerCase()==='enfant_tshirt'){
       $('#fEditSaisie [name="paiement_mode"]').val('enfant_tshirt');
     }
+    if (window.FERInscription) FERInscription.refresh(document.getElementById('fEditSaisie'));
     new bootstrap.Modal('#editModalSaisie').show();
   });
 
   $('#fEditSaisie').on('submit', function(e){
     e.preventDefault();
+    if (window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
+    if (window.FERInscription) FERInscription.composeComment(e.target);
     var fd = new FormData(e.target);
-    normalizeBirth(fd);
+    if (window.FERInscription) FERInscription.normalizeBirth(fd);
     fetch('../config/api.php?route=registrations', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },

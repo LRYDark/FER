@@ -310,6 +310,73 @@ tr.filters select, tr.filters input {
   padding-right: 4px;
 }
 
+/* ═══ Ajout multiple : correspondance colonnes Excel ↔ champs ═══ */
+#bulkMapView .bulk-map-target {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #f0e8eb;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+#bulkMapView .bulk-map-target-label {
+  flex: 0 0 38%;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+.bulk-map-dropzone {
+  flex: 1 1 auto;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  transition: border-color .15s, background .15s;
+}
+.bulk-map-pool {
+  min-height: 120px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.bulk-map-dropzone.drag-over,
+.bulk-map-pool.drag-over {
+  border-color: #db2777;
+  background: #fdf2f6;
+}
+.bulk-map-placeholder {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+.bulk-map-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  background: #fff;
+  border: 1px solid #fbcfe8;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: grab;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+.bulk-map-chip .bi { color: #db2777; cursor: grab; }
+.bulk-map-chip.dragging { opacity: .4; }
+
 /* Colonnes redimensionnables */
 #tbl thead th { position: relative; }
 #tbl thead th .col-resize {
@@ -541,14 +608,60 @@ tr.filters select{
             </div>
 
             <!-- Liste dynamique des personnes -->
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <strong class="text-muted" style="font-size:13px;">Personnes à inscrire</strong>
-              <div>
-                <button type="button" id="bulkDuplicateBtn" class="btn btn-outline-secondary btn-sm me-1"><i class="bi bi-files"></i> Dupliquer la dernière</button>
-                <button type="button" id="bulkAddBtn" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Ajouter une personne</button>
+            <input type="file" id="bulkExcelFile" accept=".xlsx,.xls" style="display:none">
+            <div id="bulkEditView">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong class="text-muted" style="font-size:13px;">Personnes à inscrire</strong>
+                <div>
+                  <button type="button" id="bulkImportExcelBtn" class="btn btn-outline-success btn-sm me-1"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+                  <button type="button" id="bulkDuplicateBtn" class="btn btn-outline-secondary btn-sm me-1"><i class="bi bi-files"></i> Dupliquer la dernière</button>
+                  <button type="button" id="bulkAddBtn" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Ajouter une personne</button>
+                </div>
+              </div>
+              <div id="bulkRows"></div>
+            </div>
+
+            <!-- Vue de correspondance : colonnes du fichier Excel ↔ champs « Personnes à inscrire » -->
+            <div id="bulkMapView" style="display:none">
+              <div class="alert alert-info py-2 px-3" style="font-size:13px">
+                <i class="bi bi-info-circle me-1"></i>
+                Glissez chaque colonne de votre fichier sous le champ correspondant. Les champs marqués <span style="color:#ef4444">*</span> sont obligatoires : leur colonne doit être reliée — sauf « Montant dû », facultatif (calculé d'après le paiement ou le tarif de la course).
+              </div>
+              <div class="row g-3">
+                <div class="col-md-7">
+                  <strong class="text-muted" style="font-size:13px;">Vos champs</strong>
+                  <div id="bulkMapTargets" class="mt-2">
+                    <?php foreach ($bulkRowFields as $bf):
+                      if (empty($bf['bdd_column']) || ($bf['field_type'] ?? '') === 'guardian') continue;
+                      $mreq  = (int) ($bf['required_saisie_multiple'] ?? 0);
+                      $mbdd  = htmlspecialchars($bf['bdd_column']);
+                      $mlbl  = htmlspecialchars($bf['label']);
+                      $mstar = $mreq ? ' <span style="color:#ef4444">*</span>' : '';
+                    ?>
+                      <div class="bulk-map-target" data-bdd="<?= $mbdd ?>" data-required="<?= $mreq ?>">
+                        <div class="bulk-map-target-label"><?= $mlbl ?><?= $mstar ?></div>
+                        <div class="bulk-map-dropzone" data-target-drop>
+                          <span class="bulk-map-placeholder">Déposez une colonne ici</span>
+                        </div>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+                <div class="col-md-5">
+                  <strong class="text-muted" style="font-size:13px;">Colonnes de votre fichier</strong>
+                  <div id="bulkMapPool" class="bulk-map-pool mt-2">
+                    <span class="bulk-map-placeholder">Les colonnes de votre fichier apparaîtront ici.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-3">
+                <button type="button" id="bulkMapCancel" class="btn btn-outline-secondary btn-sm">Annuler l'import</button>
+                <div>
+                  <span id="bulkMapInfo" class="text-muted small me-2"></span>
+                  <button type="button" id="bulkMapGenerate" class="btn btn-rose btn-sm"><i class="bi bi-magic me-1"></i>Générer les cards</button>
+                </div>
               </div>
             </div>
-            <div id="bulkRows"></div>
 
             <div id="bulkProgress" class="mt-3" style="display:none">
               <div id="bulkProgressLog" style="max-height:200px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
@@ -575,6 +688,7 @@ tr.filters select{
           </div>
           <div class="row g-2">
             <?php foreach ($bulkRowFields as $bf):
+              if (empty($bf['bdd_column']) || ($bf['field_type'] ?? '') === 'guardian') continue; // pas de colonne BDD en mode bulk
               $req = (int) ($bf['required_saisie_multiple'] ?? 0);
               $type = $bf['field_type'] ?? 'text';
               $bdd  = htmlspecialchars($bf['bdd_column']);
@@ -758,6 +872,7 @@ tr.filters select{
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -830,29 +945,9 @@ function computePaidRank(allRows, inscriptionNo){
 }
 
 /* ══ Outils ════ */
-function normalizeBirth(fd){
-  let v=(fd.get('naissance')||'').trim();
-  if(!v) return;
-  if(/^\d{4}$/.test(v)){fd.set('naissance',v);return;}
-  v=v.replace(/-/g,'/').replace(/\s+/g,'');
-  const p=v.split('/');
-  if(p.length!==3){fd.delete('naissance');return;}
-  let [d,m,y]=p.map(s=>s.padStart(2,'0')); if(/^\d{4}$/.test(d)) [d,m,y]=[y,m,d];
-  if(d<1||d>31||m<1||m>12||y.length!==4){fd.delete('naissance');return;}
-  fd.set('naissance',`${d}/${m}/${y}`);
-}
-function ageFromBirth(b){
-  if(!b) return null;
-  let y,m=1,d=1;
-  if(/^\d{4}$/.test(b)){y=+b;}
-  else if(/^\d{4}-\d{2}-\d{2}$/.test(b)){[y,m,d]=b.split('-').map(Number);}
-  else if(/^\d{2}\/\d{2}\/\d{4}$/.test(b)){[d,m,y]=b.split('/').map(Number);}
-  else return null;
-  const t=new Date(), bd=new Date(y,m-1,d);
-  let a=t.getFullYear()-bd.getFullYear();
-  if(t<new Date(t.getFullYear(),m-1,d)) a--;
-  return a;
-}
+// normalizeBirth / ageFromBirth sont fournis par js/inscription-form.js (window.FERInscription).
+const normalizeBirth = (fd) => { if (window.FERInscription) FERInscription.normalizeBirth(fd); };
+const ageFromBirth   = (b)  => (window.FERInscription ? FERInscription.ageFromBirth(b) : null);
 
 /* ══ DataTable ════ */
 let tshirtMode=false;
@@ -876,6 +971,7 @@ const tbl=$('#tbl').DataTable({
     {data: null, title: 'ID', width: '60px', className: 'text-center', orderable: false, defaultContent: ''},
     {data:'inscription_no',title:'N°'},
     <?php foreach ($allActiveFields as $af):
+      if (empty($af['bdd_column'])) continue; // pas une colonne BDD (ex. autorisation parentale)
       $col = $af['bdd_column'];
       $lbl = htmlspecialchars($af['label'], ENT_QUOTES);
       if ($col === 'tshirt_size'): ?>
@@ -1183,6 +1279,8 @@ $('#tbl').on('click', '.delete-row', function() {
 /* ══ AJOUT ════ */
 $('#fAdd').on('submit',e=>{
   e.preventDefault();
+  if(window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
+  if(window.FERInscription) FERInscription.composeComment(e.target);
   const fd=new FormData(e.target); normalizeBirth(fd);
   fetch('../config/api.php?route=registrations',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},body:JSON.stringify(Object.fromEntries(fd))})
   .then(r=>r.json()).then(j=>{
@@ -1321,6 +1419,229 @@ function showInscriptionToast(inscriptionNo){
     addRow(rows[rows.length - 1] || null);
   });
 
+  /* ══ IMPORT EXCEL → correspondance colonnes ↔ champs → cards ══════════ */
+  const excelBtn    = document.getElementById('bulkImportExcelBtn');
+  const fileInput   = document.getElementById('bulkExcelFile');
+  const editView    = document.getElementById('bulkEditView');
+  const mapView     = document.getElementById('bulkMapView');
+  const mapTargets  = document.getElementById('bulkMapTargets');
+  const mapPool     = document.getElementById('bulkMapPool');
+  const mapCancel   = document.getElementById('bulkMapCancel');
+  const mapGenerate = document.getElementById('bulkMapGenerate');
+  const mapInfo     = document.getElementById('bulkMapInfo');
+
+  let excelColumns = []; // libellés des colonnes du fichier
+  let excelRows    = []; // lignes de données (tableaux alignés sur excelColumns)
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = (s == null ? '' : String(s));
+    return d.innerHTML;
+  }
+  // Normalise un libellé pour comparaison (sans accents/casse/ponctuation).
+  function normLabel(s) {
+    return (s == null ? '' : String(s))
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9 ]/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+  // Convertit une date affichée (JJ/MM/AAAA, AAAA-MM-JJ…) en ISO pour <input type=date>.
+  function toISODate(v) {
+    v = (v == null ? '' : String(v)).trim();
+    if (!v) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+    let m = v.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    m = v.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+    return ''; // format non reconnu : on laisse vide (le champ date refuse le reste)
+  }
+
+  function zoneChip(zone) { return zone ? zone.querySelector('.bulk-map-chip') : null; }
+
+  function refreshMap() {
+    const zones = [].concat(
+      Array.from(mapTargets.querySelectorAll('[data-target-drop]')),
+      [mapPool]
+    );
+    zones.forEach(z => {
+      const ph = z.querySelector('.bulk-map-placeholder');
+      if (ph) ph.style.display = z.querySelector('.bulk-map-chip') ? 'none' : '';
+    });
+    const assigned = mapTargets.querySelectorAll('.bulk-map-chip').length;
+    mapInfo.textContent = assigned + '/' + excelColumns.length + ' colonne(s) reliée(s)';
+  }
+
+  function placeChip(zone, chip) {
+    // Une cible ne contient qu'une seule colonne : si occupée, l'ancienne repart au pool.
+    if (zone.matches('[data-target-drop]')) {
+      const existing = zoneChip(zone);
+      if (existing && existing !== chip) mapPool.appendChild(existing);
+    }
+    zone.appendChild(chip);
+    refreshMap();
+  }
+
+  function makeChip(index) {
+    const chip = document.createElement('div');
+    chip.className = 'bulk-map-chip';
+    chip.draggable = true;
+    chip.dataset.colIndex = index;
+    chip.innerHTML = '<i class="bi bi-grip-vertical"></i> ' + escapeHtml(excelColumns[index]);
+    chip.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', String(index));
+      e.dataTransfer.effectAllowed = 'move';
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+    return chip;
+  }
+
+  function wireZone(zone) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const idx = e.dataTransfer.getData('text/plain');
+      const chip = mapView.querySelector('.bulk-map-chip[data-col-index="' + idx + '"]');
+      if (chip) placeChip(zone, chip);
+    });
+  }
+
+  // Pré-relie les colonnes dont le nom ressemble à un champ (synonymes courants).
+  function autoMap() {
+    const synonyms = {
+      nom:         ['nom', 'lastname', 'last name', 'name', 'famille'],
+      prenom:      ['prenom', 'firstname', 'first name', 'surname'],
+      email:       ['email', 'mail', 'courriel', 'e mail', 'adresse mail'],
+      tel:         ['tel', 'telephone', 'phone', 'mobile', 'portable', 'gsm'],
+      naissance:   ['naissance', 'date de naissance', 'birth', 'birthday', 'ddn', 'age', 'annee'],
+      ville:       ['ville', 'city', 'commune', 'localite'],
+      sexe:        ['sexe', 'genre', 'gender', 'civilite'],
+      tshirt_size: ['taille', 'tshirt', 't shirt', 'size', 'taille tshirt'],
+      montant_du:  ['montant', 'montant du', 'prix', 'tarif', 'amount']
+    };
+    mapTargets.querySelectorAll('.bulk-map-target').forEach(t => {
+      const zone = t.querySelector('[data-target-drop]');
+      if (zoneChip(zone)) return;
+      const bdd = t.dataset.bdd;
+      const tLabel = normLabel(t.querySelector('.bulk-map-target-label').textContent);
+      const cands = (synonyms[bdd] || []).concat([normLabel(bdd), tLabel]).filter(Boolean);
+      const chips = Array.from(mapPool.querySelectorAll('.bulk-map-chip'));
+      const match = chips.find(c => {
+        const cl = normLabel(excelColumns[c.dataset.colIndex]);
+        return cl && cands.some(x => x === cl || cl.includes(x) || x.includes(cl));
+      });
+      if (match) placeChip(zone, match);
+    });
+  }
+
+  function openMapView() {
+    // Réinitialise les zones, recrée les puces dans le pool, puis auto-mappe.
+    mapTargets.querySelectorAll('.bulk-map-chip').forEach(c => c.remove());
+    mapPool.querySelectorAll('.bulk-map-chip').forEach(c => c.remove());
+    excelColumns.forEach((_, i) => mapPool.appendChild(makeChip(i)));
+    autoMap();
+    refreshMap();
+    editView.style.display = 'none';
+    mapView.style.display = '';
+  }
+
+  function closeMapView() {
+    mapView.style.display = 'none';
+    editView.style.display = '';
+  }
+
+  function setFieldValue(field, value) {
+    value = (value == null ? '' : String(value)).trim();
+    if (field.tagName === 'SELECT') {
+      const opt = Array.from(field.options).find(o =>
+        normLabel(o.value) === normLabel(value) || normLabel(o.textContent) === normLabel(value));
+      field.value = opt ? opt.value : '';
+    } else if (field.type === 'date') {
+      field.value = toISODate(value);
+    } else {
+      field.value = value;
+    }
+  }
+
+  if (excelBtn && fileInput && mapView) {
+    // Câblage des zones de dépôt (une seule fois : le DOM des cibles est fixe).
+    mapTargets.querySelectorAll('[data-target-drop]').forEach(wireZone);
+    wireZone(mapPool);
+
+    excelBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const orig = excelBtn.innerHTML;
+      excelBtn.disabled = true;
+      excelBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('../config/api.php?route=bulk-parse-excel', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': _csrfToken },
+          body: fd,
+          credentials: 'same-origin'
+        });
+        const j = await res.json();
+        if (!res.ok || !j.ok) throw new Error(j.error || (res.status + ' ' + res.statusText));
+        excelColumns = j.columns || [];
+        excelRows    = j.rows || [];
+        if (!excelColumns.length || !excelRows.length) throw new Error('Aucune donnée exploitable dans le fichier.');
+        openMapView();
+      } catch (err) {
+        alert('Import Excel : ' + err.message);
+      } finally {
+        excelBtn.disabled = false;
+        excelBtn.innerHTML = orig;
+        fileInput.value = ''; // permet de réimporter le même fichier
+      }
+    });
+
+    mapCancel.addEventListener('click', closeMapView);
+
+    mapGenerate.addEventListener('click', () => {
+      // Les champs obligatoires DOIVENT avoir une colonne reliée.
+      // Exception : « montant_du » — jamais bloquant, même marqué obligatoire,
+      // car il est dérivé du mode de paiement (ou du tarif de la course défini
+      // dans les réglages) côté serveur.
+      const missing = [];
+      mapTargets.querySelectorAll('.bulk-map-target').forEach(t => {
+        if (t.dataset.bdd === 'montant_du') return;
+        if (t.dataset.required === '1' && !zoneChip(t.querySelector('[data-target-drop]'))) {
+          missing.push(t.querySelector('.bulk-map-target-label').textContent.replace('*', '').trim());
+        }
+      });
+      if (missing.length) {
+        alert('Colonne(s) obligatoire(s) non reliée(s) :\n• ' + missing.join('\n• '));
+        return;
+      }
+      // Construit la correspondance champ → index de colonne.
+      const map = {};
+      mapTargets.querySelectorAll('.bulk-map-target').forEach(t => {
+        const chip = zoneChip(t.querySelector('[data-target-drop]'));
+        if (chip) map[t.dataset.bdd] = parseInt(chip.dataset.colIndex, 10);
+      });
+      // Remplace les cards existantes par une card par ligne du fichier.
+      container.innerHTML = '';
+      excelRows.forEach(cells => {
+        addRow();
+        const row = container.lastElementChild;
+        if (!row) return;
+        Object.keys(map).forEach(bdd => {
+          const field = row.querySelector('.bulk-field[data-bdd="' + bdd + '"]');
+          if (field) setFieldValue(field, cells[map[bdd]]);
+        });
+      });
+      renumber();
+      closeMapView();
+    });
+  }
+
   // Si le paiement partagé passe à "gratuit", on met tous les montants à 0
   const sharedPaiement = document.querySelector('#fBulkAdd [name="shared_paiement_mode"]');
   if (sharedPaiement) {
@@ -1341,6 +1662,7 @@ function showInscriptionToast(inscriptionNo){
   document.getElementById('addModal').addEventListener('hidden.bs.modal', () => {
     const f = document.getElementById('fBulkAdd');
     if (f) f.reset();
+    if (mapView) { excelColumns = []; excelRows = []; closeMapView(); }
     container.innerHTML = '';
     progress.style.display = 'none';
     logDiv.innerHTML = '';
@@ -1451,10 +1773,13 @@ $('#tbl').on('click','button.edit',function(){
   if(String(d.prestation||'').toLowerCase()==='enfant_tshirt'){
     $('#fEdit [name="paiement_mode"]').val('enfant_tshirt');
   }
+  if(window.FERInscription) FERInscription.refresh(document.getElementById('fEdit'));
   new bootstrap.Modal('#editModal').show();
 });
 $('#fEdit').on('submit',e=>{
   e.preventDefault();
+  if(window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
+  if(window.FERInscription) FERInscription.composeComment(e.target);
   const fd=new FormData(e.target); normalizeBirth(fd);
   fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},body:new URLSearchParams(fd)})
   .then(()=>{tbl.ajax.reload(null,false); bootstrap.Modal.getInstance('#editModal').hide();});
