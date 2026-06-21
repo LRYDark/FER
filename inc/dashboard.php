@@ -472,7 +472,7 @@ tr.filters select{
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
         <?php endif; ?>
         <?php if($canImportXls): ?>
-          <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel</button>
+          <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">Import Excel AssoConnect</button>
         <?php endif; ?>
         <?php if($canExportXls): ?>
           <button id="btnExport" class="btn btn-info">Export Excel</button>
@@ -753,7 +753,7 @@ tr.filters select{
 
 <div class="modal fade" id="importModal" tabindex="-1"><div class="modal-dialog modal-lg">
  <div class="modal-content"><div class="modal-header">
-   <h5 class="modal-title">Import Excel</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+   <h5 class="modal-title">Import Excel AssoConnect</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
   <form id="fImport" enctype="multipart/form-data"><div class="modal-body">
     <input type="file" name="file" id="importFileInput" accept=".xlsx,.xls" class="form-control" required>
     <div class="form-check form-switch mt-3">

@@ -227,7 +227,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'dashboard.edit_registration'   => 'Modifier un inscrit',
             'dashboard.delete_registration' => 'Supprimer un inscrit',
             'dashboard.archive'             => 'Archiver l\'année en cours',
-            'dashboard.import_excel'        => 'Importer un fichier Excel',
+            'dashboard.import_excel'        => 'Importer un fichier Excel AssoConnect',
             'dashboard.export_excel'        => 'Exporter en Excel',
             'dashboard.scan_qr'             => 'Scanner QR + remise des T-shirts (mode bénévole)',
           ];
