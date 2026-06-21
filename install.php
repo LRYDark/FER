@@ -1009,6 +1009,16 @@ function getDefaultInserts(): array
         "INSERT IGNORE INTO `forms` (`id`, `fields`, `label`, `field_type`, `bdd_column`, `active`, `required`, `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`, `visible_saisie_multiple`, `required_saisie_multiple`, `sort_order`, `options_list`, `encrypted`) VALUES
           (13, 'inscription_date', 'Date d''inscription', 'date', 'created_at', 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 13, NULL, 0)",
 
+        // Flags « Ajout multiple » des champs essentiels (cohérence avec update.php) :
+        //  - visibles en bulk : nom, prenom, email, entreprise, montant_du
+        //  - OBLIGATOIRES en bulk : nom + prenom uniquement (email/entreprise/montant
+        //    restent facultatifs — particulier sans entreprise, inscrit sans email,
+        //    montant auto-calculé).
+        "UPDATE `forms` SET `visible_saisie_multiple` = 1
+          WHERE `bdd_column` IN ('nom', 'prenom', 'email', 'entreprise', 'montant_du')",
+        "UPDATE `forms` SET `required_saisie_multiple` = 1
+          WHERE `bdd_column` IN ('nom', 'prenom')",
+
         "INSERT IGNORE INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES
           (1, 'inscription_no', 'numero billet'),
           (2, 'nom', 'prenom participant'),

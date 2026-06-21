@@ -1569,6 +1569,10 @@ function showInscriptionToast(inscriptionNo){
 
   container.addEventListener('input', e => {
     if (e.target.classList.contains('bulk-montant')) updateSummary();
+    // Retire le surlignage rouge « champ obligatoire » dès qu'on saisit quelque chose.
+    if (e.target.classList.contains('bulk-field') && e.target.value.trim() !== '') {
+      e.target.classList.remove('is-invalid');
+    }
   });
 
   // Champ « naissance » intelligent : à la perte de focus, on canonicalise
@@ -2036,6 +2040,31 @@ function showInscriptionToast(inscriptionNo){
 
     if (rows.length === 0) {
       alert('Ajoutez au moins une personne avant de valider.');
+      return;
+    }
+
+    // Validation des champs obligatoires (data-required) : on bloque l'ENVOI COMPLET
+    // tant qu'un champ requis visible est vide (nom/prénom, ou tout champ marqué
+    // « Bulk requis » dans Gestion des champs). Rien n'est créé tant que tout n'est
+    // pas rempli. Les champs masqués (entreprise commune / email en récap) sont
+    // ignorés car non saisissables — et ne sont de toute façon pas obligatoires.
+    let firstInvalid = null, invalidCount = 0;
+    container.querySelectorAll('.bulk-row').forEach(rowEl => {
+      rowEl.querySelectorAll('.bulk-field[data-required="1"]').forEach(f => {
+        const col = f.closest('[class*="col-"]');
+        const hidden = col && col.style.display === 'none';
+        if (!hidden && f.value.trim() === '') {
+          f.classList.add('is-invalid');
+          invalidCount++;
+          if (!firstInvalid) firstInvalid = f;
+        } else {
+          f.classList.remove('is-invalid');
+        }
+      });
+    });
+    if (invalidCount > 0) {
+      alert('Veuillez remplir tous les champs obligatoires (' + invalidCount + ' manquant(s)) avant de valider.\nAucune inscription n\'est créée tant que tout n\'est pas renseigné.');
+      if (firstInvalid) { firstInvalid.focus(); firstInvalid.scrollIntoView({block:'center', behavior:'smooth'}); }
       return;
     }
 

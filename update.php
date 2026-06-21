@@ -688,33 +688,25 @@ try {
     } else {
         $alreadyChecked = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `visible_saisie_multiple` = 1")->fetchColumn();
 
-        if ($alreadyChecked === 0) {
-            // Bloc A — first-time : on coche les 5 essentiels
-            $stmt = $pdo->prepare(
-                "UPDATE `forms`
-                    SET `visible_saisie_multiple` = 1, `required_saisie_multiple` = 1
-                  WHERE `bdd_column` IN ('nom', 'prenom', 'email', 'entreprise', 'montant_du')"
-            );
-            $stmt->execute();
-            $results[] = ['status' => 'success', 'sql' => $bulkAutoCheckSql, 'msg' => 'First-time : ' . $stmt->rowCount() . ' champ(s) pré-coché(s)'];
-        } else {
-            // Bloc B — catch-up : rattrape email/entreprise/montant_du si
-            // l'ancienne migration les a oubliés (filtres required=1 ou
-            // exclusion shared trop stricts dans versions antérieures).
-            $stmt = $pdo->prepare(
-                "UPDATE `forms`
-                    SET `visible_saisie_multiple` = 1, `required_saisie_multiple` = 1
-                  WHERE `bdd_column` IN ('email', 'entreprise', 'montant_du')
-                    AND `visible_saisie_multiple` = 0"
-            );
-            $stmt->execute();
-            $catchupCount = $stmt->rowCount();
-            if ($catchupCount > 0) {
-                $results[] = ['status' => 'success', 'sql' => $bulkAutoCheckSql, 'msg' => 'Catch-up : ' . $catchupCount . ' champ(s) ajouté(s)'];
-            } else {
-                $results[] = ['status' => 'skip', 'sql' => $bulkAutoCheckSql, 'msg' => 'Déjà appliqué (' . $alreadyChecked . ' champs)'];
-            }
-        }
+        // Visibilité bulk des 5 champs essentiels (idempotent : ne touche que ceux à 0).
+        $pdo->prepare(
+            "UPDATE `forms` SET `visible_saisie_multiple` = 1
+              WHERE `bdd_column` IN ('nom', 'prenom', 'email', 'entreprise', 'montant_du')
+                AND `visible_saisie_multiple` = 0"
+        )->execute();
+
+        // Requis bulk : UNIQUEMENT nom + prénom. email / entreprise / montant_du sont
+        // FACULTATIFS (particulier sans entreprise, inscrit sans email, montant auto-calculé).
+        // → corrige aussi les installs où l'ancienne migration les avait rendus requis.
+        // L'admin peut toujours rendre un champ requis via « Gestion des champs » (Bulk requis) ;
+        // update.php étant supprimé après la mise à jour, ce réglage ne sera pas réécrasé.
+        $pdo->prepare("UPDATE `forms` SET `required_saisie_multiple` = 1
+                        WHERE `bdd_column` IN ('nom', 'prenom') AND `required_saisie_multiple` = 0")->execute();
+        $unreq = $pdo->prepare("UPDATE `forms` SET `required_saisie_multiple` = 0
+                        WHERE `bdd_column` IN ('email', 'entreprise', 'montant_du') AND `required_saisie_multiple` = 1");
+        $unreq->execute();
+        $results[] = ['status' => 'success', 'sql' => $bulkAutoCheckSql,
+                      'msg' => 'Bulk : nom/prénom requis ; email/entreprise/montant rendus facultatifs (' . $unreq->rowCount() . ' corrigé(s))'];
     }
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $bulkAutoCheckSql, 'msg' => $e->getMessage()];
