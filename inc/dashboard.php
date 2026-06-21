@@ -764,6 +764,8 @@ tr.filters select{
                       <option value="<?= htmlspecialchars($opt) ?>"><?= htmlspecialchars($opt) ?></option>
                     <?php endforeach; ?>
                   </select>
+                <?php elseif (($bf['bdd_column'] ?? '') === 'naissance'): ?>
+                  <input type="text" inputmode="numeric" autocomplete="off" data-bdd="<?= $bdd ?>" class="form-control bulk-field bulk-birthdate" placeholder="JJ/MM/AAAA, année ou âge"<?= $reqAttr ?>>
                 <?php elseif ($type === 'date'): ?>
                   <input type="date" data-bdd="<?= $bdd ?>" class="form-control bulk-field"<?= $reqAttr ?>>
                 <?php elseif ($type === 'number'): ?>
@@ -1478,6 +1480,16 @@ function showInscriptionToast(inscriptionNo){
     if (e.target.classList.contains('bulk-montant')) updateSummary();
   });
 
+  // Champ « naissance » intelligent : à la perte de focus, on canonicalise
+  // l'âge / l'année / la date saisi (même logique que le formulaire classique).
+  container.addEventListener('focusout', e => {
+    if (!e.target.classList || !e.target.classList.contains('bulk-birthdate')) return;
+    const raw = e.target.value.trim();
+    if (!raw || !window.FERInscription) return;
+    const n = FERInscription.normalizeBirthValue(raw);
+    if (n) e.target.value = n; // reconnu → forme canonique ; sinon on laisse pour correction
+  });
+
   addBtn.addEventListener('click', () => addRow());
   dupBtn.addEventListener('click', () => {
     const rows = container.querySelectorAll('.bulk-row');
@@ -1835,6 +1847,12 @@ function showInscriptionToast(inscriptionNo){
           const field = row.querySelector('.bulk-field[data-bdd="' + bdd + '"]');
           if (field) setFieldValue(field, cells[map[bdd]]);
         });
+        // Naissance importée : canonicalise âge/année/date pour l'afficher proprement.
+        const bField = row.querySelector('.bulk-field.bulk-birthdate');
+        if (bField && bField.value.trim() && window.FERInscription) {
+          const n = FERInscription.normalizeBirthValue(bField.value.trim());
+          if (n) bField.value = n;
+        }
         if (commentHasContent) {
           const cField = row.querySelector('.bulk-field[data-bdd="commentaire"]');
           if (cField) cField.value = buildComment(cells);
@@ -1902,6 +1920,11 @@ function showInscriptionToast(inscriptionNo){
       rowEl.querySelectorAll('.bulk-field').forEach(f => {
         row[f.dataset.bdd] = f.value.trim();
       });
+      // Naissance : canonicalise l'âge / l'année / la date avant envoi (comme le
+      // formulaire classique). Non reconnu → '' (le serveur valide l'obligatoire).
+      if (row.naissance && window.FERInscription) {
+        row.naissance = FERInscription.normalizeBirthValue(row.naissance);
+      }
       rows.push(row);
     });
 
