@@ -1858,10 +1858,11 @@ if ($route === 'registrations-stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
 /* ───── BULK CREATE (permission dashboard.bulk_create) ────────────────────
  * Saisie en lot : N inscrits d'une même entreprise créés en une seule requête.
- * Champs partagés (entreprise, email, paiement_mode) saisis 1×, puis liste de
- * personnes avec leurs champs propres. Envoie 1 seul mail récap (sans QR codes
- * individuels) à l'email partagé. Les QR codes sont quand même générables en
- * BDD (inscription_no présent) pour le scan T-shirts ultérieur.
+ * Champs partagés (entreprise, paiement_mode) saisis 1×, puis liste de
+ * personnes avec leurs champs propres — DONT l'email, propre à chacun.
+ * Chaque inscrit ayant un email valide reçoit son PROPRE mail de confirmation
+ * (avec QR Code selon le réglage global, identique à la saisie classique).
+ * Une ligne sans email est inscrite normalement, sans envoi de mail.
  */
 if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     requireAction('dashboard.bulk_create');
@@ -1884,20 +1885,25 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $shared = $payload['shared'];
     $rows   = $payload['rows'];
 
-    // Validation des champs partagés
+    // Validation des champs partagés. Seul le paiement est réellement commun.
+    // `entreprise` n'est plus qu'une valeur COMMUNE FACULTATIVE servant à remplir
+    // les lignes sans entreprise propre (l'entreprise est saisie par personne).
     $sharedEntreprise   = mb_substr(trim($shared['entreprise'] ?? ''), 0, 255);
-    $sharedEmail        = trim($shared['email'] ?? '');
     $sharedPaiement     = mb_substr(trim($shared['paiement_mode'] ?? ''), 0, 50);
     $sharedOrigine      = mb_substr(trim($shared['origine'] ?? 'Admin'), 0, 100);
 
-    if ($sharedEntreprise === '' || $sharedEmail === '' || $sharedPaiement === '') {
+    // Mode d'envoi des mails : 'individual' (1 mail/personne) ou 'recap' (1 mail groupé).
+    $mailMode  = ($shared['mail_mode'] ?? 'individual') === 'recap' ? 'recap' : 'individual';
+    $recapEmail = trim($shared['recap_email'] ?? '');
+
+    if ($sharedPaiement === '') {
         http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Entreprise, email et mode de paiement sont obligatoires']);
+        echo json_encode(['ok' => false, 'error' => 'Le mode de paiement est obligatoire']);
         exit;
     }
-    if (!filter_var($sharedEmail, FILTER_VALIDATE_EMAIL)) {
+    if ($mailMode === 'recap' && !filter_var($recapEmail, FILTER_VALIDATE_EMAIL)) {
         http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Email invalide']);
+        echo json_encode(['ok' => false, 'error' => 'Email de contact invalide pour le récap groupé']);
         exit;
     }
     if (!is_array($rows) || count($rows) === 0) {
@@ -1954,10 +1960,20 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 continue;
             }
 
-            // Force les champs partagés sur chaque ligne
-            $row['entreprise']    = $sharedEntreprise;
-            $row['email']         = $sharedEmail;
+            // Paiement commun forcé sur chaque ligne. L'entreprise reste propre à
+            // la ligne ; si vide, on retombe sur l'« entreprise commune » facultative
+            // (qui peut elle-même être vide = particulier).
             $row['paiement_mode'] = $sharedPaiement;
+            $rowEntreprise = trim((string)($row['entreprise'] ?? ''));
+            $row['entreprise'] = $rowEntreprise !== '' ? $rowEntreprise : $sharedEntreprise;
+
+            // Email par personne : facultatif, mais si renseigné il doit être valide.
+            $rowEmail = trim((string)($row['email'] ?? ''));
+            if ($rowEmail !== '' && !filter_var($rowEmail, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = ['index' => $idx, 'reason' => 'Email invalide : ' . $rowEmail];
+                continue;
+            }
+            $row['email'] = $rowEmail;
 
             // Validation des champs requis bulk
             $missing = [];
@@ -2023,6 +2039,8 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'inscription_no' => $no,
                     'nom'            => $row['nom'] ?? '',
                     'prenom'         => $row['prenom'] ?? '',
+                    'email'          => $row['email'] ?? '',
+                    'entreprise'     => $row['entreprise'] ?? '',
                     'montant_du'     => $montantDu,
                 ];
             } catch (\Throwable $insErr) {
@@ -2032,69 +2050,113 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pdo->commit();
 
-        // Envoi du mail récap (1 seul mail à l'email partagé)
-        $mailSent = false;
-        $mailError = null;
+        // Envoi des mails (hors transaction), selon le mode choisi.
+        $mailsSent    = 0;
+        $mailsSkipped = 0;
+        $mailErrors   = [];
+        $recapSent    = false;
+        $recapError   = null;
+
         if ($created > 0) {
-            try {
-                require_once __DIR__ . '/googleMail.php';
-                $totalDu = array_sum(array_column($createdRegistrants, 'montant_du'));
+            require_once __DIR__ . '/googleMail.php';
 
-                $listHtml = '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;">'
-                          . '<thead><tr style="background:#fdf2f6;">'
-                          . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
-                          . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
-                          . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
-                          . '<th style="text-align:right;padding:8px;border:1px solid #fbcfe8;">Montant</th>'
-                          . '</tr></thead><tbody>';
+            if ($mailMode === 'individual') {
+                // ── INDIVIDUEL : 1 mail par personne, exactement comme un import
+                // AssoConnect (template 'inscription', QR selon réglage global).
+                // Une ligne sans email est inscrite sans envoi.
                 foreach ($createdRegistrants as $r) {
-                    $listHtml .= '<tr>'
-                              . '<td style="padding:8px;border:1px solid #fbcfe8;font-family:monospace;">' . htmlspecialchars($r['inscription_no']) . '</td>'
-                              . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['nom']) . '</td>'
-                              . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['prenom']) . '</td>'
-                              . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($r['montant_du'], 2, ',', ' ') . ' €</td>'
-                              . '</tr>';
+                    $inscEmail = trim((string) ($r['email'] ?? ''));
+                    if ($inscEmail === '') { $mailsSkipped++; continue; }
+                    try {
+                        if (function_exists('shouldIncludeQrCode')) {
+                            shouldIncludeQrCode($r['inscription_no']); // parité import AssoConnect
+                        }
+                        $ok = sendMail(
+                            $inscEmail,
+                            'Inscription enregistrée - Forbach en Rose',
+                            null, null,
+                            $r['nom'] ?? '', $r['prenom'] ?? '',
+                            'inscription', $r['inscription_no']
+                        );
+                        if ($ok !== false) {
+                            $mailsSent++;
+                        } else {
+                            global $lastMailError;
+                            $mailErrors[] = ['email' => $inscEmail, 'reason' => $lastMailError ?? 'Échec inconnu'];
+                        }
+                    } catch (\Throwable $mailErr) {
+                        error_log('[BULK-CREATE][MAIL] ' . $r['inscription_no'] . ' : ' . $mailErr->getMessage());
+                        $mailErrors[] = ['email' => $inscEmail, 'reason' => $mailErr->getMessage()];
+                    }
                 }
-                $listHtml .= '</tbody><tfoot><tr style="background:#fdf2f6;font-weight:700;">'
-                          . '<td colspan="3" style="padding:8px;border:1px solid #fbcfe8;text-align:right;">Total</td>'
-                          . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($totalDu, 2, ',', ' ') . ' €</td>'
-                          . '</tr></tfoot></table>';
+            } else {
+                // ── RÉCAP GROUPÉ : 1 seul mail listant tous les inscrits, envoyé à
+                // l'adresse de contact. Pas de QR individuel (générables en BDD).
+                try {
+                    $totalDu = array_sum(array_column($createdRegistrants, 'montant_du'));
 
-                $description = '<p style="font-size:15px;line-height:1.6;color:#334155;">'
-                             . 'Bonjour,<br><br>'
-                             . 'Nous confirmons l\'inscription des <strong>' . $created . '</strong> personne(s) de '
-                             . '<strong>' . htmlspecialchars($sharedEntreprise) . '</strong> à la course Forbach en Rose.<br><br>'
-                             . 'Le jour de la course, <strong>présentez ce mail à l\'accueil</strong> au nom de '
-                             . '<em>' . htmlspecialchars($sharedEntreprise) . '</em> pour récupérer les dossards.'
-                             . '</p>'
-                             . $listHtml;
+                    $listHtml = '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;">'
+                              . '<thead><tr style="background:#fdf2f6;">'
+                              . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
+                              . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
+                              . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
+                              . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Entreprise</th>'
+                              . '<th style="text-align:right;padding:8px;border:1px solid #fbcfe8;">Montant</th>'
+                              . '</tr></thead><tbody>';
+                    foreach ($createdRegistrants as $r) {
+                        $listHtml .= '<tr>'
+                                  . '<td style="padding:8px;border:1px solid #fbcfe8;font-family:monospace;">' . htmlspecialchars($r['inscription_no']) . '</td>'
+                                  . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['nom']) . '</td>'
+                                  . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['prenom']) . '</td>'
+                                  . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['entreprise'] ?: '—') . '</td>'
+                                  . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($r['montant_du'], 2, ',', ' ') . ' €</td>'
+                                  . '</tr>';
+                    }
+                    $listHtml .= '</tbody><tfoot><tr style="background:#fdf2f6;font-weight:700;">'
+                              . '<td colspan="4" style="padding:8px;border:1px solid #fbcfe8;text-align:right;">Total</td>'
+                              . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($totalDu, 2, ',', ' ') . ' €</td>'
+                              . '</tr></tfoot></table>';
 
-                $ok = sendMail(
-                    $sharedEmail,
-                    'Inscriptions enregistrées (' . $sharedEntreprise . ') - Forbach en Rose',
-                    'Inscriptions ' . $sharedEntreprise,
-                    $description,
-                    null, null,
-                    'info', null,
-                    'bulk_recap'
-                );
-                $mailSent = ($ok !== false);
-                if (!$mailSent) {
-                    global $lastMailError;
-                    $mailError = $lastMailError ?? 'Échec inconnu';
+                    $description = '<p style="font-size:15px;line-height:1.6;color:#334155;">'
+                                 . 'Bonjour,<br><br>'
+                                 . 'Nous confirmons l\'inscription des <strong>' . $created . '</strong> personne(s) ci-dessous '
+                                 . 'à la course Forbach en Rose.<br><br>'
+                                 . 'Le jour de la course, <strong>présentez ce mail à l\'accueil</strong> pour récupérer les dossards.'
+                                 . '</p>'
+                                 . $listHtml;
+
+                    $ok = sendMail(
+                        $recapEmail,
+                        'Inscriptions enregistrées - Forbach en Rose',
+                        'Inscriptions Forbach en Rose',
+                        $description,
+                        null, null,
+                        'info', null,
+                        'bulk_recap'
+                    );
+                    $recapSent = ($ok !== false);
+                    if (!$recapSent) {
+                        global $lastMailError;
+                        $recapError = $lastMailError ?? 'Échec inconnu';
+                    }
+                } catch (\Throwable $mailErr) {
+                    error_log('[BULK-CREATE][RECAP] ' . $mailErr->getMessage());
+                    $recapError = $mailErr->getMessage();
                 }
-            } catch (\Throwable $mailErr) {
-                error_log('[BULK-CREATE][MAIL] ' . $mailErr->getMessage());
-                $mailError = $mailErr->getMessage();
             }
         }
 
         echo json_encode([
-            'ok'         => true,
-            'created'    => $created,
-            'errors'     => $errors,
-            'mail_sent'  => $mailSent,
-            'mail_error' => $mailError,
+            'ok'           => true,
+            'created'      => $created,
+            'errors'       => $errors,
+            'mail_mode'    => $mailMode,
+            'mails_sent'   => $mailsSent,
+            'mails_skipped'=> $mailsSkipped,
+            'mail_errors'  => $mailErrors,
+            'recap_sent'   => $recapSent,
+            'recap_email'  => $mailMode === 'recap' ? $recapEmail : null,
+            'recap_error'  => $recapError,
         ]);
         exit;
 

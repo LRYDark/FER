@@ -1864,6 +1864,8 @@ if (isset($_POST['deleteImage'])) {
 <?php endif; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<!-- SheetJS : lecture côté client du fichier Excel pour l'aperçu d'import manuel (onglet Import AssoConnect) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
@@ -2813,7 +2815,7 @@ if (!$canTab($activeTab)) {
   <?php if ($canTab('reglementation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li><?php endif; ?>
   <?php if ($canTab('formulaire')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li><?php endif; ?>
   <?php if ($canTab('import')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li><?php endif; ?>
-  <?php if ($canTab('import_auto')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import_auto' ? 'active' : '' ?>" href="#" data-tab="import_auto">Import auto</a></li><?php endif; ?>
+  <?php if ($canTab('import_auto') || canDoAction('dashboard.import_excel')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import_auto' ? 'active' : '' ?>" href="#" data-tab="import_auto">Import AssoConnect</a></li><?php endif; ?>
   <?php if ($canTab('maintenance')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'maintenance' ? 'active' : '' ?>" href="#" data-tab="maintenance">Maintenance</a></li><?php endif; ?>
   <?php if ($canTab('api')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'api' ? 'active' : '' ?>" href="#" data-tab="api">API</a></li><?php endif; ?>
 </ul>
@@ -4400,7 +4402,36 @@ if (!$canTab($activeTab)) {
 <?php endif; // canTab('import') ?>
 
 <!-- ═══ TAB: Import automatique ═══ -->
-<?php if ($canTab('import_auto')):
+<?php
+// L'onglet « Import AssoConnect » regroupe DEUX fonctionnalités à droits distincts :
+//   • Import manuel d'un fichier Excel  → droit dashboard.import_excel
+//   • Import automatique (config + cron) → droit settings.tab.import_auto
+// L'onglet s'affiche dès que l'un des deux droits est accordé ; chaque bloc est
+// gardé indépendamment pour pouvoir autoriser l'un sans l'autre.
+$canImportXlsManual = canDoAction('dashboard.import_excel');
+if ($canTab('import_auto') || $canImportXlsManual):
+?>
+<div class="settings-section <?= $activeTab === 'import_auto' ? 'active' : '' ?>" id="tab-import_auto">
+
+  <?php if ($canImportXlsManual): ?>
+  <!-- Carte : import manuel (bouton) — droit dashboard.import_excel -->
+  <div class="row g-4 mb-1">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2><i class="bi bi-file-earmark-excel me-2"></i>Import manuel d'un fichier Excel</h2>
+        <p class="text-muted" style="font-size:14px">
+          Importez un fichier Excel AssoConnect téléchargé manuellement. Mêmes règles que l'import automatique :
+          doublons ignorés, QR Code selon le réglage global (Réglages → QR Code).
+        </p>
+        <button type="button" class="btn btn-rose" data-bs-toggle="modal" data-bs-target="#importModal">
+          <i class="bi bi-upload me-1"></i>Importer un fichier Excel AssoConnect
+        </button>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($canTab('import_auto')):
     require_once __DIR__ . '/../config/sync_assoconnect.php';
     $syncCfg     = sync_get_config($pdo);
     $acEnabled   = (int) ($syncCfg['enabled'] ?? 0) === 1;
@@ -4428,7 +4459,6 @@ if (!$canTab($activeTab)) {
     // Forme PHP-CLI (pas de token : exécution locale par le compte d'hébergement).
     $cronCli  = $cronAbs !== '' ? "php -q {$cronAbs} >/dev/null 2>&1" : 'php -q /home/<votre-compte>/.../inc/import_auto_cron.php >/dev/null 2>&1';
 ?>
-<div class="settings-section <?= $activeTab === 'import_auto' ? 'active' : '' ?>" id="tab-import_auto">
   <div class="row g-4">
 
     <!-- Carte : configuration -->
@@ -4596,7 +4626,294 @@ if (!$canTab($activeTab)) {
       </div>
     </div>
   </div><!-- /row cron -->
+  <?php endif; // fin bloc automatisation (canTab('import_auto')) ?>
 </div><!-- /tab-import_auto -->
+
+<?php if ($canImportXlsManual): ?>
+<!-- ═══ Modale d'import manuel (déplacée du dashboard) — droit dashboard.import_excel ═══ -->
+<div class="modal fade" id="importModal" tabindex="-1"><div class="modal-dialog modal-lg">
+ <div class="modal-content"><div class="modal-header">
+   <h5 class="modal-title">Import Excel AssoConnect</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+  <form id="fImport" enctype="multipart/form-data"><div class="modal-body">
+    <input type="file" name="file" id="importFileInput" accept=".xlsx,.xls" class="form-control" required>
+    <div class="form-check form-switch mt-3">
+      <input class="form-check-input" type="checkbox" name="send_mails" id="importSendMails" checked>
+      <label class="form-check-label" for="importSendMails">Envoyer les mails d'inscription</label>
+    </div>
+    <div id="importPreview" class="mt-3" style="display:none">
+      <div id="importPreviewLoading" class="text-center text-muted py-2" style="display:none">
+        <span class="spinner-border spinner-border-sm me-1"></span>Analyse du fichier…
+      </div>
+      <div id="importPreviewResult" style="display:none"></div>
+    </div>
+    <div id="importProgress" class="mt-3" style="display:none">
+      <div id="importProgressLog" style="max-height:300px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
+      <div id="importRecap" class="mt-3" style="display:none"></div>
+    </div>
+  </div><div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+    <button type="button" id="btnImportClose" class="btn btn-primary" style="display:none">Fermer et actualiser</button>
+    <button type="submit" id="btnImportSubmit" class="btn btn-rose" disabled>Importer</button>
+  </div></form></div></div></div>
+
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  // Token CSRF lu depuis le meta (le dashboard exposait un global _csrfToken ;
+  // ici on le reconstruit localement pour rester autonome dans cette page).
+  var _csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+document.getElementById('importFileInput').addEventListener('change', async function() {
+  const file = this.files[0];
+  const preview = document.getElementById('importPreview');
+  const loading = document.getElementById('importPreviewLoading');
+  const result  = document.getElementById('importPreviewResult');
+  const btnImport = document.getElementById('btnImportSubmit');
+
+  btnImport.disabled = true;
+  result.style.display = 'none';
+  result.innerHTML = '';
+
+  if (!file) { preview.style.display = 'none'; return; }
+
+  preview.style.display = 'block';
+  loading.style.display = 'block';
+
+  try {
+    const data = await file.arrayBuffer();
+    const wb   = XLSX.read(data, {type:'array'});
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+
+    (function fixSheetRange(){
+      var minR = Infinity, minC = Infinity, maxR = -1, maxC = -1;
+      for (var addr in ws) {
+        if (!ws.hasOwnProperty(addr) || addr.charAt(0) === '!') continue;
+        var cell = XLSX.utils.decode_cell(addr);
+        if (cell.r < minR) minR = cell.r;
+        if (cell.c < minC) minC = cell.c;
+        if (cell.r > maxR) maxR = cell.r;
+        if (cell.c > maxC) maxC = cell.c;
+      }
+      if (maxR >= 0) {
+        var realRef = XLSX.utils.encode_range({s:{r:minR,c:minC}, e:{r:maxR,c:maxC}});
+        if (ws['!ref'] !== realRef) ws['!ref'] = realRef;
+      }
+    })();
+
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+
+    if (rows.length < 2) {
+      loading.style.display = 'none';
+      result.style.display = 'block';
+      result.innerHTML = '<div class="alert alert-warning mb-0 py-2"><i class="bi bi-exclamation-triangle me-1"></i>Le fichier semble vide.</div>';
+      return;
+    }
+
+    const header = rows[0].map(function(h){ return (h||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,'').trim(); });
+
+    var dataRows = [];
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      if (!row || !row.length) continue;
+      var hasData = false;
+      for (var c = 0; c < row.length; c++) {
+        if (row[c] !== null && row[c] !== undefined && row[c].toString().trim() !== '') { hasData = true; break; }
+      }
+      if (hasData) dataRows.push(row);
+    }
+    const totalRows = dataRows.length;
+
+    var ticketCol = -1;
+    for (var i = 0; i < header.length; i++) {
+      if (header[i].indexOf('numero') !== -1 && header[i].indexOf('billet') !== -1) { ticketCol = i; break; }
+    }
+
+    var tickets = [];
+    if (ticketCol >= 0) {
+      for (var r = 0; r < dataRows.length; r++) {
+        var v = dataRows[r][ticketCol];
+        if (v && !isNaN(v)) tickets.push(parseInt(v));
+      }
+    }
+
+    var dupCount = 0;
+    var dupTickets = [];
+    if (tickets.length > 0) {
+      try {
+        var res = await fetch('../config/api.php?route=check-duplicates', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': _csrfToken},
+          body: JSON.stringify({tickets: tickets}),
+          credentials: 'same-origin'
+        });
+        var json = await res.json();
+        dupTickets = json.duplicates || [];
+        dupCount = dupTickets.length;
+      } catch(e) { /* ignore, non-blocking */ }
+    }
+
+    loading.style.display = 'none';
+    result.style.display = 'block';
+
+    var html = '<div class="d-flex gap-3 flex-wrap">';
+    html += '<div class="border rounded px-3 py-2 text-center flex-fill" style="min-width:120px">';
+    html += '<div class="text-muted" style="font-size:12px">Inscrits</div>';
+    html += '<div class="fw-bold fs-5 text-primary">' + totalRows + '</div></div>';
+
+    if (dupCount > 0) {
+      html += '<div class="border rounded px-3 py-2 text-center flex-fill border-warning" style="min-width:120px">';
+      html += '<div class="text-muted" style="font-size:12px">Doublons</div>';
+      html += '<div class="fw-bold fs-5 text-warning">' + dupCount + '</div></div>';
+    } else {
+      html += '<div class="border rounded px-3 py-2 text-center flex-fill border-success" style="min-width:120px">';
+      html += '<div class="text-muted" style="font-size:12px">Doublons</div>';
+      html += '<div class="fw-bold fs-5 text-success">0</div></div>';
+    }
+
+    var newRows = totalRows - dupCount;
+    html += '<div class="border rounded px-3 py-2 text-center flex-fill" style="min-width:120px">';
+    html += '<div class="text-muted" style="font-size:12px">Nouveaux</div>';
+    html += '<div class="fw-bold fs-5 text-success">' + newRows + '</div></div>';
+    html += '</div>';
+
+    if (dupCount > 0) {
+      html += '<div class="alert alert-warning mt-2 mb-0 py-2" style="font-size:13px">';
+      html += '<i class="bi bi-info-circle me-1"></i>' + dupCount + ' doublon(s) seront ignorés lors de l\'import.';
+      html += '</div>';
+    }
+
+    result.innerHTML = html;
+    btnImport.disabled = false;
+
+  } catch(err) {
+    loading.style.display = 'none';
+    result.style.display = 'block';
+    result.innerHTML = '<div class="alert alert-danger mb-0 py-2">Impossible de lire le fichier : ' + err.message + '</div>';
+  }
+});
+
+// Reset preview when modal closes
+document.getElementById('importModal').addEventListener('hidden.bs.modal', function() {
+  document.getElementById('fImport').reset();
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importPreviewResult').innerHTML = '';
+  document.getElementById('importProgress').style.display = 'none';
+  document.getElementById('importProgressLog').innerHTML = '';
+  document.getElementById('importRecap').style.display = 'none';
+  document.getElementById('btnImportSubmit').disabled = true;
+  document.getElementById('btnImportSubmit').style.display = 'inline-block';
+  document.getElementById('btnImportClose').style.display = 'none';
+});
+
+document.getElementById('btnImportClose').addEventListener('click', function() {
+  location.reload();
+});
+
+/* ══ IMPORT EXCEL — Submit ════ */
+document.getElementById('fImport').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const form   = e.target;
+  const button = document.getElementById('btnImportSubmit');
+  const data   = new FormData(form);
+  const progressDiv = document.getElementById('importProgress');
+  const logDiv = document.getElementById('importProgressLog');
+  const recapDiv = document.getElementById('importRecap');
+  const closeBtn = document.getElementById('btnImportClose');
+
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Import en cours…';
+  progressDiv.style.display = 'block';
+  logDiv.innerHTML = '';
+  recapDiv.style.display = 'none';
+
+  function addLog(icon, text, color) {
+    const line = document.createElement('div');
+    line.style.cssText = 'padding:3px 0;color:' + (color || '#333');
+    line.innerHTML = icon + ' ' + text;
+    logDiv.appendChild(line);
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  addLog('⏳', 'Import en cours…', '#666');
+
+  try {
+    const res = await fetch('../config/api.php?route=import-excel', {
+      method:      'POST',
+      headers:     {'X-CSRF-TOKEN': _csrfToken},
+      body:        data,
+      credentials: 'same-origin'
+    });
+
+    if (!res.ok) {
+      let msg = res.status + ' ' + res.statusText;
+      try {
+        const j = await res.json();
+        if (j && j.error) {
+          msg = j.error;
+          if (j.missing && j.missing.length) msg += ' — voir logs pour plus d\'infos';
+        }
+      } catch (e) { /* corps non-JSON, on garde le code HTTP */ }
+      throw new Error(msg);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const evt = JSON.parse(line);
+          if (evt.type === 'import_ok') {
+            addLog('✅', '<strong>' + evt.count + '</strong> inscription(s) importée(s) en BDD', '#198754');
+          } else if (evt.type === 'import_skip') {
+            addLog('⚠️', evt.count + ' ligne(s) ignorée(s) — ' + evt.duplicates + ' doublon(s)', '#e67e22');
+          } else if (evt.type === 'mail_sent') {
+            addLog('📧', 'Mail envoyé pour <strong>' + evt.inscription_no + '</strong>' + (evt.qrcode ? ' (avec QR code)' : ''), '#0d6efd');
+          } else if (evt.type === 'mail_error') {
+            addLog('❌', 'Échec mail pour ' + evt.inscription_no + ' : ' + evt.error, '#dc3545');
+          } else if (evt.type === 'mail_skip') {
+            addLog('⏭️', 'Mails non envoyés (désactivé)', '#666');
+          } else if (evt.type === 'done') {
+            finalResult = evt;
+          } else if (evt.type === 'error') {
+            addLog('❌', 'Erreur : ' + evt.message, '#dc3545');
+          }
+        } catch(e) {}
+      }
+    }
+
+    if (finalResult) {
+      recapDiv.style.display = 'block';
+      recapDiv.innerHTML = '<div class="d-flex gap-3 flex-wrap">'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-success"><div class="text-muted" style="font-size:12px">Importées</div><div class="fw-bold fs-5 text-success">' + finalResult.rows_added + '</div></div>'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-warning"><div class="text-muted" style="font-size:12px">Ignorées</div><div class="fw-bold fs-5 text-warning">' + finalResult.rows_skipped + '</div></div>'
+        + '<div class="border rounded px-3 py-2 text-center flex-fill border-primary"><div class="text-muted" style="font-size:12px">Mails envoyés</div><div class="fw-bold fs-5 text-primary">' + finalResult.mails_sent + '</div></div>'
+        + '</div>';
+    }
+
+    button.style.display = 'none';
+    closeBtn.style.display = 'inline-block';
+
+  } catch (err) {
+    addLog('❌', 'Erreur : ' + err.message, '#dc3545');
+    button.innerHTML = 'Importer';
+    button.style.display = 'inline-block';
+    button.disabled = false;
+  }
+});
+})();
+</script>
+<?php endif; // canImportXlsManual : modale + JS import manuel ?>
 
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
@@ -4646,7 +4963,7 @@ if (!$canTab($activeTab)) {
   }
 })();
 </script>
-<?php endif; // canTab('import_auto') ?>
+<?php endif; // fin onglet Import AssoConnect (canTab('import_auto') OU dashboard.import_excel) ?>
 
 <!-- ═══ TAB: Maintenance ═══ -->
 <?php if ($canTab('maintenance')): ?>
