@@ -377,6 +377,50 @@ tr.filters select, tr.filters input {
 .bulk-map-chip .bi { color: #db2777; cursor: grab; }
 .bulk-map-chip.dragging { opacity: .4; }
 
+/* Commentaire : éditeur de texte libre + boutons d'insertion de colonnes */
+#bulkMapView .bulk-map-target-comment { display: block; }
+.bulk-map-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.bulk-comment-editor { margin-top: 8px; }
+.bulk-comment-rich {
+  min-height: 92px;
+  width: 100%;
+  height: auto;
+  font-size: 13px;
+  line-height: 1.9;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bulk-comment-rich:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  font-style: italic;
+}
+.bulk-comment-rich.drag-over { border-color: #db2777; background: #fdf2f6; }
+/* Card « colonne » intégrée dans le texte (déplaçable) */
+.ce-chip {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #db2777;
+  background: #fdf2f6;
+  border: 1px solid #fbcfe8;
+  border-radius: 6px;
+  padding: 0 7px;
+  margin: 0 2px;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+.ce-chip::before { content: "⋮⋮"; letter-spacing: -2px; margin-right: 4px; opacity: .5; }
+.ce-chip.dragging { opacity: .4; }
+
 /* Colonnes redimensionnables */
 #tbl thead th { position: relative; }
 #tbl thead th .col-resize {
@@ -637,13 +681,27 @@ tr.filters select{
                       $mbdd  = htmlspecialchars($bf['bdd_column']);
                       $mlbl  = htmlspecialchars($bf['label']);
                       $mstar = $mreq ? ' <span style="color:#ef4444">*</span>' : '';
+                      // Le commentaire est un modèle de texte libre : on écrit ce qu'on
+                      // veut et on clique une colonne pour insérer sa valeur (jeton [Colonne]).
+                      $mComment = (($bf['bdd_column'] ?? '') === 'commentaire');
                     ?>
+                      <?php if ($mComment): ?>
+                      <div class="bulk-map-target bulk-map-target-comment" data-bdd="<?= $mbdd ?>" data-required="<?= $mreq ?>">
+                        <div class="bulk-map-target-label"><?= $mlbl ?><?= $mstar ?>
+                          <div class="bulk-map-hint">Écrivez librement, puis glissez une colonne depuis « Colonnes de votre fichier » dans le texte. Les cards se déplacent ensuite à la souris.</div>
+                        </div>
+                        <div class="bulk-comment-editor">
+                          <div class="bulk-comment-rich form-control" contenteditable="true" data-placeholder="Écrivez ici… puis glissez une colonne du fichier pour insérer sa valeur."></div>
+                        </div>
+                      </div>
+                      <?php else: ?>
                       <div class="bulk-map-target" data-bdd="<?= $mbdd ?>" data-required="<?= $mreq ?>">
                         <div class="bulk-map-target-label"><?= $mlbl ?><?= $mstar ?></div>
                         <div class="bulk-map-dropzone" data-target-drop>
                           <span class="bulk-map-placeholder">Déposez une colonne ici</span>
                         </div>
                       </div>
+                      <?php endif; ?>
                     <?php endforeach; ?>
                   </div>
                 </div>
@@ -712,6 +770,8 @@ tr.filters select{
                   <input type="number" step="0.01" min="0" data-bdd="<?= $bdd ?>" class="form-control bulk-field<?= $bdd === 'montant_du' ? ' bulk-montant' : '' ?>"<?= $reqAttr ?><?= $bdd === 'montant_du' ? ' value="' . htmlspecialchars((string) $registration_fee) . '"' : '' ?>>
                 <?php elseif ($type === 'email'): ?>
                   <input type="email" data-bdd="<?= $bdd ?>" class="form-control bulk-field"<?= $reqAttr ?>>
+                <?php elseif (($bf['bdd_column'] ?? '') === 'commentaire' || $type === 'textarea'): ?>
+                  <textarea data-bdd="<?= $bdd ?>" class="form-control bulk-field" rows="2"<?= $reqAttr ?>></textarea>
                 <?php else: ?>
                   <input type="text" data-bdd="<?= $bdd ?>" class="form-control bulk-field"<?= $reqAttr ?>>
                 <?php endif; ?>
@@ -1486,6 +1546,104 @@ function showInscriptionToast(inscriptionNo){
     refreshMap();
   }
 
+  /* ─── Éditeur de commentaire : texte libre + cards « colonne » déplaçables ─── */
+  // Les cards se glissent depuis « Colonnes de votre fichier » (#bulkMapPool) ;
+  // une card déjà dans l'éditeur se déplace par glisser interne.
+
+  // Range (point d'insertion) à partir de coordonnées écran, cross-browser.
+  function caretRangeFromPoint(x, y) {
+    if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+    if (document.caretPositionFromPoint) {
+      const p = document.caretPositionFromPoint(x, y);
+      if (p) { const r = document.createRange(); r.setStart(p.offsetNode, p.offset); r.collapse(true); return r; }
+    }
+    return null;
+  }
+
+  // Crée une card « colonne » insérable dans le texte (atomique + déplaçable).
+  function makeEditorChip(index) {
+    const chip = document.createElement('span');
+    chip.className = 'ce-chip';
+    chip.contentEditable = 'false';
+    chip.draggable = true;
+    chip.dataset.colIndex = index;
+    chip.textContent = excelColumns[index];
+    chip.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', String(index));
+      e.dataTransfer.effectAllowed = 'move';
+      chip.classList.add('dragging'); // marque le déplacement interne
+    });
+    chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+    return chip;
+  }
+
+  // Insère un nœud à un Range donné (ou en fin d'éditeur) et place le curseur après.
+  function insertNodeAt(editor, range, node) {
+    if (!range || !editor.contains(range.startContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false); // fin de l'éditeur
+    }
+    // Ne jamais insérer À L'INTÉRIEUR d'une card : on se place juste après.
+    const host = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+    const insideChip = host && host.closest ? host.closest('.ce-chip') : null;
+    if (insideChip) { range = document.createRange(); range.setStartAfter(insideChip); range.collapse(true); }
+
+    range.insertNode(node); // si `node` existe déjà dans le DOM, il est DÉPLACÉ ici
+    const sp = document.createTextNode('​'); // espace nul → permet de taper juste après
+    if (node.nextSibling) node.parentNode.insertBefore(sp, node.nextSibling);
+    else node.parentNode.appendChild(sp);
+    const sel = window.getSelection();
+    const after = document.createRange();
+    after.setStartAfter(sp); after.collapse(true);
+    sel.removeAllRanges(); sel.addRange(after);
+  }
+
+  function wireEditor(editor) {
+    editor.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      editor.classList.add('drag-over');
+    });
+    editor.addEventListener('dragleave', () => editor.classList.remove('drag-over'));
+    editor.addEventListener('drop', e => {
+      e.preventDefault();
+      editor.classList.remove('drag-over');
+      const idx = e.dataTransfer.getData('text/plain');
+      if (idx === '') return;
+      const range = caretRangeFromPoint(e.clientX, e.clientY);
+      // Une card déjà dans l'éditeur (.ce-chip.dragging) = déplacement interne.
+      // Sinon, le glisser vient de « Colonnes de votre fichier » → nouvelle card.
+      const moving = editor.querySelector('.ce-chip.dragging');
+      if (moving) insertNodeAt(editor, range, moving);
+      else        insertNodeAt(editor, range, makeEditorChip(parseInt(idx, 10)));
+    });
+  }
+
+  // Sérialise l'éditeur : texte + sauts de ligne ; chaque card → jeton index.
+  function serializeEditor(editor) {
+    let out = '';
+    (function walk(node) {
+      node.childNodes.forEach(child => {
+        if (child.nodeType === 3) {                       // nœud texte
+          out += child.nodeValue.replace(/​/g, '');
+        } else if (child.nodeType === 1) {                // élément
+          if (child.classList && child.classList.contains('ce-chip')) {
+            out += '' + child.dataset.colIndex + '';
+          } else if (child.tagName === 'BR') {
+            out += '\n';
+          } else if (/^(DIV|P)$/.test(child.tagName)) {
+            if (out && !out.endsWith('\n')) out += '\n';
+            walk(child);
+          } else {
+            walk(child);
+          }
+        }
+      });
+    })(editor);
+    return out;
+  }
+
   function makeChip(index) {
     const chip = document.createElement('div');
     chip.className = 'bulk-map-chip';
@@ -1527,6 +1685,7 @@ function showInscriptionToast(inscriptionNo){
       montant_du:  ['montant', 'montant du', 'prix', 'tarif', 'amount']
     };
     mapTargets.querySelectorAll('.bulk-map-target').forEach(t => {
+      if (t.dataset.bdd === 'commentaire') return; // multi-colonnes : choix manuel
       const zone = t.querySelector('[data-target-drop]');
       if (zoneChip(zone)) return;
       const bdd = t.dataset.bdd;
@@ -1548,13 +1707,21 @@ function showInscriptionToast(inscriptionNo){
     excelColumns.forEach((_, i) => mapPool.appendChild(makeChip(i)));
     autoMap();
     refreshMap();
+    // Commentaire : on repart d'un éditeur vierge à chaque import.
+    const editor = mapTargets.querySelector('.bulk-comment-rich');
+    if (editor) editor.innerHTML = '';
     editView.style.display = 'none';
     mapView.style.display = '';
+    // En vue de correspondance, « Valider les saisies » n'a pas de sens :
+    // on l'utilise via « Générer les cards ». On le masque le temps du mapping.
+    if (submitBtn) submitBtn.style.display = 'none';
   }
 
   function closeMapView() {
     mapView.style.display = 'none';
     editView.style.display = '';
+    // Retour à l'édition des cards : le bouton de validation réapparaît.
+    if (submitBtn) submitBtn.style.display = 'inline-block';
   }
 
   function setFieldValue(field, value) {
@@ -1574,6 +1741,8 @@ function showInscriptionToast(inscriptionNo){
     // Câblage des zones de dépôt (une seule fois : le DOM des cibles est fixe).
     mapTargets.querySelectorAll('[data-target-drop]').forEach(wireZone);
     wireZone(mapPool);
+    const commentEditor = mapTargets.querySelector('.bulk-comment-rich');
+    if (commentEditor) wireEditor(commentEditor);
 
     excelBtn.addEventListener('click', () => fileInput.click());
 
@@ -1616,7 +1785,8 @@ function showInscriptionToast(inscriptionNo){
       // dans les réglages) côté serveur.
       const missing = [];
       mapTargets.querySelectorAll('.bulk-map-target').forEach(t => {
-        if (t.dataset.bdd === 'montant_du') return;
+        // « montant_du » dérivé serveur ; « commentaire » = modèle texte libre (pas de dropzone).
+        if (t.dataset.bdd === 'montant_du' || t.dataset.bdd === 'commentaire') return;
         if (t.dataset.required === '1' && !zoneChip(t.querySelector('[data-target-drop]'))) {
           missing.push(t.querySelector('.bulk-map-target-label').textContent.replace('*', '').trim());
         }
@@ -1626,11 +1796,35 @@ function showInscriptionToast(inscriptionNo){
         return;
       }
       // Construit la correspondance champ → index de colonne.
+      // Le commentaire est traité à part : un modèle texte libre avec des jetons [Colonne].
       const map = {};
       mapTargets.querySelectorAll('.bulk-map-target').forEach(t => {
+        if (t.dataset.bdd === 'commentaire') return; // géré via le modèle de texte
         const chip = zoneChip(t.querySelector('[data-target-drop]'));
         if (chip) map[t.dataset.bdd] = parseInt(chip.dataset.colIndex, 10);
       });
+
+      const commentEditor = mapTargets.querySelector('.bulk-comment-rich');
+      const commentTpl = commentEditor ? serializeEditor(commentEditor) : '';
+      // « A du contenu » = il reste du texte une fois les cards retirées, OU il y a au moins une card.
+      const commentHasContent = commentTpl.replace(/\d+/g, 'x').trim() !== '';
+
+      // Pour une ligne du fichier : remplace chaque card (jeton index)
+      // par sa valeur. Une ligne ne contenant que des cards TOUTES vides est
+      // supprimée (évite un « Âge : » orphelin) ; le texte fixe est conservé.
+      function buildComment(cells) {
+        return commentTpl.split('\n').map(line => {
+          let hadToken = false, hadValue = false;
+          const out = line.replace(/(\d+)/g, (_, i) => {
+            hadToken = true;
+            const val = (cells[+i] == null ? '' : String(cells[+i])).trim();
+            if (val) hadValue = true;
+            return val;
+          });
+          return (hadToken && !hadValue) ? null : out;
+        }).filter(l => l !== null).join('\n');
+      }
+
       // Remplace les cards existantes par une card par ligne du fichier.
       container.innerHTML = '';
       excelRows.forEach(cells => {
@@ -1641,6 +1835,10 @@ function showInscriptionToast(inscriptionNo){
           const field = row.querySelector('.bulk-field[data-bdd="' + bdd + '"]');
           if (field) setFieldValue(field, cells[map[bdd]]);
         });
+        if (commentHasContent) {
+          const cField = row.querySelector('.bulk-field[data-bdd="commentaire"]');
+          if (cField) cField.value = buildComment(cells);
+        }
       });
       renumber();
       closeMapView();
