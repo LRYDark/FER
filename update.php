@@ -405,8 +405,13 @@ foreach ($migrations as $sql) {
     }
 
     try {
-        $pdo->exec($sql);
-        $results[] = ['status' => 'success', 'sql' => $sql, 'msg' => 'OK'];
+        $affected = $pdo->exec($sql);
+        // INSERT IGNORE ne lève jamais d'exception : 0 ligne affectée = déjà présent.
+        if ($affected === 0 && preg_match('/^\s*INSERT\s+IGNORE/i', $sql)) {
+            $results[] = ['status' => 'skip', 'sql' => $sql, 'msg' => 'Déjà présent'];
+        } else {
+            $results[] = ['status' => 'success', 'sql' => $sql, 'msg' => 'OK'];
+        }
     } catch (PDOException $e) {
         $msg = $e->getMessage();
         if (str_contains($msg, 'Duplicate column') || str_contains($msg, 'check that column/key exists') || str_contains($msg, "Can't DROP")) {
@@ -664,13 +669,18 @@ try {
     if ($existsField > 0) {
         // Repointe l'ancien champ (qui pouvait viser created_at) vers date_inscription,
         // remet le bon libellé et force les visibilités sûres (admin/bulk uniquement).
-        $pdo->prepare("UPDATE `forms`
+        $st = $pdo->prepare("UPDATE `forms`
                           SET `bdd_column` = 'date_inscription', `label` = 'Date d''inscription',
                               `field_type` = 'date', `is_locked` = 0,
                               `visible_public` = 0, `visible_saisie` = 0, `visible_qr` = 0
-                        WHERE `fields` = 'inscription_date'")
-            ->execute();
-        $results[] = ['status' => 'success', 'sql' => $formsDateInscSql, 'msg' => 'Champ repointé vers date_inscription'];
+                        WHERE `fields` = 'inscription_date'
+                          AND NOT (`bdd_column` = 'date_inscription' AND `field_type` = 'date'
+                                   AND `is_locked` = 0 AND `visible_public` = 0
+                                   AND `visible_saisie` = 0 AND `visible_qr` = 0)");
+        $st->execute();
+        $n = $st->rowCount();
+        $results[] = ['status' => $n > 0 ? 'success' : 'skip', 'sql' => $formsDateInscSql,
+                      'msg' => $n > 0 ? 'Champ repointé vers date_inscription' : 'Déjà repointé'];
     } else {
         // is_locked=0 → l'admin gère actif/obligatoire/visible admin/bulk. public/saisie/QR=0
         // → jamais exposé hors admin. is_default=1 → pas de bouton « supprimer ».
@@ -694,8 +704,11 @@ try {
 // ─────────────────────────────────────────────────────────────────────────
 $importAliasSql = "Repointer l'alias d'import 'created_at' → 'date_inscription'";
 try {
-    $pdo->prepare("UPDATE `import` SET `fields_bdd` = 'date_inscription' WHERE `fields_bdd` = 'created_at'")->execute();
-    $results[] = ['status' => 'success', 'sql' => $importAliasSql, 'msg' => 'OK'];
+    $st = $pdo->prepare("UPDATE `import` SET `fields_bdd` = 'date_inscription' WHERE `fields_bdd` = 'created_at'");
+    $st->execute();
+    $n = $st->rowCount();
+    $results[] = ['status' => $n > 0 ? 'success' : 'skip', 'sql' => $importAliasSql,
+                  'msg' => $n > 0 ? 'OK' : 'Déjà repointé'];
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $importAliasSql, 'msg' => $e->getMessage()];
 }
@@ -723,27 +736,30 @@ try {
     if (!$colCheck) {
         $results[] = ['status' => 'skip', 'sql' => $bulkAutoCheckSql, 'msg' => 'Colonne absente — ALTER non appliqué'];
     } else {
-        $alreadyChecked = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `visible_saisie_multiple` = 1")->fetchColumn();
-
         // Visibilité bulk des 5 champs essentiels (idempotent : ne touche que ceux à 0).
-        $pdo->prepare(
+        $visStmt = $pdo->prepare(
             "UPDATE `forms` SET `visible_saisie_multiple` = 1
               WHERE `bdd_column` IN ('nom', 'prenom', 'email', 'entreprise', 'montant_du')
                 AND `visible_saisie_multiple` = 0"
-        )->execute();
+        );
+        $visStmt->execute();
 
         // Requis bulk : UNIQUEMENT nom + prénom. email / entreprise / montant_du sont
         // FACULTATIFS (particulier sans entreprise, inscrit sans email, montant auto-calculé).
         // → corrige aussi les installs où l'ancienne migration les avait rendus requis.
         // L'admin peut toujours rendre un champ requis via « Gestion des champs » (Bulk requis) ;
         // update.php étant supprimé après la mise à jour, ce réglage ne sera pas réécrasé.
-        $pdo->prepare("UPDATE `forms` SET `required_saisie_multiple` = 1
-                        WHERE `bdd_column` IN ('nom', 'prenom') AND `required_saisie_multiple` = 0")->execute();
+        $reqStmt = $pdo->prepare("UPDATE `forms` SET `required_saisie_multiple` = 1
+                        WHERE `bdd_column` IN ('nom', 'prenom') AND `required_saisie_multiple` = 0");
+        $reqStmt->execute();
         $unreq = $pdo->prepare("UPDATE `forms` SET `required_saisie_multiple` = 0
                         WHERE `bdd_column` IN ('email', 'entreprise', 'montant_du') AND `required_saisie_multiple` = 1");
         $unreq->execute();
-        $results[] = ['status' => 'success', 'sql' => $bulkAutoCheckSql,
-                      'msg' => 'Bulk : nom/prénom requis ; email/entreprise/montant rendus facultatifs (' . $unreq->rowCount() . ' corrigé(s))'];
+        $changed = $visStmt->rowCount() + $reqStmt->rowCount() + $unreq->rowCount();
+        $results[] = ['status' => $changed > 0 ? 'success' : 'skip', 'sql' => $bulkAutoCheckSql,
+                      'msg' => $changed > 0
+                          ? ('Bulk : ' . $changed . ' champ(s) mis à jour (nom/prénom requis ; email/entreprise/montant facultatifs)')
+                          : 'Déjà appliqué'];
     }
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => $bulkAutoCheckSql, 'msg' => $e->getMessage()];
@@ -865,7 +881,7 @@ try {
             $migratedUsers++;
         }
     }
-    $results[] = ['status' => 'success', 'sql' => 'MIGRATE users.permissions content.* → granular', 'msg' => "$migratedUsers utilisateur(s) migré(s)"];
+    $results[] = ['status' => $migratedUsers > 0 ? 'success' : 'skip', 'sql' => 'MIGRATE users.permissions content.* → granular', 'msg' => "$migratedUsers utilisateur(s) migré(s)"];
 } catch (PDOException $e) {
     $results[] = ['status' => 'error', 'sql' => 'MIGRATE users.permissions', 'msg' => $e->getMessage()];
 }
