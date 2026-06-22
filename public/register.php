@@ -126,6 +126,11 @@ if ($_POST) {
             $columns[] = 'created_at';
             $placeholders[] = 'NOW()';
 
+            // Inscription publique / QR : date d'inscription = maintenant (aucun
+            // antidatage côté public). Ici created_at (date d'ajout) = même instant.
+            $columns[] = 'date_inscription';
+            $placeholders[] = 'NOW()';
+
             $colStr = implode(', ', $columns);
             $phStr  = implode(', ', $placeholders);
 

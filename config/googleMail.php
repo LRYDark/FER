@@ -249,27 +249,30 @@ function shouldIncludeQrCode(string|int $inscriptionNo): bool
     if ($limit <= 0) return false;
 
     try {
-        // Récupérer la date d'inscription et le montant dû de cet inscrit
-        $stmtSelf = $pdo->prepare('SELECT created_at, montant_du FROM registrations WHERE inscription_no = :no LIMIT 1');
+        // Le classement « X premiers payants » se fait sur la DATE D'INSCRIPTION réelle
+        // (date_inscription), PAS sur la date d'ajout au logiciel (created_at). Ainsi un
+        // inscrit antidaté (inscrit avant, ajouté après) passe bien devant. COALESCE :
+        // repli sur created_at pour toute ligne sans date_inscription (sécurité).
+        $stmtSelf = $pdo->prepare('SELECT COALESCE(date_inscription, created_at) AS dref, montant_du FROM registrations WHERE inscription_no = :no LIMIT 1');
         $stmtSelf->execute(['no' => $inscriptionNo]);
         $self = $stmtSelf->fetch(PDO::FETCH_ASSOC);
 
-        if (!$self || empty($self['created_at'])) return false;
+        if (!$self || empty($self['dref'])) return false;
 
         // Inscrit non-payé → jamais éligible en mode first_x
         if ((float) ($self['montant_du'] ?? 0) <= 0) return false;
 
-        // Compter combien d'inscrits PAYANTS ont été créés AVANT ou en même temps
+        // Compter combien d'inscrits PAYANTS se sont inscrits AVANT ou en même temps
         $stmtRank = $pdo->prepare(
             'SELECT COUNT(*) FROM registrations
              WHERE montant_du > 0
-               AND (created_at < :created_at
-                    OR (created_at = :created_at2 AND inscription_no <= :no))'
+               AND (COALESCE(date_inscription, created_at) < :dref
+                    OR (COALESCE(date_inscription, created_at) = :dref2 AND inscription_no <= :no))'
         );
         $stmtRank->execute([
-            'created_at'  => $self['created_at'],
-            'created_at2' => $self['created_at'],
-            'no'          => $inscriptionNo,
+            'dref'  => $self['dref'],
+            'dref2' => $self['dref'],
+            'no'    => $inscriptionNo,
         ]);
         $rank = (int) $stmtRank->fetchColumn();
 

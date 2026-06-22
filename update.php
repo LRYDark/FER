@@ -549,6 +549,31 @@ try {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Colonne `date_inscription` (registrations) : date réelle d'inscription, distincte
+// de `created_at` (= date d'AJOUT dans le logiciel). Antidatable, elle pilote le
+// classement QR. Backfill UNE SEULE FOIS (à la création de la colonne) avec
+// `created_at` → les inscrits existants gardent exactement leur classement actuel.
+// Idempotent : un re-run saute le backfill, donc les dates antidatées sont préservées.
+// ─────────────────────────────────────────────────────────────────────────
+$dateInscriptionColSql = "Ajouter la colonne `date_inscription` (registrations) + backfill = created_at";
+try {
+    $colExists = (int) $pdo->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations' AND COLUMN_NAME = 'date_inscription'"
+    )->fetchColumn();
+    if ($colExists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $dateInscriptionColSql, 'msg' => 'Existe déjà (backfill non rejoué)'];
+    } else {
+        $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `date_inscription` DATETIME DEFAULT CURRENT_TIMESTAMP AFTER `created_at`");
+        // Backfill initial : les inscrits existants prennent leur date d'ajout.
+        $pdo->exec("UPDATE `registrations` SET `date_inscription` = `created_at`");
+        $results[] = ['status' => 'success', 'sql' => $dateInscriptionColSql, 'msg' => 'Colonne ajoutée + backfill = created_at'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $dateInscriptionColSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Référence de `montant_du` dans la gestion des champs (table `forms`).
 // Verrouillée — auto-calculée d'après le paiement, non éditable côté UI.
 // ─────────────────────────────────────────────────────────────────────────
@@ -625,42 +650,54 @@ try {
 
 // ─────────────────────────────────────────────────────────────────────────
 // Champ « Date d'inscription » dans la gestion des champs (table `forms`).
-// Pointe vers la colonne SYSTÈME `created_at` (PAS de nouvelle colonne/table) :
-// permet de saisir une date d'ajout antérieure en Ajout multiple / Inscrit unique
-// (admin) et de la mapper depuis un Excel. Vide → la BDD garde sa date du jour
-// (DEFAULT current_timestamp). Jamais exposé sur le formulaire public.
-// Reste géré explicitement à l'insertion (created_at est dans la liste réservée
-// de getAllActiveFieldColumns), donc pas de double insertion.
+// Pointe vers la colonne `date_inscription` (date réelle d'inscription, distincte de
+// `created_at` = date d'ajout). Antidatable en Ajout multiple / Inscrit unique (admin)
+// et mappable depuis un Excel. Vide → DEFAULT du jour. Jamais exposé hors admin/bulk.
+// Géré explicitement à l'insertion (date_inscription est dans la liste réservée de
+// getAllActiveFieldColumns) → pas de double insertion.
+// NB : une version antérieure de cette migration créait ce champ sur `created_at` ;
+// on le REPOINTE ici vers `date_inscription` (identifié par fields='inscription_date').
 // ─────────────────────────────────────────────────────────────────────────
-$formsCreatedAtSql = "Ajouter le champ 'Date d'inscription' (created_at) dans `forms`";
+$formsDateInscSql = "Ajouter / repointer le champ 'Date d'inscription' (date_inscription) dans `forms`";
 try {
-    $exists = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `bdd_column` = 'created_at'")->fetchColumn();
-    if ($exists > 0) {
-        // Réparation idempotente : NON verrouillé (gérable dans « Gestion des champs »),
-        // mais JAMAIS exposé hors admin/bulk → on force public/saisie/QR à 0 (ces contextes
-        // sont grand public). Seuls Admin + Ajout multiple peuvent porter ce champ.
-        $pdo->prepare("UPDATE `forms` SET `is_locked` = 0, `visible_public` = 0, `visible_saisie` = 0, `visible_qr` = 0
-                        WHERE `bdd_column` = 'created_at'
-                          AND (`is_locked` <> 0 OR `visible_public` <> 0 OR `visible_saisie` <> 0 OR `visible_qr` <> 0)")
+    $existsField = (int) $pdo->query("SELECT COUNT(*) FROM `forms` WHERE `fields` = 'inscription_date'")->fetchColumn();
+    if ($existsField > 0) {
+        // Repointe l'ancien champ (qui pouvait viser created_at) vers date_inscription,
+        // remet le bon libellé et force les visibilités sûres (admin/bulk uniquement).
+        $pdo->prepare("UPDATE `forms`
+                          SET `bdd_column` = 'date_inscription', `label` = 'Date d''inscription',
+                              `field_type` = 'date', `is_locked` = 0,
+                              `visible_public` = 0, `visible_saisie` = 0, `visible_qr` = 0
+                        WHERE `fields` = 'inscription_date'")
             ->execute();
-        $results[] = ['status' => 'skip', 'sql' => $formsCreatedAtSql, 'msg' => 'Existe déjà (déverrouillé / admin+bulk seulement)'];
+        $results[] = ['status' => 'success', 'sql' => $formsDateInscSql, 'msg' => 'Champ repointé vers date_inscription'];
     } else {
         // is_locked=0 → l'admin gère actif/obligatoire/visible admin/bulk. public/saisie/QR=0
-        // → jamais exposé hors admin (la gestion des champs ne touche jamais visible_public,
-        // et les cases Saisie/QR sont désactivées pour ce champ côté UI + forcées à 0 serveur).
-        // is_default=1 → pas de bouton « supprimer » (anti-suppression accidentelle).
+        // → jamais exposé hors admin. is_default=1 → pas de bouton « supprimer ».
         $pdo->prepare(
             "INSERT INTO `forms`
               (`fields`, `label`, `field_type`, `bdd_column`, `active`, `required`,
                `is_locked`, `is_default`, `visible_public`, `visible_admin`, `visible_saisie`, `visible_qr`,
                `visible_saisie_multiple`, `required_saisie_multiple`, `sort_order`, `options_list`, `encrypted`)
-             VALUES ('inscription_date', 'Date d''inscription', 'date', 'created_at', 1, 0,
+             VALUES ('inscription_date', 'Date d''inscription', 'date', 'date_inscription', 1, 0,
                      0, 1, 0, 1, 0, 0, 1, 0, 13, NULL, 0)"
         )->execute();
-        $results[] = ['status' => 'success', 'sql' => $formsCreatedAtSql, 'msg' => 'Champ ajouté'];
+        $results[] = ['status' => 'success', 'sql' => $formsDateInscSql, 'msg' => 'Champ ajouté'];
     }
 } catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $formsCreatedAtSql, 'msg' => $e->getMessage()];
+    $results[] = ['status' => 'error', 'sql' => $formsDateInscSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Alias d'import AssoConnect : la colonne Excel « date de creation » alimente
+// désormais `date_inscription` (date réelle d'inscription) et non plus `created_at`.
+// ─────────────────────────────────────────────────────────────────────────
+$importAliasSql = "Repointer l'alias d'import 'created_at' → 'date_inscription'";
+try {
+    $pdo->prepare("UPDATE `import` SET `fields_bdd` = 'date_inscription' WHERE `fields_bdd` = 'created_at'")->execute();
+    $results[] = ['status' => 'success', 'sql' => $importAliasSql, 'msg' => 'OK'];
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $importAliasSql, 'msg' => $e->getMessage()];
 }
 
 // ─────────────────────────────────────────────────────────────────────────

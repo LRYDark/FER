@@ -443,6 +443,11 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         if (type === 'display' || type === 'filter') { if (!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
         return val;
       }, width: '110px', className: 'text-nowrap text-center'
+    },
+    { data: 'date_inscription', title: 'Date d\'inscription', defaultContent: '', render: function(val, type){
+        if (type === 'display' || type === 'filter') { if (!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
+        return val;
+      }, width: '120px', className: 'text-nowrap text-center'
     }
   ];
 

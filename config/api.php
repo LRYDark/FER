@@ -1672,12 +1672,13 @@ if ($route==='registrations'){
         $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
-        // Date d'inscription (created_at) : autorisée UNIQUEMENT pour un admin connecté
-        // (un inscrit public ne doit jamais pouvoir s'antidater). Vide → DEFAULT du jour.
-        $rawCreatedAt = currentUserId() ? trim((string) ($d['created_at'] ?? '')) : '';
-        if ($rawCreatedAt !== '') {
+        // Date d'inscription (date_inscription) : antidatable UNIQUEMENT pour un admin
+        // connecté (un inscrit public ne doit jamais pouvoir s'antidater). Vide → DEFAULT
+        // du jour. NB : created_at (date d'ajout) reste auto via le DEFAULT de la colonne.
+        $rawDateInsc = currentUserId() ? trim((string) ($d['date_inscription'] ?? '')) : '';
+        if ($rawDateInsc !== '') {
             require_once __DIR__ . '/registrations_core.php';
-            $cols[] = 'created_at'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawCreatedAt);
+            $cols[] = 'date_inscription'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawDateInsc);
         }
 
         $colStr = implode(',', $cols);
@@ -1829,19 +1830,20 @@ if ($route==='registrations'){
             $setParts[] = "`{$sc}` = :{$sc}";
         }
 
-        // Date d'inscription (created_at) : corrigeable à l'édition (déjà gated
-        // dashboard.edit_registration). Valeur vide ignorée. On ne met à jour QUE si
-        // le JOUR change réellement → une édition qui ne touche pas la date préserve
-        // l'horodatage d'origine (heure comprise, utile au tri fin / classement QR).
-        if (array_key_exists('created_at', $d) && trim((string) $d['created_at']) !== '') {
+        // Date d'inscription (date_inscription) : corrigeable à l'édition (déjà gated
+        // dashboard.edit_registration). Valeur vide ignorée. On ne met à jour QUE si le
+        // JOUR change réellement → une édition qui ne touche pas la date préserve
+        // l'horodatage d'origine (utile au classement QR). created_at (date d'ajout) n'est
+        // jamais modifié ici.
+        if (array_key_exists('date_inscription', $d) && trim((string) $d['date_inscription']) !== '') {
             require_once __DIR__ . '/registrations_core.php';
-            $newCreatedAt = regcore_convertExcelDate(trim((string) $d['created_at']));
-            $curStmt = $pdo->prepare('SELECT created_at FROM registrations WHERE id = ?');
+            $newDateInsc = regcore_convertExcelDate(trim((string) $d['date_inscription']));
+            $curStmt = $pdo->prepare('SELECT date_inscription FROM registrations WHERE id = ?');
             $curStmt->execute([$d['id']]);
-            $curCreatedAt = (string) $curStmt->fetchColumn();
-            if (substr($curCreatedAt, 0, 10) !== substr($newCreatedAt, 0, 10)) {
-                $params['created_at'] = $newCreatedAt;
-                $setParts[] = "`created_at` = :created_at";
+            $curDateInsc = (string) $curStmt->fetchColumn();
+            if (substr($curDateInsc, 0, 10) !== substr($newDateInsc, 0, 10)) {
+                $params['date_inscription'] = $newDateInsc;
+                $setParts[] = "`date_inscription` = :date_inscription";
             }
         }
 
@@ -2056,13 +2058,13 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
             $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
-            // Date d'inscription (colonne système created_at). Fournie par personne
-            // (champ « Date d'inscription ») ou mappée depuis l'Excel : on l'enregistre
-            // telle quelle (date antérieure possible). Vide → on N'AJOUTE PAS la colonne
-            // pour laisser le DEFAULT current_timestamp() = date du jour.
-            $rawCreatedAt = trim((string) ($row['created_at'] ?? ''));
-            if ($rawCreatedAt !== '') {
-                $cols[] = 'created_at'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawCreatedAt);
+            // Date d'inscription (date_inscription). Fournie par personne (champ
+            // « Date d'inscription ») ou mappée depuis l'Excel : enregistrée telle quelle
+            // (date antérieure possible). Vide → on N'AJOUTE PAS la colonne pour laisser
+            // le DEFAULT du jour. created_at (date d'ajout) reste auto.
+            $rawDateInsc = trim((string) ($row['date_inscription'] ?? ''));
+            if ($rawDateInsc !== '') {
+                $cols[] = 'date_inscription'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawDateInsc);
             }
 
             $sql = "INSERT INTO registrations (" . implode(',', $cols) . ") VALUES (" . implode(',', $phs) . ")";
@@ -2501,14 +2503,15 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     /* 1. Entêtes */
     $headers = ['No', 'Nom', 'Prénom', 'Tel', 'Email', 'Naissance',
                 'Sexe', 'T-shirt', 'Ville', 'Entreprise', 'Origine',
-                'Paiement', 'Prestation', 'Montant dû', 'Créé le', 'Créé par'];
+                'Paiement', 'Prestation', 'Montant dû', 'Date d\'inscription', 'Date ajout', 'Créé par'];
     $sheet->fromArray($headers, null, 'A1');
 
     /* 2. Données (déchiffrer les PII) */
     $rows = $pdo->query(
         "SELECT r.inscription_no, r.nom, r.prenom, r.tel, r.email, r.naissance,
                 r.sexe, r.tshirt_size, r.ville, r.entreprise, r.origine,
-                r.paiement_mode, r.prestation, r.montant_du, r.created_at, COALESCE(u.email, r.created_by) AS created_by
+                r.paiement_mode, r.prestation, r.montant_du,
+                r.date_inscription, r.created_at, COALESCE(u.email, r.created_by) AS created_by
          FROM registrations r
          LEFT JOIN users u ON r.created_by = u.id
          ORDER BY CAST(REPLACE(REPLACE(r.inscription_no, 'S', ''), 'E', '') AS UNSIGNED)"
@@ -2533,6 +2536,9 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         $pr = strtolower((string) ($expRow['prestation'] ?? ''));
         // NULL/vide (anciens inscrits) considéré comme « Tarif unique ».
         $expRow['prestation'] = $prestationLabels[$pr] ?? ($pr === '' ? 'Tarif unique' : ($expRow['prestation'] ?? ''));
+        // Dates au format jour seul (sans heure), pour les 2 colonnes.
+        $expRow['date_inscription'] = !empty($expRow['date_inscription']) ? date('d/m/Y', strtotime((string) $expRow['date_inscription'])) : '';
+        $expRow['created_at']       = !empty($expRow['created_at'])       ? date('d/m/Y', strtotime((string) $expRow['created_at']))       : '';
     }
     unset($expRow);
 
@@ -2541,8 +2547,8 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $sheet->fromArray($rows, null, 'A2');
 
     /* 3. Style minimal */
-    $sheet->getStyle('A1:P1')->getFont()->setBold(true);
-    foreach (range('A', 'P') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+    $sheet->getStyle('A1:Q1')->getFont()->setBold(true);
+    foreach (range('A', 'Q') as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
 
     /* 4. Téléchargement */
     $filename = 'inscriptions_'.date('Ymd_His').'.xlsx';
@@ -2571,6 +2577,9 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Si l'archive a été créée par une version antérieure (sans `prestation`),
     // on aligne son schéma pour que `INSERT ... SELECT *` ne casse pas.
     try { $pdo->exec("ALTER TABLE `$tableArchive` ADD COLUMN `prestation` VARCHAR(30) DEFAULT NULL"); }
+    catch (\Throwable $e) { /* colonne déjà présente : rien à faire */ }
+    // Idem pour date_inscription (archive créée par une version antérieure).
+    try { $pdo->exec("ALTER TABLE `$tableArchive` ADD COLUMN `date_inscription` DATETIME DEFAULT NULL"); }
     catch (\Throwable $e) { /* colonne déjà présente : rien à faire */ }
 
     /* 2) Copier toutes les lignes */

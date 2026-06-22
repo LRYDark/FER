@@ -222,6 +222,13 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
         $cols[] = 'montant_du';    $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';    $phs[] = '?'; $vals[] = null; // créé via API : aucun utilisateur
 
+        // Date d'inscription : si fournie (date réelle), on l'enregistre (antidatage possible
+        // côté API) ; sinon DEFAULT du jour. created_at (date d'ajout) reste auto.
+        $rawDateInsc = trim((string) ($d['date_inscription'] ?? ''));
+        if ($rawDateInsc !== '') {
+            $cols[] = 'date_inscription'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawDateInsc);
+        }
+
         $st = $pdo->prepare('INSERT INTO registrations (' . implode(',', $cols) . ') VALUES (' . implode(',', $phs) . ')');
         $st->execute($vals);
         $pdo->commit();
@@ -376,10 +383,13 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
 
         /* 5. Requête d'insertion */
         $insert = $pdo->prepare(
+            // created_at (date d'AJOUT) n'est volontairement PAS listé → DEFAULT = NOW()
+            // (instant de l'import). La date du fichier AssoConnect alimente date_inscription
+            // (date réelle d'inscription, qui pilote le classement QR).
             'INSERT INTO registrations
              (inscription_no, nom, prenom, tel, email, naissance, sexe,
               tshirt_size, ville, entreprise, origine, paiement_mode,
-              prestation, montant_du, created_at, created_by)
+              prestation, montant_du, date_inscription, created_by)
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
 
@@ -404,7 +414,7 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
                     $value = 'E' . trim((string) $value);
                 } elseif ($bddField === 'naissance') {
                     $value = (is_numeric($value) && $value >= 1900 && $value <= date('Y')) ? $value : null;
-                } elseif ($bddField === 'created_at') {
+                } elseif ($bddField === 'date_inscription') {
                     // Valeur BRUTE (série Excel) plutôt que la valeur formatée :
                     // évite toute ambiguïté de format (US mm/dd vs EU dd/mm).
                     $rawDate = ($col !== null) ? ($sheetRaw[$idx][$col] ?? null) : null;
@@ -447,10 +457,10 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
             $parsedRows[] = ['ligne' => $idx, 'values' => $values];
         }
 
-        /* 7. Tri chronologique (du plus ancien au plus récent) */
+        /* 7. Tri chronologique par date d'inscription (du plus ancien au plus récent) */
         usort($parsedRows, function ($a, $b) {
-            return strcmp($a['values']['created_at'] ?? '9999-12-31',
-                          $b['values']['created_at'] ?? '9999-12-31');
+            return strcmp($a['values']['date_inscription'] ?? '9999-12-31',
+                          $b['values']['date_inscription'] ?? '9999-12-31');
         });
 
         /* 8. Insertion */
@@ -484,7 +494,7 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
                     encrypt($v['tel']), encrypt($v['email']), encrypt($v['naissance']), $v['sexe'],
                     '-', encrypt($v['ville']), encrypt($v['entreprise']),
                     ($v['origine'] ?? null) ?: $defaultOrig,
-                    $paiementMode, $prestation, (float) $montant, $v['created_at'], $createdBy,
+                    $paiementMode, $prestation, (float) $montant, $v['date_inscription'], $createdBy,
                 ]);
                 $added++;
                 if (!empty($v['email'])) {
@@ -625,7 +635,10 @@ function regcore_repairCreatedAtDates(PDO $pdo, string $tmpFile, string $origina
             $mapFields[regcore_normaliseLabel($row['fields_excel'])] = $row['fields_bdd'];
         }
         $labelBillet  = array_search('inscription_no', $mapFields, true) ?: regcore_normaliseLabel('Numéro billet');
-        $labelCreated = array_search('created_at',     $mapFields, true) ?: regcore_normaliseLabel('Date de création');
+        // L'alias d'import pointe désormais sur 'date_inscription' (la colonne « date de
+        // création » AssoConnect = date réelle d'inscription). Repli sur le libellé connu.
+        $labelCreated = array_search('date_inscription', $mapFields, true)
+                     ?: (array_search('created_at', $mapFields, true) ?: regcore_normaliseLabel('Date de création'));
 
         /* 2. Lecture BRUTE du fichier (formatData=false → dates = séries Excel) */
         $ws   = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmpFile)->getActiveSheet();
@@ -692,14 +705,18 @@ function regcore_repairCreatedAtDates(PDO $pdo, string $tmpFile, string $origina
             }
         }
 
-        /* 6. Application éventuelle (transaction) */
+        /* 6. Application éventuelle (transaction).
+         *    On corrige les DEUX colonnes avec la même date corrigée :
+         *    - created_at      (date d'ajout — corrompue par l'ancien bug d'inversion)
+         *    - date_inscription (backfillée depuis created_at, donc même corruption)
+         *    → garantit qu'aucune incohérence ne subsiste entre les deux après réparation. */
         $applied = 0;
         if ($apply && $fixes) {
-            $upd = $pdo->prepare('UPDATE registrations SET created_at = ? WHERE id = ?');
+            $upd = $pdo->prepare('UPDATE registrations SET created_at = ?, date_inscription = ? WHERE id = ?');
             $pdo->beginTransaction();
             try {
                 foreach ($fixes as $f) {
-                    $upd->execute([$f['new'], $f['id']]);
+                    $upd->execute([$f['new'], $f['new'], $f['id']]);
                     $applied++;
                 }
                 $pdo->commit();
