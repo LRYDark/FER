@@ -116,7 +116,7 @@ function getAllActiveFieldColumns(PDO $pdo): array
     // Colonnes système gérées par leur propre logique (paiement / calcul du montant)
     // et qu'il ne faut JAMAIS traiter comme un champ saisi par l'utilisateur, même
     // si elles sont marquées « active » dans la table forms.
-    $reserved = ['paiement_mode', 'montant_du', 'origine', 'created_at', 'created_by'];
+    $reserved = ['paiement_mode', 'montant_du', 'origine', 'created_at', 'date_inscription', 'created_by'];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         if ($row['bdd_column'] && !in_array($row['bdd_column'], $reserved, true)) {
             $cols[$row['bdd_column']] = [

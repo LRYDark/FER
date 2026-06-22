@@ -1059,6 +1059,10 @@ const tbl=$('#tbl').DataTable({
     <?php foreach ($allActiveFields as $af):
       if (empty($af['bdd_column'])) continue; // pas une colonne BDD (ex. autorisation parentale)
       $col = $af['bdd_column'];
+      // created_at (« Date ajout ») et date_inscription (« Date d'inscription ») sont rendus
+      // plus bas en colonnes dédiées, formatées sans heure : on saute leur colonne dynamique
+      // générique qui afficherait le timestamp brut en doublon.
+      if ($col === 'created_at' || $col === 'date_inscription') continue;
       $lbl = htmlspecialchars($af['label'], ENT_QUOTES);
       if ($col === 'tshirt_size'): ?>
     {data:'tshirt_size',title:'<?= $lbl ?>',render:(v,t,r)=>{
@@ -1094,6 +1098,10 @@ const tbl=$('#tbl').DataTable({
       if(type==='display'||type==='filter'){ if(!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
       return val;
     }, width:'110px', className:'text-nowrap text-center'},
+    {data:'date_inscription', title:'Date d\'inscription', defaultContent:'', render:function(val,type){
+      if(type==='display'||type==='filter'){ if(!val) return ''; return new Date(val).toLocaleDateString('fr-FR'); }
+      return val;
+    }, width:'120px', className:'text-nowrap text-center'},
     {data:'origine',title:'Origine',defaultContent:''},
     {data:'prestation',title:'Prestation',defaultContent:'',render:function(val,type,row){
       if(type==='display'){
@@ -2139,9 +2147,9 @@ function showInscriptionToast(inscriptionNo){
 $('#tbl').on('click','button.edit',function(){
   const d=tbl.row($(this).closest('tr')).data();
   Object.entries(d).forEach(([k,v])=>$('#fEdit [name="'+k+'"]').val(v));
-  // created_at est un timestamp complet ; le champ <input type="date"> n'accepte
-  // que AAAA-MM-JJ → on tronque pour l'afficher correctement (date d'inscription).
-  if(d.created_at) $('#fEdit [name="created_at"]').val(String(d.created_at).slice(0,10));
+  // date_inscription est un datetime complet ; le champ <input type="date"> n'accepte
+  // que AAAA-MM-JJ → on tronque pour l'afficher correctement.
+  if(d.date_inscription) $('#fEdit [name="date_inscription"]').val(String(d.date_inscription).slice(0,10));
   // La catégorie « enfant t-shirt » est stockée avec paiement_mode='en ligne (CB)' :
   // on resélectionne le bon choix du menu d'après la prestation.
   if(String(d.prestation||'').toLowerCase()==='enfant_tshirt'){
