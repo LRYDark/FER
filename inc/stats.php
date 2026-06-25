@@ -16,6 +16,7 @@ try {
     error_log('[STATS] ' . $e->getMessage());
     $data = [];
 }
+$childAge = (int) ($data['child_age_threshold'] ?? 12); // libellés « -N ans »
 
 
 
@@ -308,8 +309,8 @@ let tbl = $('#tbl').DataTable({
     {data:'prestation',defaultContent:'',render:function(val,type){
       if(type!=='display') return val;
       var lc = String(val||'').toLowerCase();
-      if(lc === 'enfant_tshirt')  return 'Enfant -12 +T-shirt';
-      if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit sans t-shirt)';
+      if(lc === 'enfant_tshirt')  return 'Enfant -<?= $childAge ?> +T-shirt';
+      if(lc === 'enfant_gratuit') return 'Enfant -<?= $childAge ?> (gratuit sans t-shirt)';
       if(lc === 'tarif_unique')   return 'Tarif unique';
       return '–';
     }}

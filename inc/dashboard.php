@@ -7,6 +7,9 @@ $canCreateReg  = canDoAction('dashboard.create_registration');
 $canBulkCreate = canDoAction('dashboard.bulk_create');
 $canEditReg    = canDoAction('dashboard.edit_registration');
 $canDeleteReg  = canDoAction('dashboard.delete_registration');
+// Présence de la colonne de cases à cocher (actions groupées). Défini tôt car
+// utilisé à la fois dans le CSS (largeur de colonne) et la config DataTable.
+$cbCol = ($canEditReg || $canDeleteReg) ? 1 : 0;
 $canArchive    = canDoAction('dashboard.archive');
 // dashboard.import_excel : l'import manuel a été déplacé dans Réglages → Import AssoConnect.
 $canExportXls  = canDoAction('dashboard.export_excel');
@@ -35,6 +38,8 @@ $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $highlightLimit = ($qrcode_mail_mode === 'first_x' && $qrcode_mail_limit > 0) ? $qrcode_mail_limit : 0;
 $registration_fee = (float) ($data['registration_fee'] ?? 0);
+// Âge seuil « enfant » (paramétrable) — alimente les libellés « -N ans ».
+$childAge = (int) ($data['child_age_threshold'] ?? 12);
 
 // Champs dynamiques
 require_once '../config/form_fields.php';
@@ -132,6 +137,7 @@ if ($canBulkCreate) {
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/colreorder/1.7.0/css/colReorder.bootstrap5.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
@@ -472,6 +478,45 @@ tr.filters select, tr.filters input {
 }
 .col-toggle-dropdown label:hover { background: #fdf8f9; }
 
+/* ColReorder : indice visuel « colonne déplaçable » sur les en-têtes du tableau.
+   La 1re ligne d'en-tête est saisissable ; la ligne de filtres (.filters) garde
+   un curseur normal pour ne pas gêner la saisie dans les <select>/<input>. */
+#tbl thead tr:first-child th { cursor: grab; }
+#tbl thead tr:first-child th:active { cursor: grabbing; }
+#tbl thead tr.filters th { cursor: default; }
+.dtcr-pointer { background: #db2777 !important; } /* repère d'insertion ColReorder, couleur du thème */
+
+/* Colonne de cases à cocher (actions groupées) : étroite et centrée. autoWidth
+   étant désactivé, on force la largeur ici sinon la colonne s'étire inutilement.
+   On cible la classe ET la 1re colonne par position (#tbl ... :first-child) car
+   DataTables n'applique pas toujours la className à l'en-tête <th> ; la colonne
+   est épinglée à gauche (ColReorder fixedColumnsLeft) donc :first-child est fiable. */
+<?php if($cbCol): ?>
+#tbl th.bulk-cb-col, #tbl td.bulk-cb-col,
+#tbl thead tr th:first-child, #tbl tbody tr td:first-child {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  padding-left: 10px !important;   /* espace entre la case et le bord du tableau */
+  padding-right: 2px !important;
+  text-align: left !important;
+  white-space: nowrap;
+}
+#tbl thead tr th:first-child { cursor: default; } /* colonne fixe : pas de poignée de déplacement */
+#tbl .bulk-cb-col .form-check-input,
+#tbl tbody tr td:first-child .form-check-input,
+#tbl thead tr th:first-child .form-check-input { margin: 0; cursor: pointer; }
+<?php endif; ?>
+
+/* Colonne « ID » (numéro de séquence) : un petit numéro, on la resserre. */
+#tbl th.col-seq, #tbl td.col-seq {
+  width: 46px !important;
+  min-width: 46px !important;
+  max-width: 46px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
 /* « Show X entries » (DataTables) : garder tout sur une ligne et éviter que la
    flèche du <select> ne chevauche le « 10 » (le select hérite parfois de
    .form-select = block + width:100%, d'où l'empilement Show / 10 / entries). */
@@ -588,6 +633,19 @@ tr.filters select{
     <div id="stats" class="d-flex flex-wrap gap-3 mb-4"></div>
 
     <input id="quickSearch" class="form-control quick-search" placeholder="Recherche rapide">
+    <?php if($canEditReg || $canDeleteReg): ?>
+    <!-- Barre d'actions groupées : visible dès qu'au moins une inscription est cochée -->
+    <div id="bulkBar" class="bulk-bar d-none align-items-center gap-2 my-2 p-2 rounded" style="background:#fdf2f8;border:1px solid #fbcfe8">
+      <span class="me-1"><i class="bi bi-check2-square me-1"></i><b id="bulkCount">0</b> sélectionné(s)</span>
+      <?php if($canEditReg): ?>
+      <button type="button" id="bulkEditBtn" class="btn btn-sm btn-rose"><i class="bi bi-pencil me-1"></i>Modifier la sélection</button>
+      <?php endif; ?>
+      <?php if($canDeleteReg): ?>
+      <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3 me-1"></i>Supprimer la sélection</button>
+      <?php endif; ?>
+      <button type="button" id="bulkClearBtn" class="btn btn-sm btn-link text-muted text-decoration-none ms-auto">Désélectionner</button>
+    </div>
+    <?php endif; ?>
     <div class="table-responsive">
       <table id="tbl" class="table table-striped table-sm w-100"></table>
     </div>
@@ -629,8 +687,9 @@ tr.filters select{
                 <option value="CB">CB</option>
                 <option value="espece">Espèce</option>
                 <option value="cheque">Chèque</option>
-                <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
-                <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
+                <option value="virement">Virement</option>
+                <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+                <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
               </select>
               <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
             </div>
@@ -654,8 +713,9 @@ tr.filters select{
                   <option value="CB">CB</option>
                   <option value="espece">Espèce</option>
                   <option value="cheque">Chèque</option>
-                  <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
-                  <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
+                  <option value="virement">Virement</option>
+                  <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+                  <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
                 </select>
               </div>
               <div class="col-md-5 text-md-end">
@@ -835,7 +895,7 @@ tr.filters select{
   </div>
 </div></div>
 
-<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog">
+<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog modal-lg">
   <div class="modal-content"><div class="modal-header">
     <h5 class="modal-title">Modifier l'inscription</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
     <form id="fEdit">
@@ -843,7 +903,8 @@ tr.filters select{
         <input type="hidden" name="id">
         <input type="hidden" name="origine" value="Admin">
         <?php foreach ($adminFields as $f): ?>
-          <?= renderFormField($f) ?>
+          <?php /* L'email est facultatif dans ce modal admin, même s'il est requis ailleurs. */ ?>
+          <?= renderFormField($f, '', ($f['bdd_column'] ?? '') === 'email') ?>
         <?php endforeach; ?>
         <div class="col-md-6">
           <label class="form-label">Paiement</label>
@@ -851,8 +912,9 @@ tr.filters select{
             <option value="CB">CB</option>
             <option value="espece">Espèce</option>
             <option value="cheque">Chèque</option>
-            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
-            <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
+            <option value="virement">Virement</option>
+            <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+            <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
           </select>
           <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
         </div>
@@ -860,6 +922,58 @@ tr.filters select{
       <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Sauvegarder</button></div>
     </form>
   </div></div></div>
+
+<?php if($canEditReg): ?>
+<!-- Modal « Modifier la sélection » : modification groupée des inscriptions cochées.
+     Chaque champ a une case « appliquer ? » ; seuls les champs cochés sont écrasés.
+     Nom et Prénom sont volontairement exclus (jamais communs à plusieurs inscrits). -->
+<div class="modal fade" id="bulkEditModal" tabindex="-1"><div class="modal-dialog modal-lg">
+  <div class="modal-content"><div class="modal-header">
+    <h5 class="modal-title">Modifier la sélection (<span id="bulkEditCount">0</span> inscription·s)</h5>
+    <button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <form id="fBulkEdit">
+      <div class="modal-body">
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Cochez les champs à modifier : seuls les champs cochés seront appliqués à <b>toutes</b> les inscriptions sélectionnées. Les autres restent inchangés.</p>
+        <div class="row g-3">
+          <?php foreach ($adminFields as $f):
+            $bc = $f['bdd_column'] ?? '';
+            if ($bc === '' || $bc === 'nom' || $bc === 'prenom') continue; ?>
+          <div class="col-12 bulk-field-row" data-col="<?= htmlspecialchars($bc, ENT_QUOTES) ?>">
+            <div class="form-check mb-1">
+              <input class="form-check-input bulk-apply" type="checkbox" id="ba_<?= htmlspecialchars($bc, ENT_QUOTES) ?>">
+              <label class="form-check-label fw-semibold" for="ba_<?= htmlspecialchars($bc, ENT_QUOTES) ?>">Modifier « <?= htmlspecialchars($f['label']) ?> »</label>
+            </div>
+            <div class="bulk-field-input ps-4"><?= renderFormField($f, '', true) ?></div>
+          </div>
+          <?php endforeach; ?>
+          <!-- Paiement (champ système : recalcule le montant dû à l'application) -->
+          <div class="col-12 bulk-field-row" data-col="paiement_mode">
+            <div class="form-check mb-1">
+              <input class="form-check-input bulk-apply" type="checkbox" id="ba_paiement_mode">
+              <label class="form-check-label fw-semibold" for="ba_paiement_mode">Modifier « Paiement »</label>
+            </div>
+            <div class="bulk-field-input ps-4">
+              <div class="col-md-6">
+                <select name="paiement_mode" class="form-select">
+                  <option value="CB">CB</option>
+                  <option value="espece">Espèce</option>
+                  <option value="cheque">Chèque</option>
+                  <option value="virement">Virement</option>
+                  <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+                  <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-rose" type="submit">Appliquer à la sélection</button>
+      </div>
+    </form>
+  </div></div></div>
+<?php endif; ?>
 
 <?php // Modale « Import Excel AssoConnect » déplacée vers inc/setting.php (onglet Import AssoConnect). ?>
 
@@ -961,6 +1075,7 @@ tr.filters select{
 <script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
+<script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>
 <?php // SheetJS (XLSX) retiré : l'import manuel (seul usage client) a migré vers Réglages → Import AssoConnect. Le bulk « Ajout multiple » parse côté serveur. ?>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
@@ -971,6 +1086,7 @@ const canEditReg     = <?= $canEditReg ? 'true' : 'false' ?>;
 const canScanQr      = <?= $canScanQr ? 'true' : 'false' ?>;
 const canTshirtMode  = <?= $canTshirtMode ? 'true' : 'false' ?>;
 const registrationFee = <?= json_encode($registration_fee) ?>;
+const childAge = <?= json_encode($childAge) ?>; // âge seuil « enfant » pour les libellés « -N ans »
 let tableData = []; // Pour stocker les données triées par date
 
 /* ══ Affichage dynamique du « Montant dû » sous le select paiement ══ */
@@ -1053,8 +1169,19 @@ const tbl=$('#tbl').DataTable({
     }
   },
   columns:[
+    <?php if($canEditReg || $canDeleteReg): ?>
+    // Colonne de sélection (actions groupées). Le titre contient la case « tout
+    // cocher » (page affichée). Chaque ligne porte une case avec l'id de l'inscription.
+    {data:null, orderable:false, searchable:false, className:'text-center bulk-cb-col', width:'12px',
+      title:'<input type="checkbox" class="form-check-input bulk-all" title="Tout cocher (page affichée)">',
+      render:function(data,type,row){
+        if(type!=='display') return '';
+        return '<input type="checkbox" class="form-check-input bulk-cb" value="'+row.id+'">';
+      }
+    },
+    <?php endif; ?>
     {data:'id',visible:false},
-    {data: null, title: 'ID', width: '60px', className: 'text-center', orderable: false, defaultContent: ''},
+    {data: null, title: 'ID', width: '46px', className: 'text-center col-seq', orderable: false, defaultContent: ''},
     {data:'inscription_no',title:'N°'},
     <?php foreach ($allActiveFields as $af):
       if (empty($af['bdd_column'])) continue; // pas une colonne BDD (ex. autorisation parentale)
@@ -1082,7 +1209,7 @@ const tbl=$('#tbl').DataTable({
       if(type==='display'){
         if(!val) return '';
         var lc = String(val).toLowerCase();
-        if(lc === 'gratuit') return 'Gratuit/-12ans';
+        if(lc === 'gratuit') return `Gratuit/-${childAge}ans`;
         if(lc === 'enfant_tshirt') return 'en ligne (CB)'; // legacy : la catégorie est désormais dans Prestation
         return val;
       }
@@ -1106,13 +1233,13 @@ const tbl=$('#tbl').DataTable({
     {data:'prestation',title:'Prestation',defaultContent:'',render:function(val,type,row){
       if(type==='display'){
         var lc = String(val||'').toLowerCase();
-        if(lc === 'enfant_tshirt')  return 'Enfant -12 +T-shirt';
-        if(lc === 'enfant_gratuit') return 'Enfant -12 (gratuit sans t-shirt)';
+        if(lc === 'enfant_tshirt')  return `Enfant -${childAge} +T-shirt`;
+        if(lc === 'enfant_gratuit') return `Enfant -${childAge} (gratuit sans t-shirt)`;
         if(lc === 'tarif_unique')   return 'Tarif unique';
         // Repli (anciens inscrits sans prestation) : déduire du mode de paiement.
         var pm = String((row && row.paiement_mode) || '').toLowerCase();
-        if(pm === 'gratuit') return 'Enfant -12 (gratuit)';
-        if(pm === 'enfant_tshirt') return 'Enfant -12 +T-shirt';
+        if(pm === 'gratuit') return `Enfant -${childAge} (gratuit)`;
+        if(pm === 'enfant_tshirt') return `Enfant -${childAge} +T-shirt`;
         return val ? val : 'Tarif unique';
       }
       return val;
@@ -1140,10 +1267,29 @@ const tbl=$('#tbl').DataTable({
   dom:'lrtip',
   autoWidth:false,
   orderCellsTop:true,
-  order: [[11, 'asc']], // Trier par date d'ajout par défaut (colonne 11 = created_at)
+  // Réordonnancement des colonnes par glisser-déposer des en-têtes. L'ordre choisi
+  // est sauvegardé par utilisateur (route ui-prefs) et réappliqué au chargement.
+  <?php
+    // Index de la colonne created_at (« Date ajout »), recalculé pour rester juste
+    // quel que soit le nombre de champs dynamiques ET la présence de la colonne de
+    // cases à cocher. Disposition : [cases], id(hidden), ID, N°, [champs dyn], Paiement, Montant, created_at.
+    $dynCount = 0;
+    foreach ($allActiveFields as $af) {
+        if (empty($af['bdd_column'])) continue;
+        if ($af['bdd_column'] === 'created_at' || $af['bdd_column'] === 'date_inscription') continue;
+        $dynCount++;
+    }
+    // $cbCol est défini en haut du fichier (présence de la colonne de cases).
+    $createdAtIdx = 5 + $dynCount + $cbCol;
+  ?>
+  // Réordonnancement par glisser-déposer ; la colonne de cases (si présente) reste fixée à gauche.
+  colReorder:<?= $cbCol ? '{ fixedColumnsLeft: 1 }' : 'true' ?>,
+  order: [[<?= $createdAtIdx ?>, 'asc']], // Trier par date d'ajout par défaut (colonne created_at)
   rowCallback: function (row, data, _displayNum, displayIndex) {
-    // numéro séquentiel affiché (colonne « ID »)
-    $('td:eq(0)', row).text(displayIndex + 1);
+    // Numéro séquentiel affiché dans la colonne « ID ». On cible la cellule par sa
+    // classe (.col-seq) et non par sa position : robuste si l'utilisateur déplace
+    // une autre colonne avant elle via ColReorder.
+    $('td.col-seq', row).text(displayIndex + 1);
   },
   drawCallback: function(){
     // Surlignage « X premiers » : on ne compte que les inscrits qui ont payé
@@ -1171,6 +1317,49 @@ tbl.on('xhr.dt',(e,s,json)=>{
     tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     updateStats(tableData);
   }
+});
+
+/* ══ Préférences d'interface (serveur, par utilisateur) — chargeur mutualisé ══
+ * Toutes les prefs d'affichage du tableau (ordre, visibilité, largeurs des colonnes)
+ * sont stockées dans users.ui_prefs via la route `ui-prefs`. On mutualise un seul
+ * GET (mémoïsé) et un POST de fusion, réutilisés par l'ordre, la visibilité et les
+ * largeurs. Le localStorage sert de cache de repli (hors-ligne) + source de migration. */
+let _uiPrefs = null;        // objet de prefs résolu (null tant que non chargé)
+let _uiPrefsPromise = null; // promesse mémoïsée du GET
+function loadUiPrefs(){
+  if(_uiPrefsPromise) return _uiPrefsPromise;
+  _uiPrefsPromise = fetch('../config/api.php?route=ui-prefs')
+    .then(r=>r.json())
+    .then(p=>{ _uiPrefs = (p && typeof p==='object') ? p : {}; return _uiPrefs; })
+    .catch(()=>{ _uiPrefs = {}; return _uiPrefs; });
+  return _uiPrefsPromise;
+}
+function saveUiPref(patch){
+  if(_uiPrefs && typeof _uiPrefs==='object') Object.assign(_uiPrefs, patch); // copie mémoire à jour
+  return fetch('../config/api.php?route=ui-prefs',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
+    body: JSON.stringify(patch)
+  }).catch(()=>{});
+}
+
+/* ══ Ordre des colonnes mémorisé par utilisateur (ColReorder + route ui-prefs) ══ */
+let _applyingColOrder = false; // évite de re-sauvegarder pendant l'application de l'ordre chargé
+// Restaure l'ordre enregistré (silencieux si rien / si le nombre de colonnes a changé,
+// p. ex. après ajout/suppression d'un champ depuis « Gestion des champs »).
+loadUiPrefs().then(p=>{
+  const ord = p && p.dashboard_col_order;
+  if(Array.isArray(ord) && ord.length === tbl.columns().count()){
+    _applyingColOrder = true;
+    try { tbl.colReorder.order(ord, true); } catch(_){}
+    _applyingColOrder = false;
+  }
+});
+// À chaque déplacement de colonne : réaligner la ligne de filtres puis sauvegarder.
+tbl.on('column-reorder', function(){
+  buildFilters(tbl);
+  if(_applyingColOrder) return;
+  saveUiPref({ dashboard_col_order: tbl.colReorder.order() });
 });
 
 
@@ -1241,7 +1430,7 @@ function updateStats(data){
       <h5 class="card-title mb-1">T-shirts récupérés</h5>
       <p class="display-6 fw-bold mb-0">${tshirtCount}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h6 class="card-title text-muted mb-1">Enfants -12 +T-shirt</h6>
+      <h6 class="card-title text-muted mb-1">Enfants -<?= $childAge ?> +T-shirt</h6>
       <p class="display-6 fw-bold mb-0">${enfantTshirtCount}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h6 class="card-title text-muted mb-1">+ Vieux H</h6>
@@ -1262,8 +1451,14 @@ function buildFilters(api){
   $thead.find('tr.filters').remove();
   const $f=$thead.find('tr').first().clone(false).addClass('filters').appendTo($thead);
   $f.find('th').empty().removeClass('sorting sorting_asc sorting_desc sorting_disabled');
-  api.columns().every(function(i){
-    const title=$(this.header()).text().trim(), $cell=$f.find('th').eq(i);
+  // La ligne de filtres est un clone de l'en-tête (donc en ordre VISUEL courant). Avec
+  // ColReorder, l'index logique d'une colonne ne correspond plus à sa position visuelle :
+  // on convertit via colReorder.order() (= indexes d'origine dans l'ordre visuel).
+  const crOrder = (api.colReorder && typeof api.colReorder.order === 'function') ? api.colReorder.order() : null;
+  api.columns().every(function(){
+    const i = this.index();                                   // index logique de la colonne
+    const visPos = crOrder ? crOrder.indexOf(i) : i;          // position visuelle (clone)
+    const title=$(this.header()).text().trim(), $cell=$f.find('th').eq(visPos);
     if(!this.visible()){ $cell.hide(); return; }
     if(['T-shirt','Sexe','Paiement','Prestation','Entreprise','Origine'].includes(title)){
       const $sel=$('<select class="form-select form-select-sm"><option value="">Tous</option></select>')
@@ -1284,13 +1479,13 @@ function buildFilters(api){
         var label = v;
         if(title === 'Paiement'){
           var lcv = String(v).toLowerCase();
-          if(lcv === 'gratuit') label = 'Gratuit/-12ans';
+          if(lcv === 'gratuit') label = `Gratuit/-${childAge}ans`;
           else if(lcv === 'enfant_tshirt') label = 'en ligne (CB)';
         } else if(title === 'Prestation'){
           var lcp = String(v).toLowerCase();
           if(lcp === 'tarif_unique') label = 'Tarif unique';
-          else if(lcp === 'enfant_gratuit') label = 'Enfant -12 (gratuit sans t-shirt)';
-          else if(lcp === 'enfant_tshirt') label = 'Enfant -12 +T-shirt';
+          else if(lcp === 'enfant_gratuit') label = `Enfant -${childAge} (gratuit sans t-shirt)`;
+          else if(lcp === 'enfant_tshirt') label = `Enfant -${childAge} +T-shirt`;
         }
         var optVal = $('<div/>').text(v).html();   // échappe HTML
         var optLbl = $('<div/>').text(label).html();
@@ -1375,6 +1570,113 @@ $('#tbl').on('click', '.delete-row', function() {
   });
 });
 
+<?php if($canEditReg || $canDeleteReg): ?>
+/* ══ ACTIONS GROUPÉES (sélection multiple) ════════════════════════════════
+ * Les ids cochés sont mémorisés dans `bulkSel`. Les cases sont réappliquées à
+ * chaque redraw (tri/filtre/pagination) car DataTables re-rend les lignes.
+ */
+const bulkSel = new Set();
+function refreshBulkBar(){
+  const n = bulkSel.size;
+  $('#bulkCount').text(n);
+  $('#bulkEditCount').text(n);
+  $('#bulkBar').toggleClass('d-none', n===0).toggleClass('d-flex', n>0);
+}
+function clearBulkSel(){
+  bulkSel.clear();
+  $('#tbl tbody .bulk-cb').prop('checked', false);
+  $('.bulk-all').prop('checked', false).prop('indeterminate', false);
+  refreshBulkBar();
+}
+// Met à jour l'état de la case « tout cocher » d'après les lignes de la page.
+function syncBulkAll(){
+  const $cb = $('#tbl tbody .bulk-cb');
+  const total = $cb.length, checked = $cb.filter(':checked').length;
+  $('.bulk-all').prop('checked', total>0 && checked===total)
+               .prop('indeterminate', checked>0 && checked<total);
+}
+$('#tbl').on('change','.bulk-cb',function(){
+  const id = parseInt(this.value,10);
+  if(this.checked) bulkSel.add(id); else bulkSel.delete(id);
+  syncBulkAll(); refreshBulkBar();
+});
+$('#tbl').on('change','.bulk-all',function(){
+  const on = this.checked;
+  $('#tbl tbody .bulk-cb').each(function(){
+    this.checked = on;
+    const id = parseInt(this.value,10);
+    if(on) bulkSel.add(id); else bulkSel.delete(id);
+  });
+  syncBulkAll(); refreshBulkBar();
+});
+// Après chaque redraw : recoche les lignes présentes dans la sélection.
+tbl.on('draw', function(){
+  $('#tbl tbody .bulk-cb').each(function(){ this.checked = bulkSel.has(parseInt(this.value,10)); });
+  syncBulkAll(); refreshBulkBar();
+});
+$('#bulkClearBtn').on('click', clearBulkSel);
+
+<?php if($canEditReg): ?>
+/* — Modification groupée — */
+// Active/désactive l'input d'un champ selon sa case « appliquer ».
+$('#fBulkEdit').on('change','.bulk-apply',function(){
+  $(this).closest('.bulk-field-row').find('.bulk-field-input').find('input,select,textarea')
+         .prop('disabled', !this.checked);
+});
+$('#bulkEditBtn').on('click',function(){
+  if(bulkSel.size===0){ alert('Sélectionnez au moins une inscription.'); return; }
+  // Réinitialise : tout décoché → tous les inputs désactivés.
+  $('#fBulkEdit .bulk-apply').prop('checked', false).trigger('change');
+  $('#bulkEditCount').text(bulkSel.size);
+  new bootstrap.Modal('#bulkEditModal').show();
+});
+$('#fBulkEdit').on('submit',function(e){
+  e.preventDefault();
+  if(bulkSel.size===0){ alert('Aucune inscription sélectionnée.'); return; }
+  const fields = {};
+  $('#fBulkEdit .bulk-field-row').each(function(){
+    if(!$(this).find('.bulk-apply').is(':checked')) return;
+    const $inp = $(this).find('.bulk-field-input [name]').first();
+    if($inp.length) fields[$inp.attr('name')] = $inp.val();
+  });
+  if(Object.keys(fields).length===0){ alert('Cochez au moins un champ à modifier.'); return; }
+  const ids = [...bulkSel];
+  fetch('../config/api.php?route=registrations-bulk',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
+    body: JSON.stringify({ ids, fields })
+  }).then(r=>r.json()).then(j=>{
+    if(j.ok){
+      bootstrap.Modal.getInstance('#bulkEditModal').hide();
+      clearBulkSel();
+      tbl.ajax.reload(null,false);
+      alert((j.updated||0)+' inscription(s) modifiée(s).');
+    } else { alert('Erreur : '+(j.err||'inconnue')); }
+  }).catch(()=>alert('Erreur de communication avec le serveur.'));
+});
+<?php endif; ?>
+
+<?php if($canDeleteReg): ?>
+/* — Suppression groupée — */
+$('#bulkDeleteBtn').on('click',function(){
+  if(bulkSel.size===0){ alert('Sélectionnez au moins une inscription.'); return; }
+  if(!confirm('Supprimer '+bulkSel.size+' inscription(s) ? Cette action est irréversible.')) return;
+  const ids = [...bulkSel];
+  fetch('../config/api.php?route=registrations-bulk',{
+    method:'DELETE',
+    headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
+    body: JSON.stringify({ ids })
+  }).then(r=>r.json()).then(j=>{
+    if(j.ok){
+      clearBulkSel();
+      tbl.ajax.reload(null,false);
+      alert((j.deleted||0)+' inscription(s) supprimée(s).');
+    } else { alert('Erreur : '+(j.err||'inconnue')); }
+  }).catch(()=>alert('Erreur de communication avec le serveur.'));
+});
+<?php endif; ?>
+<?php endif; ?>
+
 /* ══ AJOUT ════ */
 $('#fAdd').on('submit',e=>{
   e.preventDefault();
@@ -1409,7 +1711,7 @@ function showInscriptionToast(inscriptionNo){
            + '<div style="font-size:20px;font-weight:800;margin-top:6px;line-height:1.2">'
            +   seqNo+'<sup>e</sup> inscrit</div>';
   if(!isPaid){
-    html += '<div style="font-size:12px;margin-top:4px;opacity:.95">Gratuit / Enfant -12 ans — non éligible T-shirt</div>';
+    html += `<div style="font-size:12px;margin-top:4px;opacity:.95">Gratuit / Enfant -${childAge} ans — non éligible T-shirt</div>`;
   } else if(hlLimit>0){
     html += paidRank<=hlLimit
       ? '<div style="font-size:12px;margin-top:4px;opacity:.95">&#10003; '+paidRank+'ᵉ inscrit payant / '+hlLimit+' — éligible T-shirt</div>'
@@ -1434,6 +1736,22 @@ function showInscriptionToast(inscriptionNo){
   const recapDiv   = document.getElementById('bulkRecap');
   const defaultFee = <?= json_encode((float) $registration_fee) ?>;
   const MAX_BULK   = 50; // Limite côté serveur : api.php route bulk-create
+  // Tarif enfant selon l'âge (aperçu côté client ; le serveur reste l'autorité).
+  const childPricingEnabled = <?= !empty($data['child_pricing_enabled']) ? 'true' : 'false' ?>;
+  const childAge            = <?= (int) ($data['child_age_threshold'] ?? 12) ?>;
+  const childAmount         = <?= json_encode((float) ($data['child_amount'] ?? 0)) ?>;
+  // Applique le montant enfant à une ligne si l'âge saisi est sous le seuil.
+  // Retourne true si le tarif enfant a été appliqué (sinon laisse la valeur en place).
+  function applyChildMontantToRow(rowEl) {
+    if (!childPricingEnabled) return false;
+    const birthEl = rowEl.querySelector('.bulk-field[data-bdd="naissance"]');
+    const montEl  = rowEl.querySelector('.bulk-montant');
+    if (!birthEl || !montEl) return false;
+    const age = (window.FERInscription && FERInscription.ageFromBirth)
+      ? FERInscription.ageFromBirth(FERInscription.normalizeBirthValue(birthEl.value)) : null;
+    if (age !== null && age < childAge) { montEl.value = String(childAmount); return true; }
+    return false;
+  }
 
   if (!tmpl || !container) return;
 
@@ -1563,6 +1881,7 @@ function showInscriptionToast(inscriptionNo){
       });
     }
     container.appendChild(clone);
+    applyChildMontantToRow(clone); // si duplication d'une ligne « enfant » avec naissance
     renumber();
   }
 
@@ -1591,6 +1910,9 @@ function showInscriptionToast(inscriptionNo){
     if (!raw || !window.FERInscription) return;
     const n = FERInscription.normalizeBirthValue(raw);
     if (n) e.target.value = n; // reconnu → forme canonique ; sinon on laisse pour correction
+    // Tarif enfant : si l'âge saisi est sous le seuil, applique le montant enfant.
+    const row = e.target.closest('.bulk-row');
+    if (row && applyChildMontantToRow(row)) updateSummary();
   });
 
   addBtn.addEventListener('click', () => addRow());
@@ -1974,6 +2296,8 @@ function showInscriptionToast(inscriptionNo){
       container.querySelectorAll('.bulk-montant').forEach(m => {
         m.value = isGratuit ? '0' : defaultFee;
       });
+      // Réapplique le tarif enfant par ligne (prioritaire sur la valeur ci-dessus).
+      container.querySelectorAll('.bulk-row').forEach(applyChildMontantToRow);
       updateSummary();
     });
   }
@@ -2144,8 +2468,10 @@ function showInscriptionToast(inscriptionNo){
 <?php endif; ?>
 
 /* ══ ÉDITION ════ */
-$('#tbl').on('click','button.edit',function(){
-  const d=tbl.row($(this).closest('tr')).data();
+// Pré-remplit puis ouvre le modal « Modifier l'inscription » à partir des données
+// d'une ligne. Réutilisé par le bouton crayon ET le double-clic sur la ligne.
+function openEditModal(d){
+  if(!d) return;
   Object.entries(d).forEach(([k,v])=>$('#fEdit [name="'+k+'"]').val(v));
   // date_inscription est un datetime complet ; le champ <input type="date"> n'accepte
   // que AAAA-MM-JJ → on tronque pour l'afficher correctement.
@@ -2157,7 +2483,20 @@ $('#tbl').on('click','button.edit',function(){
   }
   if(window.FERInscription) FERInscription.refresh(document.getElementById('fEdit'));
   new bootstrap.Modal('#editModal').show();
+}
+$('#tbl').on('click','button.edit',function(){
+  openEditModal(tbl.row($(this).closest('tr')).data());
 });
+<?php if($canEditReg): ?>
+// Double-clic sur une ligne = ouvrir le modal de modification (réservé aux
+// utilisateurs ayant le droit dashboard.edit_registration). On ignore le double-clic
+// déclenché sur les contrôles interactifs d'une ligne (boutons, menus t-shirt, liens).
+$('#tbl tbody').on('dblclick','tr',function(e){
+  if($(e.target).closest('button, a, select, input, .action-buttons').length) return;
+  const row=tbl.row(this);
+  if(row && row.data()) openEditModal(row.data());
+});
+<?php endif; ?>
 $('#fEdit').on('submit',e=>{
   e.preventDefault();
   if(window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
@@ -2178,31 +2517,54 @@ $('#fEdit').on('submit',e=>{
   var storageKeyVis = 'fer_col_vis_' + uid;
   var storageKeyW = 'fer_col_w_' + uid;
 
-  // Column names for toggle — built dynamically from actual DataTable headers (skip hidden col 0)
+  // Colonnes de tête NON gérées par le toggle/resize :
+  //   - la colonne de cases à cocher (actions groupées), si présente   → CB (0 ou 1)
+  //   - la colonne `id` masquée                                        → +1
+  // Le toggle de visibilité reste indexé à partir de la 1re colonne réelle (« ID »),
+  // donc l'état localStorage déjà sauvegardé reste compatible (même 1re colonne).
+  var CB = <?= $cbCol ?>;                 // colonnes de cases à cocher en tête (0 ou 1)
+  var FIRST_TOGGLE_COL = CB + 1;          // 1re colonne togglable (saute cases + id masqué)
+
+  // Column names for toggle — built dynamically from actual DataTable headers.
   var colNames = [];
   tbl.columns().every(function(idx) {
-    if (idx === 0) return; // skip hidden id column
+    if (idx < FIRST_TOGGLE_COL) return; // saute la colonne de cases + l'id masqué
     colNames.push($(this.header()).text().trim() || 'Col ' + idx);
   });
 
-  // ── Restore column visibility ──
+  // Lecture défensive d'un objet JSON du localStorage (cache de repli).
+  function readLocalJSON(key) {
+    try { var v = JSON.parse(localStorage.getItem(key)); return (v && typeof v === 'object') ? v : null; }
+    catch (e) { return null; }
+  }
+  // Migration unique localStorage → serveur : si le serveur n'a pas encore la pref
+  // mais que le navigateur en a une (ancien stockage local), on la pousse au serveur.
+  function migrateColPrefs() {
+    if (!_uiPrefs || typeof _uiPrefs !== 'object') return;
+    var patch = {};
+    if (_uiPrefs.dashboard_col_vis == null) {
+      var lv = readLocalJSON(storageKeyVis);
+      if (lv) { _uiPrefs.dashboard_col_vis = lv; patch.dashboard_col_vis = lv; }
+    }
+    if (_uiPrefs.dashboard_col_widths == null) {
+      var lw = readLocalJSON(storageKeyW);
+      if (lw) { _uiPrefs.dashboard_col_widths = lw; patch.dashboard_col_widths = lw; }
+    }
+    if (Object.keys(patch).length) saveUiPref(patch);
+  }
+
+  // ── Restore column visibility (serveur prioritaire, repli localStorage) ──
   function restoreVisibility() {
     try {
-      var saved = JSON.parse(localStorage.getItem(storageKeyVis));
+      var saved = (_uiPrefs && _uiPrefs.dashboard_col_vis) || readLocalJSON(storageKeyVis);
       if (saved && typeof tbl !== 'undefined') {
         for (var i in saved) {
-          var colIdx = parseInt(i) + 1;
+          var colIdx = parseInt(i) + FIRST_TOGGLE_COL;
           tbl.column(colIdx).visible(saved[i]);
         }
-        // Sync filter row
-        setTimeout(function() {
-          var filterCells = table.querySelectorAll('thead tr.filters th');
-          if (filterCells.length) {
-            filterCells.forEach(function(cell, idx) {
-              cell.style.display = tbl.column(idx).visible() ? '' : 'none';
-            });
-          }
-        }, 100);
+        // Réaligne la ligne de filtres sur la nouvelle visibilité (gère aussi le
+        // réordonnancement et les colonnes masquées — évite tout décalage d'index).
+        setTimeout(function() { try { buildFilters(tbl); } catch(e) {} }, 100);
       }
     } catch(e) {}
   }
@@ -2211,20 +2573,26 @@ $('#fEdit').on('submit',e=>{
     try {
       var vis = {};
       for (var i = 0; i < colNames.length; i++) {
-        vis[i] = tbl.column(i + 1).visible();
+        vis[i] = tbl.column(i + FIRST_TOGGLE_COL).visible();
       }
-      localStorage.setItem(storageKeyVis, JSON.stringify(vis));
+      localStorage.setItem(storageKeyVis, JSON.stringify(vis)); // cache de repli
+      saveUiPref({ dashboard_col_vis: vis });                   // serveur (autorité)
     } catch(e) {}
   }
 
-  // ── Restore column widths ──
+  // ── Restore column widths (serveur prioritaire, repli localStorage) ──
   function restoreWidths() {
     try {
-      var saved = JSON.parse(localStorage.getItem(storageKeyW));
+      var saved = (_uiPrefs && _uiPrefs.dashboard_col_widths) || readLocalJSON(storageKeyW);
       if (!saved) return;
       var ths = table.querySelectorAll('thead tr:first-child th');
+      // La colonne de cases (th[0] quand CB=1) n'est pas redimensionnable : on la
+      // saute et on réindexe (key = i - CB) pour rester compatible avec l'état
+      // localStorage existant (sauvegardé sans cette colonne).
       ths.forEach(function(th, i) {
-        if (saved[i]) { th.style.width = saved[i]; th.style.minWidth = saved[i]; }
+        if (i < CB) return;
+        var key = i - CB;
+        if (saved[key]) { th.style.width = saved[key]; th.style.minWidth = saved[key]; }
       });
     } catch(e) {}
   }
@@ -2234,16 +2602,19 @@ $('#fEdit').on('submit',e=>{
       var widths = {};
       var ths = table.querySelectorAll('thead tr:first-child th');
       ths.forEach(function(th, i) {
-        if (th.style.width) widths[i] = th.style.width;
+        if (i < CB) return;                 // saute la colonne de cases
+        if (th.style.width) widths[i - CB] = th.style.width;
       });
-      localStorage.setItem(storageKeyW, JSON.stringify(widths));
+      localStorage.setItem(storageKeyW, JSON.stringify(widths)); // cache de repli
+      saveUiPref({ dashboard_col_widths: widths });              // serveur (autorité)
     } catch(e) {}
   }
 
   // ── Column resize handles ──
   function initResize() {
     var ths = table.querySelectorAll('thead tr:first-child th');
-    ths.forEach(function(th) {
+    ths.forEach(function(th, i) {
+      if (i < CB) return;                 // pas de redimensionnement sur la colonne de cases
       if (th.querySelector('.col-resize')) return;
       var handle = document.createElement('div');
       handle.className = 'col-resize';
@@ -2298,7 +2669,7 @@ $('#fEdit').on('submit',e=>{
     dropdown.className = 'col-toggle-dropdown';
 
     colNames.forEach(function(name, i) {
-      var colIdx = i + 1;
+      var colIdx = i + FIRST_TOGGLE_COL;
       var label = document.createElement('label');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
@@ -2307,13 +2678,8 @@ $('#fEdit').on('submit',e=>{
       cb.addEventListener('change', function() {
         tbl.column(colIdx).visible(this.checked);
         saveVisibility();
-        // Sync filter row visibility
-        var filterCells = table.querySelectorAll('thead tr.filters th');
-        if (filterCells.length) {
-          filterCells.forEach(function(cell, idx) {
-            cell.style.display = tbl.column(idx).visible() ? '' : 'none';
-          });
-        }
+        // Réaligne la ligne de filtres (gère visibilité + réordonnancement, sans décalage).
+        try { buildFilters(tbl); } catch(e) {}
       });
       label.appendChild(cb);
       label.appendChild(document.createTextNode(' ' + name));
@@ -2372,10 +2738,15 @@ $('#fEdit').on('submit',e=>{
   // ── Init ──
   if (typeof $ !== 'undefined' && $.fn.dataTable) {
     $('#tbl').on('init.dt', function() {
-      restoreVisibility();
-      buildColToggle();
-      moveTableFooterOut();
-      initResize();
+      // On attend les prefs serveur puis on migre (une fois) le localStorage existant,
+      // avant d'appliquer la visibilité et de construire le sélecteur de colonnes.
+      loadUiPrefs().then(function() {
+        migrateColPrefs();
+        restoreVisibility();
+        buildColToggle();
+        moveTableFooterOut();
+        initResize();
+      });
     });
     $('#tbl').on('draw.dt', function() { moveTableFooterOut(); initResize(); });
   }
@@ -2463,7 +2834,7 @@ $('#fEdit').on('submit',e=>{
     var eligible = isPaid && ((highlightLimit === 0) || (paidRank <= highlightLimit));
     var eligDiv = document.getElementById('qrEligibility');
     if (!isPaid) {
-      eligDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — inscription non payée (Gratuit / Enfant -12 ans)</div>';
+      eligDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i><strong>Non éligible T-shirt</strong> — inscription non payée (Gratuit / Enfant -${childAge} ans)</div>`;
     } else if (eligible) {
       eligDiv.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle-fill me-2"></i><strong>Éligible T-shirt</strong>' + (highlightLimit > 0 ? ' — '+paidRank+'ᵉ inscrit payant / ' + highlightLimit : '') + '</div>';
     } else {
