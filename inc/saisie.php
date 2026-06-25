@@ -16,6 +16,7 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 $title        = $data['title']        ?? '';
 $title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = (float) ($data['registration_fee'] ?? 0);
+$childAge = (int) ($data['child_age_threshold'] ?? 12); // libellés « -N ans »
 
 // Limite « X premiers inscrits » (éligibilité T-shirt) — même logique que le dashboard
 $qrcode_mail_mode  = $data['qrcode_mail_mode']  ?? 'none';
@@ -234,8 +235,8 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
           <option value="CB">CB</option>
           <option value="espece">Esp&egrave;ces</option>
           <option value="cheque">Ch&egrave;que</option>
-          <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
-          <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
+          <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+          <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
         </select>
         <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
       </div>
@@ -283,8 +284,8 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
             <option value="CB">CB</option>
             <option value="espece">Espèce</option>
             <option value="cheque">Chèque</option>
-            <option value="gratuit">Gratuit / Enfant -12 ans (sans T-shirt)</option>
-            <option value="enfant_tshirt">Enfant -12 ans (avec T-shirt)</option>
+            <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+            <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
           </select>
           <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
         </div>
@@ -306,6 +307,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   var tblSaisie = null;
   var registrationFee = <?= json_encode($registration_fee) ?>;
+  var childAge = <?= json_encode($childAge) ?>; // âge seuil « enfant » pour les libellés
 
   /* Affichage dynamique du « Montant dû » sous le select paiement */
   function formatMontant(n){
@@ -375,7 +377,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
                  + '<div style="display:block;font-size:20px;font-weight:800;margin-top:6px;line-height:1.2">'
                  +   seqNo + '<sup>e</sup> inscrit</div>';
         if (!isPaid) {
-          html += '<div style="font-size:12px;margin-top:4px">Gratuit / Enfant -12 ans — non éligible T-shirt</div>';
+          html += '<div style="font-size:12px;margin-top:4px">Gratuit / Enfant -' + childAge + ' ans — non éligible T-shirt</div>';
         } else if (hlLimit > 0) {
           html += seqNo <= hlLimit
             ? '<div style="font-size:12px;margin-top:4px">✓ Dans les ' + hlLimit + ' premiers — éligible T-shirt</div>'
@@ -424,7 +426,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         if (type === 'display') {
           if (!val) return '';
           var lc = String(val).toLowerCase();
-          if (lc === 'gratuit') return 'Gratuit/-12ans';
+          if (lc === 'gratuit') return 'Gratuit/-' + childAge + 'ans';
           if (lc === 'enfant_tshirt') return 'en ligne (CB)'; // legacy : catégorie déplacée dans Prestation
           return val;
         }

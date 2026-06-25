@@ -110,6 +110,11 @@ $title_mobile = $data['title_mobile'] ?? '';
 $registration_fee = $data['registration_fee'] ?? 0;
 $course_km = $data['course_km'] ?? 7;
 
+// Tarif enfant automatique selon l'âge (cf. import Excel / ajout multiple)
+$child_pricing_enabled = !empty($data['child_pricing_enabled']) ? 1 : 0;
+$child_age_threshold   = (int) ($data['child_age_threshold'] ?? 12);
+$child_amount          = (int) ($data['child_amount'] ?? 0);
+
 // theme
 $theme_primary        = $data['theme_primary_color']        ?? '#db2777';
 $theme_secondary      = $data['theme_secondary_color']      ?? '#0f172a';
@@ -1077,12 +1082,18 @@ if (isset($_POST['save_inscription_params'])) {
     $course_km = max(1, (int) ($_POST['course_km'] ?? 7));
     $qrcode_mail_limit = max(0, (int) ($_POST['qrcode_mail_limit'] ?? 0));
 
+    // Tarif enfant selon l'âge
+    $child_pricing_enabled = !empty($_POST['child_pricing_enabled']) ? 1 : 0;
+    $child_age_threshold   = min(120, max(1, (int) ($_POST['child_age_threshold'] ?? 12)));
+    $child_amount          = min(100, max(0, (int) ($_POST['child_amount'] ?? 0)));
+
     $registration_auto_open  = !empty($_POST['registration_auto_open'])  ? date('Y-m-d H:i:s', strtotime($_POST['registration_auto_open']))  : null;
     $registration_auto_close = !empty($_POST['registration_auto_close']) ? date('Y-m-d H:i:s', strtotime($_POST['registration_auto_close'])) : null;
 
     $pdo->prepare(
         'UPDATE setting SET registration_fee = :fee, course_km = :course_km,
          accueil_active = :accueil_active, qrcode_mail_limit = :qrcode_mail_limit,
+         child_pricing_enabled = :child_enabled, child_age_threshold = :child_age, child_amount = :child_amount,
          registration_auto_open = :auto_open, registration_auto_close = :auto_close
          WHERE id = 1'
     )->execute([
@@ -1090,6 +1101,9 @@ if (isset($_POST['save_inscription_params'])) {
         'course_km' => $course_km,
         'accueil_active' => $accueil_active,
         'qrcode_mail_limit' => $qrcode_mail_limit,
+        'child_enabled' => $child_pricing_enabled,
+        'child_age' => $child_age_threshold,
+        'child_amount' => $child_amount,
         'auto_open' => $registration_auto_open,
         'auto_close' => $registration_auto_close,
     ]);
@@ -3845,6 +3859,27 @@ if (!$canTab($activeTab)) {
               <input class="form-check-input" type="checkbox" name="accueil_active" id="accueil_active_gen" <?= isset($accueil_active) && $accueil_active ? 'checked' : '' ?>>
               <label class="form-check-label" for="accueil_active_gen">Oui / Non</label>
             </div>
+          </div>
+          <div class="col-12"><hr class="my-2"><h6 class="text-muted mb-0">Tarif enfant selon l'âge</h6></div>
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="child_pricing_enabled" id="child_pricing_enabled" <?= !empty($child_pricing_enabled) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="child_pricing_enabled">Appliquer automatiquement un tarif enfant selon l'âge</label>
+            </div>
+            <small class="text-muted">À l'import Excel / ajout multiple : si l'âge est renseigné et inférieur au seuil, le montant dû devient le « montant enfant ». Sinon, comportement habituel. L'âge seuil sert aussi aux libellés « -N ans ».</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Âge seuil enfant</label>
+            <input type="number" class="form-control" name="child_age_threshold" min="1" max="120" value="<?= (int)$child_age_threshold ?>" placeholder="Ex : 12">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Montant enfant (€)</label>
+            <select name="child_amount" class="form-select">
+              <?php for ($i = 0; $i <= 100; $i++): ?>
+              <option value="<?= $i ?>" <?= ($i == (int)$child_amount ? 'selected' : '') ?>><?= $i ?></option>
+              <?php endfor; ?>
+            </select>
+            <small class="text-muted">0 = gratuit pour les enfants sous le seuil.</small>
           </div>
           <div class="col-12"><hr class="my-2"><h6 class="text-muted mb-0">Ouverture / Fermeture automatique</h6></div>
           <div class="col-md-6">

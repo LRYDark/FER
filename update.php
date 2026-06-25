@@ -348,6 +348,23 @@ $migrations = [
     // l'autorisation du représentant légal pour les inscrits mineurs (nom/prénom).
     // Chiffré (encrypted=1 dans `forms`) car il peut contenir des données personnelles.
     "ALTER TABLE `registrations` ADD COLUMN `commentaire` TEXT DEFAULT NULL",
+
+    // Déverrouillage du champ « Email » : il était figé (is_locked=1) et donc non
+    // modifiable depuis « Gestion des champs du formulaire ». On le déverrouille pour
+    // permettre à l'admin de gérer son caractère obligatoire et sa visibilité.
+    "UPDATE `forms` SET `is_locked` = 0 WHERE `bdd_column` = 'email'",
+
+    // Préférences d'interface par utilisateur (JSON) : ordre des colonnes du tableau
+    // du dashboard, et toute future préférence d'affichage propre à chaque compte.
+    "ALTER TABLE `users` ADD COLUMN `ui_prefs` TEXT DEFAULT NULL",
+
+    // Tarif enfant automatique selon l'âge (import Excel / ajout multiple) :
+    //   - child_pricing_enabled : active la surcharge du montant pour les < seuil
+    //   - child_age_threshold   : âge seuil (12 par défaut, sert aussi aux libellés « -N ans »)
+    //   - child_amount          : montant appliqué aux enfants sous le seuil (0 = gratuit)
+    "ALTER TABLE `setting` ADD COLUMN `child_pricing_enabled` TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE `setting` ADD COLUMN `child_age_threshold` INT(10) NOT NULL DEFAULT 12",
+    "ALTER TABLE `setting` ADD COLUMN `child_amount` INT(10) NOT NULL DEFAULT 0",
 ];
 
 $results = [];
@@ -406,9 +423,15 @@ foreach ($migrations as $sql) {
 
     try {
         $affected = $pdo->exec($sql);
-        // INSERT IGNORE ne lève jamais d'exception : 0 ligne affectée = déjà présent.
+        // 0 ligne affectée = rien à faire :
+        //   - INSERT IGNORE → la ligne existe déjà ;
+        //   - UPDATE        → la valeur cible est déjà en place (ex. is_locked déjà à 0).
+        // On affiche « Déjà appliqué » plutôt que « OK » pour éviter de croire qu'une
+        // action a lieu à chaque passage.
         if ($affected === 0 && preg_match('/^\s*INSERT\s+IGNORE/i', $sql)) {
             $results[] = ['status' => 'skip', 'sql' => $sql, 'msg' => 'Déjà présent'];
+        } elseif ($affected === 0 && preg_match('/^\s*UPDATE\s/i', $sql)) {
+            $results[] = ['status' => 'skip', 'sql' => $sql, 'msg' => 'Déjà appliqué'];
         } else {
             $results[] = ['status' => 'success', 'sql' => $sql, 'msg' => 'OK'];
         }

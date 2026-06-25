@@ -609,6 +609,9 @@ function getCreateTableStatements(): array
           `api_enabled` TINYINT(1) NOT NULL DEFAULT 0,
           `api_user` VARCHAR(64) DEFAULT NULL,
           `api_token` TEXT DEFAULT NULL,
+          `child_pricing_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          `child_age_threshold` INT(10) NOT NULL DEFAULT 12,
+          `child_amount` INT(10) NOT NULL DEFAULT 0,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -638,6 +641,7 @@ function getCreateTableStatements(): array
           `totp_enabled` TINYINT(1) NOT NULL DEFAULT 0,
           `default_2fa_method` ENUM('email','totp','passkey') NOT NULL DEFAULT 'email',
           `permissions` TEXT DEFAULT NULL,
+          `ui_prefs` TEXT DEFAULT NULL,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`),
           UNIQUE KEY `email` (`email`)
@@ -751,6 +755,7 @@ function getCreateTableStatements(): array
           `desc` mediumtext DEFAULT NULL,
           `status` varchar(20) NOT NULL DEFAULT 'published',
           `deleted_at` timestamp NULL DEFAULT NULL,
+          `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -773,6 +778,7 @@ function getCreateTableStatements(): array
           `title` varchar(255) NOT NULL,
           `status` varchar(20) NOT NULL DEFAULT 'published',
           `deleted_at` timestamp NULL DEFAULT NULL,
+          `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -994,7 +1000,7 @@ function getDefaultInserts(): array
           (1, 'required_name',          'Nom',              'text',   'nom',         1, 1, 1, 1, 1, 1, 1, 1, 1,  NULL, 1),
           (2, 'required_firstname',     'Prénom',           'text',   'prenom',      1, 1, 1, 1, 1, 1, 1, 1, 2,  NULL, 1),
           (3, 'required_phone',         'Téléphone',        'text',   'tel',         1, 0, 0, 1, 1, 1, 1, 1, 4,  NULL, 1),
-          (4, 'required_email',         'Email',            'email',  'email',       1, 1, 1, 1, 1, 1, 1, 1, 3,  NULL, 1),
+          (4, 'required_email',         'Email',            'email',  'email',       1, 1, 0, 1, 1, 1, 1, 1, 3,  NULL, 1),
           (5, 'required_date_of_birth', 'Date de naissance','date',   'naissance',   1, 0, 0, 1, 1, 1, 1, 1, 5,  NULL, 1),
           (6, 'required_sex',           'Sexe',             'select', 'sexe',        1, 0, 0, 1, 1, 1, 1, 1, 6,  'H,F,Autre', 0),
           (7, 'required_city',          'Ville',            'text',   'ville',       1, 0, 0, 1, 1, 1, 1, 1, 7,  NULL, 1),

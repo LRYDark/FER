@@ -938,6 +938,47 @@ if ($route==='profile-info' && $_SERVER['REQUEST_METHOD']==='GET'){
     ]); exit;
 }
 
+/* ───── PRÉFÉRENCES D'INTERFACE (par utilisateur connecté) ──────────
+ * Stocke un objet JSON libre dans users.ui_prefs (ex. ordre des colonnes
+ * du tableau dashboard sous la clé `dashboard_col_order`).
+ *  - GET  : renvoie l'objet de préférences (objet vide si rien / colonne absente).
+ *  - POST : fusionne les clés reçues dans l'objet existant, puis enregistre.
+ */
+if ($route==='ui-prefs'){
+    if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
+
+    // Lecture des prefs actuelles (tolère l'absence de colonne avant migration).
+    $current = [];
+    try {
+        $st = $pdo->prepare('SELECT ui_prefs FROM users WHERE id = ?');
+        $st->execute([$_SESSION['uid']]);
+        $raw = $st->fetchColumn();
+        if ($raw) { $decoded = json_decode($raw, true); if (is_array($decoded)) $current = $decoded; }
+    } catch (\Throwable $e) { /* colonne absente → prefs vides */ }
+
+    if ($_SERVER['REQUEST_METHOD']==='GET'){
+        echo json_encode($current ?: new stdClass()); exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD']==='POST'){
+        $in = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($in)) { http_response_code(400); echo json_encode(['ok'=>false, 'err'=>'JSON invalide']); exit; }
+        // Fusion : les clés reçues écrasent/complètent l'existant.
+        $merged = array_merge($current, $in);
+        try {
+            $pdo->prepare('UPDATE users SET ui_prefs = ? WHERE id = ?')
+                ->execute([json_encode($merged), $_SESSION['uid']]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok'=>false, 'err'=>'Préférences non enregistrées (exécutez update.php).']);
+            exit;
+        }
+        echo json_encode(['ok'=>true]); exit;
+    }
+
+    http_response_code(405); echo json_encode(['ok'=>false]); exit;
+}
+
 /* ───── PROFILE: SETUP TOTP ────────────────────── */
 if ($route==='profile-setup-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
     if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
@@ -1547,6 +1588,23 @@ if ($route === 'users') {
     }
 }
 
+/* Portée « saisie » : ids des utilisateurs de la MÊME organisation que l'utilisateur
+ * courant (lui inclus). Sert à filtrer le tableau et les actions (un saisie voit/gère
+ * toutes les inscriptions de son organisation). Repli : son seul id s'il n'a pas
+ * d'organisation renseignée (évite toute fuite vers d'autres comptes sans orga). */
+function saisieAllowedCreatorIds(PDO $pdo): array {
+    $uid = (int) currentUserId();
+    $s = $pdo->prepare('SELECT organisation FROM users WHERE id = ?');
+    $s->execute([$uid]);
+    $org = $s->fetchColumn();
+    if ($org === false || $org === null || $org === '') return [$uid];
+    $st = $pdo->prepare('SELECT id FROM users WHERE organisation = ?');
+    $st->execute([$org]);
+    $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    if (!in_array($uid, $ids, true)) $ids[] = $uid;
+    return $ids ?: [$uid];
+}
+
 /* ───── REGISTRATIONS ────────────────────────── */
 if ($route==='registrations'){
     /* GET : accessible si l'utilisateur a accès au dashboard */
@@ -1556,10 +1614,12 @@ if ($route==='registrations'){
             echo json_encode(['error' => 'Accès refusé']);
             exit;
         }
-        // Le rôle "saisie" ne voit que ses propres inscriptions
+        // Le rôle "saisie" ne voit que les inscriptions de SON organisation
         if (currentRole() === 'saisie') {
-            $st = $pdo->prepare("SELECT * FROM registrations WHERE created_by = ? ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC");
-            $st->execute([currentUserId()]);
+            $allowed = saisieAllowedCreatorIds($pdo);
+            $in = implode(',', array_fill(0, count($allowed), '?'));
+            $st = $pdo->prepare("SELECT * FROM registrations WHERE created_by IN ($in) ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC");
+            $st->execute($allowed);
             $rows = $st->fetchAll();
         } else {
             $rows = $pdo->query("SELECT * FROM registrations ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC")->fetchAll();
@@ -1721,14 +1781,14 @@ if ($route==='registrations'){
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         requireAction('dashboard.delete_registration');
         parse_str(file_get_contents('php://input'), $d);    // ← on lit ici, uniquement pour DELETE
-        // Le rôle "saisie" ne peut supprimer que ses propres inscriptions
+        // Le rôle "saisie" ne peut supprimer que les inscriptions de son organisation
         if (currentRole() === 'saisie') {
             $own = $pdo->prepare('SELECT created_by FROM registrations WHERE id=?');
             $own->execute([$d['id']]);
             $createdBy = $own->fetchColumn();
-            if ((int)$createdBy !== (int)currentUserId()) {
+            if (!in_array((int)$createdBy, saisieAllowedCreatorIds($pdo), true)) {
                 http_response_code(403);
-                echo json_encode(['ok' => false, 'err' => 'Vous ne pouvez supprimer que vos propres inscriptions.']);
+                echo json_encode(['ok' => false, 'err' => 'Vous ne pouvez supprimer que les inscriptions de votre organisation.']);
                 exit;
             }
         }
@@ -1771,14 +1831,14 @@ if ($route==='registrations'){
             exit;
         }
 
-        /* 3. Le rôle "saisie" ne peut modifier que ses propres inscriptions */
+        /* 3. Le rôle "saisie" ne peut modifier que les inscriptions de son organisation */
         if (currentRole() === 'saisie') {
             $own = $pdo->prepare('SELECT created_by FROM registrations WHERE id=?');
             $own->execute([$d['id']]);
             $createdBy = $own->fetchColumn();
-            if ((int)$createdBy !== (int)currentUserId()) {
+            if (!in_array((int)$createdBy, saisieAllowedCreatorIds($pdo), true)) {
                 http_response_code(403);
-                echo json_encode(['ok' => false, 'err' => 'Vous ne pouvez modifier que vos propres inscriptions.']);
+                echo json_encode(['ok' => false, 'err' => 'Vous ne pouvez modifier que les inscriptions de votre organisation.']);
                 exit;
             }
         }
@@ -1856,6 +1916,130 @@ if ($route==='registrations'){
         echo json_encode(['ok'=>true]);
         exit;
     }
+}
+
+/* ───── ACTIONS GROUPÉES SUR LES INSCRIPTIONS ──────────────────────────────
+ * Modification ou suppression EN MASSE d'inscriptions sélectionnées dans le
+ * dashboard (cases à cocher). Réutilise la même logique que la route
+ * `registrations` (chiffrement, recalcul du montant, synchro prestation) mais
+ * appliquée à une liste d'ids.
+ *   - PUT    : { ids:[...], fields:{ col: val, ... } } → applique les champs cochés
+ *              à toutes les inscriptions de la liste. Permission edit_registration.
+ *   - DELETE : { ids:[...] } → supprime toutes les inscriptions de la liste.
+ *              Permission delete_registration.
+ * Le rôle « saisie » est restreint aux inscriptions de son organisation
+ * (filtre sur les créateurs de la même organisation, cf. saisieAllowedCreatorIds()).
+ */
+if ($route === 'registrations-bulk') {
+    $raw = file_get_contents('php://input');
+    $d   = json_decode($raw, true);
+    if (!is_array($d)) { http_response_code(400); echo json_encode(['ok'=>false,'err'=>'JSON invalide']); exit; }
+
+    // Liste d'ids assainie (entiers positifs uniques)
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', (array) ($d['ids'] ?? [])),
+        fn($x) => $x > 0
+    )));
+    if (!$ids) { http_response_code(400); echo json_encode(['ok'=>false,'err'=>'Aucune inscription sélectionnée']); exit; }
+
+    // Le rôle « saisie » est restreint aux inscriptions de SON organisation.
+    $onlyOrg = currentRole() === 'saisie';
+
+    /* ---------- Suppression groupée ---------- */
+    if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        requireAction('dashboard.delete_registration');
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        if ($onlyOrg) {
+            $allowed = saisieAllowedCreatorIds($pdo);
+            $inOrg = implode(',', array_fill(0, count($allowed), '?'));
+            $stmt = $pdo->prepare("DELETE FROM registrations WHERE id IN ($in) AND created_by IN ($inOrg)");
+            $stmt->execute(array_merge($ids, $allowed));
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM registrations WHERE id IN ($in)");
+            $stmt->execute($ids);
+        }
+        echo json_encode(['ok'=>true, 'deleted'=>$stmt->rowCount()]); exit;
+    }
+
+    /* ---------- Modification groupée ---------- */
+    if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+        requireAction('dashboard.edit_registration');
+        $fields = is_array($d['fields'] ?? null) ? $d['fields'] : [];
+
+        // Rôle « saisie » : on restreint la liste d'ids aux inscriptions de son
+        // organisation (filtrage en amont → l'UPDATE n'a plus besoin de clause).
+        if ($onlyOrg) {
+            $allowed = saisieAllowedCreatorIds($pdo);
+            $inIds = implode(',', array_fill(0, count($ids), '?'));
+            $inOrg = implode(',', array_fill(0, count($allowed), '?'));
+            $chk = $pdo->prepare("SELECT id FROM registrations WHERE id IN ($inIds) AND created_by IN ($inOrg)");
+            $chk->execute(array_merge($ids, $allowed));
+            $ids = array_map('intval', $chk->fetchAll(PDO::FETCH_COLUMN));
+            if (!$ids) { echo json_encode(['ok'=>true, 'updated'=>0]); exit; }
+        }
+
+        require_once __DIR__ . '/form_fields.php';
+        $fieldCols = getAllActiveFieldColumns($pdo);
+
+        // Construction du SET commun à tous les ids (les mêmes valeurs sont
+        // appliquées à chaque inscription sélectionnée).
+        $setParts   = [];
+        $baseParams = [];
+        foreach ($fieldCols as $col => $meta) {
+            if (!array_key_exists($col, $fields)) continue;
+            // nom / prénom ne sont jamais modifiables en masse (jamais communs).
+            if ($col === 'nom' || $col === 'prenom') continue;
+            $val = $fields[$col];
+            if ($val === null) $val = '';
+            if ($col === 'commentaire') $val = mb_substr((string) $val, 0, 2000);
+            $baseParams[$col] = $meta['encrypted'] ? encrypt($val !== '' ? $val : '') : $val;
+            $setParts[] = "`{$col}` = :{$col}";
+        }
+
+        // Paiement : recalcule le montant dû + synchronise la prestation + normalise
+        // le mode stocké, exactement comme la mise à jour unitaire (PUT registrations).
+        if (array_key_exists('paiement_mode', $fields)) {
+            $pm = (string) $fields['paiement_mode'];
+            if (strcasecmp($pm, 'gratuit') === 0) {
+                $baseParams['montant_du'] = 0;
+            } else {
+                $baseParams['montant_du'] = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
+            }
+            $setParts[] = "`montant_du` = :montant_du";
+            $baseParams['prestation'] = prestationFromPaiement($pm);
+            $setParts[] = "`prestation` = :prestation";
+            $baseParams['paiement_mode'] = storedPaiementMode($pm);
+            $setParts[] = "`paiement_mode` = :paiement_mode";
+        }
+
+        if (!$setParts) { echo json_encode(['ok'=>true, 'updated'=>0]); exit; }
+
+        $set  = implode(',', $setParts);
+        // La portée « saisie » est déjà appliquée en filtrant $ids ci-dessus.
+        $sql  = "UPDATE registrations SET $set WHERE id = :id";
+        $stmt = $pdo->prepare($sql);
+
+        $updated = 0;
+        $pdo->beginTransaction();
+        try {
+            foreach ($ids as $id) {
+                $p = $baseParams;
+                $p['id'] = $id;
+                $stmt->execute($p);
+                $updated += $stmt->rowCount();
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            http_response_code(500);
+            error_log('[REGISTRATIONS-BULK] ' . $e->getMessage());
+            echo json_encode(['ok'=>false, 'err'=>'Erreur lors de la modification groupée']);
+            exit;
+        }
+        echo json_encode(['ok'=>true, 'updated'=>$updated]); exit;
+    }
+
+    http_response_code(405); echo json_encode(['ok'=>false]); exit;
 }
 
 /* ───── STATS GLOBALES INSCRIPTIONS (toutes organisations confondues) ────── */
@@ -1965,8 +2149,20 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // Colonnes BDD à insérer dynamiquement (toutes les colonnes formulaire actives)
         $allCols = getAllActiveFieldColumns($pdo);
 
-        // Tarif global (utilisé si le client n'envoie pas de montant)
+        // Tarif global (utilisé si le client n'envoie pas de montant) + réglages
+        // « tarif enfant selon l'âge ». Les 3 colonnes child_* peuvent ne pas exister
+        // avant update.php → repli silencieux sur le comportement habituel.
         $registrationFee = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
+        $childEnabled = false; $childAgeThreshold = 12; $childAmount = 0.0;
+        try {
+            $cfg = $pdo->query('SELECT child_pricing_enabled, child_age_threshold, child_amount FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+            if ($cfg) {
+                $childEnabled      = !empty($cfg['child_pricing_enabled']);
+                $childAgeThreshold = (int) $cfg['child_age_threshold'];
+                $childAmount       = (float) $cfg['child_amount'];
+            }
+        } catch (\Throwable $e) { /* colonnes absentes → tarif enfant désactivé */ }
+        if ($childEnabled) require_once __DIR__ . '/registrations_core.php'; // regcore_ageFromNaissance()
 
         // Compteur d'inscription
         $counterExists = false;
@@ -2044,12 +2240,25 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
             }
 
-            // Calcul du montant : valeur du formulaire si présente, sinon 0 si gratuit, sinon tarif global
-            $montantDu = $registrationFee;
-            if (isset($row['montant_du']) && is_numeric($row['montant_du'])) {
-                $montantDu = (float) $row['montant_du'];
-            } elseif (strcasecmp($sharedPaiement, 'gratuit') === 0) {
-                $montantDu = 0.0;
+            // Tarif enfant selon l'âge (prioritaire) : si activé et que l'âge renseigné
+            // est sous le seuil, le montant devient le « montant enfant » configuré,
+            // quel que soit le montant_du pré-rempli de la ligne.
+            $childApplied = false;
+            if ($childEnabled && isset($row['naissance'])) {
+                $age = regcore_ageFromNaissance((string) $row['naissance']);
+                if ($age !== null && $age < $childAgeThreshold) {
+                    $montantDu = $childAmount;
+                    $childApplied = true;
+                }
+            }
+            // Sinon : valeur du formulaire si présente, sinon 0 si gratuit, sinon tarif global
+            if (!$childApplied) {
+                $montantDu = $registrationFee;
+                if (isset($row['montant_du']) && is_numeric($row['montant_du'])) {
+                    $montantDu = (float) $row['montant_du'];
+                } elseif (strcasecmp($sharedPaiement, 'gratuit') === 0) {
+                    $montantDu = 0.0;
+                }
             }
 
             $cols[] = 'origine';      $phs[] = '?'; $vals[] = $sharedOrigine;
@@ -2506,29 +2715,42 @@ if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
                 'Paiement', 'Prestation', 'Montant dû', 'Date d\'inscription', 'Date ajout', 'Créé par'];
     $sheet->fromArray($headers, null, 'A1');
 
-    /* 2. Données (déchiffrer les PII) */
-    $rows = $pdo->query(
+    /* 2. Données (déchiffrer les PII). Le rôle « saisie » n'exporte que les
+       inscriptions de son organisation (cohérent avec le tableau). */
+    $selectCols =
         "SELECT r.inscription_no, r.nom, r.prenom, r.tel, r.email, r.naissance,
                 r.sexe, r.tshirt_size, r.ville, r.entreprise, r.origine,
                 r.paiement_mode, r.prestation, r.montant_du,
                 r.date_inscription, r.created_at, COALESCE(u.email, r.created_by) AS created_by
          FROM registrations r
-         LEFT JOIN users u ON r.created_by = u.id
-         ORDER BY CAST(REPLACE(REPLACE(r.inscription_no, 'S', ''), 'E', '') AS UNSIGNED)"
-    )->fetchAll(PDO::FETCH_ASSOC);
+         LEFT JOIN users u ON r.created_by = u.id";
+    $orderBy = " ORDER BY CAST(REPLACE(REPLACE(r.inscription_no, 'S', ''), 'E', '') AS UNSIGNED)";
+    if (currentRole() === 'saisie') {
+        $allowed = saisieAllowedCreatorIds($pdo);
+        $in = implode(',', array_fill(0, count($allowed), '?'));
+        $st = $pdo->prepare($selectCols . " WHERE r.created_by IN ($in)" . $orderBy);
+        $st->execute($allowed);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $rows = $pdo->query($selectCols . $orderBy)->fetchAll(PDO::FETCH_ASSOC);
+    }
     $rows = decryptRows($rows);
+
+    // Âge seuil « enfant » (paramétrable) pour les libellés « -N ans ».
+    $childAge = 12;
+    try { $childAge = (int) ($pdo->query('SELECT child_age_threshold FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 12); } catch (\Throwable $e) {}
 
     // Libellés lisibles pour la colonne Paiement et la colonne Prestation (catégorie).
     $paiementLabels = [
-        'gratuit'       => 'Gratuit / -12 ans',
+        'gratuit'       => "Gratuit / -{$childAge} ans",
         'enfant_tshirt' => 'en ligne (CB)',
         'espece'        => 'Espèce',
         'cheque'        => 'Chèque',
     ];
     $prestationLabels = [
         'tarif_unique'   => 'Tarif unique',
-        'enfant_gratuit' => 'Enfant -12 ans (gratuit sans t-shirt)',
-        'enfant_tshirt'  => 'Enfant -12 ans (avec t-shirt)',
+        'enfant_gratuit' => "Enfant -{$childAge} ans (gratuit sans t-shirt)",
+        'enfant_tshirt'  => "Enfant -{$childAge} ans (avec t-shirt)",
     ];
     foreach ($rows as &$expRow) {
         $pm = strtolower((string) ($expRow['paiement_mode'] ?? ''));
@@ -2726,11 +2948,29 @@ if ($route === 'registrations-archive') {
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$tableArchive' AND COLUMN_NAME = 'prestation'"
         )->fetchColumn()) > 0;
         $prestaSelect = $hasPrestation ? 'prestation' : 'NULL AS prestation';
-        $registrations = $pdo->query(
+
+        // Rôle « saisie » : restreint aux inscriptions de SON organisation (cohérent
+        // avec le tableau live). Une archive sans colonne `created_by` (ancienne) ne
+        // peut pas être filtrée → on ne renvoie rien à un saisie plutôt que de fuiter.
+        $saisieWhere = ''; $saisieParams = [];
+        if (currentRole() === 'saisie') {
+            $hasCreatedBy = ((int) $pdo->query(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$tableArchive' AND COLUMN_NAME = 'created_by'"
+            )->fetchColumn()) > 0;
+            if (!$hasCreatedBy) { echo json_encode([]); exit; }
+            $allowed = saisieAllowedCreatorIds($pdo);
+            $saisieWhere = ' WHERE created_by IN (' . implode(',', array_fill(0, count($allowed), '?')) . ')';
+            $saisieParams = $allowed;
+        }
+
+        $stArch = $pdo->prepare(
             "SELECT inscription_no,nom,prenom,tel,email,naissance,sexe,ville,tshirt_size,$prestaSelect
-             FROM `$tableArchive`
+             FROM `$tableArchive`$saisieWhere
              ORDER BY CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED) DESC"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        );
+        $stArch->execute($saisieParams);
+        $registrations = $stArch->fetchAll(PDO::FETCH_ASSOC);
 
         echo json_encode(decryptRows($registrations));
     } catch (Exception $e) {

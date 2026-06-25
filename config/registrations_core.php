@@ -127,6 +127,43 @@ function regcore_convertExcelDate($value): ?string
     return date('Y-m-d H:i:s');
 }
 
+/**
+ * Calcule l'âge (en années révolues) à partir d'une valeur `naissance`.
+ * Miroir PHP de ageFromBirth() de js/inscription-form.js — accepte :
+ *   - une année seule « AAAA »                → âge = année courante − année
+ *   - une date « JJ/MM/AAAA » ou « AAAA-MM-JJ » → âge ajusté selon l'anniversaire
+ * Retourne null si la valeur est vide ou non interprétable.
+ *
+ * NB : le front normalise déjà `naissance` en année (même un âge saisi) avant
+ * l'envoi à bulk-create ; cette fonction couvre année ET date par robustesse.
+ */
+function regcore_ageFromNaissance(?string $naissance): ?int
+{
+    $b = trim((string) $naissance);
+    if ($b === '') return null;
+
+    $now = new DateTime('today');
+    $y = null; $m = 1; $d = 1;
+
+    if (preg_match('/^\d{4}$/', $b)) {
+        $y = (int) $b;
+    } elseif (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $b, $p)) {
+        $y = (int) $p[1]; $m = (int) $p[2]; $d = (int) $p[3];
+    } elseif (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $b, $p)) {
+        $d = (int) $p[1]; $m = (int) $p[2]; $y = (int) $p[3];
+    } else {
+        return null;
+    }
+    if ($y < 1900 || $y > (int) $now->format('Y')) return null;
+    if ($m < 1 || $m > 12) { $m = 1; }
+    if ($d < 1 || $d > 31) { $d = 1; }
+
+    $birth = DateTime::createFromFormat('!Y-n-j', sprintf('%04d-%d-%d', $y, $m, $d));
+    if (!$birth) return null;
+    $age = (int) $now->diff($birth)->y;
+    return $age;
+}
+
 /** Journalise une erreur d'import dans config/logs/import_errors.log. */
 function regcore_logImportError(array $data, string $filename = 'import_errors.log'): void
 {

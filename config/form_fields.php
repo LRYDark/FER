@@ -30,9 +30,12 @@ function getActiveFields(PDO $pdo, string $context = 'public'): array
  * Rend un champ HTML pour un formulaire.
  * @param array $field  Ligne de la table forms
  * @param string $value Valeur actuelle (pour l'édition)
+ * @param bool   $forceOptional Force le champ en non-obligatoire quel que soit
+ *               le réglage `required` de la table forms (ex. modal admin où
+ *               l'email reste facultatif même s'il est requis ailleurs).
  * @return string HTML
  */
-function renderFormField(array $field, string $value = ''): string
+function renderFormField(array $field, string $value = '', bool $forceOptional = false): string
 {
     $type     = $field['field_type'] ?? 'text';
 
@@ -64,7 +67,7 @@ function renderFormField(array $field, string $value = ''): string
 
     $name     = htmlspecialchars($field['bdd_column'] ?? '');
     $label    = htmlspecialchars($field['label']);
-    $required = (int) ($field['required'] ?? 0);
+    $required = $forceOptional ? 0 : (int) ($field['required'] ?? 0);
     $reqAttr  = $required ? 'required' : '';
     $reqStar  = $required ? ' <span style="color:#ef4444">*</span>' : '';
     $val      = htmlspecialchars($value);
