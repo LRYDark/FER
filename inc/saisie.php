@@ -52,6 +52,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <?php if ($activeTab === 'inscriptions'): ?>
   <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/colreorder/1.7.0/css/colReorder.bootstrap5.min.css" rel="stylesheet">
 <?php endif; ?>
 </head>
 <body>
@@ -89,34 +90,27 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   align-items: center;
   gap: 8px;
 }
-#tblSaisie thead tr:first-child th {
-  background: #faf7f8;
-  color: #5f4b52;
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-bottom: 2px solid #f0e8eb;
-  border-top: none;
-  padding: 10px 12px;
-  white-space: nowrap;
-}
-#tblSaisie tbody td {
-  padding: 10px 12px;
-  vertical-align: middle;
-  font-size: 13px;
-  color: #1e293b;
-  border-bottom: 1px solid #f0e8eb;
-}
-#tblSaisie tbody tr:hover td { background: #fdf8f9; }
-.saisie-table-card .action-buttons .btn {
-  --bs-btn-padding-y: .20rem;
-  --bs-btn-padding-x: .45rem;
-  --bs-btn-font-size: .75rem;
-}
+/* Look du tableau + boutons d'action : fournis par .fer-table et les composants
+   globaux (navbar-admin.php). Ici, uniquement le spécifique à la page saisie. */
+
+/* Barre de recherche rapide : centrée et sticky. */
 .saisie-table-card .quick-search-saisie {
-  max-width: 320px;
-  margin-bottom: 12px;
+  max-width: 450px; width: 50%; margin: 0 auto .75rem;
+  position: sticky; top: 0; z-index: 1030;
+}
+
+/* ColReorder : curseur « déplaçable » (les styles resize / dtcr / bouton Colonnes
+   sont fournis globalement par navbar-admin.php). */
+#tblSaisie thead tr:first-child th { cursor: grab; }
+#tblSaisie thead tr:first-child th:active { cursor: grabbing; }
+
+/* « Afficher X inscriptions » (DataTables) : tout sur une ligne. */
+#tblSaisie_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: #475569; font-weight: 400; }
+#tblSaisie_length select, #tblSaisie_length .form-select {
+  display: inline-block !important; width: auto !important; min-width: 64px;
+  padding: 5px 30px 5px 10px; font-size: 13px;
+  border: 1px solid #d4c4cb; border-radius: 6px; background-color: #fff;
+  background-position: right 9px center;
 }
 
 /* ── En-tête de page ── */
@@ -235,6 +229,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
           <option value="CB">CB</option>
           <option value="espece">Esp&egrave;ces</option>
           <option value="cheque">Ch&egrave;que</option>
+          <option value="virement">Virement</option>
           <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
           <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
         </select>
@@ -261,7 +256,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     <div id="statsSaisie" class="d-flex flex-wrap gap-3 mb-3"></div>
     <input id="quickSearchSaisie" class="form-control quick-search-saisie" placeholder="Recherche rapide">
     <div class="table-responsive">
-      <table id="tblSaisie" class="table table-striped table-sm w-100"></table>
+      <table id="tblSaisie" class="table fer-table table-sm w-100"></table>
     </div>
   </div>
 </div>
@@ -284,6 +279,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
             <option value="CB">CB</option>
             <option value="espece">Espèce</option>
             <option value="cheque">Chèque</option>
+            <option value="virement">Virement</option>
             <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
             <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
           </select>
@@ -302,6 +298,8 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 <?php if ($activeTab === 'inscriptions'): ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
+<script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>
+<script src="../js/admin-table-filters.js?v=1" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <?php endif; ?>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
   var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -414,6 +412,10 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     { data: 'inscription_no', title: 'N°' },
     <?php foreach ($allActiveFields as $af):
       if (empty($af['bdd_column'])) continue; // pas une colonne BDD (ex. autorisation parentale)
+      // created_at (« Date ajout ») et date_inscription (« Date d'inscription ») sont rendus
+      // plus bas en colonnes dédiées, formatées sans heure : on saute leur colonne dynamique
+      // générique qui afficherait sinon le timestamp brut (avec l'heure) en doublon.
+      if ($af['bdd_column'] === 'created_at' || $af['bdd_column'] === 'date_inscription') continue;
       $col = htmlspecialchars($af['bdd_column'], ENT_QUOTES);
       $lbl = htmlspecialchars($af['label'], ENT_QUOTES);
     ?>
@@ -435,7 +437,9 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     },
     { data: 'montant_du', title: 'Montant', className: 'text-end text-nowrap', defaultContent: '0',
       render: function(val, type){
-        if (type !== 'display' && type !== 'filter') return val;
+        // Affichage « 12 € » ; tri/filtre/recherche sur la valeur brute (pour que
+        // le filtre par colonne « ^12$ » corresponde, comme sur le dashboard).
+        if (type !== 'display') return val;
         var n = parseFloat(val);
         if (!isFinite(n)) n = 0;
         return n.toFixed(2).replace(/\.00$/,'') + ' €';
@@ -477,6 +481,10 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     columns: columns,
     dom: 'lrtip',
     autoWidth: false,
+    orderCellsTop: true,
+    // Réordonnancement des colonnes par glisser-déposer des en-têtes (ordre sauvegardé
+    // par utilisateur via la route ui-prefs, clés distinctes du dashboard).
+    colReorder: true,
     order: [[0, 'desc']],
     language: {
       emptyTable:    'Aucune inscription enregistrée pour le moment.',
@@ -490,6 +498,54 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   });
 
   $('#quickSearchSaisie').on('keyup', function(){ tblSaisie.search(this.value).draw(); });
+
+  /* Filtres d'en-tête (entonnoir) — module partagé (mêmes colonnes que le dashboard). */
+  $('#tblSaisie').on('init.dt', function(){
+    if (window.FERTableFilters) {
+      FERTableFilters.attach(tblSaisie, {
+        filterableTitles: ['T-shirt','Taille T-shirt','Sexe','Paiement','Prestation','Entreprise','Origine','Ville','Montant'],
+        filterableData:   ['tshirt_size','sexe','paiement_mode','prestation','entreprise','origine','ville','montant_du'],
+        childAge: childAge
+      });
+    }
+  });
+
+  /* ══ Préférences d'interface (serveur, par utilisateur) — chargeur mutualisé ══
+   * Ordre / visibilité / largeurs des colonnes stockés dans users.ui_prefs via la
+   * route `ui-prefs`. Clés PROPRES à la page saisie (saisie_col_*) pour ne pas
+   * entrer en conflit avec celles du dashboard (colonnes différentes). */
+  var _uiPrefs = null, _uiPrefsPromise = null;
+  function loadUiPrefs(){
+    if(_uiPrefsPromise) return _uiPrefsPromise;
+    _uiPrefsPromise = fetch('../config/api.php?route=ui-prefs')
+      .then(function(r){ return r.json(); })
+      .then(function(p){ _uiPrefs = (p && typeof p==='object') ? p : {}; return _uiPrefs; })
+      .catch(function(){ _uiPrefs = {}; return _uiPrefs; });
+    return _uiPrefsPromise;
+  }
+  function saveUiPref(patch){
+    if(_uiPrefs && typeof _uiPrefs==='object') Object.assign(_uiPrefs, patch);
+    return fetch('../config/api.php?route=ui-prefs',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
+      body: JSON.stringify(patch)
+    }).catch(function(){});
+  }
+
+  /* ══ Ordre des colonnes mémorisé (ColReorder + route ui-prefs) ══ */
+  var _applyingColOrder = false; // évite de re-sauvegarder pendant l'application
+  loadUiPrefs().then(function(p){
+    var ord = p && p.saisie_col_order;
+    if(Array.isArray(ord) && ord.length === tblSaisie.columns().count()){
+      _applyingColOrder = true;
+      try { tblSaisie.colReorder.order(ord, true); } catch(_){}
+      _applyingColOrder = false;
+    }
+  });
+  tblSaisie.on('column-reorder', function(){
+    if(_applyingColOrder) return;
+    saveUiPref({ saisie_col_order: tblSaisie.colReorder.order() });
+  });
 
   // ── Cartes statistiques : Inscriptions + T-shirts récupérés ──
   // Compteurs GLOBAUX (toutes organisations) : le tableau ci-dessous n'affiche
@@ -533,9 +589,9 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     .catch(function(){ alert('Erreur de communication avec le serveur.'); });
   });
 
-  // Édition — préremplissage du modal
-  $('#tblSaisie').on('click', '.edit-saisie', function() {
-    var d = tblSaisie.row($(this).closest('tr')).data();
+  // Édition — préremplissage et ouverture du modal (réutilisé par le bouton et le double-clic).
+  function openEditSaisieModal(d){
+    if(!d) return;
     Object.entries(d).forEach(function(kv){
       $('#fEditSaisie [name="' + kv[0] + '"]').val(kv[1]);
     });
@@ -546,7 +602,20 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     }
     if (window.FERInscription) FERInscription.refresh(document.getElementById('fEditSaisie'));
     new bootstrap.Modal('#editModalSaisie').show();
-  });
+  }
+
+  if (canEditReg) {
+    $('#tblSaisie').on('click', '.edit-saisie', function() {
+      openEditSaisieModal(tblSaisie.row($(this).closest('tr')).data());
+    });
+    // Double-clic sur une ligne = ouvrir le modal de modification. On ignore le
+    // double-clic déclenché sur un contrôle interactif (boutons, menus, liens).
+    $('#tblSaisie tbody').on('dblclick', 'tr', function(e){
+      if($(e.target).closest('button, a, select, input, .action-buttons').length) return;
+      var row = tblSaisie.row(this);
+      if(row && row.data()) openEditSaisieModal(row.data());
+    });
+  }
 
   $('#fEditSaisie').on('submit', function(e){
     e.preventDefault();
@@ -571,6 +640,164 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     })
     .catch(function(){ alert('Erreur de communication avec le serveur.'); });
   });
+
+  /* ══ Colonnes redimensionnables + bouton visibilité « Colonnes » + barre ══
+   * Identique au dashboard, adapté au tableau saisie (#tblSaisie). Pas de colonne
+   * de cases à cocher ici → CB = 0 (on saute uniquement la colonne id masquée). */
+  (function(){
+    var table = document.getElementById('tblSaisie');
+    if (!table) return;
+    var uid = <?= json_encode($_SESSION['uid'] ?? 0) ?>;
+    var storageKeyVis = 'fer_saisie_col_vis_' + uid;   // cache de repli (localStorage)
+    var storageKeyW   = 'fer_saisie_col_w_' + uid;
+
+    var CB = 0;                       // pas de colonne de cases à cocher sur saisie
+    var FIRST_TOGGLE_COL = CB + 1;    // saute la colonne id masquée
+
+    // Noms des colonnes pour le sélecteur, construits depuis les en-têtes réels.
+    var colNames = [];
+    tblSaisie.columns().every(function(idx){
+      if (idx < FIRST_TOGGLE_COL) return;
+      colNames.push($(this.header()).text().trim() || 'Col ' + idx);
+    });
+
+    function readLocalJSON(key){
+      try { var v = JSON.parse(localStorage.getItem(key)); return (v && typeof v==='object') ? v : null; }
+      catch(e){ return null; }
+    }
+    // Migration unique localStorage → serveur (si le serveur n'a pas encore la pref).
+    function migrateColPrefs(){
+      if(!_uiPrefs || typeof _uiPrefs!=='object') return;
+      var patch = {};
+      if(_uiPrefs.saisie_col_vis == null){ var lv = readLocalJSON(storageKeyVis); if(lv){ _uiPrefs.saisie_col_vis = lv; patch.saisie_col_vis = lv; } }
+      if(_uiPrefs.saisie_col_widths == null){ var lw = readLocalJSON(storageKeyW); if(lw){ _uiPrefs.saisie_col_widths = lw; patch.saisie_col_widths = lw; } }
+      if(Object.keys(patch).length) saveUiPref(patch);
+    }
+    function restoreVisibility(){
+      try {
+        var saved = (_uiPrefs && _uiPrefs.saisie_col_vis) || readLocalJSON(storageKeyVis);
+        if(saved){ for(var i in saved){ tblSaisie.column(parseInt(i)+FIRST_TOGGLE_COL).visible(saved[i]); } }
+      } catch(e){}
+    }
+    function saveVisibility(){
+      try {
+        var vis = {};
+        for(var i=0;i<colNames.length;i++){ vis[i] = tblSaisie.column(i+FIRST_TOGGLE_COL).visible(); }
+        localStorage.setItem(storageKeyVis, JSON.stringify(vis));
+        saveUiPref({ saisie_col_vis: vis });
+      } catch(e){}
+    }
+    function restoreWidths(){
+      try {
+        var saved = (_uiPrefs && _uiPrefs.saisie_col_widths) || readLocalJSON(storageKeyW);
+        if(!saved) return;
+        var ths = table.querySelectorAll('thead tr:first-child th');
+        ths.forEach(function(th,i){
+          if(i < CB) return;
+          var key = i - CB;
+          if(saved[key]){ th.style.width = saved[key]; th.style.minWidth = saved[key]; }
+        });
+      } catch(e){}
+    }
+    function saveWidths(){
+      try {
+        var widths = {};
+        var ths = table.querySelectorAll('thead tr:first-child th');
+        ths.forEach(function(th,i){
+          if(i < CB) return;
+          if(th.style.width) widths[i-CB] = th.style.width;
+        });
+        localStorage.setItem(storageKeyW, JSON.stringify(widths));
+        saveUiPref({ saisie_col_widths: widths });
+      } catch(e){}
+    }
+    // ── Poignées de redimensionnement ──
+    function initResize(){
+      var ths = table.querySelectorAll('thead tr:first-child th');
+      ths.forEach(function(th,i){
+        if(i < CB) return;
+        if(th.querySelector('.col-resize')) return;
+        var handle = document.createElement('div');
+        handle.className = 'col-resize';
+        th.appendChild(handle);
+        handle.addEventListener('mousedown', function(e){
+          e.preventDefault(); e.stopPropagation();
+          var startX = e.pageX, startW = th.offsetWidth;
+          handle.classList.add('active');
+          function onMove(e2){ th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px'; th.style.minWidth = th.style.width; }
+          function onUp(){ handle.classList.remove('active'); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); saveWidths(); }
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      });
+      restoreWidths();
+    }
+    // ── Bouton « Colonnes » (afficher/masquer) + barre « Afficher X … Colonnes » ──
+    function buildColToggle(){
+      var lengthEl = document.getElementById('tblSaisie_length');
+      if(!lengthEl || document.getElementById('colToggleWrapSaisie')) return;
+      var bar = document.createElement('div');
+      bar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+      bar.appendChild(lengthEl);
+      var wrap = document.createElement('div');
+      wrap.className = 'col-toggle-wrap';
+      wrap.id = 'colToggleWrapSaisie';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'col-toggle-btn';
+      btn.innerHTML = '<i class="bi bi-layout-three-columns"></i> Colonnes';
+      var dropdown = document.createElement('div');
+      dropdown.className = 'col-toggle-dropdown';
+      colNames.forEach(function(name,i){
+        var colIdx = i + FIRST_TOGGLE_COL;
+        var label = document.createElement('label');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = tblSaisie.column(colIdx).visible();
+        cb.style.accentColor = '#F42182';
+        cb.addEventListener('change', function(){ tblSaisie.column(colIdx).visible(this.checked); saveVisibility(); });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(' ' + name));
+        dropdown.appendChild(label);
+      });
+      btn.addEventListener('click', function(e){ e.stopPropagation(); dropdown.classList.toggle('show'); });
+      document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) dropdown.classList.remove('show'); });
+      wrap.appendChild(btn);
+      wrap.appendChild(dropdown);
+      bar.appendChild(wrap);
+      // Barre placée AU-DESSUS du tableau, HORS du conteneur à défilement horizontal.
+      var scrollBox = table.closest('.table-responsive') || table.parentElement;
+      scrollBox.parentElement.insertBefore(bar, scrollBox);
+    }
+    // ── Pied de tableau (info + pagination) sorti du conteneur à défilement ──
+    function moveTableFooterOut(){
+      var scrollBox = table.closest('.table-responsive');
+      if(!scrollBox) return;
+      var info = document.getElementById('tblSaisie_info');
+      var paginate = document.getElementById('tblSaisie_paginate');
+      if(!info && !paginate) return;
+      var footer = document.getElementById('tblSaisieFooterBar');
+      if(!footer){
+        footer = document.createElement('div');
+        footer.id = 'tblSaisieFooterBar';
+        footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;';
+        scrollBox.parentElement.insertBefore(footer, scrollBox.nextSibling);
+      }
+      if(info && info.parentElement !== footer) footer.appendChild(info);
+      if(paginate && paginate.parentElement !== footer) footer.appendChild(paginate);
+    }
+    // ── Init : attend les prefs serveur, migre le localStorage, applique ──
+    $('#tblSaisie').on('init.dt', function(){
+      loadUiPrefs().then(function(){
+        migrateColPrefs();
+        restoreVisibility();
+        buildColToggle();
+        moveTableFooterOut();
+        initResize();
+      });
+    });
+    $('#tblSaisie').on('draw.dt', function(){ moveTableFooterOut(); initResize(); });
+  })();
 })();
 </script>
 <?php endif; ?>
