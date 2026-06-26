@@ -832,6 +832,8 @@ if ($canBulkCreate) {
         <input type="hidden" name="id">
         <input type="hidden" name="origine" value="Admin">
         <?php foreach ($adminFields as $f): ?>
+          <?php /* « Autorisation parentale (mineur) » : déjà renseignée à l'inscription → masquée ici. */ ?>
+          <?php if (($f['field_type'] ?? '') === 'guardian') continue; ?>
           <?php /* L'email est facultatif dans ce modal admin, même s'il est requis ailleurs. */ ?>
           <?= renderFormField($f, '', ($f['bdd_column'] ?? '') === 'email') ?>
         <?php endforeach; ?>

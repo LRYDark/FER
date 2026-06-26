@@ -263,7 +263,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 <?php endif; ?>
 
 <?php if ($activeTab === 'inscriptions' && $canEditReg): ?>
-<div class="modal fade" id="editModalSaisie" tabindex="-1"><div class="modal-dialog">
+<div class="modal fade" id="editModalSaisie" tabindex="-1"><div class="modal-dialog modal-lg">
   <div class="modal-content"><div class="modal-header">
     <h5 class="modal-title">Modifier l'inscription</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
     <form id="fEditSaisie">
@@ -271,6 +271,8 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         <input type="hidden" name="id">
         <input type="hidden" name="origine" value="<?= htmlspecialchars(currentOrganisation()) ?>">
         <?php foreach ($adminFields as $f): ?>
+          <?php /* « Autorisation parentale (mineur) » : déjà renseignée à l'inscription → masquée ici. */ ?>
+          <?php if (($f['field_type'] ?? '') === 'guardian') continue; ?>
           <?= renderFormField($f) ?>
         <?php endforeach; ?>
         <div class="col-md-6">
