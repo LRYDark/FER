@@ -554,12 +554,12 @@ html, body {
   background: var(--secondary, #0f172a);
   color: var(--secondary-text, #ffffff);
   font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
-  border-bottom: none; border-top: none; padding: 13px 14px; white-space: nowrap;
+  border-bottom: none; border-top: none; padding: 13px 8px; white-space: nowrap;
 }
 #oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
 #oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
 #oc-content .fer-table > tbody > tr > td {
-  padding: 12px 14px; border-bottom: 1px solid #eef1f5; color: #1e293b; vertical-align: middle;
+  padding: 12px 8px; border-bottom: 1px solid #eef1f5; color: #1e293b; vertical-align: middle;
 }
 #oc-content .fer-table > tbody > tr:last-child > td { border-bottom: none; }
 #oc-content .fer-table > tbody > tr:hover > td { background-color: #fdeef5; }
@@ -621,6 +621,31 @@ html, body {
 }
 #oc-content .fer-table.dataTable thead th .col-resize:hover,
 #oc-content .fer-table.dataTable thead th .col-resize.active { background: #F42182; }
+
+/* ── Voile de chargement des tableaux (anti-flash pendant l'init DataTables) ──
+   Le tableau est masqué (visibility:hidden → la mise en page reste calculée, donc
+   les largeurs se mesurent correctement) et un spinner s'affiche, jusqu'à ce que
+   les données + préférences + largeurs soient appliquées. Reveal = retrait de
+   .is-loading → fondu d'apparition propre, sans saut de colonnes. */
+.fer-tbl-wrap { position: relative; }
+.fer-tbl-wrap.is-loading { min-height: 180px; }
+.fer-tbl-wrap > :not(.fer-tbl-spinner) { transition: opacity .25s ease; }
+.fer-tbl-wrap.is-loading > :not(.fer-tbl-spinner) { visibility: hidden; opacity: 0; }
+.fer-tbl-spinner {
+  position: absolute; inset: 0; z-index: 5;
+  display: none; align-items: center; justify-content: center;
+}
+.fer-tbl-wrap.is-loading > .fer-tbl-spinner { display: flex; }
+.fer-tbl-spinner::after {
+  content: ""; width: 42px; height: 42px; border-radius: 50%;
+  border: 4px solid #f6d6e6; border-top-color: #F42182;
+  animation: fer-spin .7s linear infinite;
+}
+@keyframes fer-spin { to { transform: rotate(360deg); } }
+
+/* Cellule « tampon » : remplit l'espace à droite (largeur auto en table-layout:fixed)
+   pour que l'en-tête et les lignes atteignent le bord de la page. Non interactive. */
+.fer-spacer-cell { padding: 0 !important; pointer-events: none; }
 
 /* Repère d'insertion + aperçu de la colonne déplacée (ColReorder).
    NB : ColReorder 1.7 nomme ces éléments DTCR_pointer / DTCR_clonedTable. */
