@@ -569,8 +569,11 @@ if ($canBulkCreate) {
       <button type="button" id="bulkClearBtn" class="btn btn-sm btn-link text-muted text-decoration-none ms-auto">Désélectionner</button>
     </div>
     <?php endif; ?>
-    <div class="table-responsive">
-      <table id="tbl" class="table fer-table table-sm w-100"></table>
+    <div class="fer-tbl-wrap is-loading" id="dashTblWrap">
+      <div class="fer-tbl-spinner" aria-hidden="true"></div>
+      <div class="table-responsive">
+        <table id="tbl" class="table fer-table table-sm w-100"></table>
+      </div>
     </div>
     <?php if ($highlightLimit > 0): ?>
     <div class="tbl-legend">
@@ -1146,7 +1149,7 @@ const tbl=$('#tbl').DataTable({
       }
       return val;
     }},
-    {data:'montant_du', title:'Montant', className:'text-end text-nowrap', defaultContent:'0', render:function(val,type){
+    {data:'montant_du', title:'Montant', className:'text-start text-nowrap', defaultContent:'0', render:function(val,type){
       // Affichage formaté « 12 € » ; pour le tri/filtre/recherche on garde la valeur
       // brute (sinon le filtre par colonne « ^12$ » ne correspondrait pas à « 12 € »).
       if(type!=='display') return val;
@@ -2684,9 +2687,83 @@ $('#fEdit').on('submit',e=>{
   }
 
   // ── Column resize handles ──
+  // ── Largeur "fixe" : chaque colonne respecte SA largeur ──
+  // Sans ça (table-layout:auto + .w-100), agrandir une colonne quand il n'y a pas
+  // encore de scroll horizontal force le navigateur à redistribuer la largeur sur
+  // les voisines (effet accordéon). On fige une largeur explicite par colonne, on
+  // passe en table-layout:fixed et on laisse le tableau dépasser (scroll géré par
+  // .table-responsive) au lieu de comprimer les autres colonnes.
+  function syncTableWidth() {
+    var totalReal = 0;
+    table.querySelectorAll('thead tr:first-child th').forEach(function(th) {
+      if (th.classList.contains('fer-spacer-cell')) return;   // la cellule tampon ne compte pas
+      totalReal += parseFloat(th.style.width) || th.offsetWidth;
+    });
+    // Largeur = somme EXACTE des vraies colonnes (table-layout:fixed) : aucune
+    // redistribution, donc on peut réduire une colonne librement. On force au
+    // minimum la largeur de la page → la cellule « tampon » (largeur auto) absorbe
+    // le reste pour atteindre le bord droit. Si les colonnes dépassent la page, le
+    // tampon tombe à 0 et la scroll-barre revient.
+    var box = table.parentElement;                 // .table-responsive
+    var pageW = box ? box.clientWidth : totalReal;
+    table.style.minWidth = '';
+    table.style.width = Math.max(pageW, totalReal) + 'px';
+  }
+  // Cellule « tampon » en fin de ligne : remplit l'espace à droite (largeur auto)
+  // pour que l'en-tête sombre et les lignes atteignent le bord de la page. Ni
+  // triable, ni redimensionnable ; ignorée par DataTables (hors de ses colonnes).
+  function ensureSpacer() {
+    var headRow = table.querySelector('thead tr:first-child');
+    if (headRow) {
+      var th = headRow.querySelector('.fer-spacer-cell');
+      if (!th) { th = document.createElement('th'); th.className = 'fer-spacer-cell'; th.setAttribute('aria-hidden', 'true'); }
+      headRow.appendChild(th);                     // (re)place toujours en dernier
+    }
+    table.querySelectorAll('tbody tr').forEach(function(tr) {
+      if (tr.querySelector('td[colspan]')) return; // ligne « aucune donnée » : on laisse
+      var td = tr.querySelector('.fer-spacer-cell');
+      if (!td) { td = document.createElement('td'); td.className = 'fer-spacer-cell'; }
+      tr.appendChild(td);
+    });
+  }
+  // Largeur minimale d'une colonne = largeur EXACTE de son en-tête (titre + flèche
+  // de tri + entonnoir de filtre + paddings réels). On clone le <th> hors écran et
+  // on le laisse se réduire à son contenu : pas d'estimation, donc aucune marge
+  // inutile réservée. En dessous, on bloque (jamais de chevauchement sur le voisin).
+  function minColWidth(th) {
+    var cs = getComputedStyle(th);
+    var clone = th.cloneNode(true);
+    clone.querySelectorAll('.col-resize').forEach(function(el) { el.remove(); });
+    clone.removeAttribute('class');            // pas de .sorting/.dataTable → aucune contrainte de grille
+    // Mesuré HORS du <table> (sinon table-layout:fixed empêche le clone de se
+    // réduire à son contenu → mesure faussée, trop large). On reproduit police,
+    // casse et paddings réels ; la place de la flèche de tri est déjà dans le padding.
+    clone.style.cssText =
+      'position:absolute;left:-9999px;top:0;visibility:hidden;display:inline-block;' +
+      'width:auto;min-width:0;max-width:none;white-space:nowrap;box-sizing:content-box;' +
+      'font-weight:' + cs.fontWeight + ';font-size:' + cs.fontSize + ';font-family:' + cs.fontFamily + ';' +
+      'letter-spacing:' + cs.letterSpacing + ';text-transform:' + cs.textTransform + ';' +
+      'padding-left:' + cs.paddingLeft + ';padding-right:' + cs.paddingRight + ';';
+    var host = th.closest('#oc-content') || document.body;
+    host.appendChild(clone);
+    var w = clone.getBoundingClientRect().width;
+    clone.remove();
+    return Math.max(30, Math.ceil(w) + 2);
+  }
+  function freezeLayout() {
+    table.querySelectorAll('thead tr:first-child th').forEach(function(th) {
+      if (th.classList.contains('fer-spacer-cell')) return;   // tampon : largeur auto, on n'y touche pas
+      if (!th.style.width) { var w = th.offsetWidth + 'px'; th.style.width = w; th.style.minWidth = w; }
+    });
+    table.classList.remove('w-100');
+    table.style.tableLayout = 'fixed';
+    syncTableWidth();
+  }
   function initResize() {
+    ensureSpacer();
     var ths = table.querySelectorAll('thead tr:first-child th');
     ths.forEach(function(th, i) {
+      if (th.classList.contains('fer-spacer-cell')) return;   // pas de poignée sur le tampon
       if (i < CB) return;                 // pas de redimensionnement sur la colonne de cases
       if (th.querySelector('.col-resize')) return;
       var handle = document.createElement('div');
@@ -2697,12 +2774,19 @@ $('#fEdit').on('submit',e=>{
         e.preventDefault();
         e.stopPropagation();
         var startX = e.pageX, startW = th.offsetWidth, moved = false;
+        // Redimensionnement simple et fluide : on ne touche QU'À cette colonne.
+        // Le tableau s'élargit/rétrécit en conséquence (scroll-barre si besoin) et
+        // ne descend jamais sous la largeur de la page (cf. syncTableWidth). La
+        // colonne ne passe pas sous la largeur de son en-tête (thMin).
+        var thMin = minColWidth(th);
         handle.classList.add('active');
 
         function onMove(e2) {
           moved = true;
-          th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px';
-          th.style.minWidth = th.style.width;
+          var newW = Math.max(thMin, startW + e2.pageX - startX);
+          th.style.width = newW + 'px';
+          th.style.minWidth = newW + 'px';
+          syncTableWidth();
         }
         function onUp() {
           handle.classList.remove('active');
@@ -2723,6 +2807,7 @@ $('#fEdit').on('submit',e=>{
       });
     });
     restoreWidths();
+    freezeLayout();
   }
 
   // ── Column toggle button ──
@@ -2827,6 +2912,13 @@ $('#fEdit').on('submit',e=>{
 
   // ── Init ──
   if (typeof $ !== 'undefined' && $.fn.dataTable) {
+    // ── Voile de chargement : on dévoile le tableau une fois tout en place ──
+    function revealTbl() {
+      var w = document.getElementById('dashTblWrap');
+      if (w) requestAnimationFrame(function() { w.classList.remove('is-loading'); });
+    }
+    setTimeout(revealTbl, 6000);   // filet de sécurité si init.dt n'émet jamais
+
     $('#tbl').on('init.dt', function() {
       // On attend les prefs serveur puis on migre (une fois) le localStorage existant,
       // avant d'appliquer la visibilité et de construire le sélecteur de colonnes.
@@ -2836,6 +2928,7 @@ $('#fEdit').on('submit',e=>{
         buildColToggle();
         moveTableFooterOut();
         initResize();
+        revealTbl();
       });
     });
     $('#tbl').on('draw.dt', function() { moveTableFooterOut(); initResize(); });
