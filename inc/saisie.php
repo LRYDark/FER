@@ -656,11 +656,31 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     var CB = 0;                       // pas de colonne de cases à cocher sur saisie
     var FIRST_TOGGLE_COL = CB + 1;    // saute la colonne id masquée
 
-    // Noms des colonnes pour le sélecteur, construits depuis les en-têtes réels.
-    var colNames = [];
+    // ── Identification STABLE des colonnes (robuste au déplacement ColReorder) ──
+    // On n'utilise plus la POSITION (qui change quand on déplace les en-têtes) mais
+    // une CLÉ stable : la source de données (`data`) ou, à défaut (« Actions »),
+    // le libellé d'en-tête. Visibilité/largeurs sont mémorisées/appliquées par clé.
+    function colKey(idx){
+      var src = tblSaisie.column(idx).dataSrc();
+      if (src) return 'd:' + src;
+      var th = tblSaisie.column(idx).header();
+      return 'h:' + ($(th).text().trim() || ('col' + idx));
+    }
+    // Colonnes structurelles jamais togglables : la colonne id technique masquée.
+    function isStructuralCol(idx){ return tblSaisie.column(idx).dataSrc() === 'id'; }
+    // Index COURANT d'une colonne d'après sa clé stable (-1 si introuvable).
+    function colIdxByKey(key){
+      var found = -1;
+      tblSaisie.columns().every(function(idx){
+        if (found === -1 && colKey(idx) === key) found = idx;
+      });
+      return found;
+    }
+    // Colonnes togglables, dans l'ordre du tableau, avec leur clé stable + libellé.
+    var toggleCols = [];
     tblSaisie.columns().every(function(idx){
-      if (idx < FIRST_TOGGLE_COL) return;
-      colNames.push($(this.header()).text().trim() || 'Col ' + idx);
+      if (isStructuralCol(idx)) return;
+      toggleCols.push({ key: colKey(idx), label: $(this.header()).text().trim() || 'Col ' + idx });
     });
 
     function readLocalJSON(key){
@@ -678,13 +698,26 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     function restoreVisibility(){
       try {
         var saved = (_uiPrefs && _uiPrefs.saisie_col_vis) || readLocalJSON(storageKeyVis);
-        if(saved){ for(var i in saved){ tblSaisie.column(parseInt(i)+FIRST_TOGGLE_COL).visible(saved[i]); } }
+        if(!saved) return;
+        var keys = Object.keys(saved);
+        // Rétrocompat : ancien format indexé par numéro → conversion vers clé stable.
+        var legacy = keys.length > 0 && keys.every(function(k){ return /^\d+$/.test(k); });
+        keys.forEach(function(k){
+          var key = legacy ? (toggleCols[parseInt(k,10)] && toggleCols[parseInt(k,10)].key) : k;
+          if(!key) return;
+          var ci = colIdxByKey(key);
+          if(ci !== -1) tblSaisie.column(ci).visible(saved[k]);
+        });
+        if(legacy) saveVisibility(); // ré-enregistre au format par clé (migration unique)
       } catch(e){}
     }
     function saveVisibility(){
       try {
         var vis = {};
-        for(var i=0;i<colNames.length;i++){ vis[i] = tblSaisie.column(i+FIRST_TOGGLE_COL).visible(); }
+        toggleCols.forEach(function(c){
+          var ci = colIdxByKey(c.key);
+          if(ci !== -1) vis[c.key] = tblSaisie.column(ci).visible();
+        });
         localStorage.setItem(storageKeyVis, JSON.stringify(vis));
         saveUiPref({ saisie_col_vis: vis });
       } catch(e){}
@@ -693,21 +726,30 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
       try {
         var saved = (_uiPrefs && _uiPrefs.saisie_col_widths) || readLocalJSON(storageKeyW);
         if(!saved) return;
-        var ths = table.querySelectorAll('thead tr:first-child th');
-        ths.forEach(function(th,i){
-          if(i < CB) return;
-          var key = i - CB;
-          if(saved[key]){ th.style.width = saved[key]; th.style.minWidth = saved[key]; }
-        });
+        var keys = Object.keys(saved);
+        var legacy = keys.length > 0 && keys.every(function(k){ return /^\d+$/.test(k); });
+        if(legacy){
+          var j = 0;
+          tblSaisie.columns().every(function(idx){
+            if(isStructuralCol(idx) || !tblSaisie.column(idx).visible()) return;
+            var w = saved[j++]; var th = tblSaisie.column(idx).header();
+            if(w && th){ th.style.width = w; th.style.minWidth = w; }
+          });
+        } else {
+          tblSaisie.columns().every(function(idx){
+            var w = saved[colKey(idx)]; var th = tblSaisie.column(idx).header();
+            if(w && th){ th.style.width = w; th.style.minWidth = w; }
+          });
+        }
       } catch(e){}
     }
     function saveWidths(){
       try {
         var widths = {};
-        var ths = table.querySelectorAll('thead tr:first-child th');
-        ths.forEach(function(th,i){
-          if(i < CB) return;
-          if(th.style.width) widths[i-CB] = th.style.width;
+        tblSaisie.columns().every(function(idx){
+          if(isStructuralCol(idx)) return;
+          var th = tblSaisie.column(idx).header();
+          if(th && th.style.width) widths[colKey(idx)] = th.style.width;
         });
         localStorage.setItem(storageKeyW, JSON.stringify(widths));
         saveUiPref({ saisie_col_widths: widths });
@@ -724,10 +766,14 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         th.appendChild(handle);
         handle.addEventListener('mousedown', function(e){
           e.preventDefault(); e.stopPropagation();
-          var startX = e.pageX, startW = th.offsetWidth;
+          var startX = e.pageX, startW = th.offsetWidth, moved = false;
           handle.classList.add('active');
-          function onMove(e2){ th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px'; th.style.minWidth = th.style.width; }
-          function onUp(){ handle.classList.remove('active'); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); saveWidths(); }
+          function onMove(e2){ moved = true; th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px'; th.style.minWidth = th.style.width; }
+          function onUp(){
+            handle.classList.remove('active'); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); saveWidths();
+            // Évite le « click » de tri émis quand on relâche hors de la poignée.
+            if(moved){ var swallow = function(ev){ ev.stopPropagation(); ev.preventDefault(); }; th.addEventListener('click', swallow, true); setTimeout(function(){ th.removeEventListener('click', swallow, true); }, 0); }
+          }
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', onUp);
         });
@@ -750,16 +796,26 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
       btn.innerHTML = '<i class="bi bi-layout-three-columns"></i> Colonnes';
       var dropdown = document.createElement('div');
       dropdown.className = 'col-toggle-dropdown';
-      colNames.forEach(function(name,i){
-        var colIdx = i + FIRST_TOGGLE_COL;
+      // En-tête « titre » identique aux popovers de filtre (cohérence visuelle).
+      var head = document.createElement('div');
+      head.className = 'cfp-head';
+      head.textContent = 'Afficher / masquer';
+      dropdown.appendChild(head);
+      toggleCols.forEach(function(c){
         var label = document.createElement('label');
         var cb = document.createElement('input');
         cb.type = 'checkbox';
-        cb.checked = tblSaisie.column(colIdx).visible();
+        var ci = colIdxByKey(c.key);
+        cb.checked = ci === -1 ? true : tblSaisie.column(ci).visible();
         cb.style.accentColor = '#F42182';
-        cb.addEventListener('change', function(){ tblSaisie.column(colIdx).visible(this.checked); saveVisibility(); });
+        cb.addEventListener('change', function(){
+          // Index résolu à chaque clic via la clé stable → robuste au déplacement.
+          var idxNow = colIdxByKey(c.key);
+          if(idxNow !== -1) tblSaisie.column(idxNow).visible(this.checked);
+          saveVisibility();
+        });
         label.appendChild(cb);
-        label.appendChild(document.createTextNode(' ' + name));
+        label.appendChild(document.createTextNode(' ' + c.label));
         dropdown.appendChild(label);
       });
       btn.addEventListener('click', function(e){ e.stopPropagation(); dropdown.classList.toggle('show'); });
