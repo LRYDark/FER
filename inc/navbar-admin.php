@@ -532,6 +532,8 @@ html, body {
 /* ══════════════════════════════════════════════════════════════
    OPENCLOUD ROSE – Tables
    ══════════════════════════════════════════════════════════════ */
+/* ── Style GLOBAL d'origine (inchangé) : s'applique à TOUS les tableaux admin
+     SAUF ceux portant la classe .fer-table (dashboard / stats / saisie). ── */
 #oc-content .table { font-size: 14px; }
 #oc-content .table > thead > tr > th {
   background: #f8fafc; color: #475569; font-weight: 600;
@@ -543,6 +545,114 @@ html, body {
   vertical-align: middle;
 }
 #oc-content .table > tbody > tr:hover > td { background: #f8fafc; }
+
+/* ── NOUVEAU THÈME — UNIQUEMENT sur .fer-table (dashboard / stats / saisie).
+     Placé APRÈS le global pour gagner à spécificité égale. En-tête = couleur
+     secondaire + texte auto, lignes aérées, survol rose léger. ── */
+#oc-content .fer-table { border-collapse: separate; border-spacing: 0; }
+#oc-content .fer-table > thead > tr > th {
+  background: var(--secondary, #0f172a);
+  color: var(--secondary-text, #ffffff);
+  font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: none; border-top: none; padding: 13px 14px; white-space: nowrap;
+}
+#oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
+#oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
+#oc-content .fer-table > tbody > tr > td {
+  padding: 12px 14px; border-bottom: 1px solid #eef1f5; color: #1e293b; vertical-align: middle;
+}
+#oc-content .fer-table > tbody > tr:last-child > td { border-bottom: none; }
+#oc-content .fer-table > tbody > tr:hover > td { background-color: #fdeef5; }
+
+/* Icônes de tri discrètes (rose sur la colonne triée) — scopées .fer-table */
+#oc-content .fer-table.dataTable thead .sorting:before,
+#oc-content .fer-table.dataTable thead .sorting:after,
+#oc-content .fer-table.dataTable thead .sorting_asc:after,
+#oc-content .fer-table.dataTable thead .sorting_desc:before { opacity: 0 !important; }
+#oc-content .fer-table.dataTable thead .sorting:before,
+#oc-content .fer-table.dataTable thead .sorting:after,
+#oc-content .fer-table.dataTable thead .sorting_asc:before,
+#oc-content .fer-table.dataTable thead .sorting_asc:after,
+#oc-content .fer-table.dataTable thead .sorting_desc:before,
+#oc-content .fer-table.dataTable thead .sorting_desc:after { right: .5em; font-size: .7em; }
+#oc-content .fer-table.dataTable thead th.sorting:hover:after { opacity: .5 !important; color: #cbd5e1; }
+#oc-content .fer-table.dataTable thead .sorting_asc:before,
+#oc-content .fer-table.dataTable thead .sorting_desc:after { opacity: 1 !important; color: #f472b6; }
+
+/* ── COMPOSANTS INTERACTIFS PARTAGÉS (entonnoir de filtre, popover, poignées de
+     redimensionnement, bouton « Colonnes », repère ColReorder). Réutilisés par
+     dashboard / saisie / stats — un seul jeu de styles. ── */
+#oc-content .fer-table.dataTable thead th { position: relative; }   /* ancrage poignée de resize */
+
+.col-filter-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 19px; height: 19px; margin-left: 6px; border-radius: 5px;
+  color: var(--secondary-text, #fff); opacity: .55;
+  cursor: pointer; font-size: 11px; vertical-align: middle;
+  transition: background .15s, color .15s, opacity .15s;
+}
+.col-filter-btn:not(.active):hover, .col-filter-btn.active { opacity: 1; }
+.col-filter-btn:hover { background: #fdf2f8; color: #9d174d; }
+.col-filter-btn.active { background: #F42182; color: #fff; }
+
+.col-filter-pop {
+  position: fixed; z-index: 2000; min-width: 196px; max-height: 340px; overflow-y: auto;
+  background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.15); padding: 6px; display: none;
+}
+.col-filter-pop.show { display: block; }
+.col-filter-pop .cfp-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
+}
+.col-filter-pop .cfp-opt {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
+  font-size: 13px; color: #1e293b; cursor: pointer; white-space: nowrap;
+}
+.col-filter-pop .cfp-opt:hover { background: #fdf2f6; }
+.col-filter-pop .cfp-opt.active { background: #fbeaf1; color: #F42182; font-weight: 600; }
+.col-filter-pop .cfp-opt .bi { font-size: 13px; opacity: 0; flex: 0 0 auto; }
+.col-filter-pop .cfp-opt.active .bi { opacity: 1; }
+
+/* Poignées de redimensionnement de colonne (.fer-table uniquement) */
+#oc-content .fer-table.dataTable thead th .col-resize {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
+  cursor: col-resize; user-select: none; z-index: 1;
+}
+#oc-content .fer-table.dataTable thead th .col-resize:hover,
+#oc-content .fer-table.dataTable thead th .col-resize.active { background: #F42182; }
+
+/* Repère d'insertion ColReorder */
+.dtcr-pointer { background: #db2777 !important; }
+
+/* Bouton « Colonnes » (afficher/masquer) */
+.col-toggle-wrap { position: relative; display: inline-block; }
+.col-toggle-btn {
+  font-size: 13px; font-weight: 500; padding: 5px 12px;
+  border: 1px solid #d4c4cb; border-radius: 6px; background: #fff;
+  color: #1e293b; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.col-toggle-btn:hover { background: #fdf8f9; }
+.col-toggle-dropdown {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
+  background: #fff; border: 1px solid #f0e8eb; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100;
+  padding: 8px 0; min-width: 200px; max-height: 350px; overflow-y: auto;
+}
+.col-toggle-dropdown.show { display: block; }
+.col-toggle-dropdown label {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+  font-size: 13px; color: #1e293b; cursor: pointer; font-weight: 400;
+  text-transform: none; letter-spacing: 0; margin: 0;
+}
+.col-toggle-dropdown label:hover { background: #fdf8f9; }
+
+/* Boutons d'action dans les tableaux : toujours côte à côte */
+.action-buttons { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; }
+.action-buttons .btn {
+  --bs-btn-padding-y: .20rem; --bs-btn-padding-x: .45rem; --bs-btn-font-size: .75rem;
+  flex: 0 0 auto; margin: 0 !important;
+}
 
 /* Table responsive — no horizontal scrollbar unless truly needed */
 #oc-content .table-responsive { overflow-x: auto; }
@@ -876,7 +986,7 @@ html, body {
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.1.2</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.2.0</div>
   </aside>
 
   <!-- ═══════ CONTENT (opened here, closed in admin-footer.php) ═══════ -->

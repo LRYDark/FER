@@ -156,7 +156,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
     </button>
   </div>
   <div class="table-responsive">
-    <table id="tblUsers" class="table table-sm w-100"></table>
+    <table id="tblUsers" class="table fer-table table-sm w-100"></table>
   </div>
 
   <!-- ═══ Tableau interactif des droits par rôle ═══ -->

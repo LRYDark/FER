@@ -188,8 +188,8 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
   <!-- Tableau des inscriptions -->
   <div class="table-responsive">
-    <table id="tbl" class="table table-sm table-striped w-100">
-      <thead class="table-light">
+    <table id="tbl" class="table fer-table table-sm w-100">
+      <thead>
         <tr>
           <th>#</th><th>Nom</th><th>Prénom</th><th>Tél</th><th>Email</th>
           <th>Naissance</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th><th>Prestation</th>
@@ -202,6 +202,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
+<script src="../js/admin-table-filters.js?v=1" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const stats = <?= json_encode($stats) ?>;
 
@@ -319,6 +320,17 @@ let tbl = $('#tbl').DataTable({
   pageLength:25,
   language:{loadingRecords:'Chargement…'},
   dom:'tpr'
+});
+
+/* Filtres d'en-tête (entonnoir) — module partagé. Sexe / Ville / T-shirt / Prestation. */
+$('#tbl').on('init.dt', function(){
+  if (window.FERTableFilters) {
+    FERTableFilters.attach(tbl, {
+      filterableTitles: ['Sexe','Ville','T‑shirt','T-shirt','Prestation'],
+      filterableData:   ['sexe','ville','tshirt_size','prestation'],
+      childAge: <?= (int)($childAge ?? 12) ?>
+    });
+  }
 });
 
 /* ─────────── 4. Interaction : année + recherche ─────────── */

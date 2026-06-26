@@ -142,8 +142,6 @@ if ($canBulkCreate) {
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
-  tr.filters th[class*="sorting"]::before,
-  tr.filters th[class*="sorting"]::after{display:none!important}
   .statCard{min-width:180px}
   .hide-stats #stats {display: none !important;}
   .dashboard-actions .btn-rose{
@@ -210,54 +208,29 @@ if ($canBulkCreate) {
   }
   
 /* ═══ Tableau dashboard — style OpenCloud Rose ═══ */
-#tbl { border-collapse: separate; border-spacing: 0; }
 
-#tbl thead tr:first-child th {
-  background: #faf7f8;
-  color: #5f4b52;
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-bottom: 2px solid #f0e8eb;
-  border-top: none;
-  padding: 10px 12px;
-}
+/* ── Spécifique « inscriptions » : marquage d'éligibilité + légende ──
+   (Le look général du tableau + les composants entonnoir/resize/colonnes sont
+   désormais centralisés dans le style global admin de navbar-admin.php.) */
 
-#tbl tbody td {
-  padding: 10px 12px;
-  vertical-align: middle;
-  font-size: 13px;
-  color: #1e293b;
-  border-bottom: 1px solid #f0e8eb;
-  border-left: none !important;
+/* Éligibles (X premiers) : liseré rose à gauche, fond normal. */
+#oc-content #tbl tbody tr.first-750 td:first-child {
+  box-shadow: inset 3px 0 0 0 #F42182;   /* liseré rose = éligible */
 }
+/* Non-éligibles (montant dû = 0) : léger fond gris pour les distinguer. */
+#oc-content #tbl tbody tr.row-unpaid td { background-color: #f3f5f9; }
+#oc-content #tbl tbody tr.row-unpaid:hover td { background-color: #eaeff4; }
 
-#tbl tbody tr:hover td { background: #fdf8f9; }
-
-/* X premières lignes (QR Code) — fond rose pâle */
-.first-750 td {
-  background: #fdf2f6 !important;
-  font-weight: 600;
+/* Légende des couleurs du tableau */
+.tbl-legend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+  margin: 14px 2px 4px; font-size: 12px; color: #64748b;
 }
-.first-750:hover td {
-  background: #fce4ec !important;
+.tbl-legend .lg-item { display: inline-flex; align-items: center; gap: 7px; }
+.tbl-legend .lg-bar {
+  width: 4px; height: 15px; border-radius: 2px; background: #F42182; display: inline-block;
 }
-
-/* Inscrits non-payés (montant dû = 0) — gris pâle pour distinction visuelle */
-.row-unpaid td {
-  background: #f8fafc !important;
-  color: #64748b;
-}
-.row-unpaid:hover td {
-  background: #f1f5f9 !important;
-}
-
-/* Filtres ligne */
-tr.filters th { background: #fff !important; padding: 6px 8px !important; }
-tr.filters select, tr.filters input {
-  font-size: 12px; border: 1px solid #d4c4cb; border-radius: 4px; padding: 4px 6px;
-}
+.tbl-legend .lg-muted { color: #94a3b8; }
 
 /* ═══ Onglets du modal "Nouvel inscrit" (rose theme) ═══ */
 #addModalTabs {
@@ -447,44 +420,10 @@ tr.filters select, tr.filters input {
 .ce-chip::before { content: "⋮⋮"; letter-spacing: -2px; margin-right: 4px; opacity: .5; }
 .ce-chip.dragging { opacity: .4; }
 
-/* Colonnes redimensionnables */
-#tbl thead th { position: relative; }
-#tbl thead th .col-resize {
-  position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
-  cursor: col-resize; user-select: none; z-index: 1;
-}
-#tbl thead th .col-resize:hover,
-#tbl thead th .col-resize.active { background: #F42182; }
-
-/* Bouton colonnes */
-.col-toggle-wrap { position: relative; display: inline-block; }
-.col-toggle-btn {
-  font-size: 13px; font-weight: 500; padding: 5px 12px;
-  border: 1px solid #d4c4cb; border-radius: 6px; background: #fff;
-  color: #1e293b; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-}
-.col-toggle-btn:hover { background: #fdf8f9; }
-.col-toggle-dropdown {
-  display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
-  background: #fff; border: 1px solid #f0e8eb; border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100;
-  padding: 8px 0; min-width: 200px; max-height: 350px; overflow-y: auto;
-}
-.col-toggle-dropdown.show { display: block; }
-.col-toggle-dropdown label {
-  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
-  font-size: 13px; color: #1e293b; cursor: pointer; font-weight: 400;
-  text-transform: none; letter-spacing: 0; margin: 0;
-}
-.col-toggle-dropdown label:hover { background: #fdf8f9; }
-
-/* ColReorder : indice visuel « colonne déplaçable » sur les en-têtes du tableau.
-   La 1re ligne d'en-tête est saisissable ; la ligne de filtres (.filters) garde
-   un curseur normal pour ne pas gêner la saisie dans les <select>/<input>. */
+/* ColReorder : curseur « déplaçable » sur la 1re ligne d'en-tête (spécifique à ce
+   tableau ; les styles resize / bouton Colonnes / dtcr sont globaux). */
 #tbl thead tr:first-child th { cursor: grab; }
 #tbl thead tr:first-child th:active { cursor: grabbing; }
-#tbl thead tr.filters th { cursor: default; }
-.dtcr-pointer { background: #db2777 !important; } /* repère d'insertion ColReorder, couleur du thème */
 
 /* Colonne de cases à cocher (actions groupées) : étroite et centrée. autoWidth
    étant désactivé, on force la largeur ici sinon la colonne s'étire inutilement.
@@ -533,23 +472,7 @@ tr.filters select, tr.filters input {
   background-position: right 9px center;  /* repositionne la flèche (Bootstrap .form-select) */
 }
 
-/* ═══ Petite retouche des filtres sous l'en-tête =========================== */
-tr.filters th{
-  background:#f2f4f8;
-  border-bottom:2px solid #e0e4ec;
-  padding:.4rem;
-}
-tr.filters select{
-  font-size:.8rem;
-  border-radius:8px;
-}
-
-/* ═══ Boutons action dans le tableau ====================================== */
-.action-buttons .btn{
-  --bs-btn-padding-y: .20rem;
-  --bs-btn-padding-x: .45rem;
-  --bs-btn-font-size: .75rem;
-}
+/* ═══ Boutons action dans le tableau (.action-buttons est global) ═══ */
 .btn-delete{
   background:#e63946;
   background:linear-gradient(135deg,#e63946 0%,#c5303d 100%);
@@ -647,8 +570,14 @@ tr.filters select{
     </div>
     <?php endif; ?>
     <div class="table-responsive">
-      <table id="tbl" class="table table-striped table-sm w-100"></table>
+      <table id="tbl" class="table fer-table table-sm w-100"></table>
     </div>
+    <?php if ($highlightLimit > 0): ?>
+    <div class="tbl-legend">
+      <span class="lg-item"><span class="lg-bar"></span><?= (int)$highlightLimit ?> premiers &mdash; &eacute;ligibles T-shirt</span>
+      <span class="lg-item lg-muted">sans liser&eacute; = non &eacute;ligible</span>
+    </div>
+    <?php endif; ?>
   </div>
 
 <?php include 'admin-footer.php'; ?>
@@ -1216,7 +1145,9 @@ const tbl=$('#tbl').DataTable({
       return val;
     }},
     {data:'montant_du', title:'Montant', className:'text-end text-nowrap', defaultContent:'0', render:function(val,type){
-      if(type!=='display' && type!=='filter') return val;
+      // Affichage formaté « 12 € » ; pour le tri/filtre/recherche on garde la valeur
+      // brute (sinon le filtre par colonne « ^12$ » ne correspondrait pas à « 12 € »).
+      if(type!=='display') return val;
       var n = parseFloat(val);
       if(!isFinite(n)) n = 0;
       return n.toFixed(2).replace(/\.00$/,'') + ' €';
@@ -1307,7 +1238,7 @@ const tbl=$('#tbl').DataTable({
     });
   },
   initComplete:function(){
-    buildFilters(this.api());
+    buildColumnFilters(this.api());
     updateStats(this.api().data().toArray());
   }
 });
@@ -1355,9 +1286,11 @@ loadUiPrefs().then(p=>{
     _applyingColOrder = false;
   }
 });
-// À chaque déplacement de colonne : réaligner la ligne de filtres puis sauvegarder.
+// À chaque déplacement de colonne : les entonnoirs suivent le <th> automatiquement.
+// On ferme juste un éventuel popover ouvert (son ancrage a bougé) puis on sauvegarde.
 tbl.on('column-reorder', function(){
-  buildFilters(tbl);
+  if(_colFilterPop) _colFilterPop.classList.remove('show');
+  buildColumnFilters(tbl);
   if(_applyingColOrder) return;
   saveUiPref({ dashboard_col_order: tbl.colReorder.order() });
 });
@@ -1445,55 +1378,148 @@ function updateStats(data){
   if(tshirtMode) $('#stats').hide(); else $('#stats').show();
 }
 
-/* ══ Filtres par colonne ════ */
-function buildFilters(api){
-  const $thead=$('#tbl thead');
-  $thead.find('tr.filters').remove();
-  const $f=$thead.find('tr').first().clone(false).addClass('filters').appendTo($thead);
-  $f.find('th').empty().removeClass('sorting sorting_asc sorting_desc sorting_disabled');
-  // La ligne de filtres est un clone de l'en-tête (donc en ordre VISUEL courant). Avec
-  // ColReorder, l'index logique d'une colonne ne correspond plus à sa position visuelle :
-  // on convertit via colReorder.order() (= indexes d'origine dans l'ordre visuel).
-  const crOrder = (api.colReorder && typeof api.colReorder.order === 'function') ? api.colReorder.order() : null;
-  api.columns().every(function(){
-    const i = this.index();                                   // index logique de la colonne
-    const visPos = crOrder ? crOrder.indexOf(i) : i;          // position visuelle (clone)
-    const title=$(this.header()).text().trim(), $cell=$f.find('th').eq(visPos);
-    if(!this.visible()){ $cell.hide(); return; }
-    if(['T-shirt','Sexe','Paiement','Prestation','Entreprise','Origine'].includes(title)){
-      const $sel=$('<select class="form-select form-select-sm"><option value="">Tous</option></select>')
-        .appendTo($cell)
-        .on('change',function(){
-          // Échappe les caractères regex pour les libellés contenant /, -, etc.
-          var raw = this.value;
-          if(raw){
-            var esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            api.column(i).search('^'+esc+'$', true, false).draw();
-          } else {
-            api.column(i).search('', true, false).draw();
-          }
-        });
-      this.data().unique().sort().each(function(v){
-        if(!v) return;
-        // Libellé convivial pour les paiements « catégorie » ; valeur brute conservée
-        var label = v;
-        if(title === 'Paiement'){
-          var lcv = String(v).toLowerCase();
-          if(lcv === 'gratuit') label = `Gratuit/-${childAge}ans`;
-          else if(lcv === 'enfant_tshirt') label = 'en ligne (CB)';
-        } else if(title === 'Prestation'){
-          var lcp = String(v).toLowerCase();
-          if(lcp === 'tarif_unique') label = 'Tarif unique';
-          else if(lcp === 'enfant_gratuit') label = `Enfant -${childAge} (gratuit sans t-shirt)`;
-          else if(lcp === 'enfant_tshirt') label = `Enfant -${childAge} +T-shirt`;
-        }
-        var optVal = $('<div/>').text(v).html();   // échappe HTML
-        var optLbl = $('<div/>').text(label).html();
-        $sel.append('<option value="'+optVal+'">'+optLbl+'</option>');
-      });
+/* ══ Filtres par colonne — entonnoir dans l'en-tête + popover ════
+ * Remplace l'ancienne ligne de filtres clonée. Chaque colonne filtrable porte une
+ * icône entonnoir dans son <th> ; un clic ouvre un popover listant les valeurs.
+ * Les entonnoirs vivent dans le <th> : ils suivent automatiquement le
+ * réordonnancement (ColReorder) et le masquage de colonnes, sans recalcul d'index. */
+// Détection des colonnes filtrables par TITRE (libellés usuels) OU par clé de
+// données (bdd_column) — robuste même si l'admin a renommé un libellé.
+var FILTERABLE_TITLES = ['T-shirt','Taille T-shirt','Sexe','Paiement','Prestation','Entreprise','Origine','Ville','Montant'];
+var FILTERABLE_DATA   = ['tshirt_size','sexe','paiement_mode','prestation','entreprise','origine','ville','montant_du'];
+function isFilterableCol(title, dataKey){
+  return FILTERABLE_TITLES.indexOf(title) !== -1
+      || (dataKey && FILTERABLE_DATA.indexOf(dataKey) !== -1);
+}
+var _activeColFilter = {};   // index logique de colonne -> valeur filtrée active
+var _colFilterPop = null;
+
+function getColFilterPop(){
+  if(_colFilterPop) return _colFilterPop;
+  _colFilterPop = document.createElement('div');
+  _colFilterPop.className = 'col-filter-pop';
+  document.body.appendChild(_colFilterPop);
+  // Fermeture au clic extérieur / au défilement / redimensionnement.
+  document.addEventListener('click', function(e){
+    if(_colFilterPop.classList.contains('show')
+       && !_colFilterPop.contains(e.target)
+       && !$(e.target).closest('.col-filter-btn').length){
+      _colFilterPop.classList.remove('show');
     }
   });
-  if(tshirtMode) $('.filters').hide();
+  window.addEventListener('resize', function(){ _colFilterPop.classList.remove('show'); });
+  return _colFilterPop;
+}
+
+// Libellé convivial pour les catégories « Paiement »/« Prestation » (valeur brute conservée).
+function friendlyFilterLabel(title, v){
+  var s = String(v);
+  if(title === 'Paiement'){
+    var lcv = s.toLowerCase();
+    if(lcv === 'gratuit') return `Gratuit/-${childAge}ans`;
+    if(lcv === 'enfant_tshirt') return 'en ligne (CB)';
+  } else if(title === 'Prestation'){
+    var lcp = s.toLowerCase();
+    if(lcp === 'tarif_unique') return 'Tarif unique';
+    if(lcp === 'enfant_gratuit') return `Enfant -${childAge} (gratuit sans t-shirt)`;
+    if(lcp === 'enfant_tshirt') return `Enfant -${childAge} +T-shirt`;
+  } else if(title === 'Montant'){
+    var n = parseFloat(s); if(!isFinite(n)) n = 0;
+    return n.toFixed(2).replace(/\.00$/,'') + ' €';   // affiché « 12 € », filtre sur la valeur brute
+  }
+  return s;
+}
+
+function applyColFilter(api, colIdx, val, btn){
+  if(val){
+    var esc = String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    api.column(colIdx).search('^'+esc+'$', true, false).draw();
+    _activeColFilter[colIdx] = val;
+    if(btn) btn.classList.add('active');
+  } else {
+    api.column(colIdx).search('', true, false).draw();
+    delete _activeColFilter[colIdx];
+    if(btn) btn.classList.remove('active');
+  }
+}
+
+function openColFilter(api, colIdx, title, btn){
+  var pop = getColFilterPop();
+  pop._forCol = colIdx;
+  pop.innerHTML = '';
+  var head = document.createElement('div');
+  head.className = 'cfp-head';
+  head.textContent = 'Filtrer : ' + title;
+  pop.appendChild(head);
+
+  var current = _activeColFilter[colIdx] != null ? String(_activeColFilter[colIdx]) : '';
+  function addOpt(val, label){
+    var o = document.createElement('div');
+    o.className = 'cfp-opt' + (String(val) === current ? ' active' : '');
+    var ic = document.createElement('i'); ic.className = 'bi bi-check2';
+    var sp = document.createElement('span'); sp.textContent = label;
+    o.appendChild(ic); o.appendChild(sp);
+    o.addEventListener('click', function(e){
+      e.stopPropagation();
+      applyColFilter(api, colIdx, val, btn);
+      pop.classList.remove('show');
+    });
+    pop.appendChild(o);
+  }
+  addOpt('', 'Tous');
+  var seen = {};
+  api.column(colIdx).data().unique().sort().each(function(v){
+    if(v === null || v === undefined || v === '') return;
+    if(seen[v]) return; seen[v] = 1;
+    addOpt(v, friendlyFilterLabel(title, v));
+  });
+
+  // Positionnement (fixed) sous l'entonnoir, recadré dans la fenêtre.
+  var r = btn.getBoundingClientRect();
+  pop.style.visibility = 'hidden';
+  pop.classList.add('show');
+  var pw = pop.offsetWidth, ph = pop.offsetHeight;
+  var left = Math.min(r.left, window.innerWidth - pw - 12);
+  var top = r.bottom + 6;
+  if(top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = top + 'px';
+  pop.style.visibility = '';
+}
+
+// Pose/maj des entonnoirs sur les en-têtes filtrables. Idempotent : sûr à rappeler
+// après réordonnancement, changement de visibilité ou rechargement AJAX.
+function buildColumnFilters(api){
+  var aoColumns = api.settings()[0].aoColumns;
+  api.columns().every(function(){
+    var colIdx = this.index();
+    var th = this.header();
+    if(!th) return;
+    var title = $(th).text().trim();   // l'icône (pseudo-élément) n'est pas dans .text()
+    var dataKey = aoColumns[colIdx] ? aoColumns[colIdx].data : null;
+    var existing = th.querySelector('.col-filter-btn');
+    if(!isFilterableCol(title, dataKey)){
+      if(existing) existing.remove();   // libellé devenu non-filtrable (ex. renommage)
+      return;
+    }
+    var btn = existing;
+    if(!btn){
+      btn = document.createElement('span');
+      btn.className = 'col-filter-btn';
+      btn.title = 'Filtrer';
+      btn.innerHTML = '<i class="bi bi-funnel"></i>';
+      btn.addEventListener('mousedown', function(e){ e.stopPropagation(); }); // n'amorce pas le tri/déplacement
+      btn.addEventListener('click', function(e){
+        e.stopPropagation(); e.preventDefault();                              // ne déclenche pas le tri
+        var pop = getColFilterPop();
+        if(pop.classList.contains('show') && pop._forCol === colIdx){ pop.classList.remove('show'); return; }
+        openColFilter(api, colIdx, title, btn);
+      });
+      th.appendChild(btn);
+    }
+    if(_activeColFilter[colIdx] != null) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
 }
 
 /* ══ Bascule Remise T-shirts ════ */
@@ -1508,7 +1534,9 @@ function applyTshirtMode() {
     const d = aoColumns[this.index()].data;
     if (hideHeaders.includes(h) || hideData.includes(d)) this.visible(!tshirtMode, false);
   });
-  $('.filters').toggle(!tshirtMode);
+  // Masque les entonnoirs de filtre en mode T-shirt (et ferme un popover ouvert).
+  $('.col-filter-btn').toggle(!tshirtMode);
+  if(tshirtMode && _colFilterPop) _colFilterPop.classList.remove('show');
   if (tshirtMode) {
     $('body').addClass('hide-stats');
     $('#btnExport, #btnArchiveNow').hide();
@@ -2562,9 +2590,8 @@ $('#fEdit').on('submit',e=>{
           var colIdx = parseInt(i) + FIRST_TOGGLE_COL;
           tbl.column(colIdx).visible(saved[i]);
         }
-        // Réaligne la ligne de filtres sur la nouvelle visibilité (gère aussi le
-        // réordonnancement et les colonnes masquées — évite tout décalage d'index).
-        setTimeout(function() { try { buildFilters(tbl); } catch(e) {} }, 100);
+        // Réinstalle les entonnoirs sur les colonnes redevenues visibles.
+        setTimeout(function() { try { buildColumnFilters(tbl); } catch(e) {} }, 100);
       }
     } catch(e) {}
   }
@@ -2678,8 +2705,8 @@ $('#fEdit').on('submit',e=>{
       cb.addEventListener('change', function() {
         tbl.column(colIdx).visible(this.checked);
         saveVisibility();
-        // Réaligne la ligne de filtres (gère visibilité + réordonnancement, sans décalage).
-        try { buildFilters(tbl); } catch(e) {}
+        // Réinstalle l'entonnoir si la colonne redevient visible.
+        try { buildColumnFilters(tbl); } catch(e) {}
       });
       label.appendChild(cb);
       label.appendChild(document.createTextNode(' ' + name));
