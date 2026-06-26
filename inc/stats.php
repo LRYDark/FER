@@ -1,5 +1,6 @@
 <?php
 require '../config/config.php';
+require_once __DIR__ . '/../config/csrf.php'; // jeton CSRF pour l'enregistrement des préférences colonnes
 requirePage('stats');
 $role = currentRole();
 require 'navbar-data.php';
@@ -56,6 +57,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <!-- ─── CSS ─── -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.css" rel="stylesheet" integrity="sha384-Vxog91rIpStbMsSBAP+6bkpv+SJeVDvusYx9GKzKVQBzh085ohJ4QIgNlO4QbkVz" crossorigin="anonymous">
+<link href="https://cdn.datatables.net/colreorder/1.7.0/css/colReorder.bootstrap5.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
@@ -63,6 +65,8 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .stat-card{border-radius:1.25rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
   .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
+  /* Select « Année » : largeur mini + place pour la flèche (sinon elle chevauche le texte). */
+  #selYear{ min-width:7rem; padding-right:2.5rem; }
   /* ─── Harmonisation DataTable (stats.php) ───────────────────────── */
 
 /* ===== En-tête du tableau ===== */
@@ -171,7 +175,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
   <!-- ===== DÉTAIL PAR ANNÉE ===== -->
   <h4 class="mb-3 fw-bold">Détails par année</h4>
-  <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+  <div class="d-flex flex-wrap gap-3 align-items-center mb-3" id="statsControls">
     <div>
       <label class="me-2 fw-semibold">Année :</label>
       <select id="selYear" class="form-select d-inline-block w-auto">
@@ -202,6 +206,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
+<script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>
 <script src="../js/admin-table-filters.js?v=1" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const stats = <?= json_encode($stats) ?>;
@@ -319,6 +324,7 @@ let tbl = $('#tbl').DataTable({
   order:[[0,'desc']],
   pageLength:25,
   language:{loadingRecords:'Chargement…'},
+  colReorder:true,   // déplacement des colonnes par glisser-déposer des en-têtes
   dom:'tpr'
 });
 
@@ -332,6 +338,204 @@ $('#tbl').on('init.dt', function(){
     });
   }
 });
+
+/* ─────────── 3b. Colonnes : ordre (ColReorder) + visibilité + largeurs ───────────
+   Préférences PAR UTILISATEUR via la route ui-prefs (clés stats_col_*, distinctes
+   du dashboard/saisie). Identification PAR CLÉ STABLE (data) → reste juste même
+   après un déplacement de colonnes. Repli localStorage si le serveur ne répond pas. */
+(function(){
+  var table = document.getElementById('tbl');
+  if(!table) return;
+  var _csrfToken = <?= json_encode(csrf_token()) ?>;
+  var uid = <?= json_encode($_SESSION['uid'] ?? 0) ?>;
+  var storageKeyVis = 'fer_stats_col_vis_' + uid;
+  var storageKeyW   = 'fer_stats_col_w_' + uid;
+
+  // ── Préférences serveur ──
+  var _uiPrefs = null, _uiPrefsPromise = null;
+  function loadUiPrefs(){
+    if(_uiPrefsPromise) return _uiPrefsPromise;
+    _uiPrefsPromise = fetch('../config/api.php?route=ui-prefs')
+      .then(function(r){ return r.json(); })
+      .then(function(p){ _uiPrefs = (p && typeof p==='object') ? p : {}; return _uiPrefs; })
+      .catch(function(){ _uiPrefs = {}; return _uiPrefs; });
+    return _uiPrefsPromise;
+  }
+  function saveUiPref(patch){
+    if(_uiPrefs && typeof _uiPrefs==='object') Object.assign(_uiPrefs, patch);
+    return fetch('../config/api.php?route=ui-prefs',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
+      body: JSON.stringify(patch)
+    }).catch(function(){});
+  }
+  function readLocalJSON(key){
+    try { var v = JSON.parse(localStorage.getItem(key)); return (v && typeof v==='object') ? v : null; }
+    catch(e){ return null; }
+  }
+
+  // ── Identification stable des colonnes (toutes togglables sur stats) ──
+  function colKey(idx){
+    var src = tbl.column(idx).dataSrc();
+    if(src) return 'd:' + src;
+    var th = tbl.column(idx).header();
+    return 'h:' + ($(th).text().trim() || ('col'+idx));
+  }
+  function colIdxByKey(key){
+    var found = -1;
+    tbl.columns().every(function(idx){ if(found===-1 && colKey(idx)===key) found = idx; });
+    return found;
+  }
+  var toggleCols = [];
+  tbl.columns().every(function(idx){
+    toggleCols.push({ key: colKey(idx), label: $(this.header()).text().trim() || 'Col '+idx });
+  });
+
+  // ── Visibilité ──
+  function restoreVisibility(){
+    try {
+      var saved = (_uiPrefs && _uiPrefs.stats_col_vis) || readLocalJSON(storageKeyVis);
+      if(!saved) return;
+      var keys = Object.keys(saved);
+      var legacy = keys.length>0 && keys.every(function(k){ return /^\d+$/.test(k); });
+      keys.forEach(function(k){
+        var key = legacy ? (toggleCols[parseInt(k,10)] && toggleCols[parseInt(k,10)].key) : k;
+        if(!key) return;
+        var ci = colIdxByKey(key);
+        if(ci!==-1) tbl.column(ci).visible(saved[k]);
+      });
+      if(legacy) saveVisibility();
+    } catch(e){}
+  }
+  function saveVisibility(){
+    try {
+      var vis = {};
+      toggleCols.forEach(function(c){ var ci = colIdxByKey(c.key); if(ci!==-1) vis[c.key] = tbl.column(ci).visible(); });
+      localStorage.setItem(storageKeyVis, JSON.stringify(vis));
+      saveUiPref({ stats_col_vis: vis });
+    } catch(e){}
+  }
+
+  // ── Largeurs ──
+  function restoreWidths(){
+    try {
+      var saved = (_uiPrefs && _uiPrefs.stats_col_widths) || readLocalJSON(storageKeyW);
+      if(!saved) return;
+      var keys = Object.keys(saved);
+      var legacy = keys.length>0 && keys.every(function(k){ return /^\d+$/.test(k); });
+      if(legacy){
+        var j = 0;
+        tbl.columns().every(function(idx){
+          if(!tbl.column(idx).visible()) return;
+          var w = saved[j++]; var th = tbl.column(idx).header();
+          if(w && th){ th.style.width = w; th.style.minWidth = w; }
+        });
+      } else {
+        tbl.columns().every(function(idx){
+          var w = saved[colKey(idx)]; var th = tbl.column(idx).header();
+          if(w && th){ th.style.width = w; th.style.minWidth = w; }
+        });
+      }
+    } catch(e){}
+  }
+  function saveWidths(){
+    try {
+      var widths = {};
+      tbl.columns().every(function(idx){
+        var th = tbl.column(idx).header();
+        if(th && th.style.width) widths[colKey(idx)] = th.style.width;
+      });
+      localStorage.setItem(storageKeyW, JSON.stringify(widths));
+      saveUiPref({ stats_col_widths: widths });
+    } catch(e){}
+  }
+
+  // ── Poignées de redimensionnement (+ anti-tri quand on relâche hors de la poignée) ──
+  function initResize(){
+    var ths = table.querySelectorAll('thead tr:first-child th');
+    ths.forEach(function(th){
+      if(th.querySelector('.col-resize')) return;
+      var handle = document.createElement('div');
+      handle.className = 'col-resize';
+      th.appendChild(handle);
+      handle.addEventListener('mousedown', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var startX = e.pageX, startW = th.offsetWidth, moved = false;
+        handle.classList.add('active');
+        function onMove(e2){ moved = true; th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px'; th.style.minWidth = th.style.width; }
+        function onUp(){
+          handle.classList.remove('active'); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); saveWidths();
+          if(moved){ var swallow = function(ev){ ev.stopPropagation(); ev.preventDefault(); }; th.addEventListener('click', swallow, true); setTimeout(function(){ th.removeEventListener('click', swallow, true); }, 0); }
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+    restoreWidths();
+  }
+
+  // ── Bouton « Colonnes » (placé à droite de la barre Année/Recherche) ──
+  function buildColToggle(){
+    var host = document.getElementById('statsControls');
+    if(!host || document.getElementById('colToggleWrapStats')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'col-toggle-wrap';
+    wrap.id = 'colToggleWrapStats';
+    wrap.style.marginLeft = 'auto';
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'col-toggle-btn';
+    btn.innerHTML = '<i class="bi bi-layout-three-columns"></i> Colonnes';
+    var dropdown = document.createElement('div');
+    dropdown.className = 'col-toggle-dropdown';
+    var head = document.createElement('div'); head.className = 'cfp-head'; head.textContent = 'Afficher / masquer';
+    dropdown.appendChild(head);
+    toggleCols.forEach(function(c){
+      var label = document.createElement('label');
+      var cb = document.createElement('input'); cb.type = 'checkbox';
+      var ci = colIdxByKey(c.key);
+      cb.checked = ci===-1 ? true : tbl.column(ci).visible();
+      cb.style.accentColor = '#F42182';
+      cb.addEventListener('change', function(){
+        var idxNow = colIdxByKey(c.key);
+        if(idxNow!==-1) tbl.column(idxNow).visible(this.checked);
+        saveVisibility();
+      });
+      label.appendChild(cb); label.appendChild(document.createTextNode(' ' + c.label));
+      dropdown.appendChild(label);
+    });
+    btn.addEventListener('click', function(e){ e.stopPropagation(); dropdown.classList.toggle('show'); });
+    document.addEventListener('click', function(e){ if(!wrap.contains(e.target)) dropdown.classList.remove('show'); });
+    wrap.appendChild(btn); wrap.appendChild(dropdown);
+    host.appendChild(wrap);
+  }
+
+  // ── Ordre des colonnes (ColReorder) mémorisé ──
+  var _applyingColOrder = false;
+  function setupColOrder(){
+    var ord = _uiPrefs && _uiPrefs.stats_col_order;
+    if(Array.isArray(ord) && ord.length === tbl.columns().count()){
+      _applyingColOrder = true;
+      try { tbl.colReorder.order(ord, true); } catch(_){}
+      _applyingColOrder = false;
+    }
+    tbl.on('column-reorder', function(){
+      if(_applyingColOrder) return;
+      saveUiPref({ stats_col_order: tbl.colReorder.order() });
+    });
+  }
+
+  // ── Init : attend les prefs serveur, applique, construit ──
+  $('#tbl').on('init.dt', function(){
+    loadUiPrefs().then(function(){
+      setupColOrder();
+      restoreVisibility();
+      buildColToggle();
+      initResize();
+    });
+  });
+  // Réinjecte les poignées après chaque redraw (ex. changement d'année).
+  $('#tbl').on('draw.dt', function(){ initResize(); });
+})();
 
 /* ─────────── 4. Interaction : année + recherche ─────────── */
 document.getElementById('selYear').addEventListener('change',()=>{

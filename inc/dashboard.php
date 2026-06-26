@@ -2555,11 +2555,40 @@ $('#fEdit').on('submit',e=>{
   var CB = <?= $cbCol ?>;                 // colonnes de cases à cocher en tête (0 ou 1)
   var FIRST_TOGGLE_COL = CB + 1;          // 1re colonne togglable (saute cases + id masqué)
 
-  // Column names for toggle — built dynamically from actual DataTable headers.
-  var colNames = [];
+  // ── Identification STABLE des colonnes (robuste au déplacement ColReorder) ──
+  // On n'utilise plus la POSITION d'une colonne (qui change quand l'utilisateur
+  // déplace les en-têtes via ColReorder) mais une CLÉ stable : sa source de
+  // données (`data`) ou, à défaut (colonnes sans data : « ID », « Actions »),
+  // son libellé d'en-tête. Visibilité et largeurs sont donc mémorisées/appliquées
+  // par clé, jamais par index → masquer « Email » masque toujours Email, même
+  // après l'avoir déplacée.
+  function colKey(idx) {
+    var src = tbl.column(idx).dataSrc();
+    if (src) return 'd:' + src;
+    var th = tbl.column(idx).header();
+    return 'h:' + ($(th).text().trim() || ('col' + idx));
+  }
+  // Colonnes « structurelles » jamais proposées au masquage/redimensionnement :
+  // la colonne id technique (masquée) et la colonne de cases (actions groupées).
+  function isStructuralCol(idx) {
+    if (tbl.column(idx).dataSrc() === 'id') return true;
+    var th = tbl.column(idx).header();
+    if (th && th.querySelector && th.querySelector('.bulk-all')) return true;
+    return false;
+  }
+  // Index COURANT d'une colonne d'après sa clé stable (-1 si introuvable).
+  function colIdxByKey(key) {
+    var found = -1;
+    tbl.columns().every(function(idx) {
+      if (found === -1 && colKey(idx) === key) found = idx;
+    });
+    return found;
+  }
+  // Colonnes togglables, dans l'ordre du tableau, avec leur clé stable + libellé.
+  var toggleCols = [];
   tbl.columns().every(function(idx) {
-    if (idx < FIRST_TOGGLE_COL) return; // saute la colonne de cases + l'id masqué
-    colNames.push($(this.header()).text().trim() || 'Col ' + idx);
+    if (isStructuralCol(idx)) return;
+    toggleCols.push({ key: colKey(idx), label: $(this.header()).text().trim() || 'Col ' + idx });
   });
 
   // Lecture défensive d'un objet JSON du localStorage (cache de repli).
@@ -2587,23 +2616,30 @@ $('#fEdit').on('submit',e=>{
   function restoreVisibility() {
     try {
       var saved = (_uiPrefs && _uiPrefs.dashboard_col_vis) || readLocalJSON(storageKeyVis);
-      if (saved && typeof tbl !== 'undefined') {
-        for (var i in saved) {
-          var colIdx = parseInt(i) + FIRST_TOGGLE_COL;
-          tbl.column(colIdx).visible(saved[i]);
-        }
-        // Réinstalle les entonnoirs sur les colonnes redevenues visibles.
-        setTimeout(function() { try { buildColumnFilters(tbl); } catch(e) {} }, 100);
-      }
+      if (!saved || typeof tbl === 'undefined') return;
+      var keys = Object.keys(saved);
+      // Rétrocompat : l'ancien format mémorisait par INDEX numérique (offset depuis
+      // la 1re colonne togglable). On le convertit vers la clé stable correspondante.
+      var legacy = keys.length > 0 && keys.every(function(k){ return /^\d+$/.test(k); });
+      keys.forEach(function(k) {
+        var key = legacy ? (toggleCols[parseInt(k, 10)] && toggleCols[parseInt(k, 10)].key) : k;
+        if (!key) return;
+        var ci = colIdxByKey(key);
+        if (ci !== -1) tbl.column(ci).visible(saved[k]);
+      });
+      if (legacy) saveVisibility(); // ré-enregistre au format par clé (migration unique)
+      // Réinstalle les entonnoirs sur les colonnes redevenues visibles.
+      setTimeout(function() { try { buildColumnFilters(tbl); } catch(e) {} }, 100);
     } catch(e) {}
   }
 
   function saveVisibility() {
     try {
       var vis = {};
-      for (var i = 0; i < colNames.length; i++) {
-        vis[i] = tbl.column(i + FIRST_TOGGLE_COL).visible();
-      }
+      toggleCols.forEach(function(c) {
+        var ci = colIdxByKey(c.key);
+        if (ci !== -1) vis[c.key] = tbl.column(ci).visible();
+      });
       localStorage.setItem(storageKeyVis, JSON.stringify(vis)); // cache de repli
       saveUiPref({ dashboard_col_vis: vis });                   // serveur (autorité)
     } catch(e) {}
@@ -2614,25 +2650,33 @@ $('#fEdit').on('submit',e=>{
     try {
       var saved = (_uiPrefs && _uiPrefs.dashboard_col_widths) || readLocalJSON(storageKeyW);
       if (!saved) return;
-      var ths = table.querySelectorAll('thead tr:first-child th');
-      // La colonne de cases (th[0] quand CB=1) n'est pas redimensionnable : on la
-      // saute et on réindexe (key = i - CB) pour rester compatible avec l'état
-      // localStorage existant (sauvegardé sans cette colonne).
-      ths.forEach(function(th, i) {
-        if (i < CB) return;
-        var key = i - CB;
-        if (saved[key]) { th.style.width = saved[key]; th.style.minWidth = saved[key]; }
-      });
+      var keys = Object.keys(saved);
+      var legacy = keys.length > 0 && keys.every(function(k){ return /^\d+$/.test(k); });
+      if (legacy) {
+        // Ancien format : largeur indexée par position (colonnes visibles, hors
+        // cases). On mappe chaque position sur la colonne visible correspondante.
+        var j = 0;
+        tbl.columns().every(function(idx) {
+          if (isStructuralCol(idx) || !tbl.column(idx).visible()) return;
+          var w = saved[j++]; var th = tbl.column(idx).header();
+          if (w && th) { th.style.width = w; th.style.minWidth = w; }
+        });
+      } else {
+        tbl.columns().every(function(idx) {
+          var w = saved[colKey(idx)]; var th = tbl.column(idx).header();
+          if (w && th) { th.style.width = w; th.style.minWidth = w; }
+        });
+      }
     } catch(e) {}
   }
 
   function saveWidths() {
     try {
       var widths = {};
-      var ths = table.querySelectorAll('thead tr:first-child th');
-      ths.forEach(function(th, i) {
-        if (i < CB) return;                 // saute la colonne de cases
-        if (th.style.width) widths[i - CB] = th.style.width;
+      tbl.columns().every(function(idx) {
+        if (isStructuralCol(idx)) return;   // saute cases + id masqué
+        var th = tbl.column(idx).header();
+        if (th && th.style.width) widths[colKey(idx)] = th.style.width;
       });
       localStorage.setItem(storageKeyW, JSON.stringify(widths)); // cache de repli
       saveUiPref({ dashboard_col_widths: widths });              // serveur (autorité)
@@ -2652,10 +2696,11 @@ $('#fEdit').on('submit',e=>{
       handle.addEventListener('mousedown', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        var startX = e.pageX, startW = th.offsetWidth;
+        var startX = e.pageX, startW = th.offsetWidth, moved = false;
         handle.classList.add('active');
 
         function onMove(e2) {
+          moved = true;
           th.style.width = Math.max(40, startW + e2.pageX - startX) + 'px';
           th.style.minWidth = th.style.width;
         }
@@ -2664,6 +2709,14 @@ $('#fEdit').on('submit',e=>{
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
           saveWidths();
+          // Si la souris a été relâchée hors de la poignée, le navigateur émet un
+          // « click » sur le <th> → DataTables trierait la colonne. On avale ce
+          // seul clic (capture, supprimé juste après) pour ne pas changer le tri.
+          if (moved) {
+            var swallow = function(ev) { ev.stopPropagation(); ev.preventDefault(); };
+            th.addEventListener('click', swallow, true);
+            setTimeout(function() { th.removeEventListener('click', swallow, true); }, 0);
+          }
         }
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
@@ -2697,21 +2750,29 @@ $('#fEdit').on('submit',e=>{
     var dropdown = document.createElement('div');
     dropdown.className = 'col-toggle-dropdown';
 
-    colNames.forEach(function(name, i) {
-      var colIdx = i + FIRST_TOGGLE_COL;
+    // En-tête « titre » identique aux popovers de filtre (cohérence visuelle).
+    var head = document.createElement('div');
+    head.className = 'cfp-head';
+    head.textContent = 'Afficher / masquer';
+    dropdown.appendChild(head);
+
+    toggleCols.forEach(function(c) {
       var label = document.createElement('label');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = tbl.column(colIdx).visible();
+      var ci = colIdxByKey(c.key);
+      cb.checked = ci === -1 ? true : tbl.column(ci).visible();
       cb.style.accentColor = '#F42182';
       cb.addEventListener('change', function() {
-        tbl.column(colIdx).visible(this.checked);
+        // Index résolu À CHAQUE clic via la clé stable → robuste au déplacement.
+        var idxNow = colIdxByKey(c.key);
+        if (idxNow !== -1) tbl.column(idxNow).visible(this.checked);
         saveVisibility();
         // Réinstalle l'entonnoir si la colonne redevient visible.
         try { buildColumnFilters(tbl); } catch(e) {}
       });
       label.appendChild(cb);
-      label.appendChild(document.createTextNode(' ' + name));
+      label.appendChild(document.createTextNode(' ' + c.label));
       dropdown.appendChild(label);
     });
 

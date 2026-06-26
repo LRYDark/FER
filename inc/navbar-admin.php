@@ -622,10 +622,24 @@ html, body {
 #oc-content .fer-table.dataTable thead th .col-resize:hover,
 #oc-content .fer-table.dataTable thead th .col-resize.active { background: #F42182; }
 
-/* Repère d'insertion ColReorder */
-.dtcr-pointer { background: #db2777 !important; }
+/* Repère d'insertion + aperçu de la colonne déplacée (ColReorder).
+   NB : ColReorder 1.7 nomme ces éléments DTCR_pointer / DTCR_clonedTable. */
+div.DTCR_pointer { background-color: #F42182 !important; width: 2px; border-radius: 2px; }
+/* Pendant le déplacement, on masque le clone par défaut (il copie tout le tableau
+   → bloc disgracieux). Le retour visuel vient à la place d'une petite étiquette
+   rose arrondie portant le nom de la colonne, qui suit la souris (créée en JS),
+   + du trait rose d'insertion : net, discret et aux couleurs du site. */
+table.DTCR_clonedTable.dataTable { display: none !important; }
+.dtcr-drag-label {
+  position: fixed; z-index: 2100; pointer-events: none; display: none;
+  background: #F42182; color: #fff; font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(244, 33, 130, .35);
+}
+.dtcr-drag-label.show { display: block; }
 
-/* Bouton « Colonnes » (afficher/masquer) */
+/* Bouton « Colonnes » (afficher/masquer) — mêmes codes visuels que les popovers
+   de filtre d'en-tête (.col-filter-pop) pour une apparence uniforme sur le site. */
 .col-toggle-wrap { position: relative; display: inline-block; }
 .col-toggle-btn {
   font-size: 13px; font-weight: 500; padding: 5px 12px;
@@ -634,18 +648,22 @@ html, body {
 }
 .col-toggle-btn:hover { background: #fdf8f9; }
 .col-toggle-dropdown {
-  display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
-  background: #fff; border: 1px solid #f0e8eb; border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100;
-  padding: 8px 0; min-width: 200px; max-height: 350px; overflow-y: auto;
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 6px;
+  background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.15); z-index: 100;
+  padding: 6px; min-width: 200px; max-height: 350px; overflow-y: auto;
 }
 .col-toggle-dropdown.show { display: block; }
-.col-toggle-dropdown label {
-  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
-  font-size: 13px; color: #1e293b; cursor: pointer; font-weight: 400;
-  text-transform: none; letter-spacing: 0; margin: 0;
+.col-toggle-dropdown .cfp-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
 }
-.col-toggle-dropdown label:hover { background: #fdf8f9; }
+.col-toggle-dropdown label {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
+  font-size: 13px; color: #1e293b; cursor: pointer; font-weight: 400;
+  text-transform: none; letter-spacing: 0; margin: 0; white-space: nowrap;
+}
+.col-toggle-dropdown label:hover { background: #fdf2f6; }
 
 /* Boutons d'action dans les tableaux : toujours côte à côte */
 .action-buttons { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; }
@@ -994,3 +1012,39 @@ html, body {
 
 <!-- Mobile overlay -->
 <div class="oc-overlay" id="ocOverlay"></div>
+
+<!-- Étiquette flottante affichant le nom de la colonne pendant son déplacement
+     (ColReorder ne marque pas la colonne source ; on fournit ce retour visuel).
+     Délégation au niveau document → fonctionne pour tous les tableaux .fer-table. -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+(function () {
+  var grabbed = null, startX = 0, startY = 0, armed = false, label = null, name = '';
+  function ensureLabel() {
+    if (!label) { label = document.createElement('div'); label.className = 'dtcr-drag-label'; document.body.appendChild(label); }
+    return label;
+  }
+  document.addEventListener('mousedown', function (e) {
+    var th = e.target.closest && e.target.closest('th');
+    if (!th || !th.closest('table.fer-table') || !th.closest('thead')) return;
+    // Ignore les contrôles interactifs (entonnoir de filtre, poignée de resize, etc.)
+    if (e.target.closest('.col-filter-btn, .col-resize, a, button, input, select')) return;
+    grabbed = th; startX = e.clientX; startY = e.clientY; armed = true;
+    name = (th.textContent || '').trim();
+  }, true);
+  document.addEventListener('mousemove', function (e) {
+    if (!armed || !grabbed) return;
+    // On n'affiche l'étiquette qu'à partir d'un vrai déplacement (≠ clic de tri).
+    if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) {
+      var l = ensureLabel();
+      l.textContent = name;
+      l.style.left = (e.clientX + 14) + 'px';
+      l.style.top  = (e.clientY + 14) + 'px';
+      l.classList.add('show');
+    }
+  });
+  document.addEventListener('mouseup', function () {
+    if (label) label.classList.remove('show');
+    grabbed = null; armed = false;
+  });
+})();
+</script>
