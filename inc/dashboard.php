@@ -503,6 +503,10 @@ if ($canBulkCreate) {
         <?php if($canCreateReg): ?>
           <button class="btn btn-rose"      data-bs-toggle="modal" data-bs-target="#addModal">Nouvel inscrit</button>
         <?php endif; ?>
+        <?php // Bascule (visible uniquement en mode « Remise T-shirts ») : affiche ou non la colonne Commentaire. ?>
+        <button id="toggleCommentTS" type="button" class="btn btn-outline-secondary" style="display:none">
+          <i class="bi bi-toggle-off me-1"></i>Afficher commentaire
+        </button>
         <?php // Import Excel AssoConnect déplacé vers Réglages → onglet « Import AssoConnect » (droit dashboard.import_excel) ?>
         <?php if($canExportXls): ?>
           <button id="btnExport" class="btn btn-info">Export Excel</button>
@@ -1087,6 +1091,7 @@ const ageFromBirth   = (b)  => (window.FERInscription ? FERInscription.ageFromBi
 
 /* ══ DataTable ════ */
 let tshirtMode=false;
+let showCommentTshirt=false; // en mode T-shirt : colonne Commentaire affichée si true
 function refreshButtons(){ $('#modeTS, #modeTS_m').text(tshirtMode?'Remise T-shirts':'Mode standard'); }
 refreshButtons();
 
@@ -1343,8 +1348,11 @@ $('#quickSearch').on('keyup',function(){tbl.search(this.value).draw();});
 /* ══ Stats ════ */
 function updateStats(data){
   const total=data.length, oldest={H:null,F:null}, byEnt={};
-  let tshirtCount=0, enfantTshirtCount=0;
+  let tshirtCount=0, enfantTshirtCount=0, revenue=0;
   data.forEach(r=>{
+    // Recettes estimées : somme des montants dus de toutes les inscriptions.
+    const m=parseFloat(r.montant_du);
+    if(isFinite(m)) revenue+=m;
     const a=ageFromBirth(r.naissance);
     if(a!==null&&(r.sexe==='H'||r.sexe==='F')){
       if(!oldest[r.sexe] || a>oldest[r.sexe].age)
@@ -1364,6 +1372,9 @@ function updateStats(data){
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h5 class="card-title mb-1">Inscriptions</h5>
       <p class="display-6 fw-bold mb-0">${total}</p></div></div>
+    <div class="card statCard flex-fill text-center"><div class="card-body">
+      <h6 class="card-title text-muted mb-1">Montant estimé des recettes</h6>
+      <p class="display-6 fw-bold mb-0">${revenue.toLocaleString('fr-FR',{maximumFractionDigits:0})} €</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
       <h5 class="card-title mb-1">T-shirts récupérés</h5>
       <p class="display-6 fw-bold mb-0">${tshirtCount}</p></div></div>
@@ -1532,12 +1543,17 @@ function applyTshirtMode() {
   const hideHeaders = ['Sexe', 'Téléphone', 'Email', 'Naissance', 'Paiement', 'Montant', 'Entreprise', 'Date ajout', 'Origine', 'Actions'];
   // Masquage par clé de données : robuste même si l'admin renomme la colonne
   // (le libellé « Commentaire » est paramétrable, contrairement à son bdd_column).
-  const hideData = ['prestation', 'commentaire', 'naissance', 'ville'];
+  const hideData = ['prestation', 'naissance', 'ville', 'date_inscription'];
   const aoColumns = tbl.settings()[0].aoColumns;
   tbl.columns().every(function () {
     const h = $(this.header()).text().trim();
     const d = aoColumns[this.index()].data;
-    if (hideHeaders.includes(h) || hideData.includes(d)) this.visible(!tshirtMode, false);
+    // Colonne Commentaire : masquée en mode T-shirt sauf si la bascule est activée.
+    if (d === 'commentaire') {
+      this.visible(!tshirtMode || showCommentTshirt, false);
+    } else if (hideHeaders.includes(h) || hideData.includes(d)) {
+      this.visible(!tshirtMode, false);
+    }
   });
   // Masque les entonnoirs de filtre en mode T-shirt (et ferme un popover ouvert).
   $('.col-filter-btn').toggle(!tshirtMode);
@@ -1546,10 +1562,12 @@ function applyTshirtMode() {
     $('body').addClass('hide-stats');
     $('#btnExport, #btnArchiveNow').hide();
     $('#colToggleWrap').hide();
+    $('#toggleCommentTS').show();
   } else {
     $('body').removeClass('hide-stats');
     $('#btnExport, #btnArchiveNow').show();
     $('#colToggleWrap').show();
+    $('#toggleCommentTS').hide();
     updateStats(tbl.data().toArray());
   }
   tbl.rows().invalidate().draw(false);
@@ -1559,6 +1577,13 @@ $('#modeTS, #modeTS_m').on('click', function () {
   refreshButtons();
   applyTshirtMode();
   if (this.id === 'modeTS_m') {bootstrap.Offcanvas.getInstance('#menuMobile').hide();}
+});
+// Bascule « Afficher commentaire » : n'a d'effet qu'en mode T-shirt.
+$('#toggleCommentTS').on('click', function () {
+  showCommentTshirt = !showCommentTshirt;
+  $(this).toggleClass('active', showCommentTshirt);
+  $(this).find('i').attr('class', (showCommentTshirt ? 'bi bi-toggle-on' : 'bi bi-toggle-off') + ' me-1');
+  applyTshirtMode();
 });
 applyTshirtMode();
 
