@@ -1095,9 +1095,9 @@ a.mega-featured:hover .mega-featured-btn{
   gap: 0.5rem;
   margin: auto 0.75rem 0.75rem;
   padding: 0.875rem 1.25rem;
-  background: #f42182;
+  background: var(--primary, #f42182);
   border-radius: var(--radius);
-  color: #fff;
+  color: var(--primary-text, #fff);
   font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
@@ -1757,8 +1757,8 @@ body.dark-theme .floating-nav .mega .mega-featured .mega-featured-desc{
   color: rgba(15,23,42,.7) !important;
 }
 body.dark-theme .floating-nav .mega .mega-featured .mega-featured-btn{
-  background: #f42182 !important;
-  color: #fff !important;
+  background: var(--primary, #f42182) !important;
+  color: var(--primary-text, #fff) !important;
 }
 
 /* Overlay */
@@ -1841,8 +1841,8 @@ body.dark-theme .mobile-menu-sublink:hover{
   color: #ffffff;
 }
 body.dark-theme .mobile-menu-see-all{
-  background: #f42182;
-  color: #fff;
+  background: var(--primary, #f42182);
+  color: var(--primary-text, #fff);
 }
 body.dark-theme .mobile-menu-see-all:hover{
   background: #d81b60;

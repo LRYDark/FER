@@ -143,14 +143,14 @@ html, body {
 .oc-user-wrapper { position: relative; }
 .oc-avatar-btn {
   width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3);
-  background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--primary-text, #fff);
   font-size: 14px; font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .oc-avatar-btn:hover {
   border-color: rgba(255,255,255,.6);
-  box-shadow: 0 0 0 3px rgba(244,33,130,.3);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 30%, transparent);
 }
 .oc-avatar-lg {
   width: 40px; height: 40px; border-radius: 50%;
@@ -321,7 +321,7 @@ html, body {
   box-shadow: none; transition: all 0.15s;
   text-decoration: none; line-height: 1.4;
 }
-#oc-content .btn:focus { box-shadow: 0 0 0 3px rgba(244,33,130,.2); }
+#oc-content .btn:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 20%, transparent); }
 
 /* Primary = blue filled */
 #oc-content .btn-primary,
@@ -365,7 +365,7 @@ html, body {
 #oc-content .btn-outline-primary {
   background: transparent; color: var(--primary); border: 1px solid var(--primary);
 }
-#oc-content .btn-outline-primary:hover { background: rgba(244,33,130,.08); }
+#oc-content .btn-outline-primary:hover { background: color-mix(in srgb, var(--primary, #f42182) 8%, transparent); }
 
 #oc-content .btn-outline-secondary {
   background: transparent; color: #475569; border: 1px solid #cbd5e1;
@@ -455,7 +455,7 @@ html, body {
 #oc-content .form-control:focus,
 #oc-content .form-select:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(244,33,130,.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent);
 }
 #oc-content .form-label {
   font-size: 13px; font-weight: 600; color: #475569;
@@ -465,7 +465,7 @@ html, body {
   background-color: var(--primary); border-color: var(--primary);
 }
 #oc-content .form-check-input:focus {
-  box-shadow: 0 0 0 3px rgba(244,33,130,.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 15%, transparent);
   border-color: var(--primary);
 }
 
@@ -507,7 +507,7 @@ html, body {
 .modal .btn-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
 .modal .btn-warning:hover { background: #fef3c7; }
 .modal .btn-outline-primary { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
-.modal .btn-outline-primary:hover { background: rgba(244,33,130,.08); }
+.modal .btn-outline-primary:hover { background: color-mix(in srgb, var(--primary, #f42182) 8%, transparent); }
 .modal .btn-outline-secondary { background: transparent; color: #64748b; border: 1px solid #94a3b8; }
 .modal .btn-outline-secondary:hover { background: #e2e8f0; color: #475569; }
 .modal .btn-outline-danger { background: transparent; color: #991b1b; border: 1px solid #fecaca; }
@@ -525,7 +525,7 @@ html, body {
   border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #1e293b;
 }
 .modal .form-control:focus, .modal .form-select:focus {
-  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(244,33,130,.12);
+  border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent);
 }
 .modal .form-label { font-size: 13px; font-weight: 600; color: #475569; }
 .modal .form-check-input:checked { background-color: var(--primary); border-color: var(--primary); }
@@ -594,7 +594,7 @@ html, body {
 }
 .col-filter-btn:not(.active):hover, .col-filter-btn.active { opacity: 1; }
 .col-filter-btn:hover { background: #fdf2f8; color: #9d174d; }
-.col-filter-btn.active { background: #F42182; color: #fff; }
+.col-filter-btn.active { background: var(--primary, #f42182); color: var(--primary-text, #fff); }
 
 .col-filter-pop {
   position: fixed; z-index: 2000; min-width: 196px; max-height: 340px; overflow-y: auto;
@@ -611,7 +611,7 @@ html, body {
   font-size: 13px; color: #1e293b; cursor: pointer; white-space: nowrap;
 }
 .col-filter-pop .cfp-opt:hover { background: #fdf2f6; }
-.col-filter-pop .cfp-opt.active { background: #fbeaf1; color: #F42182; font-weight: 600; }
+.col-filter-pop .cfp-opt.active { background: #fbeaf1; color: var(--primary, #f42182); font-weight: 600; }
 .col-filter-pop .cfp-opt .bi { font-size: 13px; opacity: 0; flex: 0 0 auto; }
 .col-filter-pop .cfp-opt.active .bi { opacity: 1; }
 
@@ -621,7 +621,7 @@ html, body {
   cursor: col-resize; user-select: none; z-index: 1;
 }
 #oc-content .fer-table.dataTable thead th .col-resize:hover,
-#oc-content .fer-table.dataTable thead th .col-resize.active { background: #F42182; }
+#oc-content .fer-table.dataTable thead th .col-resize.active { background: var(--primary, #f42182); }
 
 /* ── Voile de chargement des tableaux (anti-flash pendant l'init DataTables) ──
    Le tableau est masqué (visibility:hidden → la mise en page reste calculée, donc
@@ -639,7 +639,7 @@ html, body {
 .fer-tbl-wrap.is-loading > .fer-tbl-spinner { display: flex; }
 .fer-tbl-spinner::after {
   content: ""; width: 42px; height: 42px; border-radius: 50%;
-  border: 4px solid #f6d6e6; border-top-color: #F42182;
+  border: 4px solid #f6d6e6; border-top-color: var(--primary, #f42182);
   animation: fer-spin .7s linear infinite;
 }
 @keyframes fer-spin { to { transform: rotate(360deg); } }
@@ -650,7 +650,7 @@ html, body {
 
 /* Repère d'insertion + aperçu de la colonne déplacée (ColReorder).
    NB : ColReorder 1.7 nomme ces éléments DTCR_pointer / DTCR_clonedTable. */
-div.DTCR_pointer { background-color: #F42182 !important; width: 2px; border-radius: 2px; }
+div.DTCR_pointer { background-color: var(--primary, #f42182) !important; width: 2px; border-radius: 2px; }
 /* Pendant le déplacement, on masque le clone par défaut (il copie tout le tableau
    → bloc disgracieux). Le retour visuel vient à la place d'une petite étiquette
    rose arrondie portant le nom de la colonne, qui suit la souris (créée en JS),
@@ -658,9 +658,9 @@ div.DTCR_pointer { background-color: #F42182 !important; width: 2px; border-radi
 table.DTCR_clonedTable.dataTable { display: none !important; }
 .dtcr-drag-label {
   position: fixed; z-index: 2100; pointer-events: none; display: none;
-  background: #F42182; color: #fff; font-size: 12px; font-weight: 600;
+  background: var(--primary, #f42182); color: var(--primary-text, #fff); font-size: 12px; font-weight: 600;
   padding: 5px 12px; border-radius: 999px; white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(244, 33, 130, .35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, #f42182) 35%, transparent);
 }
 .dtcr-drag-label.show { display: block; }
 
@@ -728,7 +728,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
   padding: 5px 10px; font-size: 13px; color: #1e293b;
 }
 #oc-content .dataTables_wrapper .dataTables_filter input:focus {
-  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(244,33,130,.12); outline: none;
+  border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent); outline: none;
 }
 /* Pagination — Bootstrap style, rose instead of blue */
 #oc-content .dataTables_wrapper .dataTables_paginate .paginate_button,
@@ -1034,7 +1034,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.2.1</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.2.2</div>
   </aside>
 
   <?php // Rafraîchissement live de la pastille « Accès bénévoles » (uniquement pour ceux qui valident) ?>

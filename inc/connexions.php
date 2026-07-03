@@ -120,7 +120,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #F42182; background: transparent;
+    border-bottom-color: var(--primary, #f42182); background: transparent;
   }
   .settings-section { display: none; }
   .settings-section.active { display: block; }
@@ -129,10 +129,10 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
   .badge-fail    { background-color: #dc3545 !important; }
   .ua-cell       { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .btn-rose {
-    background-color: #F42182; border-color: #F42182; color: #fff;
+    background-color: var(--primary, #f42182); border-color: var(--primary, #f42182); color: var(--primary-text, #fff);
   }
   .btn-rose:hover {
-    background-color: #db2777; border-color: #db2777; color: #fff;
+    background-color: var(--primary, #f42182); border-color: var(--primary, #f42182); color: var(--primary-text, #fff);
   }
 </style>
 

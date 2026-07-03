@@ -195,8 +195,8 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 }
 
 .badge-size {
-  background: rgba(244,33,130,0.1);
-  color: #db2777;
+  background: color-mix(in srgb, var(--primary, #f42182) 10%, transparent);
+  color: var(--primary, #f42182);
   padding: 0.3rem 0.6rem;
   border-radius: 8px;
   font-weight: 600;
@@ -249,7 +249,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
 .settings-tabs .nav-link.active {
   color: #1e293b; font-weight: 600;
-  border-bottom-color: #F42182; background: transparent;
+  border-bottom-color: var(--primary, #f42182); background: transparent;
 }
 .log-tab-section { display: none; height: calc(90vh - 180px); }
 .log-tab-section.active { display: flex; flex-direction: column; }

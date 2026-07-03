@@ -162,7 +162,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 }
 .saisie-card .form-control:focus,
 .saisie-card .form-select:focus {
-  border-color: #F42182;
+  border-color: var(--primary, #f42182);
   box-shadow: 0 0 0 3px rgba(196,87,122,.1);
   outline: none;
 }
@@ -172,8 +172,8 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 .btn-saisie {
   width: 100%;
   height: 36px;
-  background: #F42182;
-  color: #fff;
+  background: var(--primary, #f42182);
+  color: var(--primary-text, #fff);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -334,7 +334,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
       disp.innerHTML = labelDu + ' : <span style="color:#16a34a">'+formatMontant(0)+'</span>';
     } else {
       disp.style.display='block';
-      disp.innerHTML = labelDue + ' : <span style="color:#F42182">'+formatMontant(registrationFee)+'</span>';
+      disp.innerHTML = labelDue + ' : <span style="color:var(--primary, #f42182)">'+formatMontant(registrationFee)+'</span>';
     }
   }
   document.addEventListener('change', function(e){
@@ -895,7 +895,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         cb.type = 'checkbox';
         var ci = colIdxByKey(c.key);
         cb.checked = ci === -1 ? true : tblSaisie.column(ci).visible();
-        cb.style.accentColor = '#F42182';
+        cb.style.accentColor = 'var(--primary, #f42182)';
         cb.addEventListener('change', function(){
           // Index résolu à chaque clic via la clé stable → robuste au déplacement.
           var idxNow = colIdxByKey(c.key);

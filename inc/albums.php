@@ -649,7 +649,7 @@ try {
   }
   .filter-tabs a.active {
     color: #1e293b;
-    border-bottom-color: #F42182;
+    border-bottom-color: var(--primary, #f42182);
     font-weight: 600;
   }
   .filter-tabs .badge {
@@ -700,7 +700,7 @@ try {
     border: 1px dashed #dc3545;
   }
   /* Drag-and-drop albums */
-  .drag-handle-album:hover { color: #F42182 !important; }
+  .drag-handle-album:hover { color: var(--primary, #f42182) !important; }
   .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
 
   /* Sur PC : checkbox "Supprimer" hors flux + alignement vertical des icônes/boutons */
@@ -730,7 +730,7 @@ try {
 
 <!-- Spinner de chargement -->
 <div id="loadingSpinner" class="text-center py-5">
-  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#F42182;"></div>
+  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:var(--primary, #f42182);"></div>
   <p class="text-muted mt-2 small">Chargement des albums...</p>
 </div>
 

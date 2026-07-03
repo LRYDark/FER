@@ -1141,7 +1141,7 @@ if (!empty($textsRaw)) {
             <div style="font-size:2.5rem;margin-bottom:.75rem;">💌</div>
             <h3 style="margin:0 0 .75rem;color:#1e293b;font-size:1.15rem;font-weight:700;">Un email personnel détecté</h3>
             <p style="color:#475569;font-size:.92rem;line-height:1.6;margin:0 0 1.25rem;">
-              L'adresse <strong style="color:#db2777;">${escHtml(email)}</strong> semble être une adresse personnelle.<br>
+              L'adresse <strong style="color:var(--primary, #f42182);">${escHtml(email)}</strong> semble être une adresse personnelle.<br>
               Pour les partenariats professionnels, nous recommandons d'utiliser votre email d'entreprise.<br><br>
               <span style="color:#64748b;font-size:.85rem;">Vous pouvez quand même envoyer votre demande si vous le souhaitez !</span>
             </p>
@@ -1954,13 +1954,13 @@ foreach ($accueilLayout as $_row) {
     z-index: 5;
   }
   body.editor-mode .demo-card-media:hover::after {
-    border-color: #F42182;
+    border-color: var(--primary, #f42182);
   }
   /* Sélection : trait plein + plus épais. On utilise :has() pour cibler le parent
      quand la <video> à l'intérieur reçoit la classe .le-edit-selected (posée par
      le système de sélection existant au clic). */
   body.editor-mode .demo-card-media:has(.demo-video.le-edit-selected)::after {
-    border-color: #F42182;
+    border-color: var(--primary, #f42182);
     border-style: solid;
     border-width: 3px;
   }
@@ -1974,11 +1974,11 @@ foreach ($accueilLayout as $_row) {
     outline-offset: 4px;
     transition: outline-color .12s, background .12s;
   }
-  body.editor-mode .accueil-row:hover { outline-color: rgba(244,33,130,.5); }
-  body.editor-mode .accueil-col:hover { outline-color: rgba(244,33,130,.7); }
+  body.editor-mode .accueil-row:hover { outline-color: color-mix(in srgb, var(--primary, #f42182) 50%, transparent); }
+  body.editor-mode .accueil-col:hover { outline-color: color-mix(in srgb, var(--primary, #f42182) 70%, transparent); }
   body.editor-mode .accueil-col-hidden {
     opacity: 0.4;
-    background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(244,33,130,.05) 10px, rgba(244,33,130,.05) 20px);
+    background: repeating-linear-gradient(45deg, transparent, transparent 10px, color-mix(in srgb, var(--primary, #f42182) 5%, transparent) 10px, color-mix(in srgb, var(--primary, #f42182) 5%, transparent) 20px);
   }
   /* Bloc HTML brut en mode éditeur : cursor pointer + hover indicator.
      Le contenu placeholder (texte cliquable) est rendu côté serveur dans le bloc. */
@@ -2003,7 +2003,7 @@ foreach ($accueilLayout as $_row) {
     outline-offset: 4px;
     transition: outline-color .12s;
   }
-  body.editor-mode [data-edit-field]:hover { outline-color: #F42182; }
+  body.editor-mode [data-edit-field]:hover { outline-color: var(--primary, #f42182); }
   /* Désactive tous les liens et formulaires en mode éditeur */
   body.editor-mode a, body.editor-mode button[type="submit"] { pointer-events: none !important; }
   body.editor-mode form { pointer-events: none; }
@@ -2485,8 +2485,8 @@ foreach ($accueilLayout as $_row) {
     if (ed.dataset.editKind === 'text') {
       var origValue = ed.textContent.trim();
       ed.setAttribute('contenteditable', 'true');
-      ed.style.outline = '2px solid #F42182';
-      ed.style.background = 'rgba(244,33,130,0.08)';
+      ed.style.outline = '2px solid var(--primary, #f42182)';
+      ed.style.background = 'color-mix(in srgb, var(--primary, #f42182) 8%, transparent)';
       ed.focus();
       var range = document.createRange();
       range.selectNodeContents(ed);
@@ -3269,7 +3269,7 @@ foreach ($accueilLayout as $_row) {
       var el = document.querySelector(sel);
       if (el) {
         el.classList.add('editor-highlighted');
-        el.style.outline = '3px solid #F42182';
+        el.style.outline = '3px solid var(--primary, #f42182)';
         el.style.outlineOffset = '4px';
       }
     }

@@ -150,14 +150,14 @@ if ($canBulkCreate) {
   .statCard .stat-value--sm{font-size:1rem;font-weight:600;line-height:1.3}
   .hide-stats #stats {display: none !important;}
   .dashboard-actions .btn-rose{
-    background:linear-gradient(135deg,#F42182,#db2777)!important;
-    color:#fff!important;
+    background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #db2777))!important;
+    color:var(--primary-text, #fff)!important;
     border:none!important;
   }
   .dashboard-actions .btn-rose:hover,
   .dashboard-actions .btn-rose:focus{
-    background:linear-gradient(135deg,#db2777,#be185d)!important;
-    color:#fff!important;
+    background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #be185d))!important;
+    color:var(--primary-text, #fff)!important;
   }
   .dashboard-actions .btn-success{
     background:#22c55e!important;
@@ -220,7 +220,7 @@ if ($canBulkCreate) {
 
 /* Éligibles (X premiers) : liseré rose à gauche, fond normal. */
 #oc-content #tbl tbody tr.first-750 td:first-child {
-  box-shadow: inset 3px 0 0 0 #F42182;   /* liseré rose = éligible */
+  box-shadow: inset 3px 0 0 0 var(--primary, #f42182);   /* liseré rose = éligible */
 }
 /* Non-éligibles (montant dû = 0) : léger fond gris pour les distinguer. */
 #oc-content #tbl tbody tr.row-unpaid td { background-color: #f3f5f9; }
@@ -233,7 +233,7 @@ if ($canBulkCreate) {
 }
 .tbl-legend .lg-item { display: inline-flex; align-items: center; gap: 7px; }
 .tbl-legend .lg-bar {
-  width: 4px; height: 15px; border-radius: 2px; background: #F42182; display: inline-block;
+  width: 4px; height: 15px; border-radius: 2px; background: var(--primary, #f42182); display: inline-block;
 }
 .tbl-legend .lg-muted { color: #94a3b8; }
 
@@ -256,12 +256,12 @@ if ($canBulkCreate) {
   transition: all 0.15s ease;
 }
 #addModalTabs .nav-link:hover {
-  color: #db2777;
+  color: var(--primary, #f42182);
   border-bottom-color: #fbcfe8;
 }
 #addModalTabs .nav-link.active {
-  color: #db2777;
-  border-bottom-color: #db2777;
+  color: var(--primary, #f42182);
+  border-bottom-color: var(--primary, #f42182);
   background: transparent;
 }
 
@@ -284,7 +284,7 @@ if ($canBulkCreate) {
 .bulk-row-num {
   font-size: 12px;
   font-weight: 700;
-  color: #db2777;
+  color: var(--primary, #f42182);
   background: #fdf2f6;
   padding: 2px 8px;
   border-radius: 4px;
@@ -356,7 +356,7 @@ if ($canBulkCreate) {
 }
 .bulk-map-dropzone.drag-over,
 .bulk-map-pool.drag-over {
-  border-color: #db2777;
+  border-color: var(--primary, #f42182);
   background: #fdf2f6;
 }
 .bulk-map-placeholder {
@@ -378,7 +378,7 @@ if ($canBulkCreate) {
   cursor: grab;
   box-shadow: 0 1px 2px rgba(0,0,0,.06);
 }
-.bulk-map-chip .bi { color: #db2777; cursor: grab; }
+.bulk-map-chip .bi { color: var(--primary, #f42182); cursor: grab; }
 .bulk-map-chip.dragging { opacity: .4; }
 
 /* Commentaire : éditeur de texte libre + boutons d'insertion de colonnes */
@@ -405,13 +405,13 @@ if ($canBulkCreate) {
   color: #94a3b8;
   font-style: italic;
 }
-.bulk-comment-rich.drag-over { border-color: #db2777; background: #fdf2f6; }
+.bulk-comment-rich.drag-over { border-color: var(--primary, #f42182); background: #fdf2f6; }
 /* Card « colonne » intégrée dans le texte (déplaçable) */
 .ce-chip {
   display: inline-block;
   font-size: 12px;
   font-weight: 600;
-  color: #db2777;
+  color: var(--primary, #f42182);
   background: #fdf2f6;
   border: 1px solid #fbcfe8;
   border-radius: 6px;
@@ -660,7 +660,7 @@ if ($canBulkCreate) {
                 </select>
               </div>
               <div class="col-md-5 text-md-end">
-                <button type="button" id="bulkOptionsToggle" class="btn btn-sm btn-link text-decoration-none p-0" style="color:#db2777;" aria-expanded="false">
+                <button type="button" id="bulkOptionsToggle" class="btn btn-sm btn-link text-decoration-none p-0" style="color:var(--primary, #f42182);" aria-expanded="false">
                   <i class="bi bi-sliders me-1"></i><span id="bulkOptionsLabel">Options (entreprise, mails)</span>
                   <i class="bi bi-chevron-down ms-1" id="bulkOptionsChevron" style="font-size:11px;"></i>
                 </button>
@@ -1055,7 +1055,7 @@ function updateMontantDisplay(selectEl){
     disp.innerHTML = labelDu + ' : <span style="color:#16a34a">'+formatMontant(0)+'</span>';
   } else {
     disp.style.display='block';
-    disp.innerHTML = labelDue + ' : <span style="color:#F42182">'+formatMontant(registrationFee)+'</span>';
+    disp.innerHTML = labelDue + ' : <span style="color:var(--primary, #f42182)">'+formatMontant(registrationFee)+'</span>';
   }
 }
 document.addEventListener('change', function(e){
@@ -2877,7 +2877,7 @@ $('#fEdit').on('submit',e=>{
       cb.type = 'checkbox';
       var ci = colIdxByKey(c.key);
       cb.checked = ci === -1 ? true : tbl.column(ci).visible();
-      cb.style.accentColor = '#F42182';
+      cb.style.accentColor = 'var(--primary, #f42182)';
       cb.addEventListener('change', function() {
         // Index résolu À CHAQUE clic via la clé stable → robuste au déplacement.
         var idxNow = colIdxByKey(c.key);

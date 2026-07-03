@@ -228,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       .contact-captcha-question { font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:.5rem; }
       .contact-captcha-row { display:flex; gap:.5rem; align-items:stretch; }
       .contact-captcha-input { flex:1; padding:.55rem .75rem; border:1px solid #cbd5e1; border-radius:.55rem; font-size:1rem; outline:none; background:#fff; }
-      .contact-captcha-input:focus { border-color:#db2777; box-shadow:0 0 0 3px rgba(219,39,119,.15); }
+      .contact-captcha-input:focus { border-color:var(--primary, #f42182); box-shadow:0 0 0 3px rgba(219,39,119,.15); }
       .contact-captcha-reload { background:#e2e8f0; border:none; border-radius:.55rem; padding:0 .9rem; font-size:1rem; font-weight:600; color:#334155; cursor:pointer; }
       .contact-captcha-reload:hover { background:#cbd5e1; }
       .contact-captcha-error { color:#b91c1c; font-size:.82rem; min-height:1.1em; margin-top:.4rem; }

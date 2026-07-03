@@ -1941,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #F42182; background: transparent;
+    border-bottom-color: var(--primary, #f42182); background: transparent;
   }
   .settings-section { display: none; }
   .settings-section.active { display: block; }
@@ -1975,9 +1975,9 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
     overflow: hidden; transition: box-shadow .15s, border-color .15s;
   }
-  .le-row:hover { border-color: #F42182; }
+  .le-row:hover { border-color: var(--primary, #f42182); }
   .le-row.le-row-ghost { opacity: 0.4; background: #fce7f3; border-style: dashed; }
-  .le-row.le-row-chosen { box-shadow: 0 4px 14px rgba(244,33,130,.25); }
+  .le-row.le-row-chosen { box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, #f42182) 25%, transparent); }
   .le-row-toolbar {
     display: flex; align-items: center; gap: 8px;
     padding: 6px 10px; background: #f1f5f9;
@@ -1997,7 +1997,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .le-col.is-hidden { opacity: 0.5; background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 8px, #fdf2f8 8px, #fdf2f8 16px); }
   .le-col.le-col-ghost { opacity: 0.4; border-style: dashed; }
-  .le-col.le-col-chosen { box-shadow: 0 2px 8px rgba(244,33,130,.25); }
+  .le-col.le-col-chosen { box-shadow: 0 2px 8px color-mix(in srgb, var(--primary, #f42182) 25%, transparent); }
   .le-col-toolbar {
     display: flex; align-items: center; gap: 6px;
     padding: 6px 8px; border-bottom: 1px solid #f0e8eb;
@@ -2006,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-col-preview { padding: 10px; flex: 1; min-height: 60px; }
 
   .le-handle { cursor: grab; color: #94a3b8; padding: 2px; user-select: none; }
-  .le-handle:hover { color: #F42182; }
+  .le-handle:hover { color: var(--primary, #f42182); }
   .le-handle.le-row-handle { font-size: 16px; }
   .le-handle.le-col-handle { font-size: 14px; }
 
@@ -2050,7 +2050,7 @@ document.addEventListener('DOMContentLoaded', function() {
     border-bottom: 2px solid transparent;
   }
   .le-sb-tab:hover { color: #0f172a; }
-  .le-sb-tab.active { color: #F42182; border-bottom-color: #F42182; }
+  .le-sb-tab.active { color: var(--primary, #f42182); border-bottom-color: var(--primary, #f42182); }
   .le-sb-content { padding: 14px; flex: 1; overflow-y: auto; }
   .le-sb-pane { display: none; }
   .le-sb-pane.active { display: block; }
@@ -2074,7 +2074,7 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
     text-align: left; cursor: pointer; transition: .15s;
   }
-  .le-sb-add-btn:hover { border-color: #F42182; background: #fdf2f8; }
+  .le-sb-add-btn:hover { border-color: var(--primary, #f42182); background: #fdf2f8; }
   .le-sb-add-btn i { font-size: 18px; color: #9d174d; flex-shrink: 0; }
   .le-sb-add-btn strong { display: block; font-size: 13px; color: #1e293b; }
   .le-sb-add-btn small { font-size: 11px; color: #64748b; }
@@ -2091,12 +2091,12 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; align-items: center; justify-content: center;
     opacity: 0.4; transition: .15s;
   }
-  .le-add-row:hover button { opacity: 1; border-color: #F42182; color: #F42182; border-style: solid; }
+  .le-add-row:hover button { opacity: 1; border-color: var(--primary, #f42182); color: var(--primary, #f42182); border-style: solid; }
 
   /* ── Section sélectionnée (par clic) ── */
   .le-col.is-selected,
   .le-section-block.is-selected {
-    outline: 3px solid #F42182;
+    outline: 3px solid var(--primary, #f42182);
     outline-offset: 2px;
     border-radius: 8px;
   }
@@ -2121,7 +2121,7 @@ document.addEventListener('DOMContentLoaded', function() {
     border-bottom: 2px solid transparent;
   }
   .ife-sb-tab:hover { color: #0f172a; }
-  .ife-sb-tab.active { color: #F42182; border-bottom-color: #F42182; }
+  .ife-sb-tab.active { color: var(--primary, #f42182); border-bottom-color: var(--primary, #f42182); }
   .ife-sb-content { padding: 14px; flex: 1; overflow-y: auto; }
   .ife-sb-pane { display: none; }
   .ife-sb-pane.active { display: block; }
@@ -2154,7 +2154,7 @@ document.addEventListener('DOMContentLoaded', function() {
     text-align: center; min-width: 0;
     transition: border-color .15s;
   }
-  .ife-sb-grid-cell:hover { border-color: #F42182; }
+  .ife-sb-grid-cell:hover { border-color: var(--primary, #f42182); }
   .ife-sb-grid-cell .label {
     font-size: 10px; color: #64748b;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2165,7 +2165,7 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: 12px; font-weight: 600; color: #0f172a;
     padding: 2px;
   }
-  .ife-sb-grid-cell input:focus { outline: 2px solid #F42182; }
+  .ife-sb-grid-cell input:focus { outline: 2px solid var(--primary, #f42182); }
   .ife-sb-grid-cell.is-overflow { border-color: #ef4444; background: #fef2f2; }
   .ife-sb-grid-cell.is-hidden { opacity: 0.55; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(148,163,184,.08) 6px, rgba(148,163,184,.08) 12px); }
   /* Cellule en cours de drag (Sortable) */
@@ -2198,7 +2198,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-sb-align-row label { color: #475569; font-size: 12px; }
   .ife-sb-align-row .btn { padding: 2px 8px; }
-  .ife-sb-align-row .btn.active { background: #F42182; color: #fff; border-color: #F42182; }
+  .ife-sb-align-row .btn.active { background: var(--primary, #f42182); color: var(--primary-text, #fff); border-color: var(--primary, #f42182); }
   /* Labels de section dans la sidebar (clarifient ce qui suit) */
   .ife-sb-section-label {
     font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
@@ -2218,7 +2218,7 @@ document.addEventListener('DOMContentLoaded', function() {
     cursor: help; vertical-align: middle;
     transition: color .12s;
   }
-  .ife-sb-info-icon:hover, .ife-sb-info-icon:focus { color: #F42182; outline: none; }
+  .ife-sb-info-icon:hover, .ife-sb-info-icon:focus { color: var(--primary, #f42182); outline: none; }
   /* Tooltip personnalisé (plus large + texte lisible) */
   .ife-sb-tooltip .tooltip-inner {
     max-width: 280px; text-align: left;
@@ -2270,8 +2270,8 @@ document.addEventListener('DOMContentLoaded', function() {
     text-align: left; cursor: pointer; transition: .12s;
     font-size: 13px;
   }
-  .ife-sb-editable-btn:hover { border-color: #F42182; background: #fdf2f8; }
-  .ife-sb-editable-btn > i:first-child { color: #F42182; font-size: 16px; flex-shrink: 0; }
+  .ife-sb-editable-btn:hover { border-color: var(--primary, #f42182); background: #fdf2f8; }
+  .ife-sb-editable-btn > i:first-child { color: var(--primary, #f42182); font-size: 16px; flex-shrink: 0; }
   .ife-sb-editable-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
   .ife-sb-editable-info strong { font-size: 12px; color: #0f172a; font-weight: 600; }
   .ife-sb-editable-kind { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
@@ -2293,7 +2293,7 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: 12px; padding: 6px 10px;
   }
   .ife-sb-toggle-row .btn-group .btn.active {
-    background: #F42182; color: #fff; border-color: #F42182;
+    background: var(--primary, #f42182); color: var(--primary-text, #fff); border-color: var(--primary, #f42182);
   }
   .ife-sb-toggle-row .btn-group .btn i { margin-right: 4px; font-size: 12px; }
   /* Barre d'alignement (6 boutons) sous une entry de bloc HTML */
@@ -2311,7 +2311,7 @@ document.addEventListener('DOMContentLoaded', function() {
     text-transform: uppercase; letter-spacing: .04em;
   }
   .ife-sb-html-align-bar .btn { padding: 2px 6px; font-size: 11px; }
-  .ife-sb-html-align-bar .btn.active { background: #F42182; color: #fff; border-color: #F42182; }
+  .ife-sb-html-align-bar .btn.active { background: var(--primary, #f42182); color: var(--primary-text, #fff); border-color: var(--primary, #f42182); }
 
   .ife-sb-add-btn {
     display: flex; align-items: center; gap: 10px;
@@ -2319,7 +2319,7 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
     text-align: left; cursor: pointer; transition: .15s;
   }
-  .ife-sb-add-btn:hover { border-color: #F42182; background: #fdf2f8; }
+  .ife-sb-add-btn:hover { border-color: var(--primary, #f42182); background: #fdf2f8; }
   .ife-sb-add-btn i { font-size: 18px; color: #9d174d; flex-shrink: 0; }
   .ife-sb-add-btn strong { display: block; font-size: 13px; color: #1e293b; }
   .ife-sb-add-btn small { font-size: 11px; color: #64748b; }
@@ -2354,7 +2354,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-loader p { margin: 0; }
   .ife-loader-spin {
     width: 2.75rem; height: 2.75rem;
-    border: 3px solid #fce7f3; border-top-color: #F42182;
+    border: 3px solid #fce7f3; border-top-color: var(--primary, #f42182);
     border-radius: 50%;
     animation: ife-spin .8s linear infinite;
   }
@@ -2422,7 +2422,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-preview-toolbar .ife-device-btn:hover { color: #1e293b; }
   .ife-preview-toolbar .ife-device-btn.is-active {
-    background: #fff; color: #F42182;
+    background: #fff; color: var(--primary, #f42182);
     box-shadow: 0 1px 2px rgba(0,0,0,.06);
   }
   .ife-preview-toolbar .ife-migrate-btn,
@@ -2434,7 +2434,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-preview-toolbar .ife-migrate-btn:hover,
   .ife-preview-toolbar .ife-restore-btn:hover {
-    border-color: #F42182; color: #F42182;
+    border-color: var(--primary, #f42182); color: var(--primary, #f42182);
   }
   .ife-preview-toolbar .ife-migrate-btn[disabled],
   .ife-preview-toolbar .ife-restore-btn[disabled] {
@@ -2465,7 +2465,7 @@ document.addEventListener('DOMContentLoaded', function() {
     cursor: pointer; border-bottom: 1px solid #f1f5f9;
   }
   .ife-sp-suggest-item:last-child { border-bottom: 0; }
-  .ife-sp-suggest-item:hover { background: #fdf2f8; color: #be185d; }
+  .ife-sp-suggest-item:hover { background: #fdf2f8; color: var(--primary-hover, #be185d); }
   /* outline (et pas border) : ne prend AUCUN espace dans le layout, donc le rail
      de drag ne se décale plus au hover → plus de clignotement infini */
   .ife-row-overlay {
@@ -2474,24 +2474,24 @@ document.addEventListener('DOMContentLoaded', function() {
     outline: 3px dashed transparent; outline-offset: 4px; border-radius: 4px;
     transition: outline-color .15s;
   }
-  .ife-row-overlay:hover { outline-color: rgba(244,33,130,.5); }
-  .ife-row-overlay.is-selected { outline-color: #F42182; }
+  .ife-row-overlay:hover { outline-color: color-mix(in srgb, var(--primary, #f42182) 50%, transparent); }
+  .ife-row-overlay.is-selected { outline-color: var(--primary, #f42182); }
   /* Rail de drag visible toujours à gauche pour pouvoir glisser la section */
   .ife-row-drag-rail {
     position: absolute;
     left: 0; top: 0; bottom: 0; width: 14px;
-    background: rgba(244,33,130,0.15);
+    background: color-mix(in srgb, var(--primary, #f42182) 15%, transparent);
     border-radius: 4px 0 0 4px;
     cursor: grab;
     pointer-events: auto;
     z-index: 11;
     transition: background .15s, width .15s;
     display: flex; align-items: center; justify-content: center;
-    color: rgba(244,33,130,0.6);
+    color: color-mix(in srgb, var(--primary, #f42182) 60%, transparent);
     font-size: 14px;
   }
   .ife-row-drag-rail:hover, .ife-row-drag-rail:active {
-    background: rgba(244,33,130,0.45); width: 22px;
+    background: color-mix(in srgb, var(--primary, #f42182) 45%, transparent); width: 22px;
     color: #fff;
   }
   .ife-row-drag-rail:active { cursor: grabbing; }
@@ -2526,7 +2526,7 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; align-items: center; justify-content: center;
     opacity: 0; transition: .15s;
   }
-  .ife-add-marker:hover button { opacity: 1; border-color: #F42182; color: #F42182; border-style: solid; }
+  .ife-add-marker:hover button { opacity: 1; border-color: var(--primary, #f42182); color: var(--primary, #f42182); border-style: solid; }
   .ife-overlay:hover .ife-add-marker button { opacity: 0.4; }
 
   /* Menu contextuel (clic droit) flottant au-dessus de l'iframe */
@@ -2564,27 +2564,27 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Drop slots verticaux (as-col) — insérer comme colonne dans la ligne */
   .ife-drop-slot {
     pointer-events: none;
-    border: 2px dashed rgba(244,33,130,0.75);
-    background: rgba(244,33,130,0.18);
+    border: 2px dashed color-mix(in srgb, var(--primary, #f42182) 75%, transparent);
+    background: color-mix(in srgb, var(--primary, #f42182) 18%, transparent);
     border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     transition: background .12s, border-color .12s, transform .12s;
     box-sizing: border-box;
   }
   .ife-drop-slot span {
-    font-size: 12px; color: #fff; font-weight: 700;
-    background: #F42182; padding: 6px 14px; border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(244,33,130,.4);
+    font-size: 12px; color: var(--primary-text, #fff); font-weight: 700;
+    background: var(--primary, #f42182); padding: 6px 14px; border-radius: 14px;
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--primary, #f42182) 40%, transparent);
     white-space: nowrap;
     letter-spacing: 0.02em;
   }
   .ife-drop-slot.is-hot {
-    background: rgba(244,33,130,0.38);
-    border-color: #F42182; border-style: solid; border-width: 3px;
+    background: color-mix(in srgb, var(--primary, #f42182) 38%, transparent);
+    border-color: var(--primary, #f42182); border-style: solid; border-width: 3px;
     transform: scale(1.01);
   }
   .ife-drop-slot.is-hot span {
-    background: #be185d;
+    background: var(--primary-hover, #be185d);
     transform: scale(1.08);
   }
 
@@ -2619,18 +2619,18 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-merge-hint {
     position: absolute; inset: 4px;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(244,33,130,0.85);
-    color: #fff; font-weight: 700; font-size: 13px;
+    background: color-mix(in srgb, var(--primary, #f42182) 85%, transparent);
+    color: var(--primary-text, #fff); font-weight: 700; font-size: 13px;
     border-radius: 6px;
     pointer-events: none; z-index: 30;
     text-shadow: 0 1px 2px rgba(0,0,0,.4);
     animation: ife-merge-pulse 0.6s ease-in-out infinite alternate;
   }
   @keyframes ife-merge-pulse {
-    from { background: rgba(244,33,130,0.7); }
-    to   { background: rgba(244,33,130,0.95); }
+    from { background: color-mix(in srgb, var(--primary, #f42182) 70%, transparent); }
+    to   { background: color-mix(in srgb, var(--primary, #f42182) 95%, transparent); }
   }
-  .ife-row-overlay.is-merge-target { box-shadow: 0 0 0 4px #F42182; }
+  .ife-row-overlay.is-merge-target { box-shadow: 0 0 0 4px var(--primary, #f42182); }
 
   /* ════════════════════════════════════════════════════════════
      ANCIEN ÉDITEUR (le-*) — DEAD CODE après refonte iframe
@@ -2654,16 +2654,16 @@ document.addEventListener('DOMContentLoaded', function() {
     outline: 2px solid transparent; outline-offset: 4px;
     transition: outline .12s;
   }
-  .le-row:hover, .le-section-block:hover { outline-color: rgba(244,33,130,.35); }
-  .le-row.is-selected, .le-section-block.is-selected { outline-color: #F42182 !important; outline-offset: 6px; }
+  .le-row:hover, .le-section-block:hover { outline-color: color-mix(in srgb, var(--primary, #f42182) 35%, transparent); }
+  .le-row.is-selected, .le-section-block.is-selected { outline-color: var(--primary, #f42182) !important; outline-offset: 6px; }
 
   .le-col {
     /* Harmonisé avec les pointillés des éléments du hero : 3 px dashed + 4 px gap. */
     outline: 3px dashed transparent; outline-offset: 4px;
     transition: outline .12s;
   }
-  .le-col:hover { outline-color: rgba(244,33,130,.35); }
-  .le-col.is-selected { outline-color: #F42182 !important; outline-style: solid; }
+  .le-col:hover { outline-color: color-mix(in srgb, var(--primary, #f42182) 35%, transparent); }
+  .le-col.is-selected { outline-color: var(--primary, #f42182) !important; outline-style: solid; }
 
   /* Toolbars : mini-float top-right INTERNE (style sec-actions du mail editor) */
   .le-row-toolbar, .le-section-toolbar, .le-col-toolbar {
@@ -2715,7 +2715,7 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: 14px; line-height: 1;
   }
   .le-row-toolbar .le-handle:hover,
-  .le-col-toolbar .le-handle:hover { color: #F42182; }
+  .le-col-toolbar .le-handle:hover { color: var(--primary, #f42182); }
   .le-row-toolbar .ms-auto, .le-col-toolbar .ms-auto { margin-left: 0 !important; }
 
   /* ── Éléments éditables (cliquables dans l'aperçu) ── */
@@ -2728,11 +2728,11 @@ document.addEventListener('DOMContentLoaded', function() {
     outline-offset: 4px;
   }
   .accueil-edit-preview [data-edit-field]:hover {
-    outline-color: #F42182;
+    outline-color: var(--primary, #f42182);
   }
   .accueil-edit-preview [data-edit-field]::after {
     content: "✏️"; position: absolute; top: 4px; right: 4px;
-    background: #F42182; color: #fff; padding: 2px 6px;
+    background: var(--primary, #f42182); color: var(--primary-text, #fff); padding: 2px 6px;
     border-radius: 999px; font-size: 11px; opacity: 0;
     transition: .15s; pointer-events: none;
   }
@@ -2742,9 +2742,9 @@ document.addEventListener('DOMContentLoaded', function() {
     position: relative;
   }
   .accueil-edit-preview [data-edit-field].le-edit-selected {
-    outline: 3px solid #F42182 !important;
+    outline: 3px solid var(--primary, #f42182) !important;
     outline-offset: 4px;
-    background: rgba(244,33,130,0.05);
+    background: color-mix(in srgb, var(--primary, #f42182) 5%, transparent);
   }
 </style>
 
@@ -3042,9 +3042,9 @@ if (!$canTab($activeTab)) {
                     $isCustom = isset($customFonts[$val]);
                     $ff = $val === 'system-ui' ? 'system-ui, sans-serif' : "'" . htmlspecialchars($val) . "', sans-serif";
                   ?>
-                  <div class="font-picker-item<?= $val === $theme_font ? ' active' : '' ?>" data-value="<?= htmlspecialchars($val) ?>" style="padding:10px 16px;cursor:pointer;font-family:<?= $ff ?>;font-size:15px;transition:background .15s;<?= $isCustom ? 'border-left:3px solid #F42182;' : '' ?>" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=this.classList.contains('active')?'#fdf2f8':''">
+                  <div class="font-picker-item<?= $val === $theme_font ? ' active' : '' ?>" data-value="<?= htmlspecialchars($val) ?>" style="padding:10px 16px;cursor:pointer;font-family:<?= $ff ?>;font-size:15px;transition:background .15s;<?= $isCustom ? 'border-left:3px solid var(--primary, #f42182);' : '' ?>" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=this.classList.contains('active')?'#fdf2f8':''">
                     <?= htmlspecialchars($label) ?>
-                    <?php if ($isCustom): ?><span style="font-size:10px;color:#F42182;font-family:system-ui;margin-left:6px;">custom</span><?php endif; ?>
+                    <?php if ($isCustom): ?><span style="font-size:10px;color:var(--primary, #f42182);font-family:system-ui;margin-left:6px;">custom</span><?php endif; ?>
                   </div>
                   <?php endforeach; ?>
                 </div>

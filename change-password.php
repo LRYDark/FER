@@ -27,16 +27,16 @@ $picture = $data['picture'] ?? '';
     .oc-topbar h1 { color: #fff; font-size: 16px; font-weight: 700; }
     .oc-body { background: #fff; border-radius: 12px; margin: 0 6px 6px 6px; height: calc(100vh - 70px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; overflow: auto; }
     .oc-logo { text-align: center; margin-bottom: 24px; }
-    .oc-logo .logo-icon { width: 56px; height: 56px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: #F42182; font-size: 24px; }
+    .oc-logo .logo-icon { width: 56px; height: 56px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: var(--primary, #f42182); font-size: 24px; }
     .oc-logo h2 { font-size: 22px; font-weight: 700; color: #191C1D; }
     .oc-logo p { color: #5f4b52; font-size: 14px; margin-top: 4px; }
     .oc-card { background: #fff; border: 1px solid #f0e8eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(74,32,56,.08); padding: 32px; width: 100%; max-width: 440px; }
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; color: #5f4b52; margin-bottom: 4px; }
     .form-group input { width: 100%; height: 40px; padding: 8px 12px; border: 1px solid #d4c4cb; border-radius: 6px; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; color: #191C1D; background: #fff; outline: none; }
-    .form-group input:focus { border-color: #F42182; outline: none; box-shadow: 0 0 0 3px rgba(244,33,130,.12); }
-    .oc-btn { width: 100%; padding: 10px; background: #F42182; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
-    .oc-btn:hover { background: #db2777; }
+    .form-group input:focus { border-color: var(--primary, #f42182); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent); }
+    .oc-btn { width: 100%; padding: 10px; background: var(--primary, #f42182); color: var(--primary-text, #fff); border: none; border-radius: 6px; font-size: 14px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
+    .oc-btn:hover { background: var(--primary, #f42182); }
     .oc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .pw-checks { margin-top: 8px; }
     .pw-check { padding: 2px 0; color: #9e8a92; font-size: 13px; transition: color 0.2s; }
