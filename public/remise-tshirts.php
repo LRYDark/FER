@@ -232,7 +232,7 @@ try {
     try {
       scanner = new Html5Qrcode('qrReader');
       scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:230,height:230}},
-        function(decoded){ var v = (decoded||'').trim(); if (v) doSearch(v); },
+        function(decoded){ var v = (decoded||'').trim(); if (v){ hideCamera(); doSearch(v); } },
         function(){}
       ).then(function(){ scannerRunning = true; })
        .catch(function(){
