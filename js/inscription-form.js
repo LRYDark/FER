@@ -108,15 +108,20 @@
       }
     }
 
+    var minorAge = block ? (parseInt(block.getAttribute('data-minor-age'), 10) || MINOR_AGE) : MINOR_AGE;
+    var isMinor  = (age != null && age < minorAge);
+
     if (block) {
       // Seuil d'âge + caractère obligatoire lus sur le bloc (paramétrables côté admin).
-      var minorAge = parseInt(block.getAttribute('data-minor-age'), 10) || MINOR_AGE;
+      // Les champs personnalisés (data-guardian="custom") sont désormais À L'INTÉRIEUR
+      // du bloc : ils s'affichent/se masquent avec lui, et suivent leur propre « requis ».
       var required = block.getAttribute('data-guardian-required') !== '0';
-      var isMinor = (age != null && age < minorAge);
       block.style.display = isMinor ? '' : 'none';
       var inputs = block.querySelectorAll('[data-guardian]');
       for (var i = 0; i < inputs.length; i++) {
-        if (isMinor && required) inputs[i].setAttribute('required', 'required');
+        var isCustom = inputs[i].getAttribute('data-guardian') === 'custom';
+        var elReq = isCustom ? (inputs[i].getAttribute('data-guardian-req') === '1') : required;
+        if (isMinor && elReq) inputs[i].setAttribute('required', 'required');
         else inputs[i].removeAttribute('required');
       }
     }
@@ -148,11 +153,17 @@
     var block = formEl.querySelector('[data-guardian-block]');
     if (!block || block.style.display === 'none') return true; // pas un mineur / bloc masqué
     if (block.getAttribute('data-guardian-required') === '0') return true; // bloc facultatif
+    // Nom/prénom du responsable (toujours requis si le bloc l'est) + champs
+    // personnalisés dont le « requis » propre est activé.
     var inputs = block.querySelectorAll('[data-guardian]');
     for (var i = 0; i < inputs.length; i++) {
+      var isCustom = inputs[i].getAttribute('data-guardian') === 'custom';
+      if (isCustom && inputs[i].getAttribute('data-guardian-req') !== '1') continue; // custom facultatif
       if (!inputs[i].value.trim()) {
         inputs[i].focus();
-        alert("Inscription d'un mineur : merci d'indiquer le nom et le prénom du responsable légal.");
+        alert(isCustom
+          ? "Inscription d'un mineur : merci de compléter les informations demandées pour le responsable légal."
+          : "Inscription d'un mineur : merci d'indiquer le nom et le prénom du responsable légal.");
         return false;
       }
     }
@@ -172,7 +183,9 @@
     var birth = formEl.querySelector('[name="naissance"]');
     var block = formEl.querySelector('[data-guardian-block]');
     var age = birth ? ageFromBirth(normalizeBirthValue(birth.value)) : null;
-    var isMinor = (age != null && age < MINOR_AGE);
+    // Seuil « mineur » paramétrable au niveau du bloc (cohérent avec applyState).
+    var minorAge = block ? (parseInt(block.getAttribute('data-minor-age'), 10) || MINOR_AGE) : MINOR_AGE;
+    var isMinor = (age != null && age < minorAge);
 
     // Texte libre = contenu actuel privé d'un éventuel bloc responsable.
     var val = textarea.value || '';
@@ -188,8 +201,17 @@
       prenom = pEl ? pEl.value.trim() : '';
     }
 
-    if (isMinor && (nom || prenom)) {
+    // Champs personnalisés du bloc responsable → lignes « Libellé : valeur ».
+    var extraLines = [];
+    var customEls = formEl.querySelectorAll('[data-guardian="custom"]');
+    for (var i = 0; i < customEls.length; i++) {
+      var cv = (customEls[i].value || '').trim();
+      if (cv) extraLines.push((customEls[i].getAttribute('data-guardian-key') || 'Info') + ' : ' + cv);
+    }
+
+    if (isMinor && (nom || prenom || extraLines.length)) {
       var blockTxt = GUARDIAN_MARKER + ' (mineur) : Validé\nNom : ' + nom + '\nPrénom : ' + prenom;
+      if (extraLines.length) blockTxt += '\n' + extraLines.join('\n');
       textarea.value = val ? (val + '\n\n' + blockTxt) : blockTxt;
     } else {
       textarea.value = val;

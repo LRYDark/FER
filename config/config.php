@@ -264,6 +264,7 @@ function permCatalog(): array
         'pages' => [
             'dashboard','timeline','news','partners','albums','stats',
             'setting','mail-settings','qr_code','connexions','logs','page_stats',
+            'tshirt_access',
         ],
         'actions' => [
             // Inscriptions (dashboard)
@@ -280,6 +281,8 @@ function permCatalog(): array
             'content.logs.view',
             // Pages d'administration (write actions)
             'settings.write','mail.write','mail.send','mail.newsletter','qrcode.write','connexions.write','logs.write',
+            // Accès bénévoles (Remise T-shirts) — granularité par action
+            'tshirt_access.manage','tshirt_access.approve','tshirt_access.devices_view','tshirt_access.devices_revoke',
             // Sous-onglets des Réglages (granularité par onglet)
             'settings.tab.personnalisation','settings.tab.accueil','settings.tab.inscription',
             'settings.tab.parcours','settings.tab.reglementation','settings.tab.formulaire',

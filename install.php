@@ -666,6 +666,8 @@ function getCreateTableStatements(): array
           `sort_order` int(11) NOT NULL DEFAULT 0,
           `options_list` text DEFAULT NULL,
           `encrypted` tinyint(1) NOT NULL DEFAULT 0,
+          `help_text` text DEFAULT NULL,
+          `guardian_section` tinyint(1) NOT NULL DEFAULT 0,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -804,6 +806,8 @@ function getCreateTableStatements(): array
           `qr_url` varchar(500) NOT NULL,
           `description` text DEFAULT NULL,
           `is_active` tinyint(1) DEFAULT 1,
+          `onsite_mode` tinyint(1) NOT NULL DEFAULT 0,
+          `payment_label` varchar(50) DEFAULT 'retrait t-shirt',
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
           `created_by` int(11) DEFAULT NULL,
@@ -984,6 +988,46 @@ function getCreateTableStatements(): array
           `last_rows` INT NOT NULL DEFAULT 0,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Accès « Remise T-shirts » pour bénévoles (sans compte).
+        // tshirt_access : config à ligne unique (id=1). tshirt_access_sessions : une
+        // ligne par appareil (nom + statut de validation, liée au token de campagne).
+        // tshirt_handout_log : journal des remises (traçabilité).
+        "CREATE TABLE IF NOT EXISTS `tshirt_access` (
+          `id` TINYINT(1) NOT NULL DEFAULT 1,
+          `enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          `campaign_token` VARCHAR(64) DEFAULT NULL,
+          `opened_at` DATETIME DEFAULT NULL,
+          `expires_at` DATETIME DEFAULT NULL,
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+        "CREATE TABLE IF NOT EXISTS `tshirt_access_sessions` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `campaign_token` VARCHAR(64) NOT NULL,
+          `device_id` VARCHAR(64) NOT NULL,
+          `volunteer_name` VARCHAR(120) DEFAULT NULL,
+          `status` ENUM('pending','approved','refused') NOT NULL DEFAULT 'pending',
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `approved_at` DATETIME DEFAULT NULL,
+          `approved_by` INT DEFAULT NULL,
+          `expires_at` DATETIME DEFAULT NULL,
+          `last_seen` DATETIME DEFAULT NULL,
+          `ip` VARCHAR(45) DEFAULT NULL,
+          `user_agent` VARCHAR(255) DEFAULT NULL,
+          UNIQUE KEY `idx_device_campaign` (`device_id`, `campaign_token`),
+          INDEX `idx_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+        "CREATE TABLE IF NOT EXISTS `tshirt_handout_log` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `registration_id` INT DEFAULT NULL,
+          `inscription_no` VARCHAR(50) DEFAULT NULL,
+          `size` VARCHAR(5) DEFAULT NULL,
+          `volunteer_name` VARCHAR(120) DEFAULT NULL,
+          `device_id` VARCHAR(64) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_reg` (`registration_id`),
+          INDEX `idx_created` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
     ];
 }
 
@@ -1047,6 +1091,8 @@ function getDefaultInserts(): array
 
         // Ligne unique de configuration de l'import automatique AssoConnect
         "INSERT IGNORE INTO `sync_assoconnect` (`id`) VALUES (1)",
+
+        "INSERT IGNORE INTO `tshirt_access` (`id`) VALUES (1)",
     ];
 }
 

@@ -27,6 +27,37 @@ function getActiveFields(PDO $pdo, string $context = 'public'): array
 }
 
 /**
+ * Rend un champ personnalisé « autorisation parentale » (à insérer DANS la carte du
+ * bloc responsable légal). Pas de colonne BDD : la valeur est injectée dans le
+ * commentaire par js/inscription-form.js (data-guardian="custom").
+ */
+function renderGuardianExtraField(array $field, bool $forceOptional = false): string
+{
+    $type  = $field['field_type'] ?? 'text';
+    $key   = htmlspecialchars($field['label'] ?? 'Champ');
+    $req   = $forceOptional ? 0 : (int) ($field['required'] ?? 0);
+    $star  = $req ? ' <span style="color:#ef4444">*</span>' : '';
+    $attrs = ' data-guardian="custom" data-guardian-key="' . $key . '" data-guardian-req="' . $req . '"';
+    if ($type === 'select') {
+        $opts  = array_map('trim', explode(',', $field['options_list'] ?? ''));
+        $inner = '<select class="form-select"' . $attrs . '>';
+        foreach ($opts as $o) { $oe = htmlspecialchars($o); $inner .= '<option value="' . $oe . '">' . $oe . '</option>'; }
+        $inner .= '</select>';
+        $colClass = 'col-md-6';
+    } elseif ($type === 'textarea') {
+        $inner    = '<textarea class="form-control" rows="2"' . $attrs . '></textarea>';
+        $colClass = 'col-12';
+    } else {
+        $t        = in_array($type, ['number', 'email', 'date', 'tel'], true) ? $type : 'text';
+        $inner    = '<input type="' . $t . '" class="form-control"' . $attrs . '>';
+        $colClass = 'col-md-6';
+    }
+    return '<div class="' . $colClass . '">'
+         . '<label class="form-label">' . $key . $star . '</label>'
+         . $inner . '</div>';
+}
+
+/**
  * Rend un champ HTML pour un formulaire.
  * @param array $field  Ligne de la table forms
  * @param string $value Valeur actuelle (pour l'édition)
@@ -35,9 +66,16 @@ function getActiveFields(PDO $pdo, string $context = 'public'): array
  *               l'email reste facultatif même s'il est requis ailleurs).
  * @return string HTML
  */
-function renderFormField(array $field, string $value = '', bool $forceOptional = false): string
+function renderFormField(array $field, string $value = '', bool $forceOptional = false, string $context = 'public'): string
 {
     $type     = $field['field_type'] ?? 'text';
+
+    // Champ personnalisé « autorisation parentale » : il n'est PAS rendu tout seul ici
+    // — il est rendu à l'intérieur de la carte du bloc responsable légal (juste après
+    // Nom/Prénom), par le bloc `guardian` ci-dessous via renderGuardianExtraField().
+    if (!empty($field['guardian_section'])) {
+        return '';
+    }
 
     // Bloc spécial « Autorisation parentale (mineur) » : ce n'est PAS une colonne
     // BDD (bdd_column NULL). Les nom/prénom du responsable saisis ici sont injectés
@@ -52,6 +90,36 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
         // (même convention que les autres champs requis du formulaire).
         $gStar = $req ? ' <span style="color:#ef4444">*</span>' : '';
         $lbl = htmlspecialchars($field['label'] ?? 'Autorisation parentale (mineur)');
+        // Texte de consentement (paramétrable dans « Gestion des champs »). Affiché
+        // sous les champs du responsable légal, sur tous les formulaires où le bloc
+        // apparaît (public / admin / saisie).
+        $consent = trim((string) ($field['help_text'] ?? ''));
+        $consentHtml = $consent !== ''
+            ? '<div class="mt-2" style="font-size:12px;color:#9a3412;line-height:1.4">'
+              . '<i class="bi bi-info-circle me-1"></i>' . nl2br(htmlspecialchars($consent)) . '</div>'
+            : '';
+
+        // Champs personnalisés rattachés à ce bloc : rendus À L'INTÉRIEUR de la carte,
+        // juste après Nom/Prénom, filtrés par le contexte du formulaire courant.
+        $extraHtml = '';
+        global $pdo;
+        if (isset($pdo) && $pdo) {
+            // Contexte du formulaire courant (passé explicitement par l'appelant) →
+            // même colonne de visibilité que le reste du formulaire.
+            $visCol = match ($context) {
+                'admin'  => 'visible_admin',
+                'saisie' => 'visible_saisie',
+                'bulk'   => 'visible_saisie_multiple',
+                default  => 'visible_qr',
+            };
+            try {
+                $exStmt = $pdo->query("SELECT * FROM forms WHERE active = 1 AND guardian_section = 1 AND `{$visCol}` = 1 ORDER BY sort_order ASC");
+                foreach ($exStmt->fetchAll(PDO::FETCH_ASSOC) as $ef) {
+                    $extraHtml .= renderGuardianExtraField($ef, $forceOptional);
+                }
+            } catch (\Throwable $e) { /* colonne guardian_section absente (migration) → ignore */ }
+        }
+
         return '<div class="col-12 guardian-block" data-guardian-block'
              . ' data-minor-age="' . $age . '" data-guardian-required="' . $req . '" style="display:none">'
              . '<div class="p-3 rounded" style="background:#fff7ed;border:1px solid #fed7aa">'
@@ -62,7 +130,8 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
              . '<input type="text" class="form-control" data-guardian="nom"></div>'
              . '<div class="col-md-6"><label class="form-label">Prénom du responsable légal' . $gStar . '</label>'
              . '<input type="text" class="form-control" data-guardian="prenom"></div>'
-             . '</div></div></div>';
+             . $extraHtml
+             . '</div>' . $consentHtml . '</div></div>';
     }
 
     $name     = htmlspecialchars($field['bdd_column'] ?? '');

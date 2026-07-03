@@ -36,6 +36,7 @@ $adminLinks = [
     'news.php'      => ['Actualités',       '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', ['admin','user']],
     'timeline.php'  => ['Timeline',         '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', ['admin','user']],
     'qr_code.php'   => ['QR Code',          '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>', ['admin']],
+    'tshirt-access.php' => ['Accès bénévoles', '<path d="M16 3l5 3-2 4-2-1v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9L5 10 3 6l5-3"/><path d="M9 3a3 3 0 0 0 6 0"/>', ['admin']],
     'connexions.php'=> ['Connexions',       '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>', ['admin']],
     'logs.php'      => ['Logs',             '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>', ['admin']],
     'page_stats.php' => ['Visites',          '<path d="M1 12 C 1 12, 5 4, 12 4 S 23 12, 23 12 S 19 20, 12 20 S 1 12, 1 12 Z"/><circle cx="12" cy="12" r="3"/>', ['admin']],
@@ -984,6 +985,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
           'setting.php'       => 'setting',
           'mail-settings.php' => 'mail-settings',
           'qr_code.php'       => 'qr_code',
+          'tshirt-access.php' => 'tshirt_access',
           'connexions.php'    => 'connexions',
           'logs.php'          => 'logs',
           'page_stats.php'    => 'page_stats',
@@ -1017,6 +1019,9 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
           <a class="oc-sidebar-link <?= $isActive ? 'active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
             <svg viewBox="0 0 24 24"><?= $icon ?></svg>
             <span><?= $label ?></span>
+            <?php if ($file === 'tshirt-access.php'): ?>
+              <span class="badge bg-danger rounded-pill ms-auto<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
+            <?php endif; ?>
           </a>
         </li>
       <?php endforeach; ?>
@@ -1029,8 +1034,29 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.2.0</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.2.1</div>
   </aside>
+
+  <?php // Rafraîchissement live de la pastille « Accès bénévoles » (uniquement pour ceux qui valident) ?>
+  <?php if (canDoAction('tshirt_access.approve')): ?>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+  (function(){
+    var badge = document.getElementById('tshirtPendingBadge');
+    if (!badge) return;
+    function refresh(){
+      fetch('../config/api.php?route=tshirt-admin', {headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (!res || !res.ok) return;
+          var n = (res.pending || []).length;
+          badge.textContent = n;
+          badge.classList.toggle('d-none', n === 0);
+        }).catch(function(){});
+    }
+    setInterval(refresh, 30000);
+  })();
+  </script>
+  <?php endif; ?>
 
   <!-- ═══════ CONTENT (opened here, closed in admin-footer.php) ═══════ -->
   <div id="oc-content">
