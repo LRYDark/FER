@@ -35,7 +35,7 @@ try {
   body { background:#faf7f8; }
   .ts-wrap { max-width:560px; margin:0 auto; padding:16px 14px 48px; }
   .ts-head { text-align:center; margin:10px 0 20px; }
-  .ts-head h1 { font-size:1.4rem; font-weight:800; color:#db2777; margin:0; }
+  .ts-head h1 { font-size:1.4rem; font-weight:800; color:var(--primary, #f42182); margin:0; }
   .ts-head p { color:#64748b; font-size:.9rem; margin:.25rem 0 0; }
   .ts-card { background:#fff; border:none; border-radius:1rem; box-shadow:0 4px 24px rgba(0,0,0,.07); }
   .qr-size-btn { min-width:64px; font-weight:700; font-size:1.1rem; }
@@ -71,7 +71,7 @@ try {
         <label class="form-label fw-semibold">Nom et prénom du bénévole</label>
         <input type="text" id="volName" class="form-control form-control-lg" placeholder="Ex : Marie Dupont" maxlength="120" autocomplete="name">
       </div>
-      <button id="btnRequest" class="btn btn-lg w-100 text-white" style="background:#db2777">
+      <button id="btnRequest" class="btn btn-lg w-100 text-white" style="background:var(--primary, #f42182)">
         <i class="bi bi-send me-1"></i>Demander l'accès
       </button>
     </div>

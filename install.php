@@ -1176,7 +1176,7 @@ $stepLabels = [
     .oc-icon-circle svg {
       width: 28px;
       height: 28px;
-      color: #F42182;
+      color: var(--primary, #f42182);
     }
 
     .oc-title {
@@ -1225,13 +1225,13 @@ $stepLabels = [
     }
 
     .oc-step-dot.active {
-      background: #F42182;
-      color: #fff;
+      background: var(--primary, #f42182);
+      color: var(--primary-text, #fff);
     }
 
     .oc-step-dot.done {
-      background: #F42182;
-      color: #fff;
+      background: var(--primary, #f42182);
+      color: var(--primary-text, #fff);
     }
 
     .oc-step-line {
@@ -1242,7 +1242,7 @@ $stepLabels = [
     }
 
     .oc-step-line.done {
-      background: #F42182;
+      background: var(--primary, #f42182);
     }
 
     .oc-step-labels {
@@ -1260,7 +1260,7 @@ $stepLabels = [
     }
 
     .oc-step-label.active {
-      color: #F42182;
+      color: var(--primary, #f42182);
       font-weight: 600;
     }
 
@@ -1296,7 +1296,7 @@ $stepLabels = [
     }
 
     .oc-input:focus {
-      border-color: #F42182;
+      border-color: var(--primary, #f42182);
       box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
@@ -1313,8 +1313,8 @@ $stepLabels = [
       justify-content: center;
       width: 100%;
       height: 36px;
-      background: #F42182;
-      color: #fff;
+      background: var(--primary, #f42182);
+      color: var(--primary-text, #fff);
       border: none;
       border-radius: 4px;
       font-size: 13px;
@@ -1531,9 +1531,9 @@ $stepLabels = [
     }
 
     .oc-mode-btn.active {
-      border-color: #F42182;
+      border-color: var(--primary, #f42182);
       background: #fdf2f8;
-      color: #F42182;
+      color: var(--primary, #f42182);
     }
 
     /* ── Prerequisites checklist ── */
@@ -1648,8 +1648,8 @@ $stepLabels = [
       width: 100%;
       height: 36px;
       background: #fff;
-      color: #F42182;
-      border: 2px solid #F42182;
+      color: var(--primary, #f42182);
+      border: 2px solid var(--primary, #f42182);
       border-radius: 4px;
       font-size: 13px;
       font-weight: 700;

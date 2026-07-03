@@ -90,7 +90,7 @@ $picture= $data['picture'] ?? '';
     .oc-icon-circle svg {
       width: 28px;
       height: 28px;
-      color: #F42182;
+      color: var(--primary, #f42182);
     }
 
     .oc-title {
@@ -150,7 +150,7 @@ $picture= $data['picture'] ?? '';
     }
 
     .oc-input:focus {
-      border-color: #F42182;
+      border-color: var(--primary, #f42182);
       box-shadow: 0 0 0 3px rgba(196,87,122,0.1);
     }
 
@@ -158,8 +158,8 @@ $picture= $data['picture'] ?? '';
     .oc-btn {
       width: 100%;
       height: 36px;
-      background: #F42182;
-      color: #fff;
+      background: var(--primary, #f42182);
+      color: var(--primary-text, #fff);
       border: none;
       border-radius: 4px;
       font-size: 13px;
@@ -215,7 +215,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 16px;
-      color: #F42182;
+      color: var(--primary, #f42182);
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -277,7 +277,7 @@ $picture= $data['picture'] ?? '';
     .oc-checkbox-group input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #F42182;
+      accent-color: var(--primary, #f42182);
       cursor: pointer;
     }
 
@@ -292,7 +292,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 12px;
-      color: #F42182;
+      color: var(--primary, #f42182);
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -315,7 +315,7 @@ $picture= $data['picture'] ?? '';
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      color: #F42182;
+      color: var(--primary, #f42182);
       text-decoration: none;
       font-size: 13px;
       margin-bottom: 20px;
@@ -335,7 +335,7 @@ $picture= $data['picture'] ?? '';
       display: block;
       text-align: center;
       margin-top: 16px;
-      color: #F42182;
+      color: var(--primary, #f42182);
       font-size: 13px;
       text-decoration: none;
       cursor: pointer;
@@ -353,16 +353,16 @@ $picture= $data['picture'] ?? '';
       background: #f8fafc; border: 1.5px solid #e2e8f0;
       cursor: pointer; transition: all .15s; text-align: left;
     }
-    .oc-method-btn:hover { border-color: #db2777; background: rgba(219,39,119,.05); }
+    .oc-method-btn:hover { border-color: var(--primary, #f42182); background: rgba(219,39,119,.05); }
     .oc-method-btn-icon {
       width: 40px; height: 40px; border-radius: 10px;
       background: rgba(219,39,119,.1); display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
-    .oc-method-btn-icon svg { width: 20px; height: 20px; stroke: #db2777; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .oc-method-btn-icon svg { width: 20px; height: 20px; stroke: var(--primary, #f42182); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .oc-method-btn-label { font-size: 15px; font-weight: 600; color: #111827; }
     .oc-method-btn-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
-    .oc-method-default-badge { margin-left: auto; font-size: 11px; font-weight: 600; background: #db2777; color: #fff; padding: 2px 8px; border-radius: 20px; }
+    .oc-method-default-badge { margin-left: auto; font-size: 11px; font-weight: 600; background: var(--primary, #f42182); color: var(--primary-text, #fff); padding: 2px 8px; border-radius: 20px; }
 
     /* ── Responsive ── */
     @media (max-width: 480px) {

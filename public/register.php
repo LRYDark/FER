@@ -322,7 +322,7 @@ try {
               <option value="enfant_tshirt">Enfant −<?= (int) $childAge ?> ans avec T-shirt — <?= htmlspecialchars($onFeeLabel) ?></option>
             </select>
             <div id="montantDuPublic" class="mt-2" style="font-size:14px;font-weight:600;color:#1e293b">
-              Montant total dû : <span style="color:#F42182"><?= htmlspecialchars($onFeeLabel) ?></span>
+              Montant total dû : <span style="color:var(--primary, #f42182)"><?= htmlspecialchars($onFeeLabel) ?></span>
             </div>
           </div>
         <?php else: ?>
@@ -333,7 +333,7 @@ try {
               <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
             </select>
             <div id="montantDuPublic" class="mt-2" style="font-size:14px;font-weight:600;color:#1e293b">
-              Montant total dû : <span style="color:#F42182"><?= htmlspecialchars((string) $registration_fee) ?> €</span>
+              Montant total dû : <span style="color:var(--primary, #f42182)"><?= htmlspecialchars((string) $registration_fee) ?> €</span>
             </div>
           </div>
         <?php endif; ?>
@@ -355,7 +355,7 @@ try {
           if(sel.value === 'gratuit'){
             disp.innerHTML = 'Montant dû : <span style="color:#16a34a">' + fmt(0) + '</span>';
           } else {
-            disp.innerHTML = 'Montant total dû : <span style="color:#F42182">' + fmt(fee) + '</span>';
+            disp.innerHTML = 'Montant total dû : <span style="color:var(--primary, #f42182)">' + fmt(fee) + '</span>';
           }
         }
         sel.addEventListener('change', update);
@@ -429,7 +429,7 @@ try {
           if (!disp) return;
           disp.innerHTML = (presta.value === 'enfant_gratuit')
             ? 'Montant dû : <span style="color:#16a34a">0 €</span>'
-            : 'Montant total dû : <span style="color:#F42182">' + feeLabel + '</span>';
+            : 'Montant total dû : <span style="color:var(--primary, #f42182)">' + feeLabel + '</span>';
         }
 
         // Un enfant −childAge ans est forcément mineur → on affiche l'autorisation

@@ -436,7 +436,7 @@ if ($migrationDone) {
 }
 .filter-tabs a.active {
   color: #1e293b;
-  border-bottom-color: #F42182;
+  border-bottom-color: var(--primary, #f42182);
   font-weight: 600;
 }
 .filter-tabs .badge {
@@ -458,8 +458,8 @@ if ($migrationDone) {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .news-search-bar .input-group:focus-within {
-  border-color: #F42182;
-  box-shadow: 0 0 0 3px rgba(244,33,130,.1);
+  border-color: var(--primary, #f42182);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 10%, transparent);
 }
 .news-search-bar .input-group-text {
   border: none !important;
@@ -553,7 +553,7 @@ if ($migrationDone) {
 
   <!-- Spinner de chargement -->
   <div id="loadingSpinner" class="text-center py-5">
-    <div class="spinner-border text-pink" role="status" style="width:2.5rem;height:2.5rem;color:#F42182;"></div>
+    <div class="spinner-border text-pink" role="status" style="width:2.5rem;height:2.5rem;color:var(--primary, #f42182);"></div>
     <p class="text-muted mt-2 small">Chargement des articles...</p>
   </div>
 
@@ -962,7 +962,7 @@ function loadAdminComments(newsId, page, perPage, search) {
     var pagination = document.getElementById('adminCommentsPagination' + newsId);
     if (!container) return;
 
-    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="width:2rem;height:2rem;color:#F42182;"></div><p class="text-muted mt-2 small">Chargement des commentaires...</p></div>';
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border" role="status" style="width:2rem;height:2rem;color:var(--primary, #f42182);"></div><p class="text-muted mt-2 small">Chargement des commentaires...</p></div>';
     if (pagination) pagination.style.display = 'none';
 
     $.ajax({

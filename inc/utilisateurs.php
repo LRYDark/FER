@@ -102,14 +102,14 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
 
   /* ═══ Btn rose ═══ */
   .btn-rose{
-    background:linear-gradient(135deg,#F42182,#db2777)!important;
-    color:#fff!important;
+    background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #db2777))!important;
+    color:var(--primary-text, #fff)!important;
     border:none!important;
   }
   .btn-rose:hover,
   .btn-rose:focus{
-    background:linear-gradient(135deg,#db2777,#be185d)!important;
-    color:#fff!important;
+    background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #be185d))!important;
+    color:var(--primary-text, #fff)!important;
   }
 
   /* ═══ Cellules de permission cliquables ═══ */

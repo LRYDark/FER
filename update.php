@@ -61,7 +61,7 @@ if (($_GET['tool'] ?? '') === 'repair-dates') {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f8f7f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
   .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 760px; width: 100%; overflow: hidden; }
-  .hd { background: linear-gradient(135deg, #F42182, #db2777); padding: 28px 32px; color: #fff; }
+  .hd { background: linear-gradient(135deg, var(--primary, #f42182), var(--primary-hover, #db2777)); padding: 28px 32px; color: var(--primary-text, #fff); }
   .hd h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
   .hd p { font-size: 13px; opacity: .9; }
   .bd { padding: 24px 32px 28px; }
@@ -71,7 +71,7 @@ if (($_GET['tool'] ?? '') === 'repair-dates') {
   input[type=file] { width: 100%; font-size: 13px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #faf7f8; }
   .apply-row { display: flex; align-items: center; gap: 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; font-size: 13px; color: #92400e; margin-bottom: 16px; }
   .apply-row input { width: 16px; height: 16px; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #F42182, #db2777); color: #fff; border: none; border-radius: 10px; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--primary, #f42182), var(--primary-hover, #db2777)); color: var(--primary-text, #fff); border: none; border-radius: 10px; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
   .btn:hover { opacity: .92; }
   .btn-sec { background: #f1f5f9; color: #475569; }
   .alert { border-radius: 10px; padding: 14px 16px; font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
@@ -87,7 +87,7 @@ if (($_GET['tool'] ?? '') === 'repair-dates') {
   .new { color: #059669; font-weight: 700; }
   .scroll { max-height: 320px; overflow: auto; border: 1px solid #f0e8eb; border-radius: 10px; }
   .ft { padding: 16px 32px; background: #faf7f8; border-top: 1px solid #f0e8eb; text-align: center; font-size: 12px; color: #94a3b8; }
-  .ft a { color: #F42182; text-decoration: none; font-weight: 600; }
+  .ft a { color: var(--primary, #f42182); text-decoration: none; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1108,9 +1108,9 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
     overflow: hidden;
   }
   .update-header {
-    background: linear-gradient(135deg, #F42182, #db2777);
+    background: linear-gradient(135deg, var(--primary, #f42182), var(--primary-hover, #db2777));
     padding: 28px 32px;
-    color: #fff;
+    color: var(--primary-text, #fff);
   }
   .update-header h1 {
     font-size: 20px;
@@ -1189,7 +1189,7 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
     font-size: 12px;
     color: #94a3b8;
   }
-  .update-footer a { color: #F42182; text-decoration: none; font-weight: 600; }
+  .update-footer a { color: var(--primary, #f42182); text-decoration: none; font-weight: 600; }
   .update-footer a:hover { text-decoration: underline; }
 </style>
 </head>
@@ -1230,7 +1230,7 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
 
   <div class="update-footer">
     <p style="margin-bottom:12px;">
-      <a href="update.php?tool=repair-dates" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#F42182,#db2777);color:#fff;border-radius:10px;padding:10px 18px;text-decoration:none;font-weight:600;font-size:13px;">
+      <a href="update.php?tool=repair-dates" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #db2777));color:var(--primary-text, #fff);border-radius:10px;padding:10px 18px;text-decoration:none;font-weight:600;font-size:13px;">
         <i class="bi bi-calendar-check"></i> Réparer les dates d'inscription (jour/mois inversés)
       </a>
     </p>

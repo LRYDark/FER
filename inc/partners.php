@@ -639,7 +639,7 @@ if ($migrationDone) {
   .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
   .settings-tabs .nav-link.active {
     color: #1e293b; font-weight: 600;
-    border-bottom-color: #F42182; background: transparent;
+    border-bottom-color: var(--primary, #f42182); background: transparent;
   }
   .partner-tab-section { display: none; }
   .partner-tab-section.active { display: block; }
@@ -667,7 +667,7 @@ if ($migrationDone) {
   }
   .filter-tabs a.active {
     color: #1e293b;
-    border-bottom-color: #F42182;
+    border-bottom-color: var(--primary, #f42182);
     font-weight: 600;
   }
   .filter-tabs .badge {
@@ -718,7 +718,7 @@ if ($migrationDone) {
     border: 1px dashed #dc3545;
   }
   /* Drag-and-drop albums */
-  .drag-handle-album:hover { color: #F42182 !important; }
+  .drag-handle-album:hover { color: var(--primary, #f42182) !important; }
   .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
 
   /* Sur PC : checkbox "Supprimer" hors flux + alignement vertical des icônes/boutons */
@@ -747,7 +747,7 @@ if ($migrationDone) {
 
 <!-- Spinner de chargement -->
 <div id="loadingSpinner" class="text-center py-5">
-  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:#F42182;"></div>
+  <div class="spinner-border" role="status" style="width:2.5rem;height:2.5rem;color:var(--primary, #f42182);"></div>
   <p class="text-muted mt-2 small">Chargement des partenaires...</p>
 </div>
 

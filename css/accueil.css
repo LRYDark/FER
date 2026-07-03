@@ -2160,7 +2160,7 @@
     /* Couleurs forcées avec sélecteur ULTRA-spécifique + !important + hexa littéral
        pour battre TOUT override possible (a, .news-band, color: inherit, etc.) */
     .news-band .news-card-h .news-card-h-source,
-    .news-card-h .news-card-h-source { color: #F42182 !important; font-weight: 700; }
+    .news-card-h .news-card-h-source { color: var(--primary, #f42182) !important; font-weight: 700; }
     .news-band .news-card-h .news-card-h-dot,
     .news-card-h .news-card-h-dot { font-size: 0.5rem; opacity: .5; color: #94a3b8 !important; }
     .news-band .news-card-h .news-card-h-date,
@@ -2169,7 +2169,7 @@
     .news-card-h .news-card-h-cta {
       margin-top: auto;
       font-size: 0.8125rem;
-      color: #F42182 !important; /* rose vif (var --primary par défaut) */
+      color: var(--primary, #f42182) !important; /* rose vif (var --primary par défaut) */
       font-weight: 700;
       text-align: left;
       align-self: flex-start;
@@ -2635,8 +2635,8 @@
 
     /* ===== DARK THEME OVERRIDES for Accueil ===== */
     body.dark-theme .demo-badge--fee{
-      background: #db2777;
-      color: #fff;
+      background: var(--primary, #f42182);
+      color: var(--primary-text, #fff);
     }
     body.dark-theme .demo-badge--km{
       background: #fff;

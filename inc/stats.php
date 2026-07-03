@@ -586,7 +586,7 @@ $('#tbl').on('init.dt', function(){
       var cb = document.createElement('input'); cb.type = 'checkbox';
       var ci = colIdxByKey(c.key);
       cb.checked = ci===-1 ? true : tbl.column(ci).visible();
-      cb.style.accentColor = '#F42182';
+      cb.style.accentColor = 'var(--primary, #f42182)';
       cb.addEventListener('change', function(){
         var idxNow = colIdxByKey(c.key);
         if(idxNow!==-1) tbl.column(idxNow).visible(this.checked);
