@@ -132,6 +132,7 @@ $link_facebook = $data['link_facebook'] ?? '';
 $accueil_active = !empty($data['accueil_active']) ? 1 : 0;
 $registration_auto_open  = $data['registration_auto_open']  ?? null;
 $registration_auto_close = $data['registration_auto_close'] ?? null;
+$registration_closed_message = $data['registration_closed_message'] ?? '';
 $date_course = $data['date_course'] ?? null;
 $date_formatted = $date_course ? date('Y-m-d', strtotime($date_course)) : '';
 $picture_partner= $data['picture_partner'] ?? '';
@@ -1109,6 +1110,40 @@ if (isset($_POST['save_inscription_params'])) {
     ]);
 
     addToast('success', 'Paramètres d\'inscription enregistrés !');
+}
+
+/* --------------------------------------------------------------------------
+   Message affiché quand les inscriptions sont fermées (TinyMCE)
+   Même mécanisme que la réglementation : champ HTML encodé en Base64 côté JS
+   (contournement WAF), décodé si AJAX puis nettoyé par sanitizeHtml (CWE-79).
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_closed_message'])) {
+    $rawMsg = $_POST['registration_closed_message'] ?? '';
+    $registration_closed_message = sanitizeHtml(trim($isAjax ? decodeHtmlField($rawMsg) : $rawMsg));
+
+    $upd = $pdo->prepare(
+        'UPDATE setting SET registration_closed_message = :msg WHERE id = :id'
+    );
+    $ok = $upd->execute([
+        'msg' => ($registration_closed_message !== '' ? $registration_closed_message : null),
+        'id'  => 1,
+    ]);
+
+    if ($ok) {
+        if ($upd->rowCount() > 0) {
+            addToast('success', 'Message de fermeture enregistré !');
+        } else {
+            addToast('warning', 'Aucun changement détecté.', 10000);
+        }
+    } else {
+        $msg = $upd->errorInfo()[2] ?? 'Erreur inconnue';
+        addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg), 10000);
+    }
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -2827,7 +2862,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
     elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
-    elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params']) || isset($_POST['save_csp_domains'])) $activeTab = 'inscription';
+    elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params']) || isset($_POST['save_csp_domains']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
     elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
@@ -3917,6 +3952,23 @@ if (!$canTab($activeTab)) {
           </div>
           <div class="col-12 text-end">
             <button type="submit" name="save_inscription_params" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-lg-6 -->
+
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Message « inscriptions fermées »</h2>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <div class="col-12">
+            <label class="form-label" for="registrationClosedMessageEditor">Information complémentaire affichée quand les inscriptions sont fermées</label>
+            <textarea class="form-control" id="registrationClosedMessageEditor" name="registration_closed_message" rows="6"><?= htmlspecialchars($registration_closed_message) ?></textarea>
+            <small class="text-muted">S'affiche sous « 🚫 Les inscriptions sont actuellement fermées » sur la page publique d'inscription. Utilisez la barre d'outils pour la mise en forme (gras, couleurs, liens…). Laisser vide pour n'afficher que le message par défaut.</small>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_closed_message" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
         </form>
       </div>
@@ -5308,6 +5360,39 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 })();
 </script>
 
+<!-- Éditeur riche du message « inscriptions fermées » (config complète, multi-lignes) -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var TA_ID = 'registrationClosedMessageEditor';
+
+  function initEditor(){
+    if (typeof tinymce === 'undefined') return false;      // pas encore chargé
+    if (!document.getElementById(TA_ID)) return true;      // champ absent : rien à faire
+    if (tinymce.get(TA_ID)) return true;                   // déjà initialisé : ne pas dupliquer
+    tinymce.init({
+      selector: '#' + TA_ID,
+      <?= getTinyMceConfig($pdo, ['height' => 320]) ?>
+    });
+    return true;
+  }
+
+  // Cas normal : TinyMCE est déjà chargé (par l'onglet Réglementation) → on initialise.
+  if (initEditor()) return;
+
+  // Rôle sans onglet Réglementation : TinyMCE n'est pas chargé. On le charge UNE seule
+  // fois pour garantir que ce champ soit un vrai éditeur (sinon l'alignement / la mise en
+  // forme ne seraient jamais transmis au serveur → « Aucun changement détecté »).
+  var loader = document.querySelector('script[data-tinymce-fallback]');
+  if (!loader) {
+    loader = document.createElement('script');
+    loader.src = '../js/tinymce/tinymce.min.js';
+    loader.setAttribute('data-tinymce-fallback', '1');
+    document.head.appendChild(loader);
+  }
+  loader.addEventListener('load', initEditor);
+})();
+</script>
+
 <!-- Drag & drop pour l'ordre des sections mail -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
@@ -5866,6 +5951,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="reglementation"]');
         if (btn) { e.preventDefault(); ajaxSubmit(btn, ['div_reglementation'], 'reglementation'); }
+    });
+
+    /* Message « inscriptions fermées » (TinyMCE) */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="save_closed_message"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['registration_closed_message'], 'inscription'); }
     });
 
     /* Titre / Image sur la vidéo (TinyMCE) */
