@@ -610,7 +610,7 @@ if ($canBulkCreate) {
           <div class="modal-body row g-2">
             <input type="hidden" name="origine" value="Admin">
             <?php foreach ($adminFields as $f): ?>
-              <?= renderFormField($f) ?>
+              <?= renderFormField($f, '', false, 'admin') ?>
             <?php endforeach; ?>
             <div class="col-md-6">
               <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
@@ -838,7 +838,7 @@ if ($canBulkCreate) {
           <?php /* « Autorisation parentale (mineur) » : déjà renseignée à l'inscription → masquée ici. */ ?>
           <?php if (($f['field_type'] ?? '') === 'guardian') continue; ?>
           <?php /* L'email est facultatif dans ce modal admin, même s'il est requis ailleurs. */ ?>
-          <?= renderFormField($f, '', ($f['bdd_column'] ?? '') === 'email') ?>
+          <?= renderFormField($f, '', ($f['bdd_column'] ?? '') === 'email', 'admin') ?>
         <?php endforeach; ?>
         <div class="col-md-6">
           <label class="form-label">Paiement</label>
@@ -877,7 +877,7 @@ if ($canBulkCreate) {
               <input class="form-check-input bulk-apply" type="checkbox" id="ba_<?= htmlspecialchars($bc, ENT_QUOTES) ?>">
               <label class="form-check-label fw-semibold" for="ba_<?= htmlspecialchars($bc, ENT_QUOTES) ?>">Modifier « <?= htmlspecialchars($f['label']) ?> »</label>
             </div>
-            <div class="bulk-field-input ps-4"><?= renderFormField($f, '', true) ?></div>
+            <div class="bulk-field-input ps-4"><?= renderFormField($f, '', true, 'admin') ?></div>
           </div>
           <?php endforeach; ?>
           <!-- Paiement (champ système : recalcule le montant dû à l'application) -->
@@ -1006,7 +1006,7 @@ if ($canBulkCreate) {
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-<script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<script src="../js/inscription-form.js?v=5" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>

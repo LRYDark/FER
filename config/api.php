@@ -2908,6 +2908,13 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->exec('TRUNCATE TABLE registrations');
     $pdo->commit();
 
+    /* 10) Vider le journal des remises de T-shirts : l'archivage marque la fin de
+     *     la saison, les remises de l'année écoulée ne servent plus (l'an prochain
+     *     = de nouveaux inscrits). Aucune perte pour l'archive : la taille de chaque
+     *     inscrit (tshirt_size) est déjà copiée dans registrations_$year à l'étape 1.
+     *     En try/catch : ne doit jamais faire échouer l'archivage. */
+    try { $pdo->exec('TRUNCATE TABLE tshirt_handout_log'); } catch (\Throwable $e) { /* table absente / non critique */ }
+
     echo json_encode([
         'ok' => true,
         'archived' => $s['total'],
@@ -3065,16 +3072,23 @@ if ($route === 'qrcodes') {
                 exit;
             }
             
+            // Inscription « sur place » : mode prestation + méthode de paiement masquée.
+            $onsiteMode   = !empty($data['onsite_mode']) ? 1 : 0;
+            $paymentLabel = mb_substr(trim((string)($data['payment_label'] ?? 'retrait t-shirt')), 0, 50);
+            if ($paymentLabel === '') $paymentLabel = 'retrait t-shirt';
+
             $stmt = $pdo->prepare(
-                'INSERT INTO qrcodes (organisation, token, qr_url, description, created_by) 
-                 VALUES (?, ?, ?, ?, ?)'
+                'INSERT INTO qrcodes (organisation, token, qr_url, description, onsite_mode, payment_label, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)'
             );
-            
+
             $result = $stmt->execute([
                 $data['organisation'],
                 $token,
                 $qr_url,
                 $data['description'] ?? null,
+                $onsiteMode,
+                $paymentLabel,
                 currentUserId() // Ajout de l'utilisateur créateur
             ]);
             
@@ -3486,6 +3500,405 @@ if ($route === 'ip-geo') {
     }
 
     echo json_encode(['ok' => true, 'geo' => $result]);
+    exit;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ACCÈS « REMISE T-SHIRTS » POUR BÉNÉVOLES (sans compte)
+ * ---------------------------------------------------------------------------
+ * Un bénévole ouvre public/remise-tshirts.php (QR ou lien), saisit son nom et
+ * demande l'accès. Un admin (ou un utilisateur ayant la page `tshirt_access`)
+ * valide. La session est liée à un cookie d'appareil (fer_tshirt) + au token de
+ * campagne courant : régénérer le token invalide toutes les sessions.
+ *
+ * 🔒 SÉCURITÉ DES DONNÉES : la session bénévole ne peut atteindre QUE tshirt-lookup
+ *    (un inscrit à la fois, champs minimaux — jamais email/tel/montant) et
+ *    tshirt-assign (enregistre une taille). Elle n'atteint jamais la liste complète.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Config à ligne unique (id=1). */
+function _tshirtCfg(PDO $pdo): array {
+    try {
+        $c = $pdo->query("SELECT * FROM tshirt_access WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if (!$c) {
+            $pdo->exec("INSERT IGNORE INTO tshirt_access (id) VALUES (1)");
+            $c = $pdo->query("SELECT * FROM tshirt_access WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC) ?: [];
+        }
+        return $c;
+    } catch (\Throwable $e) { return []; }
+}
+
+/** L'accès est-il ouvert (activé et non expiré) ? */
+function _tshirtOpen(array $cfg): bool {
+    if (empty($cfg['enabled'])) return false;
+    if (!empty($cfg['expires_at']) && strtotime($cfg['expires_at']) < time()) return false;
+    return !empty($cfg['campaign_token']);
+}
+
+/** Identifiant d'appareil (cookie). */
+function _tshirtDeviceId(): string {
+    return (string)($_COOKIE['fer_tshirt'] ?? '');
+}
+
+/** Session bénévole approuvée et valide pour l'appareil courant, ou null. */
+function _tshirtSession(PDO $pdo, array $cfg): ?array {
+    if (!_tshirtOpen($cfg)) return null;
+    $device = _tshirtDeviceId();
+    if ($device === '') return null;
+    try {
+        $st = $pdo->prepare("SELECT * FROM tshirt_access_sessions
+                              WHERE device_id = ? AND campaign_token = ? AND status = 'approved' LIMIT 1");
+        $st->execute([$device, $cfg['campaign_token']]);
+        $s = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) { return null; }
+    if (!$s) return null;
+    if (!empty($s['expires_at']) && strtotime($s['expires_at']) < time()) return null;
+    return $s;
+}
+
+/**
+ * Construit le jeu de données déchiffré + rangs de paiement (éligibilité T-shirt).
+ * Déchiffrement côté serveur uniquement — jamais renvoyé en bloc au bénévole.
+ */
+function _tshirtDataset(PDO $pdo): array {
+    $setting = $pdo->query("SELECT qrcode_mail_mode, qrcode_mail_limit FROM setting WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC) ?: [];
+    $highlightLimit = (($setting['qrcode_mail_mode'] ?? '') === 'first_x' && (int)($setting['qrcode_mail_limit'] ?? 0) > 0)
+        ? (int)$setting['qrcode_mail_limit'] : 0;
+
+    $rows = $pdo->query("SELECT id, inscription_no, nom, prenom, email, ville, tshirt_size, montant_du, created_at FROM registrations")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = decryptRows($rows);
+    usort($rows, function ($a, $b) {
+        $c = strcmp((string)$a['created_at'], (string)$b['created_at']);
+        return $c !== 0 ? $c : ($a['id'] <=> $b['id']);
+    });
+    $paidCount = 0;
+    foreach ($rows as &$r) {
+        $paid = (float)$r['montant_du'] > 0;
+        if ($paid) $paidCount++;
+        $r['_paid']      = $paid;
+        $r['_paid_rank'] = $paid ? $paidCount : -1;
+        $r['_eligible']  = $paid && ($highlightLimit === 0 || $r['_paid_rank'] <= $highlightLimit);
+    }
+    unset($r);
+    return [$rows, $highlightLimit];
+}
+
+/** Réduit un inscrit aux champs strictement nécessaires à la remise (anti-fuite). */
+function _tshirtPublicPerson(array $r, int $highlightLimit): array {
+    return [
+        'id'              => (int)$r['id'],
+        'inscription_no'  => (string)$r['inscription_no'],
+        'prenom'          => (string)$r['prenom'],
+        'nom'             => (string)$r['nom'],
+        'ville'           => (string)$r['ville'],
+        'tshirt_size'     => ($r['tshirt_size'] ?? '') !== '' ? $r['tshirt_size'] : '-',
+        'paid'            => (bool)$r['_paid'],
+        'paid_rank'       => (int)$r['_paid_rank'],
+        'eligible'        => (bool)$r['_eligible'],
+        'highlight_limit' => $highlightLimit,
+    ];
+}
+
+/* ---------- Bénévole : demander l'accès ---------- */
+if ($route === 'tshirt-access-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $cfg = _tshirtCfg($pdo);
+    if (!_tshirtOpen($cfg)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'status' => 'closed', 'err' => 'Accès fermé']);
+        exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+    $name = mb_substr(trim((string)($body['name'] ?? '')), 0, 120);
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'Nom requis']);
+        exit;
+    }
+
+    // Rate limit (par IP) sur les demandes d'accès anonymes.
+    $ip = getClientIp();
+    $rlFile = sys_get_temp_dir() . '/fer_tsa_' . substr(hash('sha256', $ip), 0, 32) . '.json';
+    $rlTimes = @file_exists($rlFile) ? (json_decode(@file_get_contents($rlFile), true) ?: []) : [];
+    $now = time();
+    $rlTimes = array_values(array_filter($rlTimes, fn($t) => $t > $now - 3600));
+    if (count($rlTimes) >= 20) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'err' => 'Trop de tentatives. Réessayez plus tard.']);
+        exit;
+    }
+    $rlTimes[] = $now;
+    @file_put_contents($rlFile, json_encode($rlTimes));
+
+    $device = _tshirtDeviceId();
+    if ($device === '') {
+        $device = bin2hex(random_bytes(32));
+        setcookie('fer_tshirt', $device, [
+            'expires'  => time() + 7 * 86400,
+            'path'     => '/',
+            'secure'   => !empty($_SERVER['HTTPS']),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    $token = $cfg['campaign_token'];
+    $ua = mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+
+    // Session déjà approuvée pour cet appareil → on la renvoie telle quelle.
+    $st = $pdo->prepare("SELECT status FROM tshirt_access_sessions WHERE device_id = ? AND campaign_token = ? LIMIT 1");
+    $st->execute([$device, $token]);
+    $existing = $st->fetchColumn();
+    if ($existing === 'approved') {
+        echo json_encode(['ok' => true, 'status' => 'approved']);
+        exit;
+    }
+
+    // Sinon : (ré)initialise une demande en attente pour cet appareil.
+    $pdo->prepare(
+        "INSERT INTO tshirt_access_sessions (campaign_token, device_id, volunteer_name, status, created_at, ip, user_agent)
+         VALUES (?, ?, ?, 'pending', NOW(), ?, ?)
+         ON DUPLICATE KEY UPDATE volunteer_name = VALUES(volunteer_name), status = 'pending',
+                                 created_at = NOW(), ip = VALUES(ip), user_agent = VALUES(user_agent)"
+    )->execute([$token, $device, $name, $ip, $ua]);
+
+    echo json_encode(['ok' => true, 'status' => 'pending']);
+    exit;
+}
+
+/* ---------- Bénévole : statut de sa demande (polling) ---------- */
+if ($route === 'tshirt-access-status' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $cfg = _tshirtCfg($pdo);
+    $open = _tshirtOpen($cfg);
+    $out = ['ok' => true, 'open' => $open, 'status' => 'none'];
+    $device = _tshirtDeviceId();
+    if ($open && $device !== '') {
+        $st = $pdo->prepare("SELECT status, expires_at FROM tshirt_access_sessions WHERE device_id = ? AND campaign_token = ? LIMIT 1");
+        $st->execute([$device, $cfg['campaign_token']]);
+        $s = $st->fetch(PDO::FETCH_ASSOC);
+        if ($s) {
+            if ($s['status'] === 'approved' && !empty($s['expires_at']) && strtotime($s['expires_at']) < time()) {
+                $out['status'] = 'expired';
+            } else {
+                $out['status'] = $s['status'];
+            }
+        }
+    }
+    echo json_encode($out);
+    exit;
+}
+
+/* ---------- Bénévole : rechercher un inscrit (QR / nom / prénom / email / N°) ---------- */
+if ($route === 'tshirt-lookup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $cfg = _tshirtCfg($pdo);
+    $session = _tshirtSession($pdo, $cfg);
+    if (!$session) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Accès non validé']);
+        exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+    $q = trim((string)($body['q'] ?? ''));
+    if (mb_strlen($q) < 2) {
+        echo json_encode(['ok' => true, 'results' => []]);
+        exit;
+    }
+
+    // touch last_seen
+    $pdo->prepare("UPDATE tshirt_access_sessions SET last_seen = NOW() WHERE id = ?")->execute([$session['id']]);
+
+    [$rows, $highlightLimit] = _tshirtDataset($pdo);
+    $ql = mb_strtolower($q);
+
+    // 1) Correspondance exacte par numéro d'inscription (QR ou saisie du N°).
+    foreach ($rows as $r) {
+        $no = mb_strtolower((string)$r['inscription_no']);
+        if ($no === $ql || $no === 'e' . $ql || $no === 's' . $ql) {
+            echo json_encode(['ok' => true, 'results' => [_tshirtPublicPerson($r, $highlightLimit)]]);
+            exit;
+        }
+    }
+
+    // 2) Recherche par sous-chaîne sur prénom / nom / email / numéro.
+    $matches = [];
+    foreach ($rows as $r) {
+        $hay = mb_strtolower(
+            (string)$r['inscription_no'] . ' ' . (string)$r['prenom'] . ' ' .
+            (string)$r['nom'] . ' ' . (string)$r['email']
+        );
+        if (mb_strpos($hay, $ql) !== false) {
+            $matches[] = _tshirtPublicPerson($r, $highlightLimit);
+            if (count($matches) >= 12) break;
+        }
+    }
+    echo json_encode(['ok' => true, 'results' => $matches]);
+    exit;
+}
+
+/* ---------- Bénévole : enregistrer la taille (confirmer la remise) ---------- */
+if ($route === 'tshirt-assign' && in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT'])) {
+    $cfg = _tshirtCfg($pdo);
+    $session = _tshirtSession($pdo, $cfg);
+    if (!$session) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Accès non validé']);
+        exit;
+    }
+    $raw = file_get_contents('php://input');
+    $body = json_decode($raw, true);
+    if (!is_array($body)) { parse_str($raw, $body); }
+    $id   = (int)($body['id'] ?? 0);
+    $size = (string)($body['size'] ?? '');
+    $allowed = ['-', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+    if (!$id || !in_array($size, $allowed, true)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'err' => 'Paramètres invalides']);
+        exit;
+    }
+    $st = $pdo->prepare("SELECT inscription_no FROM registrations WHERE id = ? LIMIT 1");
+    $st->execute([$id]);
+    $no = $st->fetchColumn();
+    if ($no === false) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'err' => 'Inscrit introuvable']);
+        exit;
+    }
+    $pdo->prepare("UPDATE registrations SET tshirt_size = ? WHERE id = ?")->execute([$size, $id]);
+    try {
+        $pdo->prepare(
+            "INSERT INTO tshirt_handout_log (registration_id, inscription_no, size, volunteer_name, device_id)
+             VALUES (?, ?, ?, ?, ?)"
+        )->execute([$id, $no, $size, $session['volunteer_name'] ?? null, $session['device_id'] ?? null]);
+    } catch (\Throwable $e) { /* le log ne doit jamais bloquer la remise */ }
+    $pdo->prepare("UPDATE tshirt_access_sessions SET last_seen = NOW() WHERE id = ?")->execute([$session['id']]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+/* ---------- Admin : gestion de l'accès bénévoles ---------- */
+if ($route === 'tshirt-admin') {
+    if (!canAccessPage('tshirt_access')) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Accès refusé']);
+        exit;
+    }
+    $cfg = _tshirtCfg($pdo);
+
+    // Droits granulaires de la page « Accès bénévoles ».
+    $tsCanManage  = canDoAction('tshirt_access.manage');
+    $tsCanApprove = canDoAction('tshirt_access.approve');
+    $tsCanRevoke  = canDoAction('tshirt_access.devices_revoke');
+    // « Révoquer » implique « voir les connectés ».
+    $tsCanDevices = canDoAction('tshirt_access.devices_view') || $tsCanRevoke;
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        // La lecture de base (page access) donne uniquement « Dernières remises ».
+        // Chaque bloc supplémentaire est renvoyé seulement si le droit correspondant
+        // est accordé (évite d'exposer token / demandes / appareils sans permission).
+        $out = [
+            'ok'    => true,
+            'perms' => [
+                'manage'         => $tsCanManage,
+                'approve'        => $tsCanApprove,
+                'devices_view'   => $tsCanDevices,
+                'devices_revoke' => $tsCanRevoke,
+            ],
+            'handouts' => $pdo->query("SELECT inscription_no, size, volunteer_name, created_at FROM tshirt_handout_log
+                                        ORDER BY created_at DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC),
+        ];
+        if ($tsCanManage) {
+            $out['config'] = [
+                'enabled'    => (int)($cfg['enabled'] ?? 0),
+                'token'      => $cfg['campaign_token'] ?? null,
+                'opened_at'  => $cfg['opened_at'] ?? null,
+                'expires_at' => $cfg['expires_at'] ?? null,
+                'open'       => _tshirtOpen($cfg),
+            ];
+        }
+        if ($tsCanApprove) {
+            $st = $pdo->prepare("SELECT id, volunteer_name, created_at, ip FROM tshirt_access_sessions
+                                  WHERE campaign_token = ? AND status = 'pending' ORDER BY created_at ASC");
+            $st->execute([$cfg['campaign_token'] ?? '']);
+            $out['pending'] = $st->fetchAll(PDO::FETCH_ASSOC);
+        }
+        if ($tsCanDevices) {
+            $st = $pdo->prepare("SELECT id, volunteer_name, approved_at, last_seen, expires_at FROM tshirt_access_sessions
+                                  WHERE campaign_token = ? AND status = 'approved' ORDER BY approved_at DESC");
+            $st->execute([$cfg['campaign_token'] ?? '']);
+            $out['active'] = $st->fetchAll(PDO::FETCH_ASSOC);
+        }
+        echo json_encode($out);
+        exit;
+    }
+
+    // POST : actions
+    $body   = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+    $action = (string)($body['action'] ?? '');
+
+    // Chaque action exige son droit dédié.
+    $tsDeny = function () {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Action non autorisée']);
+        exit;
+    };
+    if (in_array($action, ['toggle', 'regen', 'set_expiry'], true) && !$tsCanManage) $tsDeny();
+    if (in_array($action, ['approve', 'refuse'], true) && !$tsCanApprove)             $tsDeny();
+    if ($action === 'revoke' && !$tsCanRevoke)                                        $tsDeny();
+
+    if ($action === 'toggle') {
+        $enable = !empty($body['enabled']);
+        if ($enable) {
+            // Activer : réutilise le token courant si la fenêtre est encore valide
+            // (reprise après une coupure), mais en génère un nouveau si aucun token
+            // ou si la fenêtre précédente a expiré (= nouvelle campagne, anciens
+            // appareils invalidés).
+            $expired = !empty($cfg['expires_at']) && strtotime($cfg['expires_at']) < time();
+            $token   = (empty($cfg['campaign_token']) || $expired) ? bin2hex(random_bytes(24)) : $cfg['campaign_token'];
+            $days    = max(1, min(31, (int)($body['days'] ?? 7)));
+            $pdo->prepare("UPDATE tshirt_access SET enabled = 1, campaign_token = ?, opened_at = NOW(),
+                            expires_at = DATE_ADD(NOW(), INTERVAL {$days} DAY) WHERE id = 1")->execute([$token]);
+        } else {
+            $pdo->prepare("UPDATE tshirt_access SET enabled = 0 WHERE id = 1")->execute();
+        }
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    if ($action === 'regen') {
+        // Nouveau token = toutes les anciennes sessions deviennent invalides.
+        $token = bin2hex(random_bytes(24));
+        $days  = max(1, min(31, (int)($body['days'] ?? 7)));
+        $pdo->prepare("UPDATE tshirt_access SET enabled = 1, campaign_token = ?, opened_at = NOW(),
+                        expires_at = DATE_ADD(NOW(), INTERVAL {$days} DAY) WHERE id = 1")->execute([$token]);
+        echo json_encode(['ok' => true, 'token' => $token]);
+        exit;
+    }
+
+    if ($action === 'set_expiry') {
+        $days = max(1, min(31, (int)($body['days'] ?? 7)));
+        $pdo->prepare("UPDATE tshirt_access SET expires_at = DATE_ADD(NOW(), INTERVAL {$days} DAY) WHERE id = 1")->execute();
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    if (in_array($action, ['approve', 'refuse', 'revoke'], true)) {
+        $sid = (int)($body['id'] ?? 0);
+        if (!$sid) { http_response_code(400); echo json_encode(['ok' => false, 'err' => 'id manquant']); exit; }
+        if ($action === 'approve') {
+            $pdo->prepare("UPDATE tshirt_access_sessions
+                            SET status = 'approved', approved_at = NOW(), approved_by = ?, expires_at = ?
+                          WHERE id = ? AND campaign_token = ?")
+                ->execute([currentUserId(), $cfg['expires_at'] ?? null, $sid, $cfg['campaign_token'] ?? '']);
+        } else {
+            $pdo->prepare("UPDATE tshirt_access_sessions SET status = 'refused'
+                          WHERE id = ? AND campaign_token = ?")
+                ->execute([$sid, $cfg['campaign_token'] ?? '']);
+        }
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    http_response_code(400);
+    echo json_encode(['ok' => false, 'err' => 'Action inconnue']);
     exit;
 }
 

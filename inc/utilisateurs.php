@@ -304,6 +304,33 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
           <?php endforeach; ?>
 
           <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">
+            Accès bénévoles — Remise T-shirts
+            <span class="text-muted fw-normal text-lowercase" style="font-size:11px;">
+              — « Voir la page » = lecture (Dernières remises) ; les autres droits débloquent chaque bloc
+            </span>
+          </td></tr>
+
+          <?php
+          // [type, clé, libellé] : « Voir la page » est une permission de PAGE (lecture),
+          // les autres sont des ACTIONS qui débloquent chaque bloc de la page.
+          $tshirtPerms = [
+            ['pages',   'tshirt_access',                'Voir la page (uniquement « Dernières remises »)'],
+            ['actions', 'tshirt_access.manage',         'Gérer l\'état de l\'accès (ON/OFF, token, expiration, QR)'],
+            ['actions', 'tshirt_access.approve',        'Valider / refuser les demandes en attente'],
+            ['actions', 'tshirt_access.devices_view',   'Voir les bénévoles connectés'],
+            ['actions', 'tshirt_access.devices_revoke', 'Révoquer un bénévole connecté'],
+          ];
+          foreach ($tshirtPerms as [$ptype, $pkey, $plabel]): ?>
+          <tr>
+            <td><?= $plabel ?></td>
+            <?= permCell('admin',  $ptype, $pkey, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('user',   $ptype, $pkey, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('viewer', $ptype, $pkey, $rolePermsDefault, $hasRolePermsCol) ?>
+            <?= permCell('saisie', $ptype, $pkey, $rolePermsDefault, $hasRolePermsCol) ?>
+          </tr>
+          <?php endforeach; ?>
+
+          <tr><td colspan="5" class="bg-light fw-bold small text-uppercase">
             Onglets des Réglages (sous-permissions)
             <span class="text-muted fw-normal text-lowercase" style="font-size:11px;">
               — nécessite <strong>« Modifier les Réglages »</strong> coché ci-dessus
@@ -564,10 +591,46 @@ document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
   }, delay);
 });
 
+/* ══ Sections repliables du tableau des droits (repliées par défaut) ════ */
+(function () {
+  var table = document.getElementById('rolePermsTable');
+  if (!table) return;
+  var rows = Array.prototype.slice.call(table.querySelectorAll('tbody > tr'));
+  var sections = [];
+  rows.forEach(function (tr) {
+    var head = tr.querySelector('td[colspan]');
+    if (head) {
+      tr.style.cursor = 'pointer';
+      tr.style.userSelect = 'none';
+      var arrow = document.createElement('i');
+      arrow.className = 'bi bi-chevron-down perm-arrow me-2';
+      arrow.style.transition = 'transform .2s';
+      arrow.style.fontSize = '11px';
+      arrow.style.display = 'inline-block'; // requis pour que rotate() s'applique (inline = ignoré)
+      head.insertBefore(arrow, head.firstChild);
+      sections.push({ tr: tr, arrow: arrow, members: [], open: false });
+    } else if (sections.length) {
+      sections[sections.length - 1].members.push(tr);
+    }
+  });
+  function apply(s) {
+    s.members.forEach(function (m) { m.style.display = s.open ? '' : 'none'; });
+    s.arrow.style.transform = s.open ? '' : 'rotate(-90deg)';
+  }
+  sections.forEach(function (s) {
+    apply(s); // replié par défaut
+    s.tr.addEventListener('click', function () { s.open = !s.open; apply(s); });
+  });
+})();
+
 /* ══ Tableau interactif des droits par rôle ════ */
 (function () {
   const flashEl = document.getElementById('rolePermsFlash');
   function showFlash(msg, isError) {
+    // Toast en bas à droite (cohérent avec le reste des enregistrements).
+    if (window.showToast) { window.showToast(msg, isError ? 'danger' : 'success'); return; }
+    // Repli si le système de toast n'est pas chargé.
+    if (!flashEl) return;
     flashEl.textContent = msg;
     flashEl.className = 'alert small py-2 mb-2 ' + (isError ? 'alert-danger' : 'alert-success');
     flashEl.style.display = '';
@@ -637,6 +700,7 @@ const ALL_PAGES = [
   { key: 'setting',       label: 'R\u00e9glages' },
   { key: 'mail-settings', label: 'Param\u00e8tres mail' },
   { key: 'qr_code',       label: 'QR Code' },
+  { key: 'tshirt_access', label: 'Accès bénévoles (Remise T-shirts)' },
   { key: 'connexions',    label: 'Connexions' },
   { key: 'logs',          label: 'Logs' },
   { key: 'page_stats',    label: 'Visites' },
@@ -675,6 +739,11 @@ const ALL_ACTIONS = [
   { key: 'qrcode.write',                  label: 'Cr\u00e9er/supprimer QR',        group: 'admin' },
   { key: 'connexions.write',              label: 'G\u00e9rer connexions',          group: 'admin' },
   { key: 'logs.write',                    label: 'Vider les logs',                 group: 'admin' },
+  // Acc\u00e8s b\u00e9n\u00e9voles (Remise T-shirts)
+  { key: 'tshirt_access.manage',          label: 'B\u00e9n\u00e9voles : g\u00e9rer acc\u00e8s (ON/OFF, token, expiration)', group: 'tshirt' },
+  { key: 'tshirt_access.approve',         label: 'B\u00e9n\u00e9voles : valider / refuser les demandes',     group: 'tshirt' },
+  { key: 'tshirt_access.devices_view',    label: 'B\u00e9n\u00e9voles : voir les connect\u00e9s',                 group: 'tshirt' },
+  { key: 'tshirt_access.devices_revoke',  label: 'B\u00e9n\u00e9voles : r\u00e9voquer un connect\u00e9',               group: 'tshirt' },
   // Sous-onglets des Réglages
   { key: 'settings.tab.personnalisation', label: 'Réglages : Personnalisation', group: 'settings' },
   { key: 'settings.tab.accueil',          label: 'Réglages : Accueil',           group: 'settings' },

@@ -18,7 +18,7 @@ $error_message = '';
 if ($hasGetParams && $qrToken) {
     try {
         $stmt = $pdo->prepare(
-            'SELECT organisation, description, is_active
+            'SELECT organisation, description, is_active, onsite_mode, payment_label
              FROM qrcodes
              WHERE token = ? AND is_active = 1'
         );
@@ -49,7 +49,7 @@ if ($_POST) {
     if ($submittedToken) {
         try {
             $stmt = $pdo->prepare(
-                'SELECT organisation, description, is_active
+                'SELECT organisation, description, is_active, onsite_mode, payment_label
                  FROM qrcodes
                  WHERE token = ? AND is_active = 1'
             );
@@ -98,28 +98,51 @@ if ($_POST) {
                 $placeholders[] = ":{$col}";
             }
 
-            // Champs système (toujours présents)
-            foreach (['origine', 'paiement_mode'] as $sysCol) {
-                if (!isset($formData[$sysCol])) {
-                    $formData[$sysCol] = $_POST[$sysCol] ?? ($sysCol === 'origine' ? 'en ligne' : 'en ligne (CB)');
-                    $columns[] = "`{$sysCol}`";
-                    $placeholders[] = ":{$sysCol}";
-                }
+            // Mode « inscription sur place » (défini sur le QR) : la prestation est
+            // choisie directement et la méthode de paiement est imposée côté serveur
+            // (valeur du QR, jamais le champ caché du client → non falsifiable).
+            $isOnsite = !empty($tokenData['onsite_mode']);
+
+            // origine : depuis le POST (champ caché QR-<orga>), sinon défaut.
+            if (!isset($formData['origine'])) {
+                $formData['origine'] = $_POST['origine'] ?? 'en ligne';
+                $columns[] = '`origine`';
+                $placeholders[] = ':origine';
             }
 
-            // Montant dû : 0 si gratuit / enfant -12 ans, sinon le tarif d'inscription configuré.
+            // paiement_mode : en mode sur place → valeur serveur du QR (payment_label) ;
+            // sinon → valeur du formulaire classique.
+            if (!isset($formData['paiement_mode'])) {
+                if ($isOnsite) {
+                    $pl = mb_substr(trim((string)($tokenData['payment_label'] ?? 'retrait t-shirt')), 0, 50);
+                    $formData['paiement_mode'] = ($pl !== '') ? $pl : 'retrait t-shirt';
+                } else {
+                    $formData['paiement_mode'] = $_POST['paiement_mode'] ?? 'en ligne (CB)';
+                }
+                $columns[] = '`paiement_mode`';
+                $placeholders[] = ':paiement_mode';
+            }
+
+            // Montant dû + prestation (toujours calculés côté serveur).
             $stmtFee = $pdo->prepare('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1');
             $stmtFee->execute();
             $regFee = (float) ($stmtFee->fetchColumn() ?: 0);
-            $formData['montant_du'] = (strcasecmp((string)($formData['paiement_mode'] ?? ''), 'gratuit') === 0) ? 0.0 : $regFee;
+
+            $allowedPresta = ['tarif_unique', 'enfant_gratuit', 'enfant_tshirt'];
+            $postedPresta  = strtolower(trim((string) ($_POST['prestation'] ?? '')));
+            if ($isOnsite && in_array($postedPresta, $allowedPresta, true)) {
+                // Prestation choisie explicitement sur le formulaire sur place.
+                $formData['prestation'] = $postedPresta;
+                $formData['montant_du'] = ($postedPresta === 'enfant_gratuit') ? 0.0 : $regFee;
+            } else {
+                // Comportement historique : déduit du mode de paiement.
+                $formData['montant_du'] = (strcasecmp((string)($formData['paiement_mode'] ?? ''), 'gratuit') === 0) ? 0.0 : $regFee;
+                $pmPub = strtolower(trim((string)($formData['paiement_mode'] ?? '')));
+                $formData['prestation'] = ($pmPub === 'gratuit') ? 'enfant_gratuit'
+                                        : (($pmPub === 'enfant_tshirt') ? 'enfant_tshirt' : 'tarif_unique');
+            }
             $columns[] = '`montant_du`';
             $placeholders[] = ':montant_du';
-
-            // Catégorie (prestation) déduite du paiement, pour rester cohérent avec
-            // l'admin et l'import : gratuit → enfant_gratuit ; sinon tarif_unique.
-            $pmPub = strtolower(trim((string)($formData['paiement_mode'] ?? '')));
-            $formData['prestation'] = ($pmPub === 'gratuit') ? 'enfant_gratuit'
-                                    : (($pmPub === 'enfant_tshirt') ? 'enfant_tshirt' : 'tarif_unique');
             $columns[] = '`prestation`';
             $placeholders[] = ':prestation';
 
@@ -278,22 +301,42 @@ try {
       <form id="fPub" class="row g-3 needs-validation" method="POST" action="" novalidate>
         <?= csrf_field() ?>
         <?php foreach ($formFields as $f): ?>
-          <?= renderFormField($f) ?>
+          <?= renderFormField($f, '', false, 'qr') ?>
         <?php endforeach; ?>
 
         <input type="hidden" name="qr_token" value="<?= htmlspecialchars($qrToken) ?>">
         <input type="hidden" name="origine" value="QR-<?= htmlspecialchars($qrData['organisation']) ?>">
 
-        <div class="col-md-12">
-          <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
-          <select name="paiement_mode" id="paiement_mode_public" class="form-select" required>
-            <option value="En ligne" selected>En ligne (CB)</option>
-            <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
-          </select>
-          <div id="montantDuPublic" class="mt-2" style="font-size:14px;font-weight:600;color:#1e293b">
-            Montant total dû : <span style="color:#F42182"><?= htmlspecialchars((string) $registration_fee) ?> €</span>
+        <?php
+          // Montant formaté (ex. « 12 € ») réutilisé par l'affichage et le script.
+          $onFee      = (float) $registration_fee;
+          $onFeeLabel = rtrim(rtrim(number_format($onFee, 2, '.', ''), '0'), '.') . ' €';
+        ?>
+        <?php if (!empty($qrData['onsite_mode'])): ?>
+          <?php // Mode « inscription sur place » : choix de la prestation (paiement masqué, imposé côté serveur). ?>
+          <div class="col-md-12">
+            <label class="form-label">Prestation <span style="color:#ef4444">*</span></label>
+            <select name="prestation" id="prestation_public" class="form-select" required>
+              <option value="tarif_unique">Tarif unique — <?= htmlspecialchars($onFeeLabel) ?></option>
+              <option value="enfant_gratuit">Enfant −<?= (int) $childAge ?> ans — Gratuit</option>
+              <option value="enfant_tshirt">Enfant −<?= (int) $childAge ?> ans avec T-shirt — <?= htmlspecialchars($onFeeLabel) ?></option>
+            </select>
+            <div id="montantDuPublic" class="mt-2" style="font-size:14px;font-weight:600;color:#1e293b">
+              Montant total dû : <span style="color:#F42182"><?= htmlspecialchars($onFeeLabel) ?></span>
+            </div>
           </div>
-        </div>
+        <?php else: ?>
+          <div class="col-md-12">
+            <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
+            <select name="paiement_mode" id="paiement_mode_public" class="form-select" required>
+              <option value="En ligne" selected>En ligne (CB)</option>
+              <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
+            </select>
+            <div id="montantDuPublic" class="mt-2" style="font-size:14px;font-weight:600;color:#1e293b">
+              Montant total dû : <span style="color:#F42182"><?= htmlspecialchars((string) $registration_fee) ?> €</span>
+            </div>
+          </div>
+        <?php endif; ?>
 
         <div class="col-12 d-grid">
           <button class="btn-action-primary btn-action-lg" type="submit">
@@ -319,7 +362,7 @@ try {
         update();
       })();
       </script>
-      <script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+      <script src="../js/inscription-form.js?v=5" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
       <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
       (function(){
         var form = document.getElementById('fPub');
@@ -335,6 +378,132 @@ try {
         });
       })();
       </script>
+
+      <?php if (!empty($qrData['onsite_mode'])): ?>
+      <?php // Mode sur place : filtre les prestations selon l'âge saisi + relie le choix
+            // « enfant » à l'affichage de l'autorisation parentale (comme si la date de
+            // naissance d'un mineur était renseignée). ?>
+      <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+      (function(){
+        var form   = document.getElementById('fPub');
+        if(!form) return;
+        var presta = document.getElementById('prestation_public');
+        var disp   = document.getElementById('montantDuPublic');
+        var birth  = form.querySelector('[name="naissance"]');
+        var block  = form.querySelector('[data-guardian-block]');
+        if(!presta) return;
+
+        var childAge = <?= (int) $childAge ?>;
+        var feeLabel = <?= json_encode($onFeeLabel) ?>;
+        var LABELS = {
+          tarif_unique:   'Tarif unique — ' + feeLabel,
+          enfant_gratuit: 'Enfant −' + childAge + ' ans — Gratuit',
+          enfant_tshirt:  'Enfant −' + childAge + ' ans avec T-shirt — ' + feeLabel
+        };
+
+        function currentAge(){
+          if (!birth || !window.FERInscription) return null;
+          return FERInscription.ageFromBirth(FERInscription.normalizeBirthValue(birth.value));
+        }
+
+        // Reconstruit la liste des prestations selon l'âge :
+        //   âge ≥ seuil          → Tarif unique seulement
+        //   âge < seuil          → les 2 prestations enfant
+        //   âge non renseigné    → les 3
+        function rebuild(){
+          var age = currentAge();
+          var allow;
+          if (age == null)            allow = ['tarif_unique','enfant_gratuit','enfant_tshirt'];
+          else if (age >= childAge)   allow = ['tarif_unique'];
+          else                        allow = ['enfant_gratuit','enfant_tshirt'];
+          var cur = presta.value;
+          presta.innerHTML = allow.map(function(v){
+            return '<option value="'+v+'"'+((v===cur)?' selected':'')+'>'+LABELS[v]+'</option>';
+          }).join('');
+          if (allow.indexOf(cur) < 0) presta.selectedIndex = 0;
+          updateMontant();
+          updateGuardian();
+        }
+
+        function updateMontant(){
+          if (!disp) return;
+          disp.innerHTML = (presta.value === 'enfant_gratuit')
+            ? 'Montant dû : <span style="color:#16a34a">0 €</span>'
+            : 'Montant total dû : <span style="color:#F42182">' + feeLabel + '</span>';
+        }
+
+        // Un enfant −childAge ans est forcément mineur → on affiche l'autorisation
+        // parentale dès qu'une prestation « enfant » est choisie (même sans date de
+        // naissance). Sinon, on laisse la date de naissance piloter l'affichage.
+        function updateGuardian(){
+          var isChild = (presta.value === 'enfant_gratuit' || presta.value === 'enfant_tshirt');
+          if (!block) return;
+          if (isChild){
+            // Un enfant −childAge ans est mineur → on force l'affichage du bloc (les
+            // champs personnalisés sont dedans, ils apparaissent avec lui) même sans
+            // date de naissance. Chaque champ suit son propre « requis ».
+            block.style.display = '';
+            var reqd = block.getAttribute('data-guardian-required') !== '0';
+            block.querySelectorAll('[data-guardian]').forEach(function(el){
+              var isCustom = el.getAttribute('data-guardian') === 'custom';
+              var elReq = isCustom ? (el.getAttribute('data-guardian-req') === '1') : reqd;
+              if (elReq) el.setAttribute('required',''); else el.removeAttribute('required');
+            });
+          } else {
+            block.querySelectorAll('[data-guardian]').forEach(function(el){ el.removeAttribute('required'); });
+            if (window.FERInscription) FERInscription.refresh(form); // rebascule selon la naissance
+          }
+        }
+
+        presta.addEventListener('change', function(){ updateMontant(); updateGuardian(); });
+        if (birth){
+          ['input','change','blur'].forEach(function(ev){ birth.addEventListener(ev, rebuild); });
+        }
+
+        // Sécurité : si une prestation « enfant » est choisie, on exige le responsable
+        // légal même sans date de naissance (le validateur standard se base sur la date),
+        // et on injecte l'autorisation dans le commentaire s'il n'y est pas déjà.
+        form.addEventListener('submit', function(e){
+          if (presta.value !== 'enfant_gratuit' && presta.value !== 'enfant_tshirt') return;
+          if (!block || block.getAttribute('data-guardian-required') === '0') return;
+          var nom = block.querySelector('[data-guardian="nom"]');
+          var pre = block.querySelector('[data-guardian="prenom"]');
+          var nv  = nom ? nom.value.trim() : '';
+          var pv  = pre ? pre.value.trim() : '';
+          if (!nv || !pv){
+            block.style.display = '';
+            alert("Inscription d'un mineur : merci d'indiquer le nom et le prénom du responsable légal.");
+            e.preventDefault();
+            return;
+          }
+          // Champs personnalisés du bloc (ex. téléphone parent), désormais à l'intérieur.
+          var customEls = block.querySelectorAll('[data-guardian="custom"]');
+          var extraLines = [];
+          for (var x = 0; x < customEls.length; x++){
+            if (customEls[x].getAttribute('data-guardian-req') === '1' && !customEls[x].value.trim()){
+              customEls[x].focus();
+              alert("Inscription d'un mineur : merci de compléter les informations demandées pour le responsable légal.");
+              e.preventDefault();
+              return;
+            }
+            var v = (customEls[x].value||'').trim();
+            if (v) extraLines.push((customEls[x].getAttribute('data-guardian-key') || 'Info') + ' : ' + v);
+          }
+          // Injecte l'autorisation dans le commentaire si le validateur standard ne l'a
+          // pas déjà fait (prestation enfant choisie sans date de naissance renseignée).
+          var com  = form.querySelector('[name="commentaire"]');
+          var MARK = 'Autorisation du représentant légal';
+          if (com && com.value.indexOf(MARK) < 0){
+            var txt = MARK + ' (mineur) : Validé\nNom : ' + nv + '\nPrénom : ' + pv;
+            if (extraLines.length) txt += '\n' + extraLines.join('\n');
+            com.value = com.value ? (com.value + '\n\n' + txt) : txt;
+          }
+        });
+
+        rebuild();
+      })();
+      </script>
+      <?php endif; ?>
     <?php else: ?>
       <?php if ($success_message): ?>
         <div class="alert alert-success text-center mb-4">

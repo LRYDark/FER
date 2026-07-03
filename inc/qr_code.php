@@ -135,6 +135,27 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
               <input type="url" name="base_url" class="form-control" value="<?= htmlspecialchars($baseUrl) ?>" required>
               <small class="text-muted">Le token sera automatiquement ajouté en paramètre</small>
             </div>
+
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="onsiteMode" name="onsite_mode" checked>
+                <label class="form-check-label fw-semibold" for="onsiteMode">Inscription sur place (choix de la prestation)</label>
+              </div>
+              <small class="text-muted d-block">Le formulaire affiche un choix de prestation (Tarif unique / Enfant −<?= (int)($data['child_age_threshold'] ?? 12) ?> ans / Enfant avec T-shirt) au lieu du champ « Paiement », et la méthode de paiement est masquée.</small>
+            </div>
+            <div class="col-md-6" id="paymentLabelWrap">
+              <label class="form-label">Méthode de paiement enregistrée</label>
+              <input type="text" name="payment_label" class="form-control" value="retrait t-shirt" maxlength="50" list="paymentLabelSuggestions" autocomplete="off">
+              <datalist id="paymentLabelSuggestions">
+                <option value="retrait t-shirt"></option>
+                <option value="sur place"></option>
+                <option value="espèces"></option>
+                <option value="CB"></option>
+                <option value="chèque"></option>
+                <option value="CB/espèces jour J"></option>
+              </datalist>
+              <small class="text-muted">Suggestions proposées, mais champ librement modifiable. Masquée pour le client.</small>
+            </div>
           </div>
           
           <div id="qrPreview" class="text-center mt-3" style="display:none;">
@@ -274,6 +295,13 @@ $(document).ready(function() {
         }
     });
 
+    // Affiche le champ « méthode de paiement » seulement en mode inscription sur place
+    function togglePaymentLabel(){
+        $('#paymentLabelWrap').toggle($('#onsiteMode').is(':checked'));
+    }
+    $('#onsiteMode').on('change', togglePaymentLabel);
+    togglePaymentLabel();
+
     // Prévisualisation du QR Code
     $('#previewBtn').click(function() {
         const organisation = $('[name="organisation"]').val();
@@ -308,7 +336,9 @@ $(document).ready(function() {
         const formData = {
             organisation: $('[name="organisation"]').val(),
             description: $('[name="description"]').val(),
-            base_url: $('[name="base_url"]').val()
+            base_url: $('[name="base_url"]').val(),
+            onsite_mode: $('#onsiteMode').is(':checked') ? 1 : 0,
+            payment_label: $('[name="payment_label"]').val()
         };
 
         $.ajax({

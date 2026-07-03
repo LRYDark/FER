@@ -217,7 +217,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 
     <form id="fAdd" class="row g-3">
       <?php foreach ($formFields as $f): ?>
-        <?= renderFormField($f) ?>
+        <?= renderFormField($f, '', false, 'saisie') ?>
       <?php endforeach; ?>
 
       <input type="hidden" name="origine" value="<?= htmlspecialchars(currentOrganisation()) ?>">
@@ -276,7 +276,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         <?php foreach ($adminFields as $f): ?>
           <?php /* « Autorisation parentale (mineur) » : déjà renseignée à l'inscription → masquée ici. */ ?>
           <?php if (($f['field_type'] ?? '') === 'guardian') continue; ?>
-          <?= renderFormField($f) ?>
+          <?= renderFormField($f, '', false, 'saisie') ?>
         <?php endforeach; ?>
         <div class="col-md-6">
           <label class="form-label">Paiement</label>
@@ -299,7 +299,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 <?php require 'admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-<script src="../js/inscription-form.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<script src="../js/inscription-form.js?v=5" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <?php if ($activeTab === 'inscriptions'): ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>

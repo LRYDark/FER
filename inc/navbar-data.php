@@ -101,6 +101,22 @@ foreach ($partenaires as $part) {
     }
 }
 
+// Demandes d'accès « Remise T-shirts » en attente (pastille navbar).
+// Uniquement pour la campagne courante ouverte, ET seulement pour les utilisateurs
+// autorisés à valider les demandes (droit tshirt_access.approve).
+$tshirtPendingCount = 0;
+if (function_exists('canDoAction') && canDoAction('tshirt_access.approve')) {
+    try {
+        $cfgT = $pdo->query("SELECT enabled, campaign_token, expires_at FROM tshirt_access WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if ($cfgT && !empty($cfgT['enabled']) && !empty($cfgT['campaign_token'])
+            && (empty($cfgT['expires_at']) || strtotime($cfgT['expires_at']) >= time())) {
+            $stT = $pdo->prepare("SELECT COUNT(*) FROM tshirt_access_sessions WHERE campaign_token = ? AND status = 'pending'");
+            $stT->execute([$cfgT['campaign_token']]);
+            $tshirtPendingCount = (int) $stT->fetchColumn();
+        }
+    } catch (\Throwable $e) { $tshirtPendingCount = 0; }
+}
+
 // Détecter si plus de 5 éléments pour afficher en 2 colonnes
 $actualites_cols2 = count($actualites) > 5;
 $galeries_cols2 = count($galeries) > 5;

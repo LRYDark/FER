@@ -365,6 +365,72 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `child_pricing_enabled` TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE `setting` ADD COLUMN `child_age_threshold` INT(10) NOT NULL DEFAULT 12",
     "ALTER TABLE `setting` ADD COLUMN `child_amount` INT(10) NOT NULL DEFAULT 0",
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Accès « Remise T-shirts » pour bénévoles (sans compte).
+    //   tshirt_access            : config à ligne unique (id=1) — interrupteur
+    //                              ON/OFF, token de campagne (régénérer = tout
+    //                              invalider), ouverture + expiration (auto-off).
+    //   tshirt_access_sessions   : une ligne par appareil bénévole. Le bénévole
+    //                              saisit son nom → demande (status=pending) →
+    //                              l'admin valide (approved) ou refuse. La session
+    //                              est liée au campaign_token courant : régénérer
+    //                              le token invalide toutes les sessions d'un coup.
+    //   tshirt_handout_log       : journal des remises (qui/quelle taille/quand)
+    //                              pour la traçabilité, faute d'authentification forte.
+    // ─────────────────────────────────────────────────────────────────────
+    "CREATE TABLE IF NOT EXISTS `tshirt_access` (
+      `id` TINYINT(1) NOT NULL DEFAULT 1,
+      `enabled` TINYINT(1) NOT NULL DEFAULT 0,
+      `campaign_token` VARCHAR(64) DEFAULT NULL,
+      `opened_at` DATETIME DEFAULT NULL,
+      `expires_at` DATETIME DEFAULT NULL,
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    "INSERT IGNORE INTO `tshirt_access` (`id`) VALUES (1)",
+    "CREATE TABLE IF NOT EXISTS `tshirt_access_sessions` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `campaign_token` VARCHAR(64) NOT NULL,
+      `device_id` VARCHAR(64) NOT NULL,
+      `volunteer_name` VARCHAR(120) DEFAULT NULL,
+      `status` ENUM('pending','approved','refused') NOT NULL DEFAULT 'pending',
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      `approved_at` DATETIME DEFAULT NULL,
+      `approved_by` INT DEFAULT NULL,
+      `expires_at` DATETIME DEFAULT NULL,
+      `last_seen` DATETIME DEFAULT NULL,
+      `ip` VARCHAR(45) DEFAULT NULL,
+      `user_agent` VARCHAR(255) DEFAULT NULL,
+      UNIQUE KEY `idx_device_campaign` (`device_id`, `campaign_token`),
+      INDEX `idx_status` (`status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    "CREATE TABLE IF NOT EXISTS `tshirt_handout_log` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `registration_id` INT DEFAULT NULL,
+      `inscription_no` VARCHAR(50) DEFAULT NULL,
+      `size` VARCHAR(5) DEFAULT NULL,
+      `volunteer_name` VARCHAR(120) DEFAULT NULL,
+      `device_id` VARCHAR(64) DEFAULT NULL,
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX `idx_reg` (`registration_id`),
+      INDEX `idx_created` (`created_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // Inscription « sur place » via QR : chaque QR peut afficher un choix de
+    // prestation (au lieu du champ Paiement) et enregistrer une méthode de paiement
+    // masquée personnalisée (ex. « retrait t-shirt »), définie à la création du QR.
+    "ALTER TABLE `qrcodes` ADD COLUMN `onsite_mode` TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE `qrcodes` ADD COLUMN `payment_label` VARCHAR(50) DEFAULT 'retrait t-shirt'",
+
+    // Texte d'aide / consentement affiché sous un champ (notamment le bloc
+    // « Autorisation parentale (mineur) » : mention de consentement du responsable légal).
+    "ALTER TABLE `forms` ADD COLUMN `help_text` TEXT DEFAULT NULL",
+    "UPDATE `forms` SET `help_text` = 'En renseignant le nom et le prénom du responsable légal ci-dessus, je certifie être le représentant légal de l''enfant mineur inscrit, j''autorise sa participation à l''événement et je consens au traitement de ces informations.' WHERE `field_type` = 'guardian' AND (`help_text` IS NULL OR `help_text` = '')",
+
+    // Champ personnalisé rattaché au bloc « Autorisation parentale (mineur) » : il
+    // n'a pas de colonne BDD (bdd_column NULL) et sa valeur est injectée dans le
+    // commentaire (comme le nom/prénom du responsable). guardian_section = 1 le marque.
+    "ALTER TABLE `forms` ADD COLUMN `guardian_section` TINYINT(1) NOT NULL DEFAULT 0",
 ];
 
 $results = [];

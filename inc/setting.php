@@ -1644,6 +1644,15 @@ if (isset($_POST['save_fields'])) {
             $pdo->prepare('UPDATE forms SET options_list = :a WHERE id = :id')
                 ->execute(['a' => (string) $gAge, 'id' => $id]);
         }
+
+        // Texte de consentement du bloc « Autorisation parentale » (stocké dans help_text).
+        if (($f['field_type'] ?? '') === 'guardian' && isset($_POST['guardian_consent'])) {
+            $consent = mb_substr(trim((string) $_POST['guardian_consent']), 0, 1000);
+            try {
+                $pdo->prepare('UPDATE forms SET help_text = :h WHERE id = :id')
+                    ->execute(['h' => ($consent !== '' ? $consent : null), 'id' => $id]);
+            } catch (\PDOException $e) { /* colonne help_text absente avant migration */ }
+        }
     }
     addToast('success', 'Configuration des champs enregistrée !');
     // Recharger
@@ -1668,45 +1677,53 @@ if (isset($_POST['add_custom_field'])) {
         ));
         $colName = substr($colName, 0, 50);
 
-        // Vérifier que la colonne n'existe pas déjà
-        $exists = $pdo->prepare('SELECT COUNT(*) FROM forms WHERE bdd_column = ?');
-        $exists->execute([$colName]);
-        if ($exists->fetchColumn() > 0) {
+        // Emplacement : formulaire classique (colonne BDD) ou bloc « autorisation
+        // parentale » (pas de colonne, valeur injectée dans le commentaire).
+        $isGuardianField = (($_POST['new_section'] ?? 'form') === 'guardian');
+
+        // Détecte la présence de la colonne guardian_section (migration jouée ?).
+        $hasGuardianCol = true;
+        try { $pdo->query('SELECT guardian_section FROM forms LIMIT 0'); }
+        catch (\PDOException $e) { $hasGuardianCol = false; }
+
+        // Vérification d'unicité uniquement pour un champ classique (colonne BDD).
+        $exists = null;
+        if (!$isGuardianField) {
+            $existsStmt = $pdo->prepare('SELECT COUNT(*) FROM forms WHERE bdd_column = ?');
+            $existsStmt->execute([$colName]);
+            $exists = (int) $existsStmt->fetchColumn();
+        }
+
+        if ($isGuardianField && !$hasGuardianCol) {
+            addToast('danger', 'Champs « autorisation parentale » indisponibles : lancez update.php pour appliquer les migrations.');
+        } elseif (!$isGuardianField && $exists > 0) {
             addToast('danger', 'Un champ avec ce nom existe déjà.');
         } else {
             try {
-                // ALTER TABLE pour ajouter la colonne
-                $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `{$colName}` VARCHAR(255) DEFAULT NULL");
+                // Colonne BDD uniquement pour un champ classique.
+                if (!$isGuardianField) {
+                    $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `{$colName}` VARCHAR(255) DEFAULT NULL");
+                }
 
-                // Trouver le prochain sort_order
                 $maxSort = (int) $pdo->query('SELECT MAX(sort_order) FROM forms')->fetchColumn();
 
-                // Détecte la présence des colonnes "saisie multiple" pour bâtir
-                // un INSERT compatible même si la migration n'a pas tourné.
-                $hasBulkCols = true;
-                try { $pdo->query('SELECT visible_saisie_multiple FROM forms LIMIT 0'); }
-                catch (\PDOException $e) { $hasBulkCols = false; }
-
-                if ($hasBulkCols) {
-                    $ins = $pdo->prepare(
-                        'INSERT INTO forms (fields, label, field_type, bdd_column, active, required,
-                         is_locked, is_default, visible_public, visible_admin, visible_saisie, visible_qr,
-                         visible_saisie_multiple, required_saisie_multiple,
-                         sort_order, options_list, encrypted)
-                         VALUES (?, ?, ?, ?, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, ?, ?, 1)'
-                    );
-                } else {
-                    $ins = $pdo->prepare(
-                        'INSERT INTO forms (fields, label, field_type, bdd_column, active, required,
-                         is_locked, is_default, visible_public, visible_admin, visible_saisie, visible_qr,
-                         sort_order, options_list, encrypted)
-                         VALUES (?, ?, ?, ?, 1, 0, 0, 0, 1, 1, 1, 1, ?, ?, 1)'
-                    );
+                // INSERT dynamique : les colonnes « saisie multiple » ont des valeurs
+                // par défaut → on peut les omettre. On ajoute guardian_section si dispo.
+                $cols = ['fields','label','field_type','bdd_column','active','required',
+                         'is_locked','is_default','visible_public','visible_admin',
+                         'visible_saisie','visible_qr','sort_order','options_list','encrypted'];
+                $vals = ['custom_' . uniqid(), $newLabel, $newType,
+                         $isGuardianField ? null : $colName,   // bdd_column
+                         1, 0, 0, 0, 1, 1, 1, 1,
+                         $maxSort + 1, ($newOpts ?: null),
+                         $isGuardianField ? 0 : 1];             // encrypted
+                if ($hasGuardianCol) {
+                    $cols[] = 'guardian_section';
+                    $vals[] = $isGuardianField ? 1 : 0;
                 }
-                $ins->execute([
-                    'custom_' . uniqid(), $newLabel, $newType, $colName,
-                    $maxSort + 1, $newOpts ?: null
-                ]);
+                $colList = '`' . implode('`,`', $cols) . '`';
+                $ph      = implode(',', array_fill(0, count($cols), '?'));
+                $pdo->prepare("INSERT INTO forms ($colList) VALUES ($ph)")->execute($vals);
 
                 addToast('success', "Champ « {$newLabel} » ajouté avec succès !");
                 // Recharger
@@ -1729,13 +1746,19 @@ if (isset($_POST['delete_field_id'])) {
 
     if ($fieldToDelete) {
         try {
-            // DROP la colonne dans registrations
-            $col = $fieldToDelete['bdd_column'];
-            $pdo->exec("ALTER TABLE `registrations` DROP COLUMN `{$col}`");
+            // DROP la colonne dans registrations UNIQUEMENT si le champ en possède une.
+            // Les champs « autorisation parentale » (guardian_section) n'ont pas de
+            // colonne BDD (bdd_column NULL, valeur injectée dans le commentaire).
+            $col = trim((string) ($fieldToDelete['bdd_column'] ?? ''));
+            $hadColumn = ($col !== '');
+            if ($hadColumn) {
+                $pdo->exec("ALTER TABLE `registrations` DROP COLUMN `{$col}`");
+            }
             // Supprimer de forms
             $pdo->prepare('DELETE FROM forms WHERE id = ?')->execute([$delId]);
 
-            addToast('success', "Champ « {$fieldToDelete['label']} » supprimé (colonne et données supprimées).");
+            addToast('success', "Champ « {$fieldToDelete['label']} » supprimé"
+                . ($hadColumn ? ' (colonne et données supprimées).' : '.'));
             // Recharger
             $stmtForms = $pdo->prepare('SELECT * FROM forms ORDER BY sort_order ASC');
             $stmtForms->execute();
@@ -4220,14 +4243,14 @@ if (!$canTab($activeTab)) {
               <thead class="table-light">
                 <tr>
                   <th>Champ</th>
-                  <th class="text-center" style="width:70px">Actif</th>
-                  <th class="text-center" style="width:70px">Requis</th>
-                  <th class="text-center" style="width:70px" title="Modal admin (dashboard)">Admin</th>
-                  <th class="text-center" style="width:70px" title="Formulaire saisie">Saisie</th>
-                  <th class="text-center" style="width:70px" title="Formulaire d'inscription via QR Code (scan)">Inscr. QR</th>
-                  <th class="text-center" style="width:75px" title="Visible dans le formulaire d'ajout multiple (saisie en lot)">Bulk visible</th>
-                  <th class="text-center" style="width:75px" title="Champ obligatoire en mode ajout multiple">Bulk requis</th>
-                  <th class="text-center" style="width:60px">Type</th>
+                  <th class="text-center" style="width:70px" title="Le champ apparaît dans les formulaires. Décoché = champ complètement retiré (invisible partout, même si les autres cases sont cochées).">Actif <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:70px" title="Champ OBLIGATOIRE dans les formulaires normaux (inscription en ligne / QR, saisie, admin). L'inscrit ne peut pas valider sans le remplir. À ne pas confondre avec « Bulk requis ».">Requis <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:70px" title="Le champ s'affiche dans le formulaire « Nouvel inscrit » du tableau de bord (admin).">Admin <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:70px" title="Le champ s'affiche dans le formulaire de l'espace Saisie.">Saisie <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:70px" title="Le champ s'affiche dans le formulaire d'inscription public ouvert via le scan d'un QR Code.">Inscr. QR <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:75px" title="Le champ s'affiche dans le formulaire « Ajout multiple » (saisie en lot, ex. une entreprise avec plusieurs inscrits).">Bulk visible <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:75px" title="Champ obligatoire UNIQUEMENT dans le mode « Ajout multiple » (saisie en lot). N'a AUCUN effet sur les formulaires normaux — c'est la différence avec « Requis ».">Bulk requis <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:60px" title="Type de saisie du champ : texte, nombre, date, liste déroulante, zone de texte, etc.">Type <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
                   <th class="text-center" style="width:70px"></th>
                 </tr>
               </thead>
@@ -4268,13 +4291,18 @@ if (!$canTab($activeTab)) {
                     <strong><?= htmlspecialchars($f['label'] ?? $f['fields']) ?></strong>
                     <?php if ($locked): ?><span class="badge bg-secondary ms-1" style="font-size:10px">verrouillé</span><?php endif; ?>
                     <?php if (!$default): ?><span class="badge bg-info ms-1" style="font-size:10px">personnalisé</span><?php endif; ?>
+                    <?php if (!empty($f['guardian_section'])): ?><span class="badge ms-1" style="font-size:10px;background:#9a3412" title="Ce champ s'affiche dans le bloc « Autorisation parentale (mineur) » et sa valeur est enregistrée dans le commentaire (aucune colonne en base)."><i class="bi bi-shield-check me-1"></i>Autorisation parentale</span><?php endif; ?>
                     <?php if ($commentaireLocked): ?><span class="badge bg-warning text-dark ms-1" style="font-size:10px" title="Les nom/prénom du responsable légal y sont enregistrés">requis par l'autorisation parentale</span><?php endif; ?>
-                    <br><small class="text-muted"><?= htmlspecialchars($f['bdd_column'] ?? '') ?></small>
+                    <br><small class="text-muted"><?= !empty($f['guardian_section']) ? '↳ injecté dans le commentaire' : htmlspecialchars($f['bdd_column'] ?? '') ?></small>
                     <?php if (($f['field_type'] ?? '') === 'guardian'): ?>
                       <div class="mt-1 d-flex align-items-center gap-1">
                         <label class="form-label mb-0" style="font-size:11px">Mineur si &lt;</label>
                         <input type="number" name="guardian_age" min="1" max="120" value="<?= (int) ($f['options_list'] ?? 18) ?>" class="form-control form-control-sm" style="width:72px">
                         <small class="text-muted" style="font-size:11px">ans</small>
+                      </div>
+                      <div class="mt-1">
+                        <label class="form-label mb-0" style="font-size:11px">Texte de consentement affiché sous la carte</label>
+                        <textarea name="guardian_consent" class="form-control form-control-sm" rows="2" style="font-size:11px" placeholder="Ex : En renseignant ces informations, je certifie être le représentant légal…"><?= htmlspecialchars($f['help_text'] ?? '') ?></textarea>
                       </div>
                     <?php endif; ?>
                   </td>
@@ -4376,6 +4404,14 @@ if (!$canTab($activeTab)) {
                 <label class="form-label">Options (si liste déroulante)</label>
                 <input type="text" name="new_options" class="form-control" placeholder="opt1,opt2,opt3">
                 <small class="text-muted">Séparées par des virgules</small>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Emplacement du champ</label>
+                <select name="new_section" class="form-select">
+                  <option value="form" selected>Formulaire (colonne enregistrée en base)</option>
+                  <option value="guardian">Autorisation parentale (mineur) — injecté dans le commentaire</option>
+                </select>
+                <small class="text-muted">« Autorisation parentale » : le champ s'affiche avec le bloc du responsable légal (ex. téléphone des parents) et sa valeur est enregistrée dans le commentaire de l'inscrit.</small>
               </div>
             </div>
             <div class="modal-footer">

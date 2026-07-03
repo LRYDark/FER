@@ -804,7 +804,7 @@ if ($migrationDone) {
             </div>
             <div class="col-12">
               <div class="form-check">
-                <input type="checkbox" name="notify_subscribers" value="1" class="form-check-input" id="notifyAdd">
+                <input type="checkbox" name="notify_subscribers" value="1" class="form-check-input" id="notifyAdd" checked>
                 <label class="form-check-label" for="notifyAdd">
                   <i class="bi bi-envelope-heart"></i> Prévenir les abonnés à la newsletter — un email est envoyé si l'article est <strong>publié</strong>.
                 </label>
