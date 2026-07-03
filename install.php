@@ -612,6 +612,7 @@ function getCreateTableStatements(): array
           `child_pricing_enabled` TINYINT(1) NOT NULL DEFAULT 0,
           `child_age_threshold` INT(10) NOT NULL DEFAULT 12,
           `child_amount` INT(10) NOT NULL DEFAULT 0,
+          `registration_closed_message` TEXT DEFAULT NULL,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 

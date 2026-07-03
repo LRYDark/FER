@@ -208,6 +208,7 @@ if ($autoClose && $now >= $autoClose) {
     $accueil_active = 0;
 }
 $div_reglementation = $data['div_reglementation'] ?? '';
+$registration_closed_message = trim((string) ($data['registration_closed_message'] ?? ''));
 
 // Formulaire dynamique
 require_once '../config/form_fields.php';
@@ -254,6 +255,11 @@ try {
       <div class="p-4 w-100" role="alert" style="margin-top:5%; font-size: 1.2rem; background-color: #ffe1f0; color: #e03f8a; border-radius: var(--radius-lg);">
         🚫 Les inscriptions sont actuellement fermées. Merci de votre compréhension.
       </div>
+      <?php if ($registration_closed_message !== ''): ?>
+        <div class="registration-closed-message" style="margin-top:20px;">
+          <?= sanitizeHtml($registration_closed_message) ?>
+        </div>
+      <?php endif; ?>
       <?php if ($autoOpen && $now < $autoOpen): ?>
         <p style="text-align:center; margin-top:20px; font-size:1rem; color:#b5366b;">
           📅 Les inscriptions ouvriront le <strong><?= $autoOpen->format('d/m/Y') ?></strong> à <strong><?= $autoOpen->format('H\hi') ?></strong>.

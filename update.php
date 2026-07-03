@@ -431,6 +431,11 @@ $migrations = [
     // n'a pas de colonne BDD (bdd_column NULL) et sa valeur est injectée dans le
     // commentaire (comme le nom/prénom du responsable). guardian_section = 1 le marque.
     "ALTER TABLE `forms` ADD COLUMN `guardian_section` TINYINT(1) NOT NULL DEFAULT 0",
+
+    // Message d'information complémentaire affiché sous « Les inscriptions sont
+    // actuellement fermées » sur la page publique d'inscription. Permet à l'admin
+    // d'indiquer, par ex., où et quand s'inscrire / récupérer son t-shirt sur place.
+    "ALTER TABLE `setting` ADD COLUMN `registration_closed_message` TEXT DEFAULT NULL",
 ];
 
 $results = [];
