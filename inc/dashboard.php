@@ -143,6 +143,11 @@ if ($canBulkCreate) {
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
   .statCard{min-width:180px}
+  /* Harmonisation des cartes de stats : même hauteur, même style de libellé/valeur. */
+  .statCard .card-body{display:flex;flex-direction:column;justify-content:center;min-height:104px;padding:1rem .75rem}
+  .statCard .stat-label{font-size:.78rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;min-height:2.2em;display:flex;align-items:center;justify-content:center}
+  .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color:#1e293b;margin:0}
+  .statCard .stat-value--sm{font-size:1rem;font-weight:600;line-height:1.3}
   .hide-stats #stats {display: none !important;}
   .dashboard-actions .btn-rose{
     background:linear-gradient(135deg,#F42182,#db2777)!important;
@@ -1370,26 +1375,26 @@ function updateStats(data){
   const [eTop,eCnt]=Object.entries(byEnt).sort((a,b)=>b[1]-a[1])[0]||['–',0];
   $('#stats').html(`
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h5 class="card-title mb-1">Inscriptions</h5>
-      <p class="display-6 fw-bold mb-0">${total}</p></div></div>
+      <div class="stat-label">Inscriptions</div>
+      <p class="stat-value">${total}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h6 class="card-title text-muted mb-1">Montant estimé des recettes</h6>
-      <p class="display-6 fw-bold mb-0">${revenue.toLocaleString('fr-FR',{maximumFractionDigits:0})} €</p></div></div>
+      <div class="stat-label">Montant estimé des recettes</div>
+      <p class="stat-value">${revenue.toLocaleString('fr-FR',{maximumFractionDigits:0})} €</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h5 class="card-title mb-1">T-shirts récupérés</h5>
-      <p class="display-6 fw-bold mb-0">${tshirtCount}</p></div></div>
+      <div class="stat-label">T-shirts récupérés</div>
+      <p class="stat-value">${tshirtCount}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h6 class="card-title text-muted mb-1">Enfants -<?= $childAge ?> +T-shirt</h6>
-      <p class="display-6 fw-bold mb-0">${enfantTshirtCount}</p></div></div>
+      <div class="stat-label">Enfants -<?= $childAge ?> +T-shirt</div>
+      <p class="stat-value">${enfantTshirtCount}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h6 class="card-title text-muted mb-1">+ Vieux H</h6>
-      <p class="fw-semibold mb-0">${oldest.H?oldest.H.nom+' ('+oldest.H.age+' ans)':'–'}</p></div></div>
+      <div class="stat-label">+ Vieux H</div>
+      <p class="stat-value stat-value--sm">${oldest.H?oldest.H.nom+' ('+oldest.H.age+' ans)':'–'}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h6 class="card-title text-muted mb-1">+ Vieille F</h6>
-      <p class="fw-semibold mb-0">${oldest.F?oldest.F.nom+' ('+oldest.F.age+' ans)':'–'}</p></div></div>
+      <div class="stat-label">+ Vieille F</div>
+      <p class="stat-value stat-value--sm">${oldest.F?oldest.F.nom+' ('+oldest.F.age+' ans)':'–'}</p></div></div>
     <div class="card statCard flex-fill text-center"><div class="card-body">
-      <h6 class="card-title text-muted mb-1">Entreprise n°1</h6>
-      <p class="fw-semibold mb-0">${eTop} — ${eCnt}</p></div></div>
+      <div class="stat-label">Entreprise n°1</div>
+      <p class="stat-value stat-value--sm">${eTop} — ${eCnt}</p></div></div>
   `);
   if(tshirtMode) $('#stats').hide(); else $('#stats').show();
 }
