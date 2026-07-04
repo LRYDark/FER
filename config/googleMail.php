@@ -237,6 +237,11 @@ function shouldIncludeQrCode(string|int $inscriptionNo): bool
 {
     global $data, $pdo;
 
+    // Override ponctuel : une inscription via un QR dont l'option « envoyer le QR
+    // code » est décochée (send_qrcode = 0) force l'absence de QR code, quelle que
+    // soit la config globale. Le flag est posé par register.php avant l'envoi.
+    if (!empty($GLOBALS['force_no_qrcode'])) return false;
+
     $mode = $data['qrcode_mail_mode'] ?? 'none';
 
     if ($mode === 'none') return false;

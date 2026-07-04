@@ -43,9 +43,21 @@ $title  = $data['title']   ?? '';
 $picture= $data['picture'] ?? '';  
 
 
-// Correction : Construction de l'URL de base correcte
+// Construction de l'URL de base par défaut : elle pointe directement sur le
+// formulaire public d'inscription (…/public/register), pas seulement le domaine.
+// Le préfixe applicatif est calculé comme dans config.php (SCRIPT_NAME sans le
+// nom de fichier, remonté d'un cran si on est dans inc/). Reste modifiable.
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-$baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
+$__dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+$__lastSeg = basename($__dir);
+$__appRoot = in_array($__lastSeg, ['inc', 'public', 'config', 'errors'], true) ? dirname($__dir) : $__dir;
+$__appRoot = rtrim(str_replace('\\', '/', $__appRoot), '/');
+if ($__appRoot === '/' || $__appRoot === '.' || $__appRoot === '') $__appRoot = '';
+$baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $__appRoot . '/public/register';
+
+// Méthodes de paiement proposées par défaut dans le menu déroulant (identiques à
+// la création et à l'édition). L'option « Autre… » révèle un champ libre.
+$paymentMethods = ['retrait t-shirt', 'sur place', 'espèces', 'CB', 'chèque', 'CB/espèces jour J'];
 ?>
 <!doctype html>
 <html lang="fr">
@@ -118,7 +130,7 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Organisation *</label>
+              <label class="form-label">Organisation <span class="text-danger">*</span></label>
               <select name="organisation" class="form-select" required>
                 <option value="">Sélectionner une organisation...</option>
                 <?php foreach($organisations as $org): ?>
@@ -131,9 +143,9 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
               <input type="text" name="description" class="form-control" placeholder="Ex: QR Code pour événement X">
             </div>
             <div class="col-12">
-              <label class="form-label">URL de base du formulaire *</label>
+              <label class="form-label">URL de base du formulaire <span class="text-danger">*</span></label>
               <input type="url" name="base_url" class="form-control" value="<?= htmlspecialchars($baseUrl) ?>" required>
-              <small class="text-muted">Le token sera automatiquement ajouté en paramètre</small>
+              <small class="text-muted">Token ajouté automatiquement.</small>
             </div>
 
             <div class="col-12">
@@ -141,20 +153,30 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
                 <input class="form-check-input" type="checkbox" role="switch" id="onsiteMode" name="onsite_mode" checked>
                 <label class="form-check-label fw-semibold" for="onsiteMode">Inscription sur place (choix de la prestation)</label>
               </div>
-              <small class="text-muted d-block">Le formulaire affiche un choix de prestation (Tarif unique / Enfant −<?= (int)($data['child_age_threshold'] ?? 12) ?> ans / Enfant avec T-shirt) au lieu du champ « Paiement », et la méthode de paiement est masquée.</small>
+              <small class="text-muted d-block">Choix de prestation au lieu du champ Paiement.</small>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="sendQrcode" name="send_qrcode" checked>
+                <label class="form-check-label fw-semibold" for="sendQrcode">Envoyer le QR code dans l'e-mail</label>
+              </div>
+              <small class="text-muted d-block">Coché : selon la config du site. Décoché : e-mail sans QR code.</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date de fermeture du lien <span class="text-danger">*</span></label>
+              <input type="datetime-local" name="expires_at" id="createExpiresAt" class="form-control" required>
+              <small class="text-muted">Passé cette date, le lien devient inactif.</small>
             </div>
             <div class="col-md-6" id="paymentLabelWrap">
-              <label class="form-label">Méthode de paiement enregistrée</label>
-              <input type="text" name="payment_label" class="form-control" value="retrait t-shirt" maxlength="50" list="paymentLabelSuggestions" autocomplete="off">
-              <datalist id="paymentLabelSuggestions">
-                <option value="retrait t-shirt"></option>
-                <option value="sur place"></option>
-                <option value="espèces"></option>
-                <option value="CB"></option>
-                <option value="chèque"></option>
-                <option value="CB/espèces jour J"></option>
-              </datalist>
-              <small class="text-muted">Suggestions proposées, mais champ librement modifiable. Masquée pour le client.</small>
+              <label class="form-label">Méthode de paiement enregistrée <span class="text-danger">*</span></label>
+              <select class="form-select payment-label-select" id="createPaymentSelect">
+                <?php foreach ($paymentMethods as $pm): ?>
+                  <option value="<?= htmlspecialchars($pm) ?>"><?= htmlspecialchars($pm) ?></option>
+                <?php endforeach; ?>
+                <option value="__custom__">Autre (saisir manuellement)…</option>
+              </select>
+              <input type="text" class="form-control mt-2 payment-label-custom" id="createPaymentCustom" placeholder="Saisir la méthode…" maxlength="50" autocomplete="off" style="display:none">
+              <small class="text-muted">Masquée pour le client.</small>
             </div>
           </div>
           
@@ -204,6 +226,70 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
   </div>
 </div>
 
+<!-- Modal Édition QR Code -->
+<div class="modal fade" id="editQrModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Modifier le QR Code</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="editQrForm">
+        <input type="hidden" name="id" id="editId">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Organisation <span class="text-danger">*</span></label>
+              <select name="organisation" id="editOrganisation" class="form-select" required>
+                <?php foreach($organisations as $org): ?>
+                  <option value="<?= htmlspecialchars($org) ?>"><?= htmlspecialchars($org) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Description</label>
+              <input type="text" name="description" id="editDescription" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date de fermeture du lien <span class="text-danger">*</span></label>
+              <input type="datetime-local" name="expires_at" id="editExpiresAt" class="form-control" required>
+              <small class="text-muted">Passé cette date, le lien devient inactif.</small>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="editOnsiteMode">
+                <label class="form-check-label fw-semibold" for="editOnsiteMode">Inscription sur place (choix de la prestation)</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="editSendQrcode">
+                <label class="form-check-label fw-semibold" for="editSendQrcode">Envoyer le QR code dans l'e-mail</label>
+              </div>
+              <small class="text-muted d-block">Coché : selon la config du site. Décoché : e-mail sans QR code.</small>
+            </div>
+            <div class="col-md-6" id="editPaymentLabelWrap">
+              <label class="form-label">Méthode de paiement enregistrée <span class="text-danger">*</span></label>
+              <select class="form-select payment-label-select" id="editPaymentSelect">
+                <?php foreach ($paymentMethods as $pm): ?>
+                  <option value="<?= htmlspecialchars($pm) ?>"><?= htmlspecialchars($pm) ?></option>
+                <?php endforeach; ?>
+                <option value="__custom__">Autre (saisir manuellement)…</option>
+              </select>
+              <input type="text" class="form-control mt-2 payment-label-custom" id="editPaymentCustom" placeholder="Saisir la méthode…" maxlength="50" autocomplete="off" style="display:none">
+              <small class="text-muted">Choix par défaut ou saisie libre via « Autre… ». Masquée pour le client.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-rose">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <?php require 'admin-footer.php'; ?>
 
 <!-- Scripts -->
@@ -216,6 +302,49 @@ $baseUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . '/';
 let qrTable;
 let currentQrData = null;
 const _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const PAYMENT_METHODS = <?= json_encode($paymentMethods, JSON_UNESCAPED_UNICODE) ?>;
+
+// Convertit un DATETIME MySQL (YYYY-MM-DD HH:MM:SS) en valeur input datetime-local.
+function toLocalInput(mysqlDatetime) {
+    if (!mysqlDatetime) return '';
+    return String(mysqlDatetime).replace(' ', 'T').substring(0, 16);
+}
+
+// Relie un <select> de méthode de paiement à son champ « Autre… » libre.
+function bindPaymentSelect(selectId, customId) {
+    const sel = document.getElementById(selectId);
+    const custom = document.getElementById(customId);
+    if (!sel || !custom) return;
+    function sync() {
+        const isCustom = sel.value === '__custom__';
+        custom.style.display = isCustom ? '' : 'none';
+        if (!isCustom) custom.value = '';
+    }
+    sel.addEventListener('change', sync);
+    sync();
+}
+
+// Valeur finale de la méthode de paiement (choix par défaut ou saisie libre).
+function readPaymentValue(selectId, customId) {
+    const sel = document.getElementById(selectId);
+    const custom = document.getElementById(customId);
+    if (!sel) return '';
+    return sel.value === '__custom__' ? (custom ? custom.value.trim() : '') : sel.value;
+}
+
+// Pré-remplit le couple select/« Autre… » à partir d'une valeur enregistrée.
+function writePaymentValue(selectId, customId, value) {
+    const sel = document.getElementById(selectId);
+    const custom = document.getElementById(customId);
+    if (!sel) return;
+    if (value && PAYMENT_METHODS.indexOf(value) === -1) {
+        sel.value = '__custom__';
+        if (custom) { custom.value = value; custom.style.display = ''; }
+    } else {
+        sel.value = value || PAYMENT_METHODS[0];
+        if (custom) { custom.value = ''; custom.style.display = 'none'; }
+    }
+}
 
 $(document).ready(function() {
     // Pagination compacte type "1 ... 4 5 6 ... 12"
@@ -252,10 +381,16 @@ $(document).ready(function() {
                     return data || '-';
                 }
             },
-            { 
+            {
                 data: 'is_active',
-                render: function(data) {
-                    return data == 1 ? '<span class="badge bg-success">Actif</span>' : '<span class="badge bg-secondary">Inactif</span>';
+                render: function(data, type, row) {
+                    if (data != 1) {
+                        return '<span class="badge bg-secondary">Inactif</span>';
+                    }
+                    if (row.expires_at && new Date(row.expires_at.replace(' ', 'T')) <= new Date()) {
+                        return '<span class="badge bg-dark">Expiré</span>';
+                    }
+                    return '<span class="badge bg-success">Actif</span>';
                 }
             },
             { 
@@ -275,6 +410,9 @@ $(document).ready(function() {
                             </button>
                             <button class="btn btn-sm btn-outline-info copy-url" title="Copier URL">
                                 <i class="bi bi-clipboard"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary edit-qr" title="Modifier">
+                                <i class="bi bi-pencil"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-warning toggle-status" title="Activer/Désactiver">
                                 <i class="bi bi-toggle-${data.is_active ? 'on' : 'off'}"></i>
@@ -302,11 +440,21 @@ $(document).ready(function() {
     $('#onsiteMode').on('change', togglePaymentLabel);
     togglePaymentLabel();
 
+    // Menus déroulants « méthode de paiement » + option « Autre… » (création + édition)
+    bindPaymentSelect('createPaymentSelect', 'createPaymentCustom');
+    bindPaymentSelect('editPaymentSelect', 'editPaymentCustom');
+
+    // Édition : masque le paiement hors mode « sur place » (comme à la création)
+    function toggleEditPaymentLabel(){
+        $('#editPaymentLabelWrap').toggle($('#editOnsiteMode').is(':checked'));
+    }
+    $('#editOnsiteMode').on('change', toggleEditPaymentLabel);
+
     // Prévisualisation du QR Code
     $('#previewBtn').click(function() {
-        const organisation = $('[name="organisation"]').val();
-        const baseUrl = $('[name="base_url"]').val();
-        
+        const organisation = $('#createQrForm [name="organisation"]').val();
+        const baseUrl = $('#createQrForm [name="base_url"]').val();
+
         if (!organisation || !baseUrl) {
             alert('Veuillez remplir l\'organisation et l\'URL de base');
             return;
@@ -333,12 +481,27 @@ $(document).ready(function() {
     $('#createQrForm').submit(function(e) {
         e.preventDefault();
         
+        const expiresAt = $('#createExpiresAt').val();
+        if (!expiresAt) {
+            alert('Veuillez renseigner la date de fermeture du lien.');
+            return;
+        }
+
+        const paymentLabel = readPaymentValue('createPaymentSelect', 'createPaymentCustom');
+        if (!paymentLabel) {
+            alert('Veuillez renseigner la méthode de paiement enregistrée.');
+            document.getElementById('createPaymentCustom').focus();
+            return;
+        }
+
         const formData = {
-            organisation: $('[name="organisation"]').val(),
-            description: $('[name="description"]').val(),
-            base_url: $('[name="base_url"]').val(),
+            organisation: $('#createQrForm [name="organisation"]').val(),
+            description: $('#createQrForm [name="description"]').val(),
+            base_url: $('#createQrForm [name="base_url"]').val(),
             onsite_mode: $('#onsiteMode').is(':checked') ? 1 : 0,
-            payment_label: $('[name="payment_label"]').val()
+            send_qrcode: $('#sendQrcode').is(':checked') ? 1 : 0,
+            payment_label: paymentLabel,
+            expires_at: expiresAt
         };
 
         $.ajax({
@@ -400,6 +563,67 @@ $(document).ready(function() {
             headers: { 'X-CSRF-TOKEN': _csrfToken },
             success: function() {
                 qrTable.ajax.reload(null, false);
+            }
+        });
+    });
+
+    // Ouverture du modal d'édition pré-rempli
+    $('#qrTable').on('click', '.edit-qr', function() {
+        const data = qrTable.row($(this).closest('tr')).data();
+        $('#editId').val(data.id);
+        $('#editOrganisation').val(data.organisation);
+        $('#editDescription').val(data.description || '');
+        $('#editExpiresAt').val(toLocalInput(data.expires_at));
+        $('#editOnsiteMode').prop('checked', data.onsite_mode == 1);
+        $('#editSendQrcode').prop('checked', data.send_qrcode == 1);
+        writePaymentValue('editPaymentSelect', 'editPaymentCustom', data.payment_label);
+        toggleEditPaymentLabel();
+        $('#editQrModal').modal('show');
+    });
+
+    // Enregistrement des modifications
+    $('#editQrForm').submit(function(e) {
+        e.preventDefault();
+
+        const expiresAt = $('#editExpiresAt').val();
+        if (!expiresAt) {
+            alert('Veuillez renseigner la date de fermeture du lien.');
+            return;
+        }
+
+        const paymentLabel = readPaymentValue('editPaymentSelect', 'editPaymentCustom');
+        if (!paymentLabel) {
+            alert('Veuillez renseigner la méthode de paiement enregistrée.');
+            document.getElementById('editPaymentCustom').focus();
+            return;
+        }
+
+        const params = {
+            id: $('#editId').val(),
+            organisation: $('#editOrganisation').val(),
+            description: $('#editDescription').val(),
+            onsite_mode: $('#editOnsiteMode').is(':checked') ? 1 : 0,
+            send_qrcode: $('#editSendQrcode').is(':checked') ? 1 : 0,
+            payment_label: paymentLabel,
+            expires_at: expiresAt
+        };
+
+        $.ajax({
+            url: '../config/api.php?route=qrcodes',
+            method: 'PUT',
+            data: $.param(params),
+            contentType: 'application/x-www-form-urlencoded',
+            headers: { 'X-CSRF-TOKEN': _csrfToken },
+            success: function(response) {
+                if (response && response.success === false) {
+                    alert('Erreur : ' + (response.message || 'Erreur inconnue'));
+                    return;
+                }
+                $('#editQrModal').modal('hide');
+                qrTable.ajax.reload(null, false);
+            },
+            error: function(xhr, status, error) {
+                alert('Erreur de communication avec le serveur: ' + error);
             }
         });
     });

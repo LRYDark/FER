@@ -4,6 +4,7 @@ require_once '../config/tracker.php';
 trackPageVisit();
 checkMaintenance();
 require_once '../config/csrf.php';
+require_once '../config/captcha.php';
 require '../inc/navbar-data.php';
 
 // Variables d'état
@@ -20,7 +21,8 @@ if ($hasGetParams && $qrToken) {
         $stmt = $pdo->prepare(
             'SELECT organisation, description, is_active, onsite_mode, payment_label
              FROM qrcodes
-             WHERE token = ? AND is_active = 1'
+             WHERE token = ? AND is_active = 1
+               AND (expires_at IS NULL OR expires_at > NOW())'
         );
         $stmt->execute([$qrToken]);
         $qrData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -49,9 +51,10 @@ if ($_POST) {
     if ($submittedToken) {
         try {
             $stmt = $pdo->prepare(
-                'SELECT organisation, description, is_active, onsite_mode, payment_label
+                'SELECT organisation, description, is_active, onsite_mode, payment_label, send_qrcode
                  FROM qrcodes
-                 WHERE token = ? AND is_active = 1'
+                 WHERE token = ? AND is_active = 1
+                   AND (expires_at IS NULL OR expires_at > NOW())'
             );
             $stmt->execute([$submittedToken]);
             $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -61,8 +64,15 @@ if ($_POST) {
         }
     }
 
-    if ($hasGetParams && !$validToken) {
+    // Refus si un token est présent (URL ou corps du POST) mais invalide/expiré :
+    // un lien expiré (expires_at dépassé) ou désactivé ne doit jamais permettre
+    // d'enregistrer une inscription, même via un POST forgé.
+    if (($hasGetParams || $submittedToken !== '') && !$validToken) {
         $error_message = "Token invalide. Inscription refusée.";
+    } elseif (!verifyPublicCaptcha($_POST, $pdo)) {
+        // Même vérification anti-robot que le formulaire de contact (Turnstile ou
+        // captcha maths de secours selon la configuration).
+        $error_message = "Vérification anti-robot échouée. Recommencez.";
     } else {
         try {
             // Compteur atomique — évite la race condition (CWE-362)
@@ -91,7 +101,13 @@ if ($_POST) {
             $placeholders = [':inscription_no'];
 
             foreach ($fieldCols as $col => $meta) {
-                $raw = $_POST[$col] ?? '';
+                // Un champ actif mais non affiché dans CE formulaire (contexte différent :
+                // le QR n'affiche que les champs visible_qr = 1) n'est pas soumis. On l'omet
+                // de l'INSERT pour laisser la valeur par défaut de la colonne s'appliquer —
+                // sinon on insère '' dans une colonne stricte (ex. ENUM tshirt_size) →
+                // « Data truncated » et l'inscription échoue.
+                if (!isset($_POST[$col])) continue;
+                $raw = $_POST[$col];
                 if ($col === 'commentaire') $raw = mb_substr((string) $raw, 0, 2000);
                 $formData[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
                 $columns[] = "`{$col}`";
@@ -164,10 +180,16 @@ if ($_POST) {
             if(($_POST['email'] ?? '') != ''){
               try {
                 require_once '../config/googleMail.php';
+                // Réglage propre au QR : si send_qrcode = 0, on force l'envoi du mail
+                // SANS QR code (quelle que soit la config globale du site). Sinon on
+                // laisse la config du site décider (shouldIncludeQrCode).
+                $GLOBALS['force_no_qrcode'] = (isset($tokenData['send_qrcode']) && (int)$tokenData['send_qrcode'] === 0);
                 sendMail($_POST['email'], $subject, null, null, $_POST['nom'] ?? '', $_POST['prenom'] ?? '', 'inscription', $nextInscriptionNo);
               } catch (\Throwable $e) { /* mail failure does not block registration */ }
             }
-            $success_message = "👍 Inscription enregistrée avec succès !";
+            $success_message = "Inscription enregistrée avec succès !";
+            // Affiché en toast (même système que les pages admin, via inc/toast.php).
+            $_SESSION['toasts'][] = ['msg' => $success_message, 'type' => 'success', 'delay' => 5000];
 
         } catch (PDOException $e) {
             error_log("Registration error: " . $e->getMessage());
@@ -206,6 +228,12 @@ if ($autoOpen && $now >= $autoOpen) {
 }
 if ($autoClose && $now >= $autoClose) {
     $accueil_active = 0;
+}
+// Découplage QR ↔ inscriptions en ligne : un QR valide et non expiré (sa propre
+// date de fermeture est gérée par expires_at dans la requête ci-dessus) force
+// l'ouverture du formulaire, même quand les inscriptions en ligne sont fermées.
+if (!empty($qrData)) {
+    $accueil_active = 1;
 }
 $div_reglementation = $data['div_reglementation'] ?? '';
 $registration_closed_message = trim((string) ($data['registration_closed_message'] ?? ''));
@@ -281,11 +309,7 @@ try {
         <a href="?" class="btn-action-primary">Retour à l'accueil</a>
       </div>
     <?php elseif ($hasGetParams && $qrData): ?>
-      <?php if ($success_message): ?>
-        <div class="alert alert-success text-center mb-4">
-          <?= htmlspecialchars($success_message) ?>
-        </div>
-      <?php endif; ?>
+<?php // Le message de succès est désormais affiché en toast (voir inc/toast.php). ?>
 
       <?php if ($error_message): ?>
         <div class="alert alert-danger text-center mb-4">
@@ -344,12 +368,137 @@ try {
           </div>
         <?php endif; ?>
 
+        <!-- Vérification anti-robot (Turnstile ou maths selon config) — identique au formulaire de contact -->
+        <div class="col-12" id="regCaptcha">
+          <div id="regTurnstileBox" style="display:none;"></div>
+          <div id="regMathBox" style="display:none;">
+            <div id="regCaptchaQuestion" class="reg-captcha-question">Chargement…</div>
+            <div class="reg-captcha-row">
+              <input id="regCaptchaAnswer" type="text" inputmode="numeric" autocomplete="off" placeholder="Votre réponse" class="reg-captcha-input">
+              <button type="button" id="regCaptchaReload" class="reg-captcha-reload" title="Nouvelle question">↻</button>
+            </div>
+          </div>
+          <div id="regCaptchaError" class="reg-captcha-error"></div>
+          <input type="hidden" name="turnstile_token" id="regTurnstileToken">
+          <input type="hidden" name="captcha_token"   id="regCaptchaToken">
+          <input type="hidden" name="captcha_answer"  id="regCaptchaAnswerHidden">
+        </div>
+
         <div class="col-12 d-grid">
-          <button class="btn-action-primary btn-action-lg" type="submit">
+          <button class="btn-action-primary btn-action-lg" type="submit" id="regSubmitBtn" disabled>
             Valider l'inscription
           </button>
         </div>
       </form>
+      <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+        .reg-captcha-question { font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:.5rem; }
+        .reg-captcha-row { display:flex; gap:.5rem; align-items:stretch; }
+        .reg-captcha-input { flex:1; padding:.55rem .75rem; border:1px solid #cbd5e1; border-radius:.55rem; font-size:1rem; outline:none; background:#fff; }
+        .reg-captcha-input:focus { border-color:var(--primary, #f42182); box-shadow:0 0 0 3px rgba(219,39,119,.15); }
+        .reg-captcha-reload { background:#e2e8f0; border:none; border-radius:.55rem; padding:0 .9rem; font-size:1rem; font-weight:600; color:#334155; cursor:pointer; }
+        .reg-captcha-reload:hover { background:#cbd5e1; }
+        .reg-captcha-error { color:#b91c1c; font-size:.82rem; min-height:1.1em; margin-top:.4rem; }
+        #regSubmitBtn:disabled { opacity:.55; cursor:not-allowed; filter:grayscale(.4); }
+      </style>
+      <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+      /* Vérification anti-robot du formulaire d'inscription QR (même mécanisme que contact.php) */
+      (function () {
+        var form      = document.getElementById('fPub');
+        if (!form) return;
+        var submitBtn = document.getElementById('regSubmitBtn');
+        var tsBox     = document.getElementById('regTurnstileBox');
+        var mathBox   = document.getElementById('regMathBox');
+        var qEl       = document.getElementById('regCaptchaQuestion');
+        var aEl       = document.getElementById('regCaptchaAnswer');
+        var aHidden   = document.getElementById('regCaptchaAnswerHidden');
+        var tokHidden = document.getElementById('regCaptchaToken');
+        var tsHidden  = document.getElementById('regTurnstileToken');
+        var errEl     = document.getElementById('regCaptchaError');
+        var reloadBtn = document.getElementById('regCaptchaReload');
+
+        var mode = null, tsWidgetId = null, tsLoading = null, didFallback = false;
+
+        function setError(msg) { errEl.textContent = msg || ''; }
+        function setValid(ok)  { submitBtn.disabled = !ok; }
+
+        function ensureTurnstileScript() {
+          if (window.turnstile) return Promise.resolve();
+          if (tsLoading) return tsLoading;
+          tsLoading = new Promise(function (resolve, reject) {
+            var s = document.createElement('script');
+            s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+            s.async = true; s.defer = true;
+            s.onload  = function () { resolve(); };
+            s.onerror = function () { tsLoading = null; reject(new Error('load')); };
+            document.head.appendChild(s);
+          });
+          return tsLoading;
+        }
+
+        function switchToMathFallback(reason) {
+          if (didFallback) { setError(reason || 'Échec du captcha. Réessayez.'); return; }
+          didFallback = true;
+          setError('Vérification indisponible — bascule sur un captcha de secours…');
+          if (tsWidgetId !== null && window.turnstile) {
+            try { window.turnstile.remove(tsWidgetId); } catch (e) {}
+            tsWidgetId = null;
+          }
+          fetch('../config/api.php?route=partner-captcha-init&fallback=1', { method: 'GET' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (!j || !j.ok || j.mode !== 'math') throw new Error('fallback');
+              mode = 'math';
+              tsBox.style.display = 'none';
+              mathBox.style.display = 'block';
+              tokHidden.value = j.token; tsHidden.value = '';
+              qEl.textContent = j.question; aEl.value = ''; setError('');
+            })
+            .catch(function () { setError('Impossible d\'afficher le captcha de secours. Réessayez plus tard.'); });
+        }
+
+        function initCaptcha() {
+          setError(''); setValid(false); didFallback = false;
+          tsHidden.value = ''; tokHidden.value = ''; aHidden.value = '';
+          fetch('../config/api.php?route=partner-captcha-init', { method: 'GET' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (!j || !j.ok) throw new Error('init');
+              mode = j.mode;
+              if (mode === 'turnstile') {
+                tsBox.style.display = 'block'; mathBox.style.display = 'none';
+                ensureTurnstileScript().then(function () {
+                  if (tsWidgetId !== null) { try { window.turnstile.remove(tsWidgetId); } catch (e) {} tsWidgetId = null; }
+                  tsWidgetId = window.turnstile.render(tsBox, {
+                    sitekey: j.sitekey,
+                    theme: 'light',
+                    callback: function (token) { tsHidden.value = token; setValid(true); setError(''); },
+                    'error-callback':   function () { tsHidden.value = ''; setValid(false); switchToMathFallback('Échec du captcha Cloudflare.'); },
+                    'expired-callback': function () { tsHidden.value = ''; setValid(false); setError('Captcha expiré. Réessayez.'); }
+                  });
+                }).catch(function () { switchToMathFallback('Impossible de charger Cloudflare.'); });
+              } else {
+                tsBox.style.display = 'none'; mathBox.style.display = 'block';
+                tokHidden.value = j.token; qEl.textContent = j.question; aEl.value = '';
+              }
+            })
+            .catch(function () { setError('Impossible d\'initialiser le captcha. Rechargez la page.'); });
+        }
+
+        if (aEl) {
+          aEl.addEventListener('input', function () {
+            if (mode === 'math') { aHidden.value = aEl.value.trim(); setValid(aHidden.value.length > 0); }
+          });
+        }
+        reloadBtn.addEventListener('click', initCaptcha);
+
+        // Synchronise la réponse maths juste avant l'envoi (POST classique du formulaire).
+        form.addEventListener('submit', function () {
+          if (mode === 'math') aHidden.value = aEl.value.trim();
+        });
+
+        initCaptcha();
+      })();
+      </script>
       <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
       (function(){
         var sel = document.getElementById('paiement_mode_public');
@@ -375,7 +524,12 @@ try {
         if(!form || !window.FERInscription) return;
         FERInscription.initForm(form);
         form.addEventListener('submit', function(e){
-          // Inscrit mineur : responsable légal obligatoire (formulaire en novalidate).
+          // Le formulaire est en `novalidate` (pour piloter nous-mêmes le bloc
+          // responsable) : on force donc la validation native des champs obligatoires
+          // (nom, prénom, email, date de naissance…) avant tout traitement, sinon on
+          // pourrait enregistrer une inscription avec des champs requis vides.
+          if (!form.checkValidity()) { e.preventDefault(); e.stopImmediatePropagation(); form.reportValidity(); return; }
+          // Inscrit mineur : responsable légal obligatoire.
           if (!FERInscription.ensureGuardian(form)) { e.preventDefault(); return; }
           // Compose le commentaire (autorisation responsable) puis normalise la naissance.
           FERInscription.composeComment(form);
@@ -463,7 +617,11 @@ try {
 
         presta.addEventListener('change', function(){ updateMontant(); updateGuardian(); });
         if (birth){
-          ['input','change','blur'].forEach(function(ev){ birth.addEventListener(ev, rebuild); });
+          // On réévalue (prestations selon l'âge + bloc responsable) uniquement quand
+          // l'utilisateur QUITTE le champ (change / blur), jamais pendant la frappe :
+          // sinon taper « 20 » afficherait le bloc « mineur » à « 2 » puis le masquerait
+          // à « 20 » (effet de flash). Cohérent avec la page d'ajout d'inscrit admin.
+          ['change','blur'].forEach(function(ev){ birth.addEventListener(ev, rebuild); });
         }
 
         // Sécurité : si une prestation « enfant » est choisie, on exige le responsable
@@ -511,11 +669,7 @@ try {
       </script>
       <?php endif; ?>
     <?php else: ?>
-      <?php if ($success_message): ?>
-        <div class="alert alert-success text-center mb-4">
-          <?= htmlspecialchars($success_message) ?>
-        </div>
-      <?php endif; ?>
+<?php // Le message de succès est désormais affiché en toast (voir inc/toast.php). ?>
 
       <?php if ($error_message): ?>
         <div class="alert alert-danger text-center mb-4">
@@ -626,6 +780,8 @@ try {
 <?php include '../inc/footer-modern.php'; ?>
 
 <script src="../js/fer-modern.js"></script>
+
+<?php include '../inc/toast.php'; // Notifications toast (identique aux pages admin) ?>
 
 </body>
 </html>
