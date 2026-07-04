@@ -618,9 +618,13 @@ if ($canBulkCreate) {
         <form id="fAdd">
           <div class="modal-body row g-2">
             <input type="hidden" name="origine" value="Admin">
-            <?php // Le caractère obligatoire du formulaire admin est piloté par la colonne
-                  // `required_admin` (contexte 'admin'), indépendante de public/saisie/QR. ?>
-            <?php foreach ($adminFields as $f): ?>
+            <?php // Obligation du formulaire « Nouvel inscrit » : pilotée par la colonne
+                  // `required_admin` UNIQUEMENT pour le rôle admin. Les autres rôles autorisés
+                  // (user, saisie, qui ont aussi dashboard.create_registration) conservent
+                  // l'obligation générale `required` définie dans « Gestion des champs ». ?>
+            <?php foreach ($adminFields as $f):
+              if ($role !== 'admin') { $f['required_admin'] = $f['required'] ?? 0; }
+            ?>
               <?= renderFormField($f, '', false, 'admin') ?>
             <?php endforeach; ?>
             <div class="col-md-6">
@@ -848,6 +852,10 @@ if ($canBulkCreate) {
         <?php foreach ($adminFields as $f): ?>
           <?php /* « Autorisation parentale (mineur) » : déjà renseignée à l'inscription → masquée ici. */ ?>
           <?php if (($f['field_type'] ?? '') === 'guardian') continue; ?>
+          <?php /* Obligation cohérente avec le formulaire « Nouvel inscrit » : la colonne
+                   « Admin requis » (required_admin) ne s'applique qu'au rôle admin ; les autres
+                   rôles autorisés à éditer conservent l'obligation générale `required`. */ ?>
+          <?php if ($role !== 'admin') { $f['required_admin'] = $f['required'] ?? 0; } ?>
           <?php /* L'email est facultatif dans ce modal admin, même s'il est requis ailleurs. */ ?>
           <?= renderFormField($f, '', ($f['bdd_column'] ?? '') === 'email', 'admin') ?>
         <?php endforeach; ?>
