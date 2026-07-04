@@ -618,8 +618,14 @@ if ($canBulkCreate) {
         <form id="fAdd">
           <div class="modal-body row g-2">
             <input type="hidden" name="origine" value="Admin">
-            <?php foreach ($adminFields as $f): ?>
-              <?= renderFormField($f, '', false, 'admin') ?>
+            <?php foreach ($adminFields as $f):
+              // Pour le rôle « admin », TOUS les champs deviennent facultatifs (même
+              // s'ils sont marqués obligatoires dans « Gestion des champs du formulaire »),
+              // À L'EXCEPTION des champs verrouillés (is_locked = 1, ex. Nom / Prénom) qui
+              // restent obligatoires. Les autres rôles conservent l'obligation configurée.
+              $forceOpt = ($role === 'admin' && (int) ($f['is_locked'] ?? 0) !== 1);
+            ?>
+              <?= renderFormField($f, '', $forceOpt, 'admin') ?>
             <?php endforeach; ?>
             <div class="col-md-6">
               <label class="form-label">Paiement <span style="color:#ef4444">*</span></label>
