@@ -1603,12 +1603,22 @@ if (isset($_POST['save_fields'])) {
         $hasBulkCols = false;
     }
 
+    // Colonne « Admin requis » (required_admin) : peut être absente si update.php
+    // n'a pas encore été lancé. On l'inclut dans l'UPDATE seulement si présente.
+    $hasReqAdmin = true;
+    try {
+        $pdo->query('SELECT required_admin FROM forms LIMIT 0');
+    } catch (\PDOException $e) {
+        $hasReqAdmin = false;
+    }
+
     $sqlBase = 'UPDATE forms SET active = :active, required = :req,
                  visible_admin = :va, visible_saisie = :vs, visible_qr = :vq';
+    $sqlReqAdmin = $hasReqAdmin ? ', required_admin = :ra' : '';
     $sqlBulk = $hasBulkCols
         ? ', visible_saisie_multiple = :vsm, required_saisie_multiple = :rsm'
         : '';
-    $sqlUpd = $sqlBase . $sqlBulk . ' WHERE id = :id';
+    $sqlUpd = $sqlBase . $sqlReqAdmin . $sqlBulk . ' WHERE id = :id';
 
     // Si l'« Autorisation parentale (mineur) » est active, le champ Commentaire doit
     // rester actif (les infos du responsable légal y sont enregistrées) : on force
@@ -1655,6 +1665,9 @@ if (isset($_POST['save_fields'])) {
         if ($hasBulkCols) {
             $params['vsm'] = isset($_POST["vsm_{$id}"]) ? 1 : 0;
             $params['rsm'] = isset($_POST["rsm_{$id}"]) ? 1 : 0;
+        }
+        if ($hasReqAdmin) {
+            $params['ra'] = isset($_POST["ra_{$id}"]) ? 1 : 0;
         }
         // Le champ Commentaire ne peut pas être désactivé tant que l'autorisation
         // parentale est active (« Requis » et visibilité, eux, restent libres).
@@ -4296,8 +4309,9 @@ if (!$canTab($activeTab)) {
                 <tr>
                   <th>Champ</th>
                   <th class="text-center" style="width:70px" title="Le champ apparaît dans les formulaires. Décoché = champ complètement retiré (invisible partout, même si les autres cases sont cochées).">Actif <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
-                  <th class="text-center" style="width:70px" title="Champ OBLIGATOIRE dans les formulaires normaux (inscription en ligne / QR, saisie, admin). L'inscrit ne peut pas valider sans le remplir. À ne pas confondre avec « Bulk requis ».">Requis <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:70px" title="Champ OBLIGATOIRE dans les formulaires grand public : inscription en ligne / QR et espace Saisie. L'inscrit ne peut pas valider sans le remplir. Ne concerne PLUS le formulaire admin (voir « Admin requis »), ni l'« Ajout multiple » (voir « Bulk requis »).">Requis <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
                   <th class="text-center" style="width:70px" title="Le champ s'affiche dans le formulaire « Nouvel inscrit » du tableau de bord (admin).">Admin <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
+                  <th class="text-center" style="width:75px" title="Champ obligatoire UNIQUEMENT dans le formulaire « Nouvel inscrit » (admin). Indépendant de « Requis » (public / QR / saisie) : l'admin peut donc avoir une obligation différente du grand public. Les champs verrouillés (Nom / Prénom) restent obligatoires.">Admin requis <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
                   <th class="text-center" style="width:70px" title="Le champ s'affiche dans le formulaire de l'espace Saisie.">Saisie <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
                   <th class="text-center" style="width:70px" title="Le champ s'affiche dans le formulaire d'inscription public ouvert via le scan d'un QR Code.">Inscr. QR <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
                   <th class="text-center" style="width:75px" title="Le champ s'affiche dans le formulaire « Ajout multiple » (saisie en lot, ex. une entreprise avec plusieurs inscrits).">Bulk visible <i class="bi bi-info-circle text-muted" style="font-size:10px"></i></th>
@@ -4380,6 +4394,15 @@ if (!$canTab($activeTab)) {
                       <input type="checkbox" checked disabled class="form-check-input">
                     <?php else: ?>
                       <input type="checkbox" name="va_<?= $id ?>" class="form-check-input" <?= (int)($f['visible_admin'] ?? 1) ? 'checked' : '' ?>>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <?php // « Admin requis » : obligation propre au formulaire « Nouvel inscrit ».
+                          // Verrouillés (Nom / Prénom) : figés obligatoires comme la colonne « Requis ». ?>
+                    <?php if ($locked): ?>
+                      <input type="checkbox" checked disabled class="form-check-input">
+                    <?php else: ?>
+                      <input type="checkbox" name="ra_<?= $id ?>" class="form-check-input" <?= (int)($f['required_admin'] ?? 0) ? 'checked' : '' ?>>
                     <?php endif; ?>
                   </td>
                   <td class="text-center">

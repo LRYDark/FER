@@ -528,6 +528,33 @@ foreach ($migrations as $sql) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Colonne `required_admin` : caractère obligatoire SPÉCIFIQUE au formulaire
+// « Nouvel inscrit » (admin), indépendant de `required` (public / saisie / QR)
+// — même principe que `required_saisie_multiple` pour l'« Ajout multiple ».
+// Ajout + initialisation en UN passage : à la création de la colonne, on la
+// pré-remplit avec la valeur de `required` (comportement identique à l'existant).
+// Une fois la colonne créée, on n'y touche PLUS JAMAIS → les choix de l'admin
+// dans « Gestion des champs » sont préservés à chaque nouveau lancement d'update.php.
+// ─────────────────────────────────────────────────────────────────────────
+$requiredAdminSql = "Ajouter la colonne `required_admin` (obligatoire admin) dans `forms`";
+try {
+    $colExists = (int) $pdo->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'forms' AND COLUMN_NAME = 'required_admin'"
+    )->fetchColumn();
+    if ($colExists > 0) {
+        $results[] = ['status' => 'skip', 'sql' => $requiredAdminSql, 'msg' => 'Existe déjà'];
+    } else {
+        $pdo->exec("ALTER TABLE `forms` ADD COLUMN `required_admin` TINYINT(1) NOT NULL DEFAULT 0 AFTER `required`");
+        // Initialisation UNIQUE (à la création) : reprend la valeur de `required`.
+        $pdo->exec("UPDATE `forms` SET `required_admin` = `required`");
+        $results[] = ['status' => 'success', 'sql' => $requiredAdminSql, 'msg' => 'Colonne ajoutée et initialisée'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $requiredAdminSql, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Pré-remplissage de `registrations.montant_du` pour les inscrits existants.
 // Idempotent : si toutes les lignes ont déjà un montant > 0, on n'agit pas.
 // IMPORTANT : on EXCLUT les inscrits « gratuit » (enfant -12 ans sans t-shirt),

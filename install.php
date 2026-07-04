@@ -656,6 +656,7 @@ function getCreateTableStatements(): array
           `bdd_column` varchar(50) DEFAULT NULL,
           `active` int(2) NOT NULL DEFAULT 0,
           `required` int(2) NOT NULL DEFAULT 0,
+          `required_admin` tinyint(1) NOT NULL DEFAULT 0,
           `is_locked` tinyint(1) NOT NULL DEFAULT 0,
           `is_default` tinyint(1) NOT NULL DEFAULT 1,
           `visible_public` tinyint(1) NOT NULL DEFAULT 1,
@@ -1072,6 +1073,12 @@ function getDefaultInserts(): array
           WHERE `bdd_column` IN ('nom', 'prenom', 'email', 'entreprise', 'montant_du')",
         "UPDATE `forms` SET `required_saisie_multiple` = 1
           WHERE `bdd_column` IN ('nom', 'prenom')",
+
+        // Caractère obligatoire SPÉCIFIQUE au formulaire admin (« Nouvel inscrit »),
+        // indépendant de `required` (public / saisie / QR) — même principe que
+        // `required_saisie_multiple` pour l'« Ajout multiple ». Initialisé sur la
+        // valeur de `required` ; l'admin l'ajuste ensuite dans « Gestion des champs ».
+        "UPDATE `forms` SET `required_admin` = `required`",
 
         "INSERT IGNORE INTO `import` (`id`, `fields_bdd`, `fields_excel`) VALUES
           (1, 'inscription_no', 'numero billet'),

@@ -31,11 +31,15 @@ function getActiveFields(PDO $pdo, string $context = 'public'): array
  * bloc responsable légal). Pas de colonne BDD : la valeur est injectée dans le
  * commentaire par js/inscription-form.js (data-guardian="custom").
  */
-function renderGuardianExtraField(array $field, bool $forceOptional = false): string
+function renderGuardianExtraField(array $field, bool $forceOptional = false, string $context = 'public'): string
 {
     $type  = $field['field_type'] ?? 'text';
     $key   = htmlspecialchars($field['label'] ?? 'Champ');
-    $req   = $forceOptional ? 0 : (int) ($field['required'] ?? 0);
+    // Obligation effective selon le contexte (required_admin en contexte admin).
+    $reqEffective = ($context === 'admin' && array_key_exists('required_admin', $field))
+        ? (int) $field['required_admin']
+        : (int) ($field['required'] ?? 0);
+    $req   = $forceOptional ? 0 : $reqEffective;
     $star  = $req ? ' <span style="color:#ef4444">*</span>' : '';
     $attrs = ' data-guardian="custom" data-guardian-key="' . $key . '" data-guardian-req="' . $req . '"';
     if ($type === 'select') {
@@ -70,6 +74,15 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
 {
     $type     = $field['field_type'] ?? 'text';
 
+    // Caractère obligatoire EFFECTIF selon le contexte : le formulaire admin
+    // (« Nouvel inscrit ») possède sa propre colonne `required_admin`, indépendante
+    // de `required` (public / saisie / QR), à l'image de `required_saisie_multiple`
+    // pour l'« Ajout multiple ». Fallback sur `required` si la colonne n'est pas
+    // encore migrée. $forceOptional (ex. email du modal admin) prime toujours.
+    $reqEffective = ($context === 'admin' && array_key_exists('required_admin', $field))
+        ? (int) $field['required_admin']
+        : (int) ($field['required'] ?? 0);
+
     // Champ personnalisé « autorisation parentale » : il n'est PAS rendu tout seul ici
     // — il est rendu à l'intérieur de la carte du bloc responsable légal (juste après
     // Nom/Prénom), par le bloc `guardian` ci-dessous via renderGuardianExtraField().
@@ -85,8 +98,9 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
     if ($type === 'guardian') {
         $age = (int) ($field['options_list'] ?? 18);
         if ($age < 1 || $age > 120) $age = 18;
-        // $forceOptional (ex. rôle admin) rend aussi le bloc responsable légal facultatif.
-        $req = $forceOptional ? 0 : (int) ($field['required'] ?? 0);
+        // Bloc responsable légal : suit le caractère obligatoire effectif du contexte
+        // (required_admin en admin), et $forceOptional le rend facultatif si besoin.
+        $req = $forceOptional ? 0 : $reqEffective;
         // Étoile rouge sur les libellés quand le responsable est obligatoire
         // (même convention que les autres champs requis du formulaire).
         $gStar = $req ? ' <span style="color:#ef4444">*</span>' : '';
@@ -116,7 +130,7 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
             try {
                 $exStmt = $pdo->query("SELECT * FROM forms WHERE active = 1 AND guardian_section = 1 AND `{$visCol}` = 1 ORDER BY sort_order ASC");
                 foreach ($exStmt->fetchAll(PDO::FETCH_ASSOC) as $ef) {
-                    $extraHtml .= renderGuardianExtraField($ef, $forceOptional);
+                    $extraHtml .= renderGuardianExtraField($ef, $forceOptional, $context);
                 }
             } catch (\Throwable $e) { /* colonne guardian_section absente (migration) → ignore */ }
         }
@@ -137,7 +151,7 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
 
     $name     = htmlspecialchars($field['bdd_column'] ?? '');
     $label    = htmlspecialchars($field['label']);
-    $required = $forceOptional ? 0 : (int) ($field['required'] ?? 0);
+    $required = $forceOptional ? 0 : $reqEffective;
     $reqAttr  = $required ? 'required' : '';
     $reqStar  = $required ? ' <span style="color:#ef4444">*</span>' : '';
     $val      = htmlspecialchars($value);
