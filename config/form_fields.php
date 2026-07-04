@@ -85,7 +85,8 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
     if ($type === 'guardian') {
         $age = (int) ($field['options_list'] ?? 18);
         if ($age < 1 || $age > 120) $age = 18;
-        $req = (int) ($field['required'] ?? 0);
+        // $forceOptional (ex. rôle admin) rend aussi le bloc responsable légal facultatif.
+        $req = $forceOptional ? 0 : (int) ($field['required'] ?? 0);
         // Étoile rouge sur les libellés quand le responsable est obligatoire
         // (même convention que les autres champs requis du formulaire).
         $gStar = $req ? ' <span style="color:#ef4444">*</span>' : '';
