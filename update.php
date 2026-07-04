@@ -422,6 +422,17 @@ $migrations = [
     "ALTER TABLE `qrcodes` ADD COLUMN `onsite_mode` TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE `qrcodes` ADD COLUMN `payment_label` VARCHAR(50) DEFAULT 'retrait t-shirt'",
 
+    // Date de fermeture propre au QR code : indépendante de la fermeture des
+    // inscriptions en ligne (setting.registration_auto_close). Passé cette date,
+    // le lien avec token devient inactif ; un QR valide non expiré reste utilisable
+    // même quand les inscriptions en ligne sont fermées. NULL = pas d'expiration.
+    "ALTER TABLE `qrcodes` ADD COLUMN `expires_at` DATETIME DEFAULT NULL",
+
+    // Par QR : décider si le mail de confirmation d'une inscription issue de CE QR
+    // inclut le QR code (1 = suit la config globale qrcode_mail_mode) ou jamais
+    // (0 = mail envoyé sans QR code, quel que soit le réglage du site).
+    "ALTER TABLE `qrcodes` ADD COLUMN `send_qrcode` TINYINT(1) NOT NULL DEFAULT 1",
+
     // Texte d'aide / consentement affiché sous un champ (notamment le bloc
     // « Autorisation parentale (mineur) » : mention de consentement du responsable légal).
     "ALTER TABLE `forms` ADD COLUMN `help_text` TEXT DEFAULT NULL",

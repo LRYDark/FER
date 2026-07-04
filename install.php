@@ -809,6 +809,8 @@ function getCreateTableStatements(): array
           `is_active` tinyint(1) DEFAULT 1,
           `onsite_mode` tinyint(1) NOT NULL DEFAULT 0,
           `payment_label` varchar(50) DEFAULT 'retrait t-shirt',
+          `expires_at` datetime DEFAULT NULL,
+          `send_qrcode` tinyint(1) NOT NULL DEFAULT 1,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
           `created_by` int(11) DEFAULT NULL,

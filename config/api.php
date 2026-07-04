@@ -2987,6 +2987,24 @@ if ($route === 'registrations-archive') {
 }
 
 // Gestion des QR Codes
+/**
+ * Normalise une date de fermeture de QR code (obligatoire).
+ * Accepte le format datetime-local (YYYY-MM-DDTHH:MM) ou DATETIME MySQL et
+ * renvoie une chaîne « YYYY-MM-DD HH:MM:SS », ou null si vide/invalide.
+ */
+function normalizeQrExpiresAt($raw): ?string {
+    $s = trim((string)$raw);
+    if ($s === '') return null;
+    $s = str_replace('T', ' ', $s);
+    // Ajoute les secondes si le navigateur ne les a pas fournies.
+    if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $s)) {
+        $s .= ':00';
+    }
+    $dt = DateTime::createFromFormat('Y-m-d H:i:s', $s);
+    if (!$dt || $dt->format('Y-m-d H:i:s') !== $s) return null;
+    return $s;
+}
+
 if ($route === 'qrcodes') {
     if (!canAccessPage('qr_code')) {
         http_response_code(403);
@@ -3077,9 +3095,22 @@ if ($route === 'qrcodes') {
             $paymentLabel = mb_substr(trim((string)($data['payment_label'] ?? 'retrait t-shirt')), 0, 50);
             if ($paymentLabel === '') $paymentLabel = 'retrait t-shirt';
 
+            // Date de fermeture propre au QR (obligatoire). Accepte le format
+            // datetime-local (YYYY-MM-DDTHH:MM) et le normalise en DATETIME MySQL.
+            $expiresAt = normalizeQrExpiresAt($data['expires_at'] ?? '');
+            if ($expiresAt === null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Date de fermeture invalide ou manquante']);
+                exit;
+            }
+
+            // Inclure le QR code dans le mail de confirmation (1) ou jamais (0). Par
+            // défaut on suit la config du site (1). Absent = 1 (rétro-compat).
+            $sendQrcode = array_key_exists('send_qrcode', $data) ? (!empty($data['send_qrcode']) ? 1 : 0) : 1;
+
             $stmt = $pdo->prepare(
-                'INSERT INTO qrcodes (organisation, token, qr_url, description, onsite_mode, payment_label, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO qrcodes (organisation, token, qr_url, description, onsite_mode, payment_label, expires_at, send_qrcode, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
 
             $result = $stmt->execute([
@@ -3089,6 +3120,8 @@ if ($route === 'qrcodes') {
                 $data['description'] ?? null,
                 $onsiteMode,
                 $paymentLabel,
+                $expiresAt,
+                $sendQrcode,
                 currentUserId() // Ajout de l'utilisateur créateur
             ]);
             
@@ -3127,17 +3160,56 @@ if ($route === 'qrcodes') {
         
         $updates = [];
         $params = [];
-        
+
         if (isset($data['is_active'])) {
             $updates[] = 'is_active = ?';
             $params[] = (int)$data['is_active'];
         }
-        
+
         if (isset($data['description'])) {
             $updates[] = 'description = ?';
             $params[] = $data['description'];
         }
-        
+
+        if (isset($data['organisation'])) {
+            $org = trim((string)$data['organisation']);
+            if ($org === '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Organisation requise']);
+                exit;
+            }
+            $updates[] = 'organisation = ?';
+            $params[] = mb_substr($org, 0, 255);
+        }
+
+        if (isset($data['onsite_mode'])) {
+            $updates[] = 'onsite_mode = ?';
+            $params[] = !empty($data['onsite_mode']) ? 1 : 0;
+        }
+
+        if (isset($data['send_qrcode'])) {
+            $updates[] = 'send_qrcode = ?';
+            $params[] = !empty($data['send_qrcode']) ? 1 : 0;
+        }
+
+        if (isset($data['payment_label'])) {
+            $pl = mb_substr(trim((string)$data['payment_label']), 0, 50);
+            if ($pl === '') $pl = 'retrait t-shirt';
+            $updates[] = 'payment_label = ?';
+            $params[] = $pl;
+        }
+
+        if (isset($data['expires_at'])) {
+            $exp = normalizeQrExpiresAt($data['expires_at']);
+            if ($exp === null) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Date de fermeture invalide']);
+                exit;
+            }
+            $updates[] = 'expires_at = ?';
+            $params[] = $exp;
+        }
+
         if (!empty($updates)) {
             $params[] = $data['id'];
             $sql = 'UPDATE qrcodes SET ' . implode(', ', $updates) . ' WHERE id = ?';
