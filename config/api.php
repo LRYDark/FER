@@ -2473,22 +2473,15 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                               . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
                               . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
                               . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
-                              . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Entreprise</th>'
-                              . '<th style="text-align:right;padding:8px;border:1px solid #fbcfe8;">Montant</th>'
                               . '</tr></thead><tbody>';
                     foreach ($createdRegistrants as $r) {
                         $listHtml .= '<tr>'
                                   . '<td style="padding:8px;border:1px solid #fbcfe8;font-family:monospace;">' . htmlspecialchars($r['inscription_no']) . '</td>'
                                   . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['nom']) . '</td>'
                                   . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['prenom']) . '</td>'
-                                  . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($r['entreprise'] ?: '—') . '</td>'
-                                  . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($r['montant_du'], 2, ',', ' ') . ' €</td>'
                                   . '</tr>';
                     }
-                    $listHtml .= '</tbody><tfoot><tr style="background:#fdf2f6;font-weight:700;">'
-                              . '<td colspan="4" style="padding:8px;border:1px solid #fbcfe8;text-align:right;">Total</td>'
-                              . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($totalDu, 2, ',', ' ') . ' €</td>'
-                              . '</tr></tfoot></table>';
+                    $listHtml .= '</tbody></table>';
 
                     $qrNote = $groupQrOverride
                         ? 'Le jour de la course, <strong>présentez le QR code ci-dessous</strong> pour récupérer les dossards et les t-shirts de tout le groupe (il liste l\'ensemble des inscrits).'
