@@ -102,22 +102,25 @@
     }
 
     // Données héritées / archives : année ou date.
-    var y, m = 1, d = 1, parts;
+    var y, m = 1, d = 1, parts, age;
     if (/^\d{4}$/.test(b)) {
       y = +b;
       if (y < 1900 || y > nowY) return null;
-      return ref - y;
+      age = ref - y;
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(b)) {
       parts = b.split('-').map(Number); y = parts[0]; m = parts[1]; d = parts[2];
+      age = ref - y;
+      if (ref === nowY) { var t1 = new Date(); if (t1 < new Date(t1.getFullYear(), m - 1, d)) age--; }
     } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(b)) {
       parts = b.split('/').map(Number); d = parts[0]; m = parts[1]; y = parts[2];
+      age = ref - y;
+      if (ref === nowY) { var t2 = new Date(); if (t2 < new Date(t2.getFullYear(), m - 1, d)) age--; }
     } else {
       return null;
     }
-    var age = ref - y;
-    // Ajustement anniversaire seulement pour l'année courante (archive = approximation).
-    if (ref === nowY) { var t = new Date(); if (t < new Date(t.getFullYear(), m - 1, d)) age--; }
-    return age;
+    // Garde-fou : un âge doit être plausible (0–120). Une date incohérente/future
+    // (qui donnerait un âge négatif) ou aberrante → « pas d'âge ».
+    return (age >= 0 && age <= 120) ? age : null;
   }
 
   /** Met à jour l'indice de saisie + l'affichage du bloc responsable légal. */

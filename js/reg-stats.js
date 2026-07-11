@@ -47,8 +47,10 @@
       if (isFinite(m)) s.revenue += m;
 
       // Âge (le plus vieux / le plus jeune, par sexe).
+      // On n'inclut QUE les âges réels (> 0) : un champ vide, « - » ou 0 signifie
+      // « pas d'âge » et ne doit pas être pris en compte (ni donner « -1 ans »).
       var a = ageOf(r, refYear);
-      if (a != null && (r.sexe === 'H' || r.sexe === 'F')) {
+      if (a != null && a > 0 && (r.sexe === 'H' || r.sexe === 'F')) {
         var name = ((r.prenom || '') + ' ' + (r.nom || '')).trim();
         if (!s.oldest[r.sexe] || a > s.oldest[r.sexe].age) s.oldest[r.sexe] = { nom: name, age: a };
         if (!s.youngest[r.sexe] || a < s.youngest[r.sexe].age) s.youngest[r.sexe] = { nom: name, age: a };
