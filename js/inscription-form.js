@@ -26,32 +26,46 @@
   var MINOR_AGE = 18;
   var GUARDIAN_MARKER = 'Autorisation du représentant légal';
 
-  /** Canonicalise une saisie de date de naissance. Retourne '' si non reconnu. */
+  /**
+   * Canonicalise une saisie « naissance » en ÂGE (chaîne d'entier). Retourne ''
+   * si non reconnu. Le champ ne stocke plus une date : on ne garde que l'âge.
+   *   - un âge (1 à 3 chiffres ≤ 120)              → conservé tel quel ;
+   *   - une année (AAAA, 1900..année courante)     → âge = année courante − année ;
+   *   - une date complète (JJ/MM/AAAA ou AAAA/MM/JJ) → âge déduit (à l'import Excel
+   *     notamment, où une vraie date de naissance peut arriver).
+   */
   function normalizeBirthValue(v) {
     v = (v == null ? '' : String(v)).trim();
     if (!v) return '';
+    var nowY = new Date().getFullYear();
 
-    // Âge : 1 à 3 chiffres (≤ 120) → année = année courante − âge.
+    // Âge : 1 à 3 chiffres (≤ 120) → conservé tel quel.
     if (/^\d{1,3}$/.test(v)) {
       var age = parseInt(v, 10);
-      if (age >= 0 && age <= 120) return String(new Date().getFullYear() - age);
+      if (age >= 0 && age <= 120) return String(age);
       return '';
     }
 
-    // Année seule : 4 chiffres.
-    if (/^\d{4}$/.test(v)) return v;
+    // Année seule : 4 chiffres → âge = année courante − année.
+    if (/^\d{4}$/.test(v)) {
+      var y0 = parseInt(v, 10);
+      if (y0 < 1900 || y0 > nowY) return '';
+      return String(nowY - y0);
+    }
 
-    // Date complète : JJ/MM/AAAA (séparateurs / ou -).
+    // Date complète : JJ/MM/AAAA (séparateurs / ou -) → âge déduit.
     v = v.replace(/-/g, '/').replace(/\s+/g, '');
     var p = v.split('/');
     if (p.length !== 3) return '';
-    var d = p[0].padStart(2, '0');
-    var m = p[1].padStart(2, '0');
-    var y = p[2].padStart(2, '0');
+    var d = p[0], m = p[1], y = p[2];
     // Saisie au format AAAA/MM/JJ → on rétablit l'ordre JJ/MM/AAAA.
     if (/^\d{4}$/.test(d)) { var t = d; d = y; y = t; }
-    if (+d < 1 || +d > 31 || +m < 1 || +m > 12 || !/^\d{4}$/.test(y)) return '';
-    return d + '/' + m + '/' + y;
+    d = +d; m = +m; y = +y;
+    if (d < 1 || d > 31 || m < 1 || m > 12 || !(y >= 1900 && y <= nowY)) return '';
+    var age2 = nowY - y;
+    var now = new Date();
+    if (now < new Date(now.getFullYear(), m - 1, d)) age2--; // anniversaire pas encore passé
+    return String(age2 < 0 ? 0 : age2);
   }
 
   /** Applique normalizeBirthValue au champ « naissance » d'un FormData. */
@@ -65,12 +79,34 @@
     else fd.delete('naissance');
   }
 
-  /** Calcule l'âge à partir d'une valeur AAAA, AAAA-MM-JJ ou JJ/MM/AAAA. */
-  function ageFromBirth(b) {
+  /**
+   * Calcule l'âge à partir d'une valeur stockée. Gère le NOUVEAU modèle (âge déjà
+   * stocké : 1 à 3 chiffres ≤ 120 → renvoyé tel quel) ET les données héritées /
+   * archives (année AAAA, date AAAA-MM-JJ ou JJ/MM/AAAA).
+   * @param {string|number} b       Valeur stockée.
+   * @param {number}        [refYear] Année de référence pour les données AU FORMAT
+   *        année/date (archives) : ex. l'âge d'une archive 2023 se calcule sur 2023,
+   *        pas sur l'année courante. Défaut : année courante.
+   */
+  function ageFromBirth(b, refYear) {
+    if (b == null || b === '') return null;
+    b = String(b).trim();
     if (!b) return null;
+    var nowY = new Date().getFullYear();
+    var ref = (refYear && +refYear > 1900) ? +refYear : nowY;
+
+    // Âge déjà stocké (nouveau modèle).
+    if (/^\d{1,3}$/.test(b)) {
+      var a = parseInt(b, 10);
+      return (a >= 0 && a <= 120) ? a : null;
+    }
+
+    // Données héritées / archives : année ou date.
     var y, m = 1, d = 1, parts;
     if (/^\d{4}$/.test(b)) {
       y = +b;
+      if (y < 1900 || y > nowY) return null;
+      return ref - y;
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(b)) {
       parts = b.split('-').map(Number); y = parts[0]; m = parts[1]; d = parts[2];
     } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(b)) {
@@ -78,16 +114,16 @@
     } else {
       return null;
     }
-    var t = new Date();
-    var age = t.getFullYear() - y;
-    if (t < new Date(t.getFullYear(), m - 1, d)) age--; // anniversaire pas encore passé
+    var age = ref - y;
+    // Ajustement anniversaire seulement pour l'année courante (archive = approximation).
+    if (ref === nowY) { var t = new Date(); if (t < new Date(t.getFullYear(), m - 1, d)) age--; }
     return age;
   }
 
   /** Met à jour l'indice de saisie + l'affichage du bloc responsable légal. */
   function applyState(formEl) {
     if (!formEl) return;
-    var birth = formEl.querySelector('[name="naissance"]');
+    var birth = formEl.querySelector('[name="naissance"], [name$="[naissance]"]');
     var block = formEl.querySelector('[data-guardian-block]');
     var hint  = formEl.querySelector('.birthdate-hint');
 
@@ -98,13 +134,10 @@
     if (hint) {
       if (!String(raw).trim()) {
         hint.textContent = '';
-      } else if (!norm) {
-        hint.textContent = 'Format non reconnu — saisissez JJ/MM/AAAA, une année ou un âge.';
+      } else if (!norm || age == null) {
+        hint.textContent = 'Format non reconnu — saisissez un âge ou une année (AAAA).';
       } else {
-        var parts = [];
-        parts.push(/^\d{4}$/.test(norm) ? ('année ' + norm) : ('né(e) le ' + norm));
-        if (age != null) parts.push('âge ' + age + ' ans');
-        hint.textContent = '→ ' + parts.join(' · ');
+        hint.textContent = '→ âge ' + age + ' ans';
       }
     }
 
@@ -131,11 +164,16 @@
   function initForm(formEl) {
     if (!formEl || formEl.dataset.ferInit) return;
     formEl.dataset.ferInit = '1';
-    var birth = formEl.querySelector('[name="naissance"]');
+    var birth = formEl.querySelector('[name="naissance"], [name$="[naissance]"]');
     if (birth) {
-      // On évalue (indice + bloc responsable) quand l'utilisateur QUITTE le champ
-      // (blur / passage à un autre champ), jamais pendant la frappe : aucun flash.
-      // La vérification est de toute façon reforcée à l'enregistrement (ensureGuardian).
+      // Champ « Âge / année » : uniquement des chiffres (ni lettres ni ponctuation).
+      birth.setAttribute('inputmode', 'numeric');
+      birth.addEventListener('input', function () {
+        var d = birth.value.replace(/\D+/g, '');
+        if (d !== birth.value) birth.value = d;
+      });
+      // On évalue (bloc responsable) quand l'utilisateur QUITTE le champ (blur / changement),
+      // jamais pendant la frappe. La vérification est reforcée à l'enregistrement.
       birth.addEventListener('change', function () { applyState(formEl); });
       birth.addEventListener('blur',   function () { applyState(formEl); });
     }
@@ -177,10 +215,10 @@
    */
   function composeComment(formEl) {
     if (!formEl) return;
-    var textarea = formEl.querySelector('[name="commentaire"]');
+    var textarea = formEl.querySelector('[name="commentaire"], [name$="[commentaire]"]');
     if (!textarea) return;
 
-    var birth = formEl.querySelector('[name="naissance"]');
+    var birth = formEl.querySelector('[name="naissance"], [name$="[naissance]"]');
     var block = formEl.querySelector('[data-guardian-block]');
     var age = birth ? ageFromBirth(normalizeBirthValue(birth.value)) : null;
     // Seuil « mineur » paramétrable au niveau du bloc (cohérent avec applyState).
@@ -202,8 +240,10 @@
     }
 
     // Champs personnalisés du bloc responsable → lignes « Libellé : valeur ».
+    // Portée LIMITÉE au bloc (ils vivent dedans) : sinon le commentaire de la personne
+    // principale récupérerait aussi les champs des cartes « personne supplémentaire ».
     var extraLines = [];
-    var customEls = formEl.querySelectorAll('[data-guardian="custom"]');
+    var customEls = block ? block.querySelectorAll('[data-guardian="custom"]') : [];
     for (var i = 0; i < customEls.length; i++) {
       var cv = (customEls[i].value || '').trim();
       if (cv) extraLines.push((customEls[i].getAttribute('data-guardian-key') || 'Info') + ' : ' + cv);

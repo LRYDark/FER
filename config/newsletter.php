@@ -20,6 +20,8 @@ function newsletterIsValidEmail(string $email): bool
 
 /**
  * Abonne une adresse (ou la ré-abonne si elle s'était désabonnée).
+ * Abonnement DIRECT (pas de confirmation par e-mail) : la protection anti-robot
+ * est assurée par le captcha du formulaire (verifyPublicCaptcha côté public/newsletter.php).
  * Retourne ['ok' => bool, 'msg' => string].
  */
 function newsletterSubscribe(PDO $pdo, string $email): array
@@ -29,8 +31,7 @@ function newsletterSubscribe(PDO $pdo, string $email): array
         return ['ok' => false, 'msg' => "Adresse email invalide."];
     }
     try {
-        // INSERT ... ON DUPLICATE : crée l'abonné, ou le réactive s'il existait déjà
-        // (cas d'un ré-abonnement après désabonnement).
+        // INSERT ... ON DUPLICATE : crée l'abonné, ou le réactive s'il existait déjà.
         $stmt = $pdo->prepare(
             "INSERT INTO newsletter_subscribers (email, status, created_at)
              VALUES (:e, 'subscribed', NOW())

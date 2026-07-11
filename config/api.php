@@ -80,11 +80,12 @@ function isIpBanned($pdo, $ip) {
 }
 
 function getClientIp(): string {
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        return $_SERVER['HTTP_CF_CONNECTING_IP'];
-    }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        return trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+    // 🔒 [SEC-IP] IP fiable centralisée (config.php) : REMOTE_ADDR seul par
+    // défaut ; en-têtes de forwarding honorés uniquement si REMOTE_ADDR est un
+    // proxy déclaré dans TRUSTED_PROXIES. Empêche le spoofing d'IP (contournement
+    // des bans/rate-limits et bannissement de victimes).
+    if (function_exists('fer_client_ip')) {
+        return fer_client_ip();
     }
     return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 }
@@ -93,19 +94,23 @@ function checkTrustedDevice($pdo, $userId) {
     try {
         $token = $_COOKIE['fer_trust'] ?? '';
         if (!$token) return false;
+        // 🔒 [SEC-TRUST] Le token est stocké HACHÉ (SHA-256) en base : on compare le
+        // haché du cookie. Une fuite de trusted_devices ne donne donc aucun cookie
+        // d'appareil de confiance utilisable (contournement 2FA 30 j).
         $st = $pdo->prepare('SELECT 1 FROM trusted_devices WHERE user_id = ? AND token = ? AND expires_at > NOW() LIMIT 1');
-        $st->execute([$userId, $token]);
+        $st->execute([$userId, hash('sha256', $token)]);
         return (bool) $st->fetch();
     } catch (\Throwable $e) { return false; }
 }
 
 function createTrustedDevice($pdo, $userId) {
     try {
-        $token = bin2hex(random_bytes(32));
+        $token = bin2hex(random_bytes(32));          // secret : vit uniquement dans le cookie
+        $tokenHash = hash('sha256', $token);          // stocké en base (64 hex → VARCHAR(64))
         $ip = getClientIp();
         $ua = mb_substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 500);
         $pdo->prepare('INSERT INTO trusted_devices (user_id, token, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))')
-            ->execute([$userId, $token, $ip, $ua]);
+            ->execute([$userId, $tokenHash, $ip, $ua]);
         setcookie('fer_trust', $token, time() + 86400 * 30, '/', '', true, true);
     } catch (\Throwable $e) {}
 }
@@ -355,6 +360,30 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
         }
     }
 
+    // 🔒 [SEC-LOCK] Verrouillage TEMPOREL (au lieu d'une désactivation permanente) :
+    // après 3 échecs, le compte est bloqué 15 min puis se débloque tout seul. Empêche
+    // le déni de service (verrouiller n'importe quel compte en connaissant juste l'email)
+    // tout en freinant le bruteforce. Ne touche pas aux comptes désactivés par un admin
+    // (is_active = 0, locked_at NULL) qui restent bloqués.
+    if ($u && !empty($u['locked_at']) && (int)($u['failed_attempts'] ?? 0) >= 3 && (int)($u['is_active'] ?? 1) === 1) {
+        // ⚠️ Calcul du temps restant CÔTÉ MYSQL : locked_at est en heure serveur MySQL
+        // (SET time_zone = '+02:00'), qui peut différer du fuseau de PHP. Comparer avec
+        // time()/strtotime() en PHP produisait un décalage (ex. « 135 min » au lieu de 15).
+        $rq = $pdo->prepare("SELECT TIMESTAMPDIFF(SECOND, NOW(), DATE_ADD(?, INTERVAL 15 MINUTE)) AS remaining");
+        $rq->execute([$u['locked_at']]);
+        $remaining = (int) $rq->fetchColumn();
+        if ($remaining > 0) {
+            $wait = max(1, (int) ceil($remaining / 60));
+            logLoginAttempt($pdo, $u['id'], $u['email'], false, 'Compte temporairement verrouillé');
+            http_response_code(429);
+            echo json_encode(['ok'=>false, 'err'=>"Trop de tentatives. Réessayez dans $wait minute(s)."]); exit;
+        }
+        // Fenêtre écoulée → déblocage automatique.
+        try { $pdo->prepare('UPDATE users SET failed_attempts = 0, locked_at = NULL WHERE id = ?')->execute([$u['id']]); } catch (\Throwable $e) {}
+        $u['failed_attempts'] = 0;
+        $u['locked_at'] = null;
+    }
+
     // Si l'utilisateur vient du flux passwordless (pending_2fa_uid déjà défini) et a choisi "Mot de passe",
     // il faut toujours vérifier le mot de passe, même s'il a TOTP/passkey.
     $pendingPasswordFlow = $u && !empty($_SESSION['pending_2fa_uid']) && (int)$_SESSION['pending_2fa_uid'] === (int)$u['id'];
@@ -377,7 +406,15 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     }
 
     // Vérification explicite du mot de passe (séparée pour ne réinitialiser failed_attempts que si vérifié)
-    $passwordVerified = !$hasStrongMethod && password_verify($d['password'] ?? '', $u['password_hash']);
+    if (!$u) {
+        // 🔒 [SEC-ENUM] Anti-énumération par timing : quand l'email est inconnu, on
+        // exécute quand même un password_verify factice (coût bcrypt constant) pour que
+        // la réponse prenne le même temps que pour un email existant (CWE-208/CWE-204).
+        password_verify($d['password'] ?? '', '$2y$10$K.qltx1IGHbZ0lrWt.v36u0qjxBkBsnWGHAMvw.qjIAVc6SkjrDeO');
+        $passwordVerified = false;
+    } else {
+        $passwordVerified = !$hasStrongMethod && password_verify($d['password'] ?? '', $u['password_hash']);
+    }
 
     if($u && ($hasStrongMethod || $passwordVerified)){
         if(!$u['is_active']){
@@ -526,11 +563,14 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
     if ($u) {
         $attempts = ($u['failed_attempts'] ?? 0) + 1;
         if ($attempts >= 3) {
+            // 🔒 [SEC-LOCK] Verrouillage TEMPOREL : on pose locked_at (NOW) sans désactiver
+            // le compte (is_active reste à 1). Le déblocage est automatique après 15 min
+            // (cf. contrôle plus haut). Évite le DoS par verrouillage permanent.
             try {
-                $pdo->prepare('UPDATE users SET failed_attempts = ?, is_active = 0, locked_at = NOW() WHERE id = ?')
+                $pdo->prepare('UPDATE users SET failed_attempts = ?, locked_at = NOW() WHERE id = ?')
                     ->execute([$attempts, $u['id']]);
             } catch (\Throwable $e) {
-                try { $pdo->prepare('UPDATE users SET is_active = 0 WHERE id = ?')->execute([$u['id']]); } catch (\Throwable $e2) {}
+                try { $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]); } catch (\Throwable $e2) {}
             }
             try {
                 require_once __DIR__ . '/googleMail.php';
@@ -538,22 +578,18 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                     $admins = getNotifyRecipients($pdo);
                     foreach ($admins as $adminEmail) {
                         sendMail($adminEmail, 'Compte verrouille – Forbach en Rose', 'Compte verrouille apres 3 tentatives',
-                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> a ete verrouille automatiquement apres 3 tentatives de connexion echouees.</p>'
+                            '<p>Le compte <strong>' . htmlspecialchars($u['email']) . '</strong> a ete verrouille temporairement (15 min) apres 3 tentatives de connexion echouees.</p>'
                             . '<p>IP : ' . htmlspecialchars($ip) . '</p>', null, null, 'info', null, 'test');
                     }
                 }
             } catch (\Throwable $e) { error_log('Lock notification mail error: ' . $e->getMessage()); }
-            http_response_code(403);
-            echo json_encode(['ok'=>false, 'err'=>'Compte verrouille apres 3 tentatives echouees. Utilisez "Mot de passe oublie" pour reactiver votre compte.']); exit;
         } else {
             try { $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]); } catch (\Throwable $e) {}
-            $remaining = 3 - $attempts;
-            http_response_code(401);
-            echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects. Il vous reste ' . $remaining . ' tentative(s) avant blocage du compte.']); exit;
         }
     }
 
-    // 🔒 [FIX-ENUM] Message uniforme — ne pas révéler si l'email existe (CWE-204)
+    // 🔒 [FIX-ENUM] Message STRICTEMENT uniforme quel que soit l'état (email inconnu,
+    // mot de passe faux, ou compte verrouillé) → aucune énumération d'utilisateur (CWE-204).
     http_response_code(401); echo json_encode(['ok'=>false, 'err'=>'Identifiants incorrects.']); exit;
 }
 
@@ -584,6 +620,10 @@ if ($route==='validate-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     // 🔒 [FIX-2FA] Comparaison timing-safe du code 2FA (CWE-208)
     if (!$u2 || !hash_equals((string)($u2['twofa_code'] ?? ''), $code) || strtotime($u2['twofa_expires']) < time()) {
+        // 🔒 [SEC-2FA] Échec journalisé (persistant par IP) + auto-ban : anti-bruteforce
+        // du code 2FA au-delà du simple compteur de session.
+        logLoginAttempt($pdo, $uid, $_SESSION['pending_2fa_email'] ?? null, false, 'Code 2FA invalide');
+        autoBanIpIfNeeded($pdo, getClientIp());
         http_response_code(401);
         echo json_encode(['ok'=>false, 'err'=>'Code invalide ou expire.']); exit;
     }
@@ -650,6 +690,15 @@ if ($route==='logout'){
     session_regenerate_id(true);
     session_destroy();
     echo json_encode(['ok'=>true]);
+    exit;
+}
+
+/* ───── HEARTBEAT (keep-alive session) ─────────
+ * Utilisé par l'auto-déconnexion côté client. config/config.php a déjà, à ce stade,
+ * rafraîchi last_activity si la session est encore valide, ou l'a détruite si expirée.
+ * On renvoie simplement si l'utilisateur est toujours authentifié. */
+if ($route==='heartbeat'){
+    echo json_encode(['ok' => isset($_SESSION['uid'])]);
     exit;
 }
 
@@ -720,12 +769,19 @@ if ($route==='validate-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     $matchedCounter = $row ? TOTP::verify($row['totp_secret'] ?? '', $code) : false;
     if ($matchedCounter === false) {
+        // 🔒 [SEC-2FA] Journaliser l'échec (persistant par IP) + auto-ban : empêche
+        // le brute-force du TOTP en repartant d'une session neuve (le compteur en
+        // session seul ne suffit pas). Réutilise l'infra anti-bruteforce du login.
+        logLoginAttempt($pdo, $uid, $_SESSION['pending_2fa_email'] ?? null, false, 'Code TOTP invalide');
+        autoBanIpIfNeeded($pdo, getClientIp());
         http_response_code(401);
         echo json_encode(['ok'=>false, 'err'=>'Code invalide.']); exit;
     }
     // 🔒 Anti-replay : rejeter un code déjà utilisé dans cette session pending
     $lastUsedCounter = $_SESSION['totp_used_counter'] ?? PHP_INT_MIN;
     if ($matchedCounter <= $lastUsedCounter) {
+        logLoginAttempt($pdo, $uid, $_SESSION['pending_2fa_email'] ?? null, false, 'Code TOTP rejoué');
+        autoBanIpIfNeeded($pdo, getClientIp());
         http_response_code(401);
         echo json_encode(['ok'=>false, 'err'=>'Code invalide.']); exit;
     }
@@ -832,8 +888,10 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
     if ($user) {
         $token   = bin2hex(random_bytes(32));
 
+        // 🔒 [SEC-RESET] On stocke le HACHÉ du token (SHA-256) ; le token brut ne vit que
+        // dans le lien e-mail. Une fuite de la table users ne révèle donc aucun token utilisable.
         $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?')
-            ->execute([$token, $user['id']]);
+            ->execute([hash('sha256', $token), $user['id']]);
 
         // Envoyer le mail si Gmail est configuré
         try {
@@ -870,6 +928,17 @@ if ($route==='change-password' && $_SERVER['REQUEST_METHOD']==='POST'){
     if (!isset($_SESSION['uid'])) {
         http_response_code(401);
         echo json_encode(['ok' => false]); exit;
+    }
+    // 🔒 [SEC-PWD] Cette route (sans ancien mot de passe) est réservée au changement
+    // FORCÉ à la première connexion. On revérifie must_change_password=1 en base : une
+    // session normale ne peut donc pas redéfinir le mot de passe sans l'ancien (le
+    // changement volontaire passe par profile-change-password, qui exige l'ancien).
+    try {
+        $mustChange = (int) $pdo->query('SELECT must_change_password FROM users WHERE id = ' . (int)$_SESSION['uid'])->fetchColumn();
+    } catch (\Throwable $e) { $mustChange = 0; }
+    if ($mustChange !== 1) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Opération non autorisée. Utilisez « Changer mon mot de passe » (ancien mot de passe requis).']); exit;
     }
     $d = json_decode(file_get_contents('php://input'), true);
     $password = $d['password'] ?? '';
@@ -1095,8 +1164,9 @@ if ($route==='reset-password-confirm' && $_SERVER['REQUEST_METHOD']==='POST'){
     $token    = $d['token'] ?? '';
     $password = $d['password'] ?? '';
 
+    // 🔒 [SEC-RESET] Comparaison sur le haché (le token stocké est un SHA-256).
     $stmt = $pdo->prepare('SELECT id, is_active, locked_at FROM users WHERE reset_token = ? AND reset_token_expires > NOW()');
-    $stmt->execute([$token]);
+    $stmt->execute([hash('sha256', (string)$token)]);
     $user = $stmt->fetch();
 
     if (!$user) {
@@ -1252,8 +1322,9 @@ if ($route === 'users') {
         // passe (route reset-password-confirm), et jamais pour un compte
         // désactivé manuellement par un admin.
         $token = bin2hex(random_bytes(32));
+        // 🔒 [SEC-RESET] Haché au repos (SHA-256) ; le token brut ne circule que dans le lien e-mail.
         $pdo->prepare('UPDATE users SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?')
-            ->execute([$token, $id]);
+            ->execute([hash('sha256', $token), $id]);
 
         // Tente d'envoyer le lien de réinitialisation
         $emailSent = false;
@@ -1659,9 +1730,20 @@ if ($route==='registrations'){
             @file_put_contents($rlFile, json_encode($rlTimes));
         }
 
+        // 🔒 [SEC-CAPTCHA] Vérification anti-robot obligatoire pour les inscriptions
+        // publiques (non authentifiées). Sans ça, cette route contournait entièrement
+        // le captcha du formulaire public (register.php) → spam de masse + injection
+        // de données arbitraires (vecteur XSS stocké). Les créations authentifiées
+        // (admin/staff via le dashboard) ne sont pas concernées.
+        if (!currentUserId() && !verifyPublicCaptcha($d, $pdo)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'err' => 'Vérification anti-robot échouée.']);
+            exit;
+        }
+
         // 🔒 [FIX-VALIDATION] Validation et assainissement des champs d'inscription (CWE-20)
         $allowedSexe = ['H', 'F', 'Autre'];
-        $d['sexe']    = in_array($d['sexe'] ?? '', $allowedSexe, true) ? $d['sexe'] : 'H';
+        $d['sexe']    = in_array($d['sexe'] ?? '', $allowedSexe, true) ? $d['sexe'] : 'Autre';
         $d['nom']     = mb_substr(trim($d['nom'] ?? ''), 0, 255);
         $d['prenom']  = mb_substr(trim($d['prenom'] ?? ''), 0, 255);
         $d['tel']     = mb_substr(trim($d['tel'] ?? ''), 0, 50);
@@ -1700,6 +1782,7 @@ if ($route==='registrations'){
 
         // Construction dynamique de l'INSERT basé sur la table forms
         require_once __DIR__ . '/form_fields.php';
+        require_once __DIR__ . '/registrations_core.php'; // regcore_naissanceToAge()
         $fieldCols = getAllActiveFieldColumns($pdo);
 
         $cols = ['inscription_no'];
@@ -1708,6 +1791,11 @@ if ($route==='registrations'){
 
         foreach ($fieldCols as $col => $meta) {
             $raw = $d[$col] ?? '';
+            // Champ « naissance » : on ne stocke QUE l'âge (année/date → âge).
+            if ($col === 'naissance' && $raw !== '') {
+                $age = regcore_naissanceToAge((string) $raw);
+                $raw = ($age !== null) ? $age : '';
+            }
             $cols[] = "`{$col}`";
             $phs[]  = '?';
             $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
@@ -1861,6 +1949,15 @@ if ($route==='registrations'){
             // Cohérence avec POST : on stocke une chaîne vide plutôt que null
             // (les colonnes NOT NULL acceptent '' mais pas null)
             if ($raw === null) $raw = '';
+            // Naissance : on ne stocke QUE l'âge (année/date → âge).
+            if ($col === 'naissance' && $raw !== '') {
+                require_once __DIR__ . '/registrations_core.php';
+                $age = regcore_naissanceToAge((string) $raw);
+                $raw = ($age !== null) ? $age : '';
+            }
+            // Colonnes ENUM assainies (évite « Data truncated » sur valeur vide/invalide).
+            if ($col === 'tshirt_size') { $raw = in_array($raw, ['-','XS','S','M','L','XL','XXL'], true) ? $raw : '-'; }
+            if ($col === 'sexe')        { $raw = in_array($raw, ['H','F','Autre'], true) ? $raw : 'Autre'; }
             $params[$col] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : $raw;
             $setParts[] = "`{$col}` = :{$col}";
         }
@@ -1992,6 +2089,14 @@ if ($route === 'registrations-bulk') {
             $val = $fields[$col];
             if ($val === null) $val = '';
             if ($col === 'commentaire') $val = mb_substr((string) $val, 0, 2000);
+            // Naissance → âge (année/date convertie). ENUM assainis (anti « Data truncated »).
+            if ($col === 'naissance' && $val !== '') {
+                require_once __DIR__ . '/registrations_core.php';
+                $age = regcore_naissanceToAge((string) $val);
+                $val = ($age !== null) ? $age : '';
+            }
+            if ($col === 'tshirt_size') { $val = in_array($val, ['-','XS','S','M','L','XL','XXL'], true) ? $val : '-'; }
+            if ($col === 'sexe')        { $val = in_array($val, ['H','F','Autre'], true) ? $val : 'Autre'; }
             $baseParams[$col] = $meta['encrypted'] ? encrypt($val !== '' ? $val : '') : $val;
             $setParts[] = "`{$col}` = :{$col}";
         }
@@ -2175,6 +2280,17 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors  = [];
         $createdRegistrants = []; // pour le mail récap
 
+        // Identifiant de GROUPE : les inscrits d'un même lot (≥ 2) partagent un
+        // `group_id`. Il alimente le QR « groupé » (encode « G:<group_id> ») qui, au
+        // scan, affiche tous les membres du groupe. Guardé par l'existence de la colonne
+        // (migration update.php) pour ne jamais casser l'ajout multiple avant migration.
+        $hasGroupIdCol = ((int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations' AND COLUMN_NAME = 'group_id'"
+        )->fetchColumn()) > 0;
+        $groupId = ($hasGroupIdCol && is_array($rows) && count($rows) >= 2)
+            ? bin2hex(random_bytes(12)) : null; // token opaque ; le QR encode « G:<group_id> »
+
         $pdo->beginTransaction();
 
         foreach ($rows as $idx => $row) {
@@ -2227,14 +2343,16 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             foreach ($allCols as $col => $meta) {
                 $raw = (string) ($row[$col] ?? '');
-                // Sexe non renseigné en saisie multiple → "Autre" par défaut
-                if ($col === 'sexe' && trim($raw) === '') {
-                    $raw = 'Autre';
+                // Naissance → âge (année/date convertie) : défense en profondeur, en plus
+                // de la normalisation côté client.
+                if ($col === 'naissance' && trim($raw) !== '') {
+                    require_once __DIR__ . '/registrations_core.php';
+                    $age = regcore_naissanceToAge($raw);
+                    $raw = ($age !== null) ? $age : '';
                 }
-                // Taille T-shirt non renseignée → "-" par défaut (valeur enum valide)
-                if ($col === 'tshirt_size' && trim($raw) === '') {
-                    $raw = '-';
-                }
+                // ENUM assainis (défaut si vide/invalide → jamais « Data truncated »).
+                if ($col === 'sexe')        { $raw = in_array($raw, ['H','F','Autre'], true) ? $raw : 'Autre'; }
+                if ($col === 'tshirt_size') { $raw = in_array($raw, ['-','XS','S','M','L','XL','XXL'], true) ? $raw : '-'; }
                 $cols[] = "`{$col}`";
                 $phs[]  = '?';
                 $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
@@ -2266,6 +2384,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols[] = 'prestation';   $phs[] = '?'; $vals[] = prestationFromPaiement($sharedPaiement);
             $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
             $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
+            if ($groupId !== null) { $cols[] = 'group_id'; $phs[] = '?'; $vals[] = $groupId; }
 
             // Date d'inscription (date_inscription). Fournie par personne (champ
             // « Date d'inscription ») ou mappée depuis l'Excel : enregistrée telle quelle
@@ -2313,9 +2432,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $inscEmail = trim((string) ($r['email'] ?? ''));
                     if ($inscEmail === '') { $mailsSkipped++; continue; }
                     try {
-                        if (function_exists('shouldIncludeQrCode')) {
-                            shouldIncludeQrCode($r['inscription_no']); // parité import AssoConnect
-                        }
+                        // (Le QR est décidé en interne par sendMail via shouldIncludeQrCode.)
                         $ok = sendMail(
                             $inscEmail,
                             'Inscription enregistrée - Forbach en Rose',
@@ -2336,9 +2453,20 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 // ── RÉCAP GROUPÉ : 1 seul mail listant tous les inscrits, envoyé à
-                // l'adresse de contact. Pas de QR individuel (générables en BDD).
+                // l'adresse de contact. Un UNIQUE QR « groupé » (encode « G:<group_id> »)
+                // est joint selon la config (shouldIncludeGroupQr) : au scan, il affiche
+                // TOUS les membres pour valider les tailles d'un coup.
                 try {
                     $totalDu = array_sum(array_column($createdRegistrants, 'montant_du'));
+
+                    // QR groupé : inclus si la config l'autorise pour au moins un membre.
+                    $groupQrOverride = null;
+                    if ($groupId !== null) {
+                        $memberNos = array_column($createdRegistrants, 'inscription_no');
+                        if (function_exists('shouldIncludeGroupQr') && shouldIncludeGroupQr($memberNos)) {
+                            $groupQrOverride = 'G:' . $groupId;
+                        }
+                    }
 
                     $listHtml = '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;">'
                               . '<thead><tr style="background:#fdf2f6;">'
@@ -2362,11 +2490,14 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                               . '<td style="padding:8px;border:1px solid #fbcfe8;text-align:right;">' . number_format($totalDu, 2, ',', ' ') . ' €</td>'
                               . '</tr></tfoot></table>';
 
+                    $qrNote = $groupQrOverride
+                        ? 'Le jour de la course, <strong>présentez le QR code ci-dessous</strong> pour récupérer les dossards et les t-shirts de tout le groupe (il liste l\'ensemble des inscrits).'
+                        : 'Le jour de la course, <strong>présentez ce mail à l\'accueil</strong> pour récupérer les dossards.';
                     $description = '<p style="font-size:15px;line-height:1.6;color:#334155;">'
                                  . 'Bonjour,<br><br>'
                                  . 'Nous confirmons l\'inscription des <strong>' . $created . '</strong> personne(s) ci-dessous '
                                  . 'à la course Forbach en Rose.<br><br>'
-                                 . 'Le jour de la course, <strong>présentez ce mail à l\'accueil</strong> pour récupérer les dossards.'
+                                 . $qrNote
                                  . '</p>'
                                  . $listHtml;
 
@@ -2377,7 +2508,9 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $description,
                         null, null,
                         'info', null,
-                        'bulk_recap'
+                        'bulk_recap',
+                        [],
+                        $groupQrOverride   // QR groupé (ou null) → section QR du template
                     );
                     $recapSent = ($ok !== false);
                     if (!$recapSent) {
@@ -2648,10 +2781,8 @@ function normalisePaiementMode(?string $val): string {
  * NB : le couple (paiement_mode, montant_du) reste l'indicateur d'éligibilité QR (montant > 0).
  */
 function prestationFromPaiement(?string $paiementMode): string {
-    $p = strtolower(trim((string) $paiementMode));
-    if ($p === 'gratuit')       return 'enfant_gratuit';
-    if ($p === 'enfant_tshirt') return 'enfant_tshirt';
-    return 'tarif_unique';
+    require_once __DIR__ . '/registrations_core.php';
+    return regcore_prestationFromPaiement($paiementMode); // source unique (évite le doublon)
 }
 
 /**
@@ -2661,36 +2792,13 @@ function prestationFromPaiement(?string $paiementMode): string {
  * « gratuit » (vraiment gratuit) et les moyens réels (CB/espece/cheque/...) sont conservés.
  */
 function storedPaiementMode(?string $choice): ?string {
-    return strtolower(trim((string) $choice)) === 'enfant_tshirt' ? 'en ligne (CB)' : $choice;
+    require_once __DIR__ . '/registrations_core.php';
+    return regcore_storedPaiementMode($choice); // source unique (évite le doublon)
 }
 
 function convertExcelDate($value): ?string {
-    if ($value === null || $value === '') {
-        return date('Y-m-d H:i:s');
-    }
-    // Numéro de série Excel : conversion NON ambiguë (seul ce cas l'est vraiment).
-    // gmdate (et non date) : excelToTimestamp interprète la série en UTC ; gmdate
-    // restitue donc la valeur faciale exacte, sans décalage selon le fuseau PHP.
-    if (is_numeric($value)) {
-        return gmdate('Y-m-d H:i:s', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp((float) $value));
-    }
-    // Repli TEXTE : interprété en d/m/Y (français). ⚠ Une date fournie en texte au
-    // format US (mm/dd) RESTE ambiguë et peut être inversée — contrairement à la
-    // branche numérique ci-dessus. Le « ! » remet l'heure à 00:00:00 et tout
-    // débordement (ex. mois 13 d'une date US mal lue) est rejeté plutôt que de
-    // basculer silencieusement la date dans le futur.
-    $value = trim((string) $value);
-    error_log('[IMPORT][DATE-TEXTE] date non numérique interprétée en d/m/Y : ' . substr($value, 0, 40));
-    $formats = ['d/m/Y H:i:s', 'd/m/Y', 'Y-m-d H:i:s', 'Y-m-d'];
-    foreach ($formats as $f) {
-        $dt   = DateTime::createFromFormat('!' . $f, $value);
-        $errs = DateTime::getLastErrors();
-        $hasErr = is_array($errs) && (($errs['warning_count'] ?? 0) > 0 || ($errs['error_count'] ?? 0) > 0);
-        if ($dt && !$hasErr) {
-            return $dt->format('Y-m-d H:i:s');
-        }
-    }
-    return date('Y-m-d H:i:s');
+    require_once __DIR__ . '/registrations_core.php';
+    return regcore_convertExcelDate($value); // source unique (évite le doublon)
 }
 
 function logImportError(array $data, string $filename = 'import_errors.log') {
@@ -2826,12 +2934,14 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $allRows = $pdo->query("SELECT nom, prenom, naissance, sexe, ville, entreprise FROM `$tableArchive`")->fetchAll(PDO::FETCH_ASSOC);
     $allRows = decryptRows($allRows);
 
-    /* Age moyen */
+    /* Age moyen — via la fonction centralisée (gère l'âge déjà stocké comme les
+     * données héritées année/date). L'année de l'archive sert de référence pour les
+     * valeurs au format année/date, afin que l'âge reflète l'année de l'événement. */
+    require_once __DIR__ . '/registrations_core.php';
     $ages = [];
     foreach ($allRows as $r) {
-        $n = $r['naissance'];
-        if ($n && is_numeric($n)) $ages[] = (int)date('Y') - (int)$n;
-        elseif ($n && preg_match('/^\d{4}-\d{2}-\d{2}$/', $n)) $ages[] = (int)date('Y') - (int)substr($n, 0, 4);
+        $age = regcore_ageFromNaissance((string) ($r['naissance'] ?? ''), $year);
+        if ($age !== null) $ages[] = $age;
     }
     $s['age_moyen'] = count($ages) ? round(array_sum($ages) / count($ages), 1) : null;
 
@@ -2853,26 +2963,28 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     arsort($entrCounts);
     $entreprise_top = $entrCounts ? array_key_first($entrCounts) : null;
 
-    /* 6) Plus vieille personne masculine */
+    /* 6) Plus vieille personne masculine (âge le plus élevé) */
     $plus_vieux_h = null;
     $oldestH = null;
     foreach ($allRows as $r) {
-        if ($r['sexe'] !== 'H' || !$r['naissance']) continue;
-        $n = is_numeric($r['naissance']) ? (int)$r['naissance'] : (int)substr($r['naissance'], 0, 4);
-        if ($oldestH === null || $n < $oldestH) {
-            $oldestH = $n;
+        if ($r['sexe'] !== 'H') continue;
+        $age = regcore_ageFromNaissance((string) ($r['naissance'] ?? ''), $year);
+        if ($age === null) continue;
+        if ($oldestH === null || $age > $oldestH) {
+            $oldestH = $age;
             $plus_vieux_h = trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''));
         }
     }
 
-    /* 7) Plus vieille personne féminine */
+    /* 7) Plus vieille personne féminine (âge le plus élevé) */
     $plus_vieille_f = null;
     $oldestF = null;
     foreach ($allRows as $r) {
-        if ($r['sexe'] !== 'F' || !$r['naissance']) continue;
-        $n = is_numeric($r['naissance']) ? (int)$r['naissance'] : (int)substr($r['naissance'], 0, 4);
-        if ($oldestF === null || $n < $oldestF) {
-            $oldestF = $n;
+        if ($r['sexe'] !== 'F') continue;
+        $age = regcore_ageFromNaissance((string) ($r['naissance'] ?? ''), $year);
+        if ($age === null) continue;
+        if ($oldestF === null || $age > $oldestF) {
+            $oldestF = $age;
             $plus_vieille_f = trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''));
         }
     }
@@ -2948,13 +3060,22 @@ if ($route === 'registrations-archive') {
             exit;
         }
 
-        // La colonne `prestation` n'existe pas dans les archives antérieures à la
-        // mise à jour : on l'inclut seulement si présente, sinon on renvoie NULL.
-        $hasPrestation = ((int) $pdo->query(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$tableArchive' AND COLUMN_NAME = 'prestation'"
-        )->fetchColumn()) > 0;
-        $prestaSelect = $hasPrestation ? 'prestation' : 'NULL AS prestation';
+        // Certaines colonnes n'existent pas dans les archives antérieures à leur
+        // introduction : on les inclut seulement si présentes, sinon NULL. La liste
+        // des colonnes réellement présentes est lue une seule fois. `entreprise`,
+        // `montant_du` et `paiement_mode` alimentent les cartes/modal de stats côté
+        // client (mêmes indicateurs que le dashboard, via js/reg-stats.js).
+        $archCols = $pdo->query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$tableArchive'"
+        )->fetchAll(PDO::FETCH_COLUMN, 0);
+        $colOrNull = function (string $c) use ($archCols): string {
+            return in_array($c, $archCols, true) ? "`$c`" : "NULL AS `$c`";
+        };
+        $prestaSelect = $colOrNull('prestation')
+            . ',' . $colOrNull('entreprise')
+            . ',' . $colOrNull('montant_du')
+            . ',' . $colOrNull('paiement_mode');
 
         // Rôle « saisie » : restreint aux inscriptions de SON organisation (cohérent
         // avec le tableau live). Une archive sans colonne `created_by` (ancienne) ne
@@ -3017,6 +3138,26 @@ if ($route === 'qrcodes') {
         echo json_encode(['error' => 'Action non autorisée (lecture seule)']);
         exit;
     }
+
+    // Auto-migration idempotente : garantit la présence des colonnes ajoutées par
+    // update.php (onsite_mode, payment_label, expires_at, send_qrcode). Évite l'erreur
+    // « Unknown column 'onsite_mode' » sur une base qui n'a pas encore été migrée.
+    try {
+        $hasOnsite = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'qrcodes' AND COLUMN_NAME = 'onsite_mode'"
+        )->fetchColumn();
+        if (!$hasOnsite) {
+            foreach ([
+                "ALTER TABLE `qrcodes` ADD COLUMN `onsite_mode` TINYINT(1) NOT NULL DEFAULT 0",
+                "ALTER TABLE `qrcodes` ADD COLUMN `payment_label` VARCHAR(50) DEFAULT 'retrait t-shirt'",
+                "ALTER TABLE `qrcodes` ADD COLUMN `expires_at` DATETIME DEFAULT NULL",
+                "ALTER TABLE `qrcodes` ADD COLUMN `send_qrcode` TINYINT(1) NOT NULL DEFAULT 1",
+            ] as $ddl) {
+                try { $pdo->exec($ddl); } catch (\Throwable $e) { /* colonne déjà présente : ignore */ }
+            }
+        }
+    } catch (\Throwable $e) { /* INFORMATION_SCHEMA inaccessible : on continue */ }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Récupération des QR codes - avec gestion d'erreurs
@@ -3629,6 +3770,29 @@ function _tshirtSession(PDO $pdo, array $cfg): ?array {
 }
 
 /**
+ * Autorisation de scan : soit un bénévole validé (cookie appareil + campagne ouverte),
+ * soit un ADMIN connecté disposant du droit dashboard.scan_qr — accès direct au scanner
+ * sans passer par le circuit de validation bénévole ni exiger une campagne ouverte.
+ * Renvoie une pseudo-session pour l'admin (id 0), sinon la session bénévole (ou null).
+ */
+function _tshirtScanAuth(PDO $pdo, array $cfg): ?array {
+    if (function_exists('canDoAction') && canDoAction('dashboard.scan_qr')) {
+        $name = 'Admin';
+        try {
+            $uid = currentUserId();
+            if ($uid) {
+                $st = $pdo->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+                $st->execute([$uid]);
+                $em = $st->fetchColumn();
+                if ($em) $name = (string)$em;
+            }
+        } catch (\Throwable $e) { /* label par défaut */ }
+        return ['id' => 0, 'volunteer_name' => $name, 'device_id' => 'admin:' . (int)(currentUserId() ?? 0), 'is_admin' => true];
+    }
+    return _tshirtSession($pdo, $cfg);
+}
+
+/**
  * Construit le jeu de données déchiffré + rangs de paiement (éligibilité T-shirt).
  * Déchiffrement côté serveur uniquement — jamais renvoyé en bloc au bénévole.
  */
@@ -3637,7 +3801,12 @@ function _tshirtDataset(PDO $pdo): array {
     $highlightLimit = (($setting['qrcode_mail_mode'] ?? '') === 'first_x' && (int)($setting['qrcode_mail_limit'] ?? 0) > 0)
         ? (int)$setting['qrcode_mail_limit'] : 0;
 
-    $rows = $pdo->query("SELECT id, inscription_no, nom, prenom, email, ville, tshirt_size, montant_du, created_at FROM registrations")->fetchAll(PDO::FETCH_ASSOC);
+    // `group_id` inclus si la colonne existe (repli silencieux avant migration).
+    try {
+        $rows = $pdo->query("SELECT id, inscription_no, nom, prenom, email, ville, tshirt_size, montant_du, created_at, group_id FROM registrations")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\PDOException $e) {
+        $rows = $pdo->query("SELECT id, inscription_no, nom, prenom, email, ville, tshirt_size, montant_du, created_at FROM registrations")->fetchAll(PDO::FETCH_ASSOC);
+    }
     $rows = decryptRows($rows);
     usort($rows, function ($a, $b) {
         $c = strcmp((string)$a['created_at'], (string)$b['created_at']);
@@ -3742,9 +3911,20 @@ if ($route === 'tshirt-access-status' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $cfg = _tshirtCfg($pdo);
     $open = _tshirtOpen($cfg);
     $out = ['ok' => true, 'open' => $open, 'status' => 'none'];
+    // Admin connecté (droit scan_qr) : toujours « approuvé », campagne réputée ouverte.
+    if (function_exists('canDoAction') && canDoAction('dashboard.scan_qr')) {
+        $opName = 'Admin';
+        try {
+            $uid = currentUserId();
+            if ($uid) { $st = $pdo->prepare('SELECT email FROM users WHERE id = ? LIMIT 1'); $st->execute([$uid]); $em = $st->fetchColumn(); if ($em) $opName = (string)$em; }
+        } catch (\Throwable $e) { /* label par défaut */ }
+        $out['open'] = true; $out['status'] = 'approved'; $out['admin'] = true; $out['operator'] = $opName;
+        echo json_encode($out);
+        exit;
+    }
     $device = _tshirtDeviceId();
     if ($open && $device !== '') {
-        $st = $pdo->prepare("SELECT status, expires_at FROM tshirt_access_sessions WHERE device_id = ? AND campaign_token = ? LIMIT 1");
+        $st = $pdo->prepare("SELECT status, expires_at, volunteer_name FROM tshirt_access_sessions WHERE device_id = ? AND campaign_token = ? LIMIT 1");
         $st->execute([$device, $cfg['campaign_token']]);
         $s = $st->fetch(PDO::FETCH_ASSOC);
         if ($s) {
@@ -3753,6 +3933,7 @@ if ($route === 'tshirt-access-status' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             } else {
                 $out['status'] = $s['status'];
             }
+            if ($out['status'] === 'approved') $out['operator'] = $s['volunteer_name'] ?? '';
         }
     }
     echo json_encode($out);
@@ -3762,7 +3943,7 @@ if ($route === 'tshirt-access-status' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 /* ---------- Bénévole : rechercher un inscrit (QR / nom / prénom / email / N°) ---------- */
 if ($route === 'tshirt-lookup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $cfg = _tshirtCfg($pdo);
-    $session = _tshirtSession($pdo, $cfg);
+    $session = _tshirtScanAuth($pdo, $cfg);
     if (!$session) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'err' => 'Accès non validé']);
@@ -3780,6 +3961,19 @@ if ($route === 'tshirt-lookup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     [$rows, $highlightLimit] = _tshirtDataset($pdo);
     $ql = mb_strtolower($q);
+
+    // 0) QR « groupé » (G:<group_id>) → renvoie TOUS les membres du groupe.
+    if (preg_match('/^G:(.+)$/', $q, $gm)) {
+        $gid = $gm[1];
+        $members = [];
+        foreach ($rows as $r) {
+            if (!empty($r['group_id']) && (string)$r['group_id'] === $gid) {
+                $members[] = _tshirtPublicPerson($r, $highlightLimit);
+            }
+        }
+        echo json_encode(['ok' => true, 'group' => true, 'results' => $members]);
+        exit;
+    }
 
     // 1) Correspondance exacte par numéro d'inscription (QR ou saisie du N°).
     foreach ($rows as $r) {
@@ -3809,7 +4003,7 @@ if ($route === 'tshirt-lookup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 /* ---------- Bénévole : enregistrer la taille (confirmer la remise) ---------- */
 if ($route === 'tshirt-assign' && in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT'])) {
     $cfg = _tshirtCfg($pdo);
-    $session = _tshirtSession($pdo, $cfg);
+    $session = _tshirtScanAuth($pdo, $cfg);
     if (!$session) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'err' => 'Accès non validé']);
@@ -3826,12 +4020,21 @@ if ($route === 'tshirt-assign' && in_array($_SERVER['REQUEST_METHOD'], ['POST', 
         echo json_encode(['ok' => false, 'err' => 'Paramètres invalides']);
         exit;
     }
-    $st = $pdo->prepare("SELECT inscription_no FROM registrations WHERE id = ? LIMIT 1");
+    $st = $pdo->prepare("SELECT inscription_no, montant_du FROM registrations WHERE id = ? LIMIT 1");
     $st->execute([$id]);
-    $no = $st->fetchColumn();
-    if ($no === false) {
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'err' => 'Inscrit introuvable']);
+        exit;
+    }
+    $no = $row['inscription_no'];
+    // 🔒 [SEC-TSHIRT] Un inscrit non payé (montant_du = 0) n'est jamais éligible au
+    // t-shirt : on refuse l'attribution d'une taille réelle par un bénévole. Un admin
+    // conserve la possibilité de forcer (override légitime, ex. régularisation).
+    if ($size !== '-' && (float)($row['montant_du'] ?? 0) <= 0 && empty($session['is_admin'])) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'err' => 'Inscrit non payé : non éligible au t-shirt. Contactez un administrateur.']);
         exit;
     }
     $pdo->prepare("UPDATE registrations SET tshirt_size = ? WHERE id = ?")->execute([$size, $id]);
@@ -3862,10 +4065,39 @@ if ($route === 'tshirt-admin') {
     // « Révoquer » implique « voir les connectés ».
     $tsCanDevices = canDoAction('tshirt_access.devices_view') || $tsCanRevoke;
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['export'] ?? '') === 'handouts') {
+        // Export CSV des remises (UTF-8 BOM + séparateur « ; » → ouverture directe
+        // dans Excel FR). Accessible à quiconque a accès à la page.
+        $rows = $pdo->query("SELECT h.inscription_no, r.nom, r.prenom, h.size, h.volunteer_name, h.created_at
+                               FROM tshirt_handout_log h
+                               LEFT JOIN registrations r ON r.inscription_no = h.inscription_no
+                              ORDER BY h.created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+        // 🔒 [FIX-PII] nom/prenom sont chiffrés (AES-GCM) en base : déchiffrer avant export.
+        $rows = decryptRows($rows);
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="remises-tshirts.csv"');
+        echo "\xEF\xBB\xBF"; // BOM UTF-8 pour Excel
+        $fp = fopen('php://output', 'w');
+        fputcsv($fp, ['N° inscription', 'Nom', 'Prénom', 'Taille', 'Bénévole', 'Date'], ';');
+        foreach ($rows as $r) {
+            fputcsv($fp, [$r['inscription_no'], $r['nom'] ?? '', $r['prenom'] ?? '', $r['size'], $r['volunteer_name'] ?? '', $r['created_at']], ';');
+        }
+        fclose($fp);
+        exit;
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // La lecture de base (page access) donne uniquement « Dernières remises ».
         // Chaque bloc supplémentaire est renvoyé seulement si le droit correspondant
         // est accordé (évite d'exposer token / demandes / appareils sans permission).
+        // nom/prénom joints depuis registrations (LEFT JOIN : une remise reste
+        // affichée même si l'inscrit a été supprimé entre-temps).
+        // 🔒 [FIX-PII] nom/prenom chiffrés (AES-GCM) en base → déchiffrer avant affichage.
+        $handouts = $pdo->query("SELECT h.inscription_no, h.size, h.volunteer_name, h.created_at, r.nom, r.prenom
+                                   FROM tshirt_handout_log h
+                                   LEFT JOIN registrations r ON r.inscription_no = h.inscription_no
+                                  ORDER BY h.created_at DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
+        $handouts = decryptRows($handouts);
         $out = [
             'ok'    => true,
             'perms' => [
@@ -3874,8 +4106,7 @@ if ($route === 'tshirt-admin') {
                 'devices_view'   => $tsCanDevices,
                 'devices_revoke' => $tsCanRevoke,
             ],
-            'handouts' => $pdo->query("SELECT inscription_no, size, volunteer_name, created_at FROM tshirt_handout_log
-                                        ORDER BY created_at DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC),
+            'handouts' => $handouts,
         ];
         if ($tsCanManage) {
             $out['config'] = [
@@ -3912,9 +4143,18 @@ if ($route === 'tshirt-admin') {
         echo json_encode(['ok' => false, 'err' => 'Action non autorisée']);
         exit;
     };
-    if (in_array($action, ['toggle', 'regen', 'set_expiry'], true) && !$tsCanManage) $tsDeny();
+    if (in_array($action, ['toggle', 'regen', 'set_expiry', 'clear_handouts'], true) && !$tsCanManage) $tsDeny();
     if (in_array($action, ['approve', 'refuse'], true) && !$tsCanApprove)             $tsDeny();
     if ($action === 'revoke' && !$tsCanRevoke)                                        $tsDeny();
+
+    if ($action === 'clear_handouts') {
+        // Vide le journal des remises (ex. avant une nouvelle session). TRUNCATE si
+        // possible, repli DELETE si une contrainte l'empêche.
+        try { $pdo->exec('TRUNCATE TABLE tshirt_handout_log'); }
+        catch (\Throwable $e) { $pdo->exec('DELETE FROM tshirt_handout_log'); }
+        echo json_encode(['ok' => true]);
+        exit;
+    }
 
     if ($action === 'toggle') {
         $enable = !empty($body['enabled']);

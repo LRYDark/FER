@@ -780,7 +780,8 @@ let usrTbl = $('#tblUsers').DataTable({
   ajax:{url:'../config/api.php?route=users',dataSrc:''},
   columns: [
     { data: 'id', title: '#' },
-    { data: 'email', title: 'Email' },
+    // \ud83d\udd12 [SEC-XSS] render.text() : \u00e9chappe l'email au rendu (d\u00e9fense en profondeur).
+    { data: 'email', title: 'Email', render: $.fn.dataTable.render.text() },
     { data: 'role', title: 'R\u00f4le' },
     {
       data: 'is_active',

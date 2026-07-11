@@ -487,6 +487,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'qrcode' => '', 'inscription_no' => null,
             ];
             break;
+        case 'bulk_recap':
+            // Récap d'inscription groupée (inscription multiple depuis le dashboard /
+            // register groupé) : liste des membres + UNIQUE QR « groupé ». Le vrai envoi
+            // joint ce QR si l'envoi QR est activé (il liste tous les inscrits au scan).
+            $recapRows = '';
+            foreach ([['S1','Dupont','Marie'],['S2','Dupont','Paul'],['S3','Martin','Léa']] as $rr) {
+                $recapRows .= '<tr>'
+                    . '<td style="padding:8px;border:1px solid #fbcfe8;font-family:monospace;">'.$rr[0].'</td>'
+                    . '<td style="padding:8px;border:1px solid #fbcfe8;">'.$rr[1].'</td>'
+                    . '<td style="padding:8px;border:1px solid #fbcfe8;">'.$rr[2].'</td></tr>';
+            }
+            $vars += [
+                'type' => 'info',
+                'mailTitle' => 'Inscription groupée confirmée',
+                'description' => '<p>Bonjour,</p><p>Nous confirmons l\'inscription des <strong>3</strong> personne(s) ci-dessous.</p>'
+                    . '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;"><thead><tr style="background:#fdf2f6;">'
+                    . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
+                    . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
+                    . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
+                    . '</tr></thead><tbody>'.$recapRows.'</tbody></table>',
+                'firstname' => null, 'lastname' => null, 'date' => null,
+                'qrcode' => $qrDataUri, 'inscription_no' => null,
+            ];
+            break;
         case 'test':
             $vars += [
                 'type' => 'info',
@@ -1116,6 +1140,9 @@ $jsConfig = json_encode([
       </button>
       <button type="button" class="preview-btn" data-preview="bulk" style="width:100%;margin-bottom:8px">
         <span style="font-weight:600">Envoi groupé</span><br><span style="font-size:11px;color:#94a3b8">Mail personnalisé (depuis utilisateurs)</span>
+      </button>
+      <button type="button" class="preview-btn" data-preview="bulk_recap" style="width:100%;margin-bottom:8px">
+        <span style="font-weight:600">Récap groupé</span><br><span style="font-size:11px;color:#94a3b8">Inscription multiple — avec QR groupé</span>
       </button>
       <button type="button" class="preview-btn" data-preview="test" style="width:100%;margin-bottom:8px">
         <span style="font-weight:600">Mail test</span><br><span style="font-size:11px;color:#94a3b8">Test simple de configuration</span>

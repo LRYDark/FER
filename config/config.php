@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../vendor/autoload.php';   // charge l'autoloader Composer
+require_once __DIR__ . '/debug.php';                // mode debug (barre GLPI + profileur SQL + handlers)
 
 // ── Garde d'installation ────────────────────────────────────
 // Si .env est absent ou incomplet → rediriger vers install.php
@@ -53,9 +54,17 @@ $options = [
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
-$pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
+$pdo = new DebugPDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASS'], $options);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec("SET time_zone = '+02:00'");
+
+// 🕒 Aligne le fuseau de PHP sur celui de MySQL (+02:00) pour que strtotime()/date()
+// interprètent les dates de la BDD SANS décalage. Etc/GMT-2 = UTC+2 (offset FIXE,
+// identique au SET time_zone MySQL ci-dessus — volontairement pas « Europe/Paris »
+// qui passerait à +01:00 en hiver et recréerait un décalage). Corrige les calculs
+// d'expiration basés sur strtotime (verrouillage compte, code 2FA e-mail, campagnes
+// t-shirt) qui, PHP en UTC, se trompaient de ~2 h.
+date_default_timezone_set('Etc/GMT-2');
 
 try {
     $stmt = $pdo->prepare(
@@ -72,7 +81,8 @@ try {
     $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 }
 
-// Ne jamais exposer les erreurs PHP côté client (API JSON, pages HTML)
+// Ne JAMAIS exposer les erreurs PHP côté client (API JSON, pages HTML) : l'affichage
+// se fait uniquement via la barre de debug (admin + mode debug), cf. config/debug.php.
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 
@@ -83,12 +93,19 @@ if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
 ini_set('log_errors', 1);
 ini_set('error_log', $logDir . '/php-error.log');
 
-if($GLOBALS['debogage'] == 1){
-    // Debug actif : tout loguer (notices, warnings, errors...)
-    error_reporting(E_ALL);
-} else {
-    // Debug inactif : loguer uniquement les erreurs critiques
-    error_reporting(E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR);
+// On journalise TOUJOURS le maximum d'informations (toutes les erreurs) dans
+// php-error.log, que le mode debug soit actif ou non. Le gestionnaire personnalisé
+// respecte l'opérateur @ et laisse PHP journaliser ; il collecte en plus les erreurs
+// pour la barre de debug quand celle-ci est active.
+error_reporting(E_ALL);
+set_error_handler('fer_error_handler');
+register_shutdown_function('fer_shutdown_handler');
+
+if ($GLOBALS['debogage'] == 1) {
+    // Mode debug : profiling des requêtes SQL + affichage (barre + cartes rouges) réservé
+    // à l'admin sur les pages HTML (jamais sur l'API/JSON), via DebugBar::maybeRender().
+    DebugBar::$enabled = true;
+    try { $pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [DebugPDOStatement::class]); } catch (\Throwable $e) {}
 }
 
 ini_set('session.cookie_httponly', 1);
@@ -96,6 +113,105 @@ ini_set('session.cookie_secure', 1);
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_strict_mode', 1);
 session_start();
+
+/* ───── IP cliente fiable (anti-spoofing) ──────────────────────────────────
+ * 🔒 [SEC-IP] Par défaut on n'utilise QUE REMOTE_ADDR. Les en-têtes
+ * X-Forwarded-For / CF-Connecting-IP sont falsifiables par le client : les
+ * honorer sans condition permet de contourner les bans/rate-limits et de faire
+ * bannir l'IP d'un tiers. Si le site est derrière un proxy/CDN de confiance
+ * (Cloudflare, reverse-proxy hébergeur…), lister ses IP/CIDR dans la variable
+ * d'environnement TRUSTED_PROXIES (séparées par des virgules) : les en-têtes de
+ * forwarding ne sont alors lus QUE si REMOTE_ADDR figure dans cette liste.
+ * ────────────────────────────────────────────────────────────────────────── */
+function fer_ip_in_cidr(string $ip, string $cidr): bool {
+    $cidr = trim($cidr);
+    if ($cidr === '') return false;
+    if (strpos($cidr, '/') === false) return $ip === $cidr; // IP exacte
+    [$subnet, $bits] = explode('/', $cidr, 2);
+    $bits = (int) $bits;
+    $ipBin  = @inet_pton($ip);
+    $subBin = @inet_pton($subnet);
+    if ($ipBin === false || $subBin === false || strlen($ipBin) !== strlen($subBin)) return false;
+    $bytes = intdiv($bits, 8);
+    $rem   = $bits % 8;
+    if ($bytes > 0 && strncmp($ipBin, $subBin, $bytes) !== 0) return false;
+    if ($rem === 0) return true;
+    $mask = chr((0xff << (8 - $rem)) & 0xff);
+    return ($ipBin[$bytes] & $mask) === ($subBin[$bytes] & $mask);
+}
+
+function fer_client_ip(): string {
+    $remote = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    static $trusted = null;
+    if ($trusted === null) {
+        $raw = $_ENV['TRUSTED_PROXIES'] ?? (getenv('TRUSTED_PROXIES') ?: '');
+        $trusted = array_filter(array_map('trim', explode(',', (string) $raw)));
+    }
+    if (empty($trusted)) return $remote; // aucun proxy de confiance → REMOTE_ADDR seul
+    $isTrusted = false;
+    foreach ($trusted as $cidr) {
+        if (fer_ip_in_cidr($remote, $cidr)) { $isTrusted = true; break; }
+    }
+    if (!$isTrusted) return $remote;
+    // REMOTE_ADDR est un proxy de confiance : on peut honorer les en-têtes de forwarding.
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])
+        && filter_var($_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {
+        return $_SERVER['HTTP_CF_CONNECTING_IP'];
+    }
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $first = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (filter_var($first, FILTER_VALIDATE_IP)) return $first;
+    }
+    return $remote;
+}
+
+/* ───── Timeout de session par inactivité ──────────────────────────────────
+ * 🔒 [SEC-SESSION] Durée configurable (Réglages → setting.session_lifetime, en
+ * minutes ; 0 = jamais). N'affecte QUE les sessions authentifiées : les visiteurs
+ * publics ne sont jamais déconnectés. À l'expiration, on détruit la session ;
+ * les gardes des pages (requirePage/requireRole) redirigent alors vers login.
+ * Idempotent si la colonne n'existe pas encore (avant migration).
+ * ────────────────────────────────────────────────────────────────────────── */
+if (isset($_SESSION['uid'])) {
+    $__idleLife = 0; $__absLife = 0;
+    try {
+        $__srow = $pdo->query('SELECT session_lifetime, session_absolute_lifetime FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+        $__idleLife = (int) ($__srow['session_lifetime'] ?? 0);
+        $__absLife  = (int) ($__srow['session_absolute_lifetime'] ?? 0);
+    } catch (\Throwable $e) {
+        // Colonne "absolute" absente (avant migration) → on ne lit que l'inactivité.
+        try { $__idleLife = (int) ($pdo->query('SELECT session_lifetime FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0); }
+        catch (\Throwable $e2) { $__idleLife = 0; }
+    }
+
+    $__now = time();
+    $__expired = false;
+
+    // Cap ABSOLU : déconnexion X minutes après la connexion, même si actif.
+    // login_time est initialisé ici au 1er passage authentifié (≈ juste après le login).
+    if ($__absLife > 0) {
+        if (!isset($_SESSION['login_time'])) $_SESSION['login_time'] = $__now;
+        if (($__now - (int) $_SESSION['login_time']) > $__absLife * 60) $__expired = true;
+    }
+    // Timeout d'INACTIVITÉ : X minutes sans requête.
+    if (!$__expired && $__idleLife > 0) {
+        $__last = $_SESSION['last_activity'] ?? $__now;
+        if (($__now - $__last) > $__idleLife * 60) $__expired = true;
+    }
+
+    if ($__expired) {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $__p = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $__p['path'], $__p['domain'], $__p['secure'], $__p['httponly']);
+        }
+        session_destroy();
+        $_SESSION = []; // pour la suite de la requête : utilisateur non authentifié
+    } elseif ($__idleLife > 0 || $__absLife > 0) {
+        $_SESSION['last_activity'] = $__now;
+    }
+    unset($__idleLife, $__absLife);
+}
 
 /* ───── Enforcement IP ban global ──────────────────────────────────────────
  * Vérifie si l'IP du visiteur est dans login_banned_ips dès le require de
@@ -121,15 +237,9 @@ do {
         break; // Table absente : pas de check possible
     }
 
-    // 3. Récupérer l'IP réelle (gestion proxy/Cloudflare)
-    $__ip = '';
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        $__ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
-    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $__ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
-    } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
-        $__ip = $_SERVER['REMOTE_ADDR'];
-    }
+    // 3. Récupérer l'IP réelle (REMOTE_ADDR seul par défaut ; en-têtes de
+    //    forwarding honorés uniquement via TRUSTED_PROXIES, cf. fer_client_ip()).
+    $__ip = fer_client_ip();
     if (empty($__ip)) break;
 
     // 4. Vérifier le ban actif (NULL = permanent, future date = temporaire)
@@ -967,6 +1077,30 @@ function getNotifyRecipients(PDO $pdo): array {
     }
     // Fallback : tous les admins actifs
     return $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+}
+
+/**
+ * Détermine si le bandeau flash doit être affiché, selon le mode choisi :
+ *   - 'on'   → toujours affiché
+ *   - 'off'  → jamais
+ *   - 'auto' → affiché entre flash_info_start et flash_info_end (bornes optionnelles) :
+ *              s'active seul au début et se désactive seul à la fin (évalué à chaque
+ *              chargement de page, aucun cron nécessaire).
+ * Rétrocompatible : si flash_info_mode est absent (avant migration), retombe sur
+ * l'ancien flag flash_info_active.
+ */
+function flashBannerActive(array $s): bool {
+    $mode = $s['flash_info_mode'] ?? (!empty($s['flash_info_active']) ? 'on' : 'off');
+    if ($mode === 'on') return true;
+    if ($mode === 'auto') {
+        $now   = time();
+        $start = !empty($s['flash_info_start']) ? strtotime((string) $s['flash_info_start']) : null;
+        $end   = !empty($s['flash_info_end'])   ? strtotime((string) $s['flash_info_end'])   : null;
+        if ($start !== null && $now < $start) return false;
+        if ($end   !== null && $now >= $end)  return false;
+        return true;
+    }
+    return false; // 'off'
 }
 
 // 🔒 [SEC-01] URL de base fiable — empêche le Host header injection (CWE-644)

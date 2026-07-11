@@ -91,64 +91,9 @@ if (file_exists($envPath)) {
     }
 }
 
-// ── DEBUG TEMPORAIRE — à supprimer après diagnostic ────────
-// install.php?phpinfo → phpinfo() complet
-if (isset($_GET['phpinfo'])) {
-    phpinfo();
-    exit;
-}
-// install.php?phpdiag → diagnostic texte
-if (isset($_GET['phpdiag'])) {
-    header('Content-Type: text/plain; charset=utf-8');
-    echo "=== DIAGNOSTIC PHP ===\n\n";
-    echo "PHP version  : " . PHP_VERSION . "\n";
-    echo "PHP SAPI     : " . PHP_SAPI . "\n";
-    echo "PHP binary   : " . PHP_BINARY . "\n";
-    echo "php.ini      : " . php_ini_loaded_file() . "\n";
-    echo "Scan dir     : " . (php_ini_scanned_files() ?: 'aucun') . "\n";
-    echo "OPcache      : " . (function_exists('opcache_get_status') ? 'actif' : 'inactif') . "\n\n";
-
-    echo "--- Tests fonctionnels ---\n";
-    echo "class PDO             : " . (class_exists('PDO') ? 'OUI' : 'NON') . "\n";
-    echo "PDO drivers           : " . (class_exists('PDO') ? implode(', ', PDO::getAvailableDrivers()) : 'N/A') . "\n";
-    echo "mb_strlen             : " . (function_exists('mb_strlen') ? 'OUI' : 'NON') . "\n";
-    echo "json_encode           : " . (function_exists('json_encode') ? 'OUI' : 'NON') . "\n";
-    echo "DOMDocument           : " . (class_exists('DOMDocument') ? 'OUI' : 'NON') . "\n";
-    echo "finfo_open            : " . (function_exists('finfo_open') ? 'OUI' : 'NON') . "\n";
-    echo "mime_content_type     : " . (function_exists('mime_content_type') ? 'OUI' : 'NON') . "\n";
-    echo "imagecreatetruecolor  : " . (function_exists('imagecreatetruecolor') ? 'OUI' : 'NON') . "\n";
-    echo "iconv                 : " . (function_exists('iconv') ? 'OUI' : 'NON') . "\n";
-    echo "XMLReader             : " . (class_exists('XMLReader') ? 'OUI' : 'NON') . "\n";
-    echo "XMLWriter             : " . (class_exists('XMLWriter') ? 'OUI' : 'NON') . "\n";
-    echo "ZipArchive            : " . (class_exists('ZipArchive') ? 'OUI' : 'NON') . "\n";
-    echo "gzopen                : " . (function_exists('gzopen') ? 'OUI' : 'NON') . "\n";
-    echo "openssl_encrypt       : " . (function_exists('openssl_encrypt') ? 'OUI' : 'NON') . "\n";
-    echo "curl_init             : " . (function_exists('curl_init') ? 'OUI' : 'NON') . "\n";
-
-    echo "\n--- extension_loaded() ---\n";
-    foreach (['pdo','pdo_mysql','nd_pdo_mysql','PDO','PDO_MYSQL','ND_PDO_MYSQL',
-              'mbstring','dom','fileinfo','gd','xmlreader','xmlwriter','zip'] as $e) {
-        echo str_pad($e, 20) . ": " . (extension_loaded($e) ? 'OUI' : 'NON') . "\n";
-    }
-
-    echo "\n--- get_loaded_extensions() (toutes) ---\n";
-    $exts = get_loaded_extensions();
-    sort($exts);
-    echo implode(', ', $exts) . "\n";
-
-    echo "\n--- Fichiers .ini additionnels ---\n";
-    $scanned = php_ini_scanned_files();
-    if ($scanned) {
-        echo $scanned . "\n";
-    } else {
-        echo "(aucun fichier .ini additionnel détecté)\n";
-    }
-
-    echo "\n--- Fichier install.php ---\n";
-    echo "Dernière modif : " . date('Y-m-d H:i:s', filemtime(__FILE__)) . "\n";
-    echo "Taille         : " . filesize(__FILE__) . " octets\n";
-    exit;
-}
+// 🔒 [SEC-INFO] Les endpoints de diagnostic ?phpinfo / ?phpdiag ont été retirés :
+// avant installation (.env absent), ils étaient accessibles sans authentification et
+// divulguaient versions, chemins et configuration serveur (aide à l'intrusion).
 
 // ── Vérification des prérequis PHP ─────────────────────────
 function checkPhpPrerequisites(): array
@@ -559,6 +504,9 @@ function getCreateTableStatements(): array
           `mail_phone` VARCHAR(50) DEFAULT NULL,
           `flash_info_text` VARCHAR(500) DEFAULT NULL,
           `flash_info_active` TINYINT(1) NOT NULL DEFAULT 0,
+          `flash_info_mode` ENUM('on','off','auto') NOT NULL DEFAULT 'off',
+          `flash_info_start` DATETIME DEFAULT NULL,
+          `flash_info_end` DATETIME DEFAULT NULL,
           `qrcode_mail_mode` ENUM('none','all','first_x') NOT NULL DEFAULT 'none',
           `qrcode_mail_limit` INT(11) NOT NULL DEFAULT 0,
           `titleAccueil_mobile` TEXT DEFAULT NULL,
@@ -569,6 +517,8 @@ function getCreateTableStatements(): array
           `video_accueil` VARCHAR(255) DEFAULT 'FER.mp4',
           `maintenance_mode` TINYINT(1) NOT NULL DEFAULT 0,
           `maintenance_message` VARCHAR(500) DEFAULT NULL,
+          `session_lifetime` INT NOT NULL DEFAULT 0,
+          `session_absolute_lifetime` INT NOT NULL DEFAULT 0,
           `mail_template_config` TEXT DEFAULT NULL,
           `theme_primary_color` VARCHAR(7) DEFAULT '#db2777',
           `theme_secondary_color` VARCHAR(7) DEFAULT '#0f172a',
@@ -745,9 +695,11 @@ function getCreateTableStatements(): array
           `created_at` timestamp NULL DEFAULT current_timestamp(),
           `date_inscription` datetime DEFAULT current_timestamp(),
           `created_by` int(11) DEFAULT NULL,
+          `group_id` varchar(40) DEFAULT NULL,
           PRIMARY KEY (`id`),
           UNIQUE KEY `inscription_no` (`inscription_no`),
           KEY `created_by` (`created_by`),
+          KEY `group_id` (`group_id`),
           CONSTRAINT `registrations_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -1049,10 +1001,10 @@ function getDefaultInserts(): array
           (2, 'required_firstname',     'Prénom',           'text',   'prenom',      1, 1, 1, 1, 1, 1, 1, 1, 2,  NULL, 1),
           (3, 'required_phone',         'Téléphone',        'text',   'tel',         1, 0, 0, 1, 1, 1, 1, 1, 4,  NULL, 1),
           (4, 'required_email',         'Email',            'email',  'email',       1, 1, 0, 1, 1, 1, 1, 1, 3,  NULL, 1),
-          (5, 'required_date_of_birth', 'Date de naissance','date',   'naissance',   1, 0, 0, 1, 1, 1, 1, 1, 5,  NULL, 1),
+          (5, 'required_date_of_birth', 'Âge',              'date',   'naissance',   1, 0, 0, 1, 1, 1, 1, 1, 5,  NULL, 1),
           (6, 'required_sex',           'Sexe',             'select', 'sexe',        1, 0, 0, 1, 1, 1, 1, 1, 6,  'H,F,Autre', 0),
           (7, 'required_city',          'Ville',            'text',   'ville',       1, 0, 0, 1, 1, 1, 1, 1, 7,  NULL, 1),
-          (8, 'required_company',       'Entreprise',       'text',   'entreprise',  1, 0, 0, 1, 1, 1, 1, 1, 8,  NULL, 1),
+          (8, 'required_company',       'Entreprise / Groupe','text', 'entreprise',  1, 0, 0, 1, 1, 1, 1, 1, 8,  NULL, 1),
           (9, 'required_tshirt',        'Taille T-shirt',   'select', 'tshirt_size', 0, 0, 0, 1, 0, 1, 0, 0, 9,  '-,XS,S,M,L,XL,XXL', 0),
           (10,'required_montant',       'Montant dû',       'number', 'montant_du',  0, 0, 1, 1, 0, 1, 1, 0, 10, NULL, 0),
           (11,'custom_commentaire',     'Commentaire',      'textarea','commentaire',1, 0, 0, 1, 1, 1, 1, 1, 11, NULL, 1),

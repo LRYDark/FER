@@ -21,6 +21,23 @@ try {
         && !empty($cfg['campaign_token'])
         && (empty($cfg['expires_at']) || strtotime($cfg['expires_at']) >= time());
 } catch (\Throwable $e) { $open = false; }
+
+// Un admin connecté disposant du droit « Scanner QR » (dashboard.scan_qr) accède
+// directement au scanner (mode centralisé) sans passer par le circuit de validation
+// bénévole ni exiger une campagne ouverte.
+$isAdminScan = function_exists('canDoAction') && canDoAction('dashboard.scan_qr');
+// E-mail du compte admin connecté (affiché en sous-titre à la place d'« Espace bénévoles »).
+$adminEmail = '';
+if ($isAdminScan) {
+    try {
+        $uid = function_exists('currentUserId') ? currentUserId() : null;
+        if ($uid) {
+            $st = $pdo->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+            $st->execute([$uid]);
+            $adminEmail = (string)($st->fetchColumn() ?: '');
+        }
+    } catch (\Throwable $e) { $adminEmail = ''; }
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -49,7 +66,7 @@ try {
 
   <div class="ts-head">
     <h1><i class="bi bi-tshirt me-2"></i>Remise des T-shirts</h1>
-    <p>Espace bénévoles — Forbach en Rose</p>
+    <p id="tsSubtitle">Espace bénévoles — Forbach en Rose</p>
   </div>
 
   <!-- ══════ Écran : accès fermé ══════ -->
@@ -120,6 +137,15 @@ try {
       <div id="saveStatus" class="mt-3 text-center ts-hidden"></div>
     </div>
 
+    <!-- Carte GROUPE (QR groupé) : tous les inscrits du groupe, une taille chacun -->
+    <div id="groupCard" class="ts-card p-4 ts-hidden">
+      <div class="fw-bold text-center mb-3" id="groupTitle"></div>
+      <div id="groupList"></div>
+      <div class="text-center mt-3">
+        <button type="button" id="groupDone" class="btn btn-dark"><i class="bi bi-qr-code-scan me-2"></i>Scanner suivant</button>
+      </div>
+    </div>
+
     <p class="text-center text-muted small mt-3" id="whoAmI"></p>
   </div>
 
@@ -160,10 +186,20 @@ try {
   var currentPerson = null;
 
   /* ═══ Démarrage : quel écran afficher ? ═══ */
+  // Admin connecté (droit dashboard.scan_qr) : accès direct au scanner, sans passer
+  // par la demande d'accès bénévole ni l'ouverture de campagne.
+  var ADMIN_MODE = <?= $isAdminScan ? 'true' : 'false' ?>;
+  var OPERATOR_NAME = <?= json_encode($adminEmail) ?>;
+  // Affiche qui opère en sous-titre : e-mail du compte (admin) ou nom du bénévole.
+  function setOperator(label){
+    var el = document.getElementById('tsSubtitle');
+    if (el && label) el.textContent = label;
+  }
   function boot(){
+    if (ADMIN_MODE){ setOperator(OPERATOR_NAME ? ('Admin — ' + OPERATOR_NAME) : 'Admin connecté'); startHandout(); return; }
     apiGet('tshirt-access-status').then(function(res){
       if (!res || !res.open){ show('closed'); stopPoll(); return; }
-      if (res.status === 'approved'){ startHandout(); return; }
+      if (res.status === 'approved'){ if (res.operator) setOperator('Bénévole — ' + res.operator); startHandout(); return; }
       if (res.status === 'pending'){ show('request'); enterWaiting(); return; }
       // none / refused / expired → formulaire
       show('request');
@@ -200,7 +236,7 @@ try {
     pollTimer = setInterval(function(){
       apiGet('tshirt-access-status').then(function(res){
         if (!res || !res.open){ show('closed'); stopPoll(); return; }
-        if (res.status === 'approved'){ stopPoll(); startHandout(); }
+        if (res.status === 'approved'){ stopPoll(); if (res.operator) setOperator('Bénévole — ' + res.operator); startHandout(); }
         else if (res.status === 'refused'){
           stopPoll();
           document.getElementById('reqForm').classList.remove('ts-hidden');
@@ -213,9 +249,12 @@ try {
   function stopPoll(){ if (pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
 
   /* ═══ Interface de remise ═══ */
+  var handoutBound = false;   // évite de re-brancher les écouteurs à chaque appel (reprise de veille)
   function startHandout(){
     show('handout');
     showCamera();
+    if (handoutBound) return;
+    handoutBound = true;
     var si = document.getElementById('searchInput');
     si.addEventListener('input', onSearchInput);
     // Cliquer / entrer dans la barre de recherche ferme la caméra pour libérer la place.
@@ -223,6 +262,24 @@ try {
     document.getElementById('searchBtn').addEventListener('click', function(){ doSearch(document.getElementById('searchInput').value); });
     document.getElementById('camBtn').addEventListener('click', function(){ document.getElementById('searchInput').blur(); showCamera(); });
     document.getElementById('sizeBtns').addEventListener('click', onSizeClick);
+    // Groupe : sauvegarde de la taille par membre (changement de select).
+    document.getElementById('groupList').addEventListener('change', onGroupSizeChange);
+    document.getElementById('groupDone').addEventListener('click', resetToScan);
+  }
+
+  function onGroupSizeChange(e){
+    var sel = e.target.closest('.ts-grp-size');
+    if (!sel) return;
+    var row = sel.closest('.ts-grp-row');
+    var id  = row && row.dataset.id;
+    if (!id) return;
+    var st = row.querySelector('.ts-grp-status');
+    st.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    apiSend('tshirt-assign','PUT',{id:id, size:sel.value}).then(function(res){
+      if (res && res.ok){ st.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>'; }
+      else if (res && res.err === 'Accès non validé'){ boot(); }
+      else { st.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>'; }
+    }).catch(function(){ st.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>'; });
   }
 
   var camWrap = document.getElementById('qrReader');
@@ -247,6 +304,22 @@ try {
     var s = scanner; scanner = null; scannerRunning = false;   // libère la référence tout de suite (évite les courses)
     s.stop().then(function(){ try{ s.clear(); }catch(_){} }).catch(function(){});
   }
+  // Redémarre proprement le flux caméra (souvent coupé après une mise en veille du
+  // téléphone) : on arrête l'instance en cours PUIS on en relance une neuve. Le garde
+  // `restarting` évite une double instance si plusieurs événements de reprise se
+  // déclenchent ensemble (visibilitychange + focus + pageshow).
+  var restarting = false;
+  function restartScanner(){
+    if (restarting) return;
+    restarting = true;
+    var done = function(){ restarting = false; startScanner(); };
+    if (scanner){
+      var s = scanner; scanner = null; scannerRunning = false;
+      s.stop().then(function(){ try{ s.clear(); }catch(_){} done(); }).catch(done);
+    } else {
+      done();
+    }
+  }
 
   // Masque la zone caméra + coupe le flux (libère la place pour la recherche).
   function hideCamera(){ if (camWrap){ camWrap.classList.add('ts-hidden'); } stopScanner(); }
@@ -270,10 +343,44 @@ try {
         return;
       }
       var list = res.results || [];
+      if (res.group){ clearResults(); showGroup(list); return; } // QR groupé
       if (list.length === 0){ showResults([], q); }
       else if (list.length === 1){ clearResults(); showPerson(list[0]); }
       else { showResults(list, q); }
     });
+  }
+
+  var GROUP_SIZES = ['-','XS','S','M','L','XL','XXL'];
+  // QR groupé → liste tous les membres, une taille (select) chacun, sauvegarde immédiate.
+  function showGroup(members){
+    currentPerson = null;
+    document.getElementById('personCard').classList.add('ts-hidden');
+    var card = document.getElementById('groupCard');
+    var listEl = document.getElementById('groupList');
+    var title = document.getElementById('groupTitle');
+    card.classList.remove('ts-hidden');
+    if (!members || !members.length){
+      title.innerHTML = '<div class="alert alert-danger py-2 mb-0">Groupe introuvable</div>';
+      listEl.innerHTML = '';
+      return;
+    }
+    title.innerHTML = '<i class="bi bi-people-fill me-2"></i>Groupe — ' + members.length + ' inscrit(s)';
+    listEl.innerHTML = members.map(function(p){
+      var cur = p.tshirt_size || '-';
+      var elig = !p.paid ? '<span class="badge bg-danger">Non payé</span>'
+               : (p.eligible ? '<span class="badge bg-success">Éligible</span>' : '<span class="badge bg-danger">Non éligible</span>');
+      var warn = (cur !== '-') ? '<span class="badge bg-warning text-dark ms-1">déjà : ' + escapeHtml(cur) + '</span>' : '';
+      var opts = GROUP_SIZES.map(function(s){ return '<option'+(s===cur?' selected':'')+'>'+s+'</option>'; }).join('');
+      return '<div class="ts-grp-row d-flex align-items-center gap-2 border rounded p-2 mb-2" data-id="'+p.id+'">'
+           +   '<div class="flex-grow-1" style="min-width:0">'
+           +     '<div class="fw-semibold text-truncate">'+escapeHtml((p.prenom||'')+' '+(p.nom||''))+' <span class="text-muted small">N°'+escapeHtml(p.inscription_no)+'</span></div>'
+           +     '<div class="small">'+elig+' '+warn+'</div>'
+           +   '</div>'
+           +   '<select class="form-select form-select-sm ts-grp-size" style="width:90px;flex:0 0 auto">'+opts+'</select>'
+           +   '<span class="ts-grp-status" style="width:26px;flex:0 0 auto;text-align:center"></span>'
+           + '</div>';
+    }).join('');
+    card.scrollIntoView({behavior:'smooth', block:'center'});
   }
 
   function showResults(list, q){
@@ -355,6 +462,7 @@ try {
   function resetToScan(){
     currentPerson = null;
     document.getElementById('personCard').classList.add('ts-hidden');
+    document.getElementById('groupCard').classList.add('ts-hidden');
     document.getElementById('saveStatus').classList.add('ts-hidden');
     clearResults();
     var si = document.getElementById('searchInput'); si.value = '';
@@ -367,6 +475,26 @@ try {
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
   }
+
+  /* ═══ Reprise après veille / retour d'arrière-plan ═══
+     Au réveil du téléphone, le flux caméra est souvent coupé et les minuteries gelées.
+     Dès que la page redevient visible, on la remet en état opérationnel sans rechargement :
+      - écran de remise avec caméra visible → on relance le flux caméra ;
+      - autre écran (attente / demande d'accès) → on revérifie l'état d'accès. */
+  function onResume(){
+    if (document.hidden) return;
+    // On relance UNIQUEMENT si l'écran de remise est actif, la caméra visible ET le
+    // scanner tournait réellement avant la veille. Sinon on ne touche à rien — sans ce
+    // garde, l'ouverture d'un <select> (taille) déclenchait un redémarrage qui le refermait.
+    if (screens.handout && !screens.handout.classList.contains('ts-hidden')){
+      var camVisible = camWrap && !camWrap.classList.contains('ts-hidden');
+      if (camVisible && scannerRunning) restartScanner();
+    }
+  }
+  // Seule la vraie mise en veille (visibilitychange) déclenche la reprise. « focus » se
+  // déclenchait aussi à chaque interaction (menu déroulant…) et cassait la saisie.
+  document.addEventListener('visibilitychange', onResume);
+  window.addEventListener('pageshow', function (e) { if (e.persisted) onResume(); }); // retour bfcache uniquement
 
   boot();
 })();

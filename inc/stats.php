@@ -62,6 +62,35 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
 <style>
+  /* Cartes de stats — grille responsive + style harmonisé (dashboard ≡ stats). */
+  .stats-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:.75rem;align-items:stretch}
+  .stats-cards .statCard{min-width:0;margin:0}
+  .stats-cards .statCard .card-body{display:flex;flex-direction:column;justify-content:center;min-height:104px;padding:1rem .75rem}
+  .stats-cards .statCard .stat-label{font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;display:flex;align-items:center;justify-content:center}
+  .stats-cards .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color:#1e293b;margin:0}
+  .stats-cards .statCard .stat-value--sm{font-size:1rem;font-weight:600;line-height:1.3}
+  .stats-cards .reg-stats-more{align-self:center;white-space:nowrap}
+  @media (max-width:575.98px){
+    .stats-cards{grid-template-columns:repeat(2,1fr);gap:.55rem}
+    .stats-cards .statCard:nth-child(3){grid-column:1/-1}
+    .stats-cards .statCard .card-body{min-height:82px;padding:.7rem .5rem}
+    .stats-cards .statCard .stat-value{font-size:1.5rem}
+    .stats-cards .reg-stats-more{grid-column:1/-1;justify-self:center;width:auto;padding-left:1.4rem;padding-right:1.4rem;margin-top:.35rem}
+  }
+  /* Sélecteur « Show N entries » sur UNE ligne (sinon le <select> hérite de
+     .form-select = block + width:100%, d'où l'empilement Show / 10 / entries). */
+  #tbl_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: #475569; font-weight: 400; }
+  #tbl_length select, #tbl_length .form-select {
+    display: inline-block !important;
+    width: auto !important;
+    min-width: 64px;
+    padding: 5px 30px 5px 10px;   /* place à droite pour la flèche */
+    font-size: 13px;
+    border: 1px solid #d4c4cb;
+    border-radius: 6px;
+    background-color: #fff;
+    background-position: right 9px center;
+  }
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .stat-card{border-radius:1.25rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
   .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
@@ -190,8 +219,10 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
     <input type="text" id="searchInput" class="form-control" placeholder="Rechercher…" style="max-width:320px">
   </div>
 
-  <!-- Cartes de stats année sélectionnée -->
-  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-3" id="cardsYear"></div>
+  <!-- Cartes de stats année sélectionnée (3 principales + bouton « Autres stats »).
+       Mêmes indicateurs que le dashboard, via js/reg-stats.js. -->
+  <div class="stats-cards mb-3" id="cardsYear"></div>
+  <?php include __DIR__ . '/_stats-more-modal.php'; ?>
 
   <!-- Tableau des inscriptions -->
   <div class="fer-tbl-wrap is-loading" id="statsTblWrap">
@@ -201,7 +232,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
       <thead>
         <tr>
           <th>#</th><th>Nom</th><th>Prénom</th><th>Tél</th><th>Email</th>
-          <th>Naissance</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th><th>Prestation</th>
+          <th>Âge</th><th>Sexe</th><th>Ville</th><th>T‑shirt</th><th>Prestation</th>
         </tr>
       </thead>
     </table>
@@ -213,9 +244,13 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>
-<script src="../js/admin-table-filters.js?v=1" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<script src="../js/admin-table-filters.js?v=2" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<!-- Calcul d'âge + cartes de stats partagées avec le dashboard (aucune duplication). -->
+<script src="../js/inscription-form.js?v=7" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<script src="../js/reg-stats.js?v=3" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 const stats = <?= json_encode($stats) ?>;
+const CHILD_AGE = <?= (int) ($childAge ?? 12) ?>;
 
 /* ─────────── 1. Graphiques généraux ─────────── */
 const lblYears = stats.map(s=>s.year);
@@ -272,23 +307,35 @@ new Chart(document.getElementById('chartCombined'),{
   }
 });
 
-/* ─────────── 2. Stat cards année sélectionnée ─────────── */
-function fillYearCards(year){
-  const s = stats.find(x=>x.year==year);
-  if(!s) {
-    console.error('Statistiques non trouvées pour l\'année:', year);
-    return;
-  }
+/* ─────────── 2. Stat cards année sélectionnée ───────────
+ * Calcul + rendu délégués au module partagé js/reg-stats.js (comme le dashboard).
+ * On charge les lignes de l'archive de l'année, on agrège CÔTÉ CLIENT avec l'année
+ * comme référence d'âge (une archive 2023 → âges de 2023), puis on affiche les 3
+ * cartes principales ; le bouton « Autres stats » ouvre le modal complet. */
+let _statsYearData = null; // dernières stats agrégées (pour le modal)
 
+function fillYearCards(year){
   const wrap = document.getElementById('cardsYear');
-  wrap.innerHTML = `
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">Total</div><div class="h5 ">${s.total_inscrits || 0}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">Âge moyen</div><div class="h5 ">${s.age_moyen?Number(s.age_moyen).toFixed(1)+' ans':'–'}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">Ville top</div><div class="h5 ">${s.ville_top || '–'}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">Entreprise top</div><div class="h5 ">${s.entreprise_top || '–'}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">+ Vieux H</div><div class="h5 ">${s.plus_vieux_h || '–'}</div></div></div>
-  <div class="col"><div class="stat-card text-center"><div class="stat-title">+ Vieille F</div><div class="h5 ">${s.plus_vieille_f || '–'}</div></div></div>`;
+  wrap.innerHTML = '<div class="text-muted">Chargement des statistiques…</div>';
+  fetch('../config/api.php?route=registrations-archive&year=' + encodeURIComponent(year), { credentials:'same-origin' })
+    .then(r => r.json())
+    .then(rows => {
+      if(!Array.isArray(rows)) rows = [];
+      _statsYearData = FERRegStats.compute(rows, { refYear: Number(year) });
+      FERRegStats.renderMainCards(wrap, _statsYearData);
+    })
+    .catch(err => {
+      console.error('Statistiques année indisponibles:', err);
+      wrap.innerHTML = '<div class="text-danger">Statistiques indisponibles.</div>';
+    });
 }
+
+// Ouverture du modal « Autres stats » (mêmes indicateurs que le dashboard).
+$(document).on('click', '[data-reg-stats-more]', function(){
+  if(!_statsYearData) return;
+  FERRegStats.renderModalBody(document.getElementById('statsMoreBody'), _statsYearData, { childAge: CHILD_AGE });
+  new bootstrap.Modal('#statsMoreModal').show();
+});
 
 // Initialiser avec l'année courante
 fillYearCards(<?= $currentYear ?>);
@@ -310,14 +357,24 @@ let tbl = $('#tbl').DataTable({
   },
   columns:[
     {data:'inscription_no'},
-    {data:'nom'},
-    {data:'prenom'},
-    {data:'tel'},
-    {data:'email'},
-    {data:'naissance'},
-    {data:'sexe'},
-    {data:'ville'},
-    {data:'tshirt_size'},
+    // 🔒 [SEC-XSS] render.text() : échappe les PII (nom/prénom/tél/email…) au rendu.
+    // Sans ça, DataTables insère la valeur brute en innerHTML → XSS stocké.
+    {data:'nom',render:$.fn.dataTable.render.text()},
+    {data:'prenom',render:$.fn.dataTable.render.text()},
+    {data:'tel',render:$.fn.dataTable.render.text()},
+    {data:'email',render:$.fn.dataTable.render.text()},
+    {data:'naissance',render:function(val,type){
+      // Colonne « Âge » : l'archive peut contenir un âge (nouveau modèle) ou une
+      // valeur héritée (année/date) → conversion en âge avec l'année sélectionnée
+      // comme référence. Tri/filtre sur la valeur numérique.
+      var age = (window.FERInscription)
+        ? FERInscription.ageFromBirth(val, Number(document.getElementById('selYear').value)) : null;
+      if(type!=='display') return (age==null?'':age);
+      return (!age?'–':(age+' ans')); // jamais « 0 ans » → tiret
+    }},
+    {data:'sexe',render:$.fn.dataTable.render.text()},
+    {data:'ville',render:$.fn.dataTable.render.text()},
+    {data:'tshirt_size',render:$.fn.dataTable.render.text()},
     {data:'prestation',defaultContent:'',render:function(val,type){
       if(type!=='display') return val;
       var lc = String(val||'').toLowerCase();
@@ -331,7 +388,8 @@ let tbl = $('#tbl').DataTable({
   pageLength:25,
   language:{loadingRecords:'Chargement…'},
   colReorder:true,   // déplacement des colonnes par glisser-déposer des en-têtes
-  dom:'tpr'
+  lengthMenu:[[10,25,50,100],[10,25,50,100]],
+  dom:'ltpr'
 });
 
 /* Filtres d'en-tête (entonnoir) — module partagé. Sexe / Ville / T-shirt / Prestation. */
@@ -344,6 +402,33 @@ $('#tbl').on('init.dt', function(){
     });
   }
 });
+
+/* Sort la pagination HORS du conteneur à défilement horizontal (.table-responsive) pour
+   qu'elle reste à la largeur de la page (comme le dashboard), au lieu de défiler avec le
+   tableau. Rejoué sur draw (la pagination est reconstruite à chaque redraw). */
+function moveStatsPaginateOut(){
+  var tableEl = document.getElementById('tbl');
+  if(!tableEl) return;
+  var scrollBox = tableEl.closest('.table-responsive');
+  if(!scrollBox) return;
+  var paginate = document.getElementById('tbl_paginate');
+  var length   = document.getElementById('tbl_length');
+  var info     = document.getElementById('tbl_info');
+  if(!paginate && !info && !length) return;
+  var footer = document.getElementById('statsTblFooter');
+  if(!footer){
+    footer = document.createElement('div');
+    footer.id = 'statsTblFooter';
+    // Sélecteur « Show N entries » à gauche, pagination à droite (comme le dashboard).
+    footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;';
+    scrollBox.parentElement.insertBefore(footer, scrollBox.nextSibling); // juste après le tableau scrollable
+  }
+  // Ordre : longueur (gauche) → info → pagination (droite).
+  if(length   && length.parentElement   !== footer) footer.appendChild(length);
+  if(info     && info.parentElement     !== footer) footer.appendChild(info);
+  if(paginate && paginate.parentElement !== footer) footer.appendChild(paginate);
+}
+$('#tbl').on('init.dt draw.dt', moveStatsPaginateOut);
 
 /* ─────────── 3b. Colonnes : ordre (ColReorder) + visibilité + largeurs ───────────
    Préférences PAR UTILISATEUR via la route ui-prefs (clés stats_col_*, distinctes

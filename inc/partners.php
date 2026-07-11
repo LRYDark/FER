@@ -734,6 +734,18 @@ if ($migrationDone) {
     }
     .album-align-col { padding-top: 26px; }
   }
+
+  /* Image : vignette cliquable (remplacer) + case « Supprimer ». */
+  .album-cover-thumb {
+    width: 110px; height: 110px; object-fit: cover;
+    border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;
+    cursor: pointer; display: block;
+    transition: border-color .15s, opacity .15s;
+  }
+  .album-cover-thumb:hover { border-color: var(--primary, #f42182); opacity: .85; }
+  .album-cover-preview { display: flex; flex-direction: column; gap: 1px; }
+  .album-cover-preview .album-delete-img-check { position: static; margin: 0; }
+  .album-cover-col.will-delete .album-cover-thumb { opacity: .35; filter: grayscale(1); }
 </style>
 </head>
 
@@ -1006,19 +1018,22 @@ if ($migrationDone) {
                               <div class="col-auto d-flex align-items-center album-align-col" style="min-width:30px">
                                 <span class="drag-handle-album" style="cursor:grab;color:#94a3b8;font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
                               </div>
+                              <div class="col-12 col-sm-auto album-cover-col<?= !empty($album['album_img']) ? ' has-cover' : '' ?>" style="min-width:120px">
+                                <label class="form-label" style="font-size:12px">Image</label>
+                                <?php if (!empty($album['album_img'])): ?>
+                                <div class="album-cover-preview">
+                                  <img src="../files/_partners/<?= htmlspecialchars($album['album_img']) ?>" class="album-cover-thumb" alt="Image" title="Cliquer pour remplacer l'image">
+                                  <div class="form-check album-delete-img-check">
+                                    <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImgPartner<?= $album['id'] ?>">
+                                    <label class="form-check-label text-danger" style="font-size:11px" for="delImgPartner<?= $album['id'] ?>">Supprimer</label>
+                                  </div>
+                                </div>
+                                <?php endif; ?>
+                                <input type="file" name="album_img" accept="image/*" class="form-control form-control-sm album-cover-input"<?= !empty($album['album_img']) ? ' style="display:none"' : '' ?>>
+                              </div>
                               <div class="col-12 col-sm">
                                 <label class="form-label" style="font-size:12px">Titre</label>
                                 <input type="text" name="album_title" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_title']) ?>">
-                              </div>
-                              <div class="col-12 col-sm-auto album-cover-col" style="min-width:140px">
-                                <label class="form-label" style="font-size:12px">Image</label>
-                                <input type="file" name="album_img" class="form-control form-control-sm">
-                                <?php if (!empty($album['album_img'])): ?>
-                                <div class="form-check mt-1 album-delete-img-check">
-                                  <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImgPartner<?= $album['id'] ?>">
-                                  <label class="form-check-label text-danger" style="font-size:11px" for="delImgPartner<?= $album['id'] ?>">Supprimer</label>
-                                </div>
-                                <?php endif; ?>
                               </div>
                               <div class="col-12 col-sm">
                                 <label class="form-label" style="font-size:12px">Description</label>
@@ -1188,6 +1203,25 @@ document.querySelectorAll('.sortable-albums').forEach(function(container) {
         body: form
       });
     }
+  });
+});
+
+// Image de partenaire : la vignette ouvre le sélecteur de fichier ; le fichier choisi
+// remplace l'aperçu ; « Supprimer » grise l'image (retrait effectif à l'enregistrement).
+document.querySelectorAll('.album-cover-col').forEach(function (col) {
+  var img   = col.querySelector('.album-cover-thumb');
+  var input = col.querySelector('.album-cover-input');
+  var del   = col.querySelector('input[name="delete_image"]');
+  if (img && input) img.addEventListener('click', function () { input.click(); });
+  if (input) input.addEventListener('change', function () {
+    if (input.files && input.files[0]) {
+      if (img) img.src = URL.createObjectURL(input.files[0]);
+      if (del) del.checked = false;
+      col.classList.remove('will-delete');
+    }
+  });
+  if (del) del.addEventListener('change', function () {
+    col.classList.toggle('will-delete', del.checked);
   });
 });
 </script>

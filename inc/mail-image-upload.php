@@ -28,13 +28,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['file']) || $_FILES['
 
 $file = $_FILES['file'];
 
+// 🔒 [SEC-SVG] Pas de SVG : un SVG est un document XML pouvant embarquer du
+// <script>. Servi statiquement depuis files/_imagemail/ (hors CSP PHP), il
+// s'exécuterait dans l'origine du site (XSS stocké). Formats raster uniquement.
 $allowedTypes = [
     'jpg'  => 'image/jpeg',
     'jpeg' => 'image/jpeg',
     'png'  => 'image/png',
     'gif'  => 'image/gif',
     'webp' => 'image/webp',
-    'svg'  => 'image/svg+xml',
 ];
 
 $maxSize = 5 * 1024 * 1024; // 5 MB

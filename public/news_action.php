@@ -24,7 +24,7 @@ case 'get_comments':
     $perPage = 5;
     if ($newsId <= 0) { echo json_encode(['success' => false]); exit; }
 
-    $currentIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $currentIp = fer_client_ip();
 
     try {
         $stmt = $pdo->prepare('SELECT id, parent_id, author_name, content, ip_address, likes, created_at, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed FROM news_comments WHERE news_id = :nid ORDER BY created_at ASC');
@@ -87,7 +87,7 @@ case 'add_comment':
     $authorName = htmlspecialchars(trim($_POST['author_name'] ?? ''), ENT_QUOTES, 'UTF-8');
     $content = htmlspecialchars(trim($_POST['content'] ?? ''), ENT_QUOTES, 'UTF-8');
     $parentId = !empty($_POST['parent_id']) ? intval($_POST['parent_id']) : null;
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = fer_client_ip();
 
     // Validation
     if ($newsId <= 0 || $authorName === '' || $content === '') {
@@ -196,7 +196,7 @@ case 'add_comment':
 case 'edit_comment':
     $commentId = (int)($_POST['comment_id'] ?? 0);
     $content = htmlspecialchars(trim($_POST['content'] ?? ''), ENT_QUOTES, 'UTF-8');
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = fer_client_ip();
     if ($commentId <= 0 || $content === '') {
         echo json_encode(['success' => false, 'error' => 'Données invalides.']);
         exit;
@@ -230,7 +230,7 @@ case 'edit_comment':
 
 case 'delete_own_comment':
     $commentId = (int)($_POST['comment_id'] ?? 0);
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = fer_client_ip();
     if ($commentId <= 0) { echo json_encode(['success' => false]); exit; }
     try {
         $stmt = $pdo->prepare('SELECT news_id, parent_id, ip_address, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS elapsed FROM news_comments WHERE id = :id LIMIT 1');
@@ -266,7 +266,7 @@ case 'delete_own_comment':
 
 case 'like_comment':
     $commentId = (int)($_POST['comment_id'] ?? 0);
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $ip = fer_client_ip();
     if ($commentId <= 0) { echo json_encode(['success' => false]); exit; }
 
     try {

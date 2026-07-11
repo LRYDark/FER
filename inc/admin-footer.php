@@ -77,7 +77,9 @@ document.addEventListener('DOMContentLoaded', function() {
         tshirtMode = !tshirtMode;
         if (typeof refreshButtons === 'function') refreshButtons();
         if (typeof applyTshirtMode === 'function') applyTshirtMode();
-        // Update label in dropdown
+        // Mémorise le choix par utilisateur (persiste au rafraîchissement de la page).
+        if (typeof saveUiPref === 'function') saveUiPref({ tshirt_mode: tshirtMode });
+        // Repli de sécurité si refreshButtons n'a pas mis à jour le libellé.
         var label = modeToggle.querySelector('span');
         if (label) {
           label.textContent = tshirtMode ? 'Mode standard' : 'Remise T-shirts';
@@ -520,3 +522,64 @@ function loadQRLib(cb) {
 window.openProfileModal = openProfileModal;
 })();
 </script>
+
+<?php
+/* ── Auto-déconnexion + keep-alive côté client (miroir de l'expiration de session) ──
+ * But : quand la session expire, la page se « verrouille » toute seule (redirection
+ * vers login) au lieu de laisser l'utilisateur cliquer « Sauvegarder » sur une session
+ * déjà morte (perte de saisie). Tant que l'utilisateur est ACTIF, un keep-alive garde
+ * la session vivante → pas de déconnexion en pleine saisie. */
+$__idleMin = 0; $__absMin = 0;
+try {
+    $__sr = $pdo->query('SELECT session_lifetime, session_absolute_lifetime FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+    $__idleMin = (int) ($__sr['session_lifetime'] ?? 0);
+    $__absMin  = (int) ($__sr['session_absolute_lifetime'] ?? 0);
+} catch (\Throwable $e) {
+    try { $__idleMin = (int) ($pdo->query('SELECT session_lifetime FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0); } catch (\Throwable $e2) {}
+}
+$__loginTime = (int) ($_SESSION['login_time'] ?? time());
+if (($__idleMin > 0 || $__absMin > 0) && isset($_SESSION['uid'])):
+?>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+(function(){
+  var idleMs   = <?= (int) $__idleMin * 60000 ?>;
+  var absEndMs = <?= $__absMin > 0 ? ((int) $__loginTime + (int) $__absMin * 60) * 1000 : 0 ?>;
+  var loginUrl = '../login.php?msg=expired';
+  var idleTimer = null, lastPing = 0;
+
+  function goLogin(){ try { window.location.href = loginUrl; } catch(e){} }
+
+  // Keep-alive : rafraîchit la session serveur tant que l'utilisateur est actif.
+  function heartbeat(){
+    var now = Date.now();
+    var minGap = Math.max(15000, Math.min(60000, idleMs ? idleMs/2 : 60000));
+    if (now - lastPing < minGap) return;
+    lastPing = now;
+    fetch('../config/api.php?route=heartbeat', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (!j || !j.ok) goLogin(); })
+      .catch(function(){});
+  }
+
+  function onActivity(){
+    if (idleMs) {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(goLogin, idleMs); // inactif trop longtemps → verrouillage auto
+    }
+    heartbeat();
+  }
+
+  if (idleMs) {
+    ['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(function(ev){
+      document.addEventListener(ev, onActivity, { passive: true });
+    });
+    idleTimer = setTimeout(goLogin, idleMs);
+  }
+
+  if (absEndMs) {
+    var rem = absEndMs - Date.now();
+    if (rem <= 0) goLogin(); else setTimeout(goLogin, rem);
+  }
+})();
+</script>
+<?php endif; ?>

@@ -160,8 +160,11 @@
       top: 2.375rem;
     }
     @media (max-width: 1040px){
+      /* Ne décaler que de la hauteur du bandeau : la .mobile-header est fixe et
+         semi-transparente (elle flotte au-dessus du hero, top: 2.375rem). Compter
+         aussi sa hauteur ici la comptait deux fois → gros espace logo/vidéo. */
       body.has-flash-banner{
-        padding-top: 6.875rem !important;
+        padding-top: 2.375rem !important;
       }
     }
     @keyframes flash-gradient{

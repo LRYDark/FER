@@ -1,11 +1,93 @@
 <?php
 /**
  * update.php — Migrations de base de données
- * Lance ce fichier une seule fois via le navigateur puis supprime-le.
+ * Réservé aux administrateurs connectés. À lancer après une mise à jour ;
+ * la page propose ensuite de se supprimer elle-même (bouton « Oui / Non »).
  */
 require __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/csrf.php';
 require_once __DIR__ . '/config/registrations_core.php';
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * SÉCURITÉ : accès strictement réservé à un administrateur connecté.
+ * ----------------------------------------------------------------------------
+ * Ce fichier exécute des migrations SQL et expose un outil d'import de fichier
+ * (repair-dates). Sans ce garde, N'IMPORTE QUI atteignant l'URL pourrait les
+ * déclencher. On refuse donc tout accès non authentifié / non-admin AVANT toute
+ * autre logique — y compris avant le sous-outil repair-dates et le handler de
+ * suppression ci-dessous. (Défense en profondeur : reste valable même si le
+ * fichier est censé être supprimé après usage.)
+ * ════════════════════════════════════════════════════════════════════════════ */
+header('X-Robots-Tag: noindex, nofollow', true);
+if (!isset($_SESSION['uid']) || (($_SESSION['role'] ?? null) !== 'admin')) {
+    http_response_code(403);
+    header('Location: login.php');   // update.php et login.php sont à la racine
+    exit;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * AUTO-SUPPRESSION : « Voulez-vous supprimer update.php ? »
+ * ----------------------------------------------------------------------------
+ * Déclenché par le bouton « Oui, supprimer » affiché en bas de la page de
+ * résultat. POST protégé par CSRF (admin déjà vérifié ci-dessus). On traite ce
+ * cas AVANT de rejouer les migrations : cliquer « Oui » ne relance rien, ça
+ * supprime juste le fichier et affiche une confirmation. « Non » = simple lien
+ * retour dashboard, aucune action.
+ * ════════════════════════════════════════════════════════════════════════════ */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_self') {
+    $csrfOk  = csrf_verify();
+    $deleted = $csrfOk ? @unlink(__FILE__) : false;
+    ?>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Suppression de update.php — Forbach en Rose</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f8f7f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 520px; width: 100%; overflow: hidden; text-align: center; }
+  .hd { padding: 28px 32px; color: #fff; }
+  .hd.ok  { background: linear-gradient(135deg, #10b981, #059669); }
+  .hd.err { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+  .hd i { font-size: 40px; margin-bottom: 10px; display: block; }
+  .hd h1 { font-size: 20px; font-weight: 700; }
+  .bd { padding: 24px 32px 28px; font-size: 14px; color: #475569; line-height: 1.6; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; background: linear-gradient(135deg, var(--primary, #f42182), var(--primary-hover, #db2777)); color: var(--primary-text, #fff); border: none; border-radius: 10px; padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <?php if ($deleted): ?>
+  <div class="hd ok"><i class="bi bi-check-circle-fill"></i><h1>update.php supprimé</h1></div>
+  <div class="bd">
+    Le fichier <code>update.php</code> a bien été supprimé du serveur.
+    Le lien « Mise à jour BDD » disparaîtra du menu d'administration.
+    <br><a class="btn" href="inc/dashboard.php"><i class="bi bi-arrow-left"></i> Retour au dashboard</a>
+  </div>
+  <?php elseif (!$csrfOk): ?>
+  <div class="hd err"><i class="bi bi-shield-exclamation"></i><h1>Session expirée</h1></div>
+  <div class="bd">
+    Jeton de sécurité invalide. Rechargez la page et réessayez.
+    <br><a class="btn" href="update.php"><i class="bi bi-arrow-clockwise"></i> Recharger</a>
+  </div>
+  <?php else: ?>
+  <div class="hd err"><i class="bi bi-exclamation-triangle-fill"></i><h1>Suppression impossible</h1></div>
+  <div class="bd">
+    Le serveur n'a pas pu supprimer <code>update.php</code> (permissions du fichier).
+    Supprimez-le manuellement via FTP / gestionnaire de fichiers.
+    <br><a class="btn" href="inc/dashboard.php"><i class="bi bi-arrow-left"></i> Retour au dashboard</a>
+  </div>
+  <?php endif; ?>
+</div>
+</body>
+</html>
+    <?php
+    exit;
+}
 
 /* ════════════════════════════════════════════════════════════════════════════
  * OUTIL : Réparation des dates d'inscription (created_at)
@@ -447,6 +529,38 @@ $migrations = [
     // actuellement fermées » sur la page publique d'inscription. Permet à l'admin
     // d'indiquer, par ex., où et quand s'inscrire / récupérer son t-shirt sur place.
     "ALTER TABLE `setting` ADD COLUMN `registration_closed_message` TEXT DEFAULT NULL",
+
+    // Le champ « naissance » ne stocke plus une date : on ne conserve que l'ÂGE
+    // (âge saisi tel quel, année ou date convertie en âge). On renomme le libellé
+    // « Date de naissance » → « Âge » UNIQUEMENT s'il porte encore la valeur d'origine
+    // (personnalisation admin préservée). Idempotent : 0 ligne au 2ᵉ passage.
+    "UPDATE `forms` SET `label` = 'Âge' WHERE `bdd_column` = 'naissance' AND `label` = 'Date de naissance'",
+
+    // Le champ « Entreprise » peut aussi désigner un groupe / une famille / une
+    // association : libellé élargi (mêmes conditions que ci-dessus).
+    "UPDATE `forms` SET `label` = 'Entreprise / Groupe' WHERE `bdd_column` = 'entreprise' AND `label` = 'Entreprise'",
+
+    // Inscriptions groupées (formulaire QR multi-personnes + ajout multiple récap) :
+    // un identifiant de groupe partagé relie les inscrits d'un même lot. Sert au QR
+    // « groupé » (un seul QR encode « G:<group_id> ») qui, au scan, affiche TOUS les
+    // membres du groupe pour valider les tailles d'un coup.
+    "ALTER TABLE `registrations` ADD COLUMN `group_id` VARCHAR(40) DEFAULT NULL, ADD INDEX `group_id` (`group_id`)",
+
+    // 🔒 [SEC-SESSION] Timeout de session par inactivité (minutes ; 0 = jamais).
+    // Configurable dans Réglages → Personnalisation. Enforcé dans config/config.php.
+    "ALTER TABLE `setting` ADD COLUMN `session_lifetime` INT NOT NULL DEFAULT 0",
+
+    // 🔒 [SEC-SESSION] Durée de vie ABSOLUE de session (minutes ; 0 = jamais) : déconnexion
+    // X minutes après la connexion, même si l'utilisateur est actif. Complémentaire de
+    // session_lifetime (inactivité). Enforcé dans config/config.php.
+    "ALTER TABLE `setting` ADD COLUMN `session_absolute_lifetime` INT NOT NULL DEFAULT 0",
+
+    // Bandeau flash : mode on/off/auto + fenêtre de programmation (début/fin).
+    "ALTER TABLE `setting` ADD COLUMN `flash_info_mode` ENUM('on','off','auto') NOT NULL DEFAULT 'off'",
+    "ALTER TABLE `setting` ADD COLUMN `flash_info_start` DATETIME DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `flash_info_end` DATETIME DEFAULT NULL",
+    // Report de l'état existant : un bandeau actuellement activé reste en mode « on ».
+    "UPDATE `setting` SET `flash_info_mode` = 'on' WHERE `flash_info_active` = 1 AND `flash_info_mode` = 'off'",
 ];
 
 $results = [];
@@ -1272,12 +1386,38 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
   </div>
 
   <div class="update-footer">
-    <p style="margin-bottom:12px;">
+    <p style="margin-bottom:16px;">
       <a href="update.php?tool=repair-dates" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #db2777));color:var(--primary-text, #fff);border-radius:10px;padding:10px 18px;text-decoration:none;font-weight:600;font-size:13px;">
         <i class="bi bi-calendar-check"></i> Réparer les dates d'inscription (jour/mois inversés)
       </a>
     </p>
-    Terminé — tu peux <a href="inc/dashboard.php">retourner au dashboard</a> et supprimer ce fichier.
+
+    <!-- Auto-suppression : proposée maintenant que la mise à jour est terminée.
+         « Oui » supprime le fichier (POST + CSRF) ; « Non » retourne au dashboard
+         sans rien faire. -->
+    <div style="background:#fff;border:1px solid #f0e8eb;border-radius:12px;padding:18px 20px;margin-bottom:8px;text-align:left;">
+      <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:4px;">
+        <i class="bi bi-shield-lock" style="color:var(--primary, #f42182);"></i>
+        Voulez-vous supprimer <code style="background:#f1f5f9;padding:2px 6px;border-radius:6px;">update.php</code> ?
+      </div>
+      <div style="font-size:12px;color:#64748b;line-height:1.5;margin-bottom:14px;">
+        La mise à jour est terminée. Par sécurité, il est recommandé de supprimer ce
+        fichier du serveur. Vous pourrez le réinstaller lors de la prochaine mise à jour.
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <form method="post" action="update.php" style="margin:0;"
+              onsubmit="return confirm('Supprimer définitivement update.php du serveur ?');">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="delete_self">
+          <button type="submit" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+            <i class="bi bi-trash3"></i> Oui, supprimer update.php
+          </button>
+        </form>
+        <a href="inc/dashboard.php" style="display:inline-flex;align-items:center;gap:8px;background:#f1f5f9;color:#475569;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:600;text-decoration:none;">
+          <i class="bi bi-x-lg"></i> Non, garder le fichier
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 </body>

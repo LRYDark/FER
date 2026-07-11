@@ -1,0 +1,116 @@
+========================================================
+  Forbach en Rose — Version 1.4.0
+========================================================
+
+⚠️ Après mise à jour : exécuter update.php une fois (admin connecté).
+   Nouvelles colonnes : expiration de session (inactivité + durée max)
+   et planification du bandeau flash (mode + dates début/fin).
+   Optionnel : variable .env TRUSTED_PROXIES si le site passe derrière
+   un proxy/CDN (voir Sécurité ci-dessous).
+
+--------------------------------------------------------
+SÉCURITÉ — Audit complet
+--------------------------------------------------------
+- XSS stocké corrigé : les données d'inscrits affichées dans les
+  tableaux (dashboard, saisie, stats, utilisateurs) et au scan QR
+  groupé sont échappées — plus de vol de session via un champ.
+- Captcha vérifié aussi côté API (l'inscription publique le
+  contournait via l'API) → fin du spam de masse.
+- Anti-usurpation d'IP : les en-têtes X-Forwarded-For /
+  CF-Connecting-IP (falsifiables) ne sont plus crus aveuglément
+  (REMOTE_ADDR par défaut ; TRUSTED_PROXIES si proxy). Empêche le
+  contournement des bans et le bannissement d'IP de tiers.
+- Comptes : verrouillage temporel (15 min, déblocage auto) au lieu
+  d'une désactivation définitive ; anti-bruteforce 2FA/TOTP ;
+  messages de login uniformes (anti-énumération).
+- Données personnelles : chiffrement forcé des champs (nom, e-mail,
+  tél, âge, ville…) ; correction de l'affichage des noms dans
+  l'historique des remises et l'export CSV ; jetons de reset et
+  d'« appareil de confiance » hachés en base.
+- Mails : blocage de l'injection d'en-têtes (CRLF).
+- Divers : upload SVG refusé (images de mail), endpoints de
+  diagnostic retirés de install.php, fuseau horaire aligné.
+
+--------------------------------------------------------
+EXPIRATION DE SESSION (nouveau)
+--------------------------------------------------------
+- Réglages → Maintenance : déconnexion après inactivité (10 min à
+  1 jour) et/ou durée maximale de session, ou « Jamais ».
+- La page se verrouille seule (retour au login) à l'expiration ; tant
+  que l'utilisateur est actif, la session reste vivante (plus de
+  déconnexion en pleine saisie). N'affecte que les comptes admin.
+
+--------------------------------------------------------
+NEWSLETTER (nouveau)
+--------------------------------------------------------
+- Abonnement depuis l'accueil protégé par captcha : Cloudflare
+  Turnstile si configuré (validation auto dès la case cochée), sinon
+  une question simple de secours. Une fois validé, abonnement direct.
+- Limite par IP contre l'abonnement de masse d'adresses tierces.
+
+--------------------------------------------------------
+BANDEAU FLASH PROGRAMMABLE (nouveau)
+--------------------------------------------------------
+- Switch Oui / Non / Auto. En mode Auto, deux champs date/heure
+  (Début / Fin) : le bandeau s'active et se désactive tout seul entre
+  les deux (évalué à chaque affichage, aucune tâche planifiée requise).
+
+--------------------------------------------------------
+INTERFACE
+--------------------------------------------------------
+- Nouveaux « switch » segmentés : bandeau (Oui/Non/Auto) et en-tête du
+  site d'inscription (PC / Mobile).
+- Correction d'un espace trop grand entre le logo et la vidéo, sur
+  mobile, quand le bandeau est actif.
+
+
+========================================================
+  HISTORIQUE — Version 1.3.0
+========================================================
+
+MAINTENANCE (update.php)
+- Réservé aux admins connectés (migrations SQL, outil « Réparer les
+  dates »), avec auto-suppression proposée après usage.
+
+QR CODES GROUPÉS
+- Inscription de plusieurs personnes en une fois (formulaire QR et
+  ajout multiple). Un seul QR pour tout le groupe : au scan (remise /
+  accès bénévole), il affiche tous les membres.
+- QR joint au mail « Récap groupé » selon la config (aucun / tous /
+  X premiers).
+
+PAGE DE CONFIRMATION APRÈS INSCRIPTION
+- QR + Nom / Prénom / N°, bouton « Enregistrer l'image », réaffichage
+  mémorisé. Autorisation parentale (mineur) selon l'âge saisi.
+
+ÂGE À LA PLACE DE LA DATE DE NAISSANCE
+- Saisie d'un âge/année (import Excel : date convertie en âge) ;
+  colonnes « Date de naissance » → « Âge ».
+
+DASHBOARD & STATISTIQUES
+- 3 cartes + « Autres stats » (âges, enfants, top entreprises/groupes) ;
+  page Statistiques alignée sur le dashboard ; cartes responsive et
+  filtres de colonnes fiabilisés après réordonnancement.
+
+AJOUT MULTIPLE (refonte)
+- Saisie en tableau (en-tête figé, colonnes masquables), récap groupé,
+  bascule « Inscrit unique → Ajout multiple ». Import Excel : mise en
+  correspondance des colonnes plus intuitive et fiable.
+
+REMISE DES T-SHIRTS
+- Mode mémorisé, toast à chaque taille. « Scanner QR » (admin) ouvre la
+  page de remise complète (recherche + caméra), reprise auto au réveil.
+- « Dernières remises » : Nom + Prénom, vider la liste, export CSV.
+
+ALBUMS PHOTOS
+- Ouverture directe du gestionnaire ; aperçu des couvertures (albums et
+  partenaires) avec remplacement au clic.
+
+MODE DEBUG (type GLPI)
+- Journalisation continue des erreurs PHP (jamais côté visiteur) +
+  panneau admin (SQL, globals masqués, erreurs), jamais dans l'API/AJAX.
+
+DIVERS
+- « Entreprise » → « Entreprise / Groupe ». Corrections de fiabilité
+  (colonnes QR créées au besoin, tailles t-shirt, QR groupé, éditeur
+  d'accueil) et nettoyage de code.

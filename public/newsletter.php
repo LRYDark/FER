@@ -12,6 +12,7 @@
 require __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/csrf.php';
 require_once __DIR__ . '/../config/newsletter.php';
+require_once __DIR__ . '/../config/captcha.php';
 
 /* ───────────────────────────────────────────────────────────────
  * 1) ABONNEMENT — endpoint AJAX appelé par le formulaire de l'accueil
@@ -36,6 +37,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['subscribe']) || isse
         echo json_encode(['ok' => false, 'msg' => 'Vous devez accepter de recevoir les e-mails.']);
         exit;
     }
+    // 🔒 [SEC-NL] Rate-limit par IP : max 5 abonnements/heure/IP (anti abonnement de
+    // masse d'adresses tierces). Le double opt-in (mail de confirmation) reste recommandé.
+    $__nlIp   = function_exists('fer_client_ip') ? fer_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    $__nlKey  = substr(hash('sha256', 'newsletter_' . $__nlIp), 0, 32);
+    $__nlFile = sys_get_temp_dir() . '/fer_' . $__nlKey . '.json';
+    $__nlNow  = time();
+    $__nlTimes = @file_exists($__nlFile) ? (json_decode(@file_get_contents($__nlFile), true) ?: []) : [];
+    $__nlTimes = array_values(array_filter($__nlTimes, fn($t) => $t > $__nlNow - 3600));
+    if (count($__nlTimes) >= 5) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'msg' => 'Trop de demandes. Réessayez plus tard.']);
+        exit;
+    }
+    // 🔒 [SEC-NL] Vérification anti-robot : Turnstile en principal (si configuré),
+    // captcha maths en secours automatique (même mécanisme que le formulaire de contact).
+    if (!verifyPublicCaptcha($_POST, $pdo)) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'msg' => 'Vérification anti-robot échouée. Recommencez.']);
+        exit;
+    }
+
+    $__nlTimes[] = $__nlNow;
+    @file_put_contents($__nlFile, json_encode($__nlTimes));
+
     $res = newsletterSubscribe($pdo, (string)($_POST['email'] ?? ''));
     if (!$res['ok']) http_response_code(400);
     echo json_encode($res);

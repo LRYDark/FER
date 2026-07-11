@@ -931,6 +931,21 @@ function renderAccueilSection_newsletter(array $ctx): void {
               <input type="checkbox" name="consent" required>
               <span style="<?= getAccueilAlignStyle($ctx, 'newsletter.consent') ?>"<?= $ed('newsletter.consent') ?>><?= htmlspecialchars($consent) ?></span>
             </label>
+            <!-- Vérification anti-robot (Turnstile si configuré, sinon question maths) — révélée au 1er clic -->
+            <div class="newsletter-captcha" id="nlCaptcha" style="display:none;">
+              <div id="nlTsBox" style="display:none;"></div>
+              <div id="nlMathBox" style="display:none;">
+                <div id="nlCaptchaQuestion" class="nl-captcha-q">Chargement…</div>
+                <div class="nl-captcha-row">
+                  <input id="nlCaptchaAnswer" type="text" inputmode="numeric" autocomplete="off" placeholder="Votre réponse" class="nl-captcha-input">
+                  <button type="button" id="nlCaptchaReload" class="nl-captcha-reload" title="Nouvelle question">&#8635;</button>
+                </div>
+              </div>
+              <div id="nlCaptchaError" class="nl-captcha-error" role="alert"></div>
+            </div>
+            <input type="hidden" name="turnstile_token" id="nlTsToken">
+            <input type="hidden" name="captcha_token"   id="nlCaptchaToken">
+            <input type="hidden" name="captcha_answer"  id="nlCaptchaAnswerHidden">
             <div class="newsletter-feedback" id="newsletterFeedback" role="status" aria-live="polite"></div>
           </form>
         </div>
@@ -994,27 +1009,147 @@ function renderAccueilSection_newsletter(array $ctx): void {
       </div>
     </section>
     <?php if (!$editable): ?>
+    <style nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+      .newsletter-captcha { margin:10px 0 4px; }
+      .nl-captcha-q { font-weight:700; color:#1e293b; margin-bottom:6px; }
+      .nl-captcha-row { display:flex; gap:8px; align-items:stretch; }
+      .nl-captcha-input { flex:1; padding:9px 12px; border:1px solid #cbd5e1; border-radius:9px; font-size:15px; outline:none; background:#fff; }
+      .nl-captcha-input:focus { border-color:var(--primary,#f42182); box-shadow:0 0 0 3px rgba(219,39,119,.15); }
+      .nl-captcha-reload { background:#e2e8f0; border:none; border-radius:9px; padding:0 14px; font-size:16px; color:#334155; cursor:pointer; }
+      .nl-captcha-reload:hover { background:#cbd5e1; }
+      .nl-captcha-error { color:#b91c1c; font-size:.82rem; margin-top:6px; min-height:1em; }
+    </style>
     <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
     (function() {
       var form = document.getElementById('newsletterForm');
       if (!form || form.dataset.bound) return;
       form.dataset.bound = '1';
-      var fb = document.getElementById('newsletterFeedback');
+
+      var fb  = document.getElementById('newsletterFeedback');
+      var btn = form.querySelector('.newsletter-submit');
+      var btnDefault = btn ? btn.textContent : "Je m'abonne";
       var fbTimer = null;
 
-      // Efface le message de retour.
-      function clearFeedback() {
-        if (fbTimer) { clearTimeout(fbTimer); fbTimer = null; }
-        fb.className = 'newsletter-feedback';
-        fb.textContent = '';
-      }
-      // Affiche un message + le fait disparaître tout seul au bout de 3 secondes.
+      var box       = document.getElementById('nlCaptcha');
+      var tsBox     = document.getElementById('nlTsBox');
+      var mathBox   = document.getElementById('nlMathBox');
+      var qEl       = document.getElementById('nlCaptchaQuestion');
+      var aEl       = document.getElementById('nlCaptchaAnswer');
+      var aHidden   = document.getElementById('nlCaptchaAnswerHidden');
+      var tokHidden = document.getElementById('nlCaptchaToken');
+      var tsHidden  = document.getElementById('nlTsToken');
+      var errEl     = document.getElementById('nlCaptchaError');
+      var reloadBtn = document.getElementById('nlCaptchaReload');
+
+      var mode = null, tsWidgetId = null, tsLoading = null, didFallback = false;
+      var captchaShown = false, submitting = false;
+
+      function clearFeedback() { if (fbTimer){clearTimeout(fbTimer);fbTimer=null;} fb.className='newsletter-feedback'; fb.textContent=''; }
+      // Succès : le message RESTE affiché (l'utilisateur doit pouvoir le lire).
+      // Erreur : disparaît au bout de 7 s.
       function showFeedback(msg, ok) {
-        if (fbTimer) clearTimeout(fbTimer);
+        if (fbTimer) { clearTimeout(fbTimer); fbTimer = null; }
         fb.className = 'newsletter-feedback ' + (ok ? 'is-success' : 'is-error');
         fb.textContent = msg;
-        fbTimer = setTimeout(clearFeedback, 3000);
+        if (!ok) fbTimer = setTimeout(clearFeedback, 7000);
       }
+      function setCaptchaError(m) { if (errEl) errEl.textContent = m || ''; }
+
+      function ensureTurnstileScript() {
+        if (window.turnstile) return Promise.resolve();
+        if (tsLoading) return tsLoading;
+        tsLoading = new Promise(function(resolve, reject) {
+          var s = document.createElement('script');
+          s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+          s.async = true; s.defer = true;
+          s.onload = function(){ resolve(); };
+          s.onerror = function(){ tsLoading = null; reject(new Error('load')); };
+          document.head.appendChild(s);
+        });
+        return tsLoading;
+      }
+
+      // Bascule vers le captcha maths UNIQUEMENT si Turnstile ne fonctionne pas
+      // (échec de rendu/chargement). Une seule vérification est affichée à la fois.
+      function switchToMathFallback() {
+        if (didFallback) return; didFallback = true;
+        if (tsWidgetId !== null && window.turnstile) { try { window.turnstile.remove(tsWidgetId); } catch(e){} tsWidgetId = null; }
+        tsBox.style.display = 'none';
+        fetch('../config/api.php?route=partner-captcha-init&fallback=1')
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if (!j || !j.ok || j.mode !== 'math') throw new Error('fb');
+            mode = 'math'; mathBox.style.display = 'block';
+            tokHidden.value = j.token; tsHidden.value = ''; qEl.textContent = j.question; if (aEl){ aEl.value=''; aEl.focus(); }
+            setCaptchaError('');
+          })
+          .catch(function(){ setCaptchaError('Vérification indisponible. Réessayez plus tard.'); });
+      }
+
+      function initCaptcha() {
+        setCaptchaError(''); didFallback = false;
+        tsHidden.value = ''; tokHidden.value = ''; aHidden.value = '';
+        return fetch('../config/api.php?route=partner-captcha-init')
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if (!j || !j.ok) throw new Error('init');
+            mode = j.mode;
+            if (mode === 'turnstile') {
+              mathBox.style.display = 'none'; tsBox.style.display = 'block';
+              ensureTurnstileScript().then(function(){
+                if (tsWidgetId !== null) { try { window.turnstile.remove(tsWidgetId); } catch(e){} tsWidgetId = null; }
+                tsWidgetId = window.turnstile.render(tsBox, {
+                  sitekey: j.sitekey, theme: 'light',
+                  // Validation automatique : dès que Cloudflare valide, on s'abonne directement.
+                  callback: function(token){ tsHidden.value = token; setCaptchaError(''); doSubscribe(); },
+                  'error-callback':   function(){ tsHidden.value = ''; switchToMathFallback(); },
+                  'expired-callback': function(){ tsHidden.value = ''; setCaptchaError('Vérification expirée, refaites-la.'); }
+                });
+              }).catch(function(){ switchToMathFallback(); });
+            } else {
+              tsBox.style.display = 'none'; mathBox.style.display = 'block';
+              tokHidden.value = j.token; qEl.textContent = j.question; if (aEl) aEl.value = '';
+            }
+          })
+          .catch(function(){ setCaptchaError('Impossible d\'initialiser la vérification. Réessayez.'); });
+      }
+
+      function revealCaptcha() {
+        captchaShown = true;
+        box.style.display = 'block';
+        if (btn) btn.textContent = 'Valider mon abonnement';
+        initCaptcha();
+      }
+
+      function doSubscribe() {
+        if (submitting) return;
+        if (mode === 'math') {
+          aHidden.value = (aEl.value || '').trim();
+          if (!aHidden.value) { setCaptchaError('Répondez à la question ci-dessus.'); return; }
+        } else {
+          if (!tsHidden.value) { setCaptchaError('Complétez la vérification « Je ne suis pas un robot ».'); return; }
+        }
+        submitting = true; if (btn) btn.disabled = true;
+        var fd = new FormData(form);
+        fd.append('subscribe_newsletter', '1');
+        fetch('newsletter.php', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if (j && j.ok) {
+              form.reset();
+              box.style.display = 'none'; captchaShown = false; if (btn) btn.textContent = btnDefault;
+              showFeedback((j && j.msg) || 'Abonnement confirmé !', true);
+            } else {
+              showFeedback((j && j.msg) || 'Une erreur est survenue.', false);
+              initCaptcha(); // vérification consommée → on en régénère une
+            }
+          })
+          .catch(function(){ showFeedback('Une erreur réseau est survenue. Réessayez plus tard.', false); initCaptcha(); })
+          .finally(function(){ submitting = false; if (btn) btn.disabled = false; });
+      }
+
+      if (aEl) aEl.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); doSubscribe(); } });
+      if (reloadBtn) reloadBtn.addEventListener('click', function(){ initCaptcha(); });
 
       form.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1026,20 +1161,9 @@ function renderAccueilSection_newsletter(array $ctx): void {
         if (!consent) {
           showFeedback('Merci de cocher la case de consentement.', false); return;
         }
-        var btn = form.querySelector('.newsletter-submit');
-        btn.disabled = true;
-        var fd = new FormData(form);
-        fd.append('subscribe_newsletter', '1');
-        fetch('newsletter.php', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
-          .then(function(r) { return r.json(); })
-          .then(function(j) {
-            showFeedback((j && j.msg) || 'Une erreur est survenue.', !!(j && j.ok));
-            if (j && j.ok) form.reset();
-          })
-          .catch(function() {
-            showFeedback('Une erreur réseau est survenue. Réessayez plus tard.', false);
-          })
-          .finally(function() { btn.disabled = false; });
+        // 1er clic : on révèle le captcha. Clics suivants : on valide + abonne.
+        if (!captchaShown) { revealCaptcha(); return; }
+        doSubscribe();
       });
     })();
     </script>
