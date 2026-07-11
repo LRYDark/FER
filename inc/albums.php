@@ -237,6 +237,11 @@ if (isset($_POST['add_album'])) {
 
     if ($newId) logContentAction($pdo, 'albums', 'create', (int)$newId, $album_title, 'album');
     $_SESSION['reopen_modal'] = $yearId;
+    // Album local (photos internes) → ouvre directement le gestionnaire de photos du
+    // nouvel album au rechargement (évite un clic sur « Gérer les photos »).
+    if ($albumType === 'local' && $newId) {
+        $_SESSION['reopen_photos'] = (int)$newId;
+    }
     $_SESSION['flash_message'] = ['type' => 'success', 'message' => 'Album ajouté.'];
   } catch (PDOException $e) {
     error_log('[ALBUMS] add_album: ' . $e->getMessage());
@@ -717,6 +722,18 @@ try {
     /* Padding-top = hauteur label (~26px) pour centrer le contenu sur la ligne des inputs */
     .album-align-col { padding-top: 26px; }
   }
+
+  /* Couverture : vignette cliquable (remplacer) + case « Supprimer ». */
+  .album-cover-thumb {
+    width: 110px; height: 110px; object-fit: cover;
+    border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;
+    cursor: pointer; display: block;
+    transition: border-color .15s, opacity .15s;
+  }
+  .album-cover-thumb:hover { border-color: var(--primary, #f42182); opacity: .85; }
+  .album-cover-preview { display: flex; flex-direction: column; gap: 1px; }
+  .album-cover-preview .album-delete-img-check { position: static; margin: 0; } /* pas d'absolu sous la vignette */
+  .album-cover-col.will-delete .album-cover-thumb { opacity: .35; filter: grayscale(1); }
 </style>
 </head>
 
@@ -725,7 +742,8 @@ try {
 <?php include '../inc/navbar-admin.php'; ?>
 
 <?php
-  $reopenModalId = $_SESSION['reopen_modal'] ?? null;
+  $reopenModalId  = $_SESSION['reopen_modal'] ?? null;
+  $reopenPhotosId = $_SESSION['reopen_photos'] ?? null; // album dont on ouvre direct les photos
 ?>
 
 <!-- Spinner de chargement -->
@@ -744,6 +762,9 @@ try {
             ?>
             <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.addEventListener('DOMContentLoaded', function () {
+                // Nouvel album : on ouvre directement le gestionnaire de photos (voir plus bas),
+                // donc on ne montre PAS le modal année ici (retour à la fermeture des photos).
+                if (<?= $reopenPhotosId ? 'true' : 'false' ?>) return;
                 var modalId = 'modalYear<?= $reopenModalId ?>';
                 var el = document.getElementById(modalId);
                 if (el) {
@@ -964,7 +985,20 @@ try {
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
                     <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
-                        <?php $isLocalAlbum = (($album['album_type'] ?? 'link') === 'local'); ?>
+                        <?php
+                          $isLocalAlbum = (($album['album_type'] ?? 'link') === 'local');
+                          // Nombre de photos (albums locaux) — calculé ici pour l'afficher à droite de la carte.
+                          $photoCount = 0;
+                          if ($isLocalAlbum) {
+                            $localFolder = __DIR__ . '/../files/_albums/' . basename($album['album_link']);
+                            if (is_dir($localFolder)) {
+                              foreach (scandir($localFolder) as $f) {
+                                if ($f === '.' || $f === '..') continue;
+                                if (in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), ['jpg','jpeg','png','gif','webp'], true)) $photoCount++;
+                              }
+                            }
+                          }
+                        ?>
                         <div class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid <?= $isLocalAlbum ? '#c4b5fd' : '#f0e8eb' ?>;border-radius:8px;background:<?= $isLocalAlbum ? '#f5f3ff' : '#fdf8f9' ?>">
                         <form method="post" enctype="multipart/form-data">
                             <?= csrf_field() ?>
@@ -981,6 +1015,19 @@ try {
                                   <span class="badge bg-info" style="font-size:0.7rem"><i class="bi bi-link-45deg"></i> Lien</span>
                                 <?php endif; ?>
                               </div>
+                              <div class="col-12 col-sm-auto album-cover-col<?= !empty($album['album_img']) ? ' has-cover' : '' ?>" style="min-width:120px">
+                                <label class="form-label" style="font-size:12px">Couverture</label>
+                                <?php if (!empty($album['album_img'])): ?>
+                                <div class="album-cover-preview">
+                                  <img src="../files/_albums/<?= htmlspecialchars($album['album_img']) ?>" class="album-cover-thumb" alt="Couverture" title="Cliquer pour remplacer l'image">
+                                  <div class="form-check album-delete-img-check">
+                                    <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImgAlbum<?= $album['id'] ?>">
+                                    <label class="form-check-label text-danger" style="font-size:11px" for="delImgAlbum<?= $album['id'] ?>">Supprimer</label>
+                                  </div>
+                                </div>
+                                <?php endif; ?>
+                                <input type="file" name="album_img" accept="image/*" class="form-control form-control-sm album-cover-input"<?= !empty($album['album_img']) ? ' style="display:none"' : '' ?>>
+                              </div>
                               <div class="col-12 col-sm">
                                 <label class="form-label" style="font-size:12px">Titre</label>
                                 <input type="text" name="album_title" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_title']) ?>">
@@ -991,22 +1038,12 @@ try {
                                 <input type="text" name="album_link" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_link']) ?>">
                               </div>
                               <?php endif; ?>
-                              <div class="col-12 col-sm-auto album-cover-col" style="min-width:140px">
-                                <label class="form-label" style="font-size:12px">Couverture</label>
-                                <input type="file" name="album_img" class="form-control form-control-sm">
-                                <?php if (!empty($album['album_img'])): ?>
-                                <div class="form-check mt-1 album-delete-img-check">
-                                  <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImgAlbum<?= $album['id'] ?>">
-                                  <label class="form-check-label text-danger" style="font-size:11px" for="delImgAlbum<?= $album['id'] ?>">Supprimer</label>
-                                </div>
-                                <?php endif; ?>
-                              </div>
                               <div class="col-12 col-sm">
                                 <label class="form-label" style="font-size:12px">Description</label>
                                 <input type="text" name="album_desc" class="form-control form-control-sm" value="<?= htmlspecialchars($album['album_desc']) ?>">
                               </div>
                               <div class="col-12 col-sm-auto text-end album-align-col">
-                                <div class="d-flex gap-1">
+                                <div class="d-flex gap-1 justify-content-end">
                                   <?php if ($isLocalAlbum): ?>
                                   <button type="button" class="btn btn-sm btn-outline-primary btn-manage-photos" data-album-id="<?= $album['id'] ?>" data-album-title="<?= htmlspecialchars($album['album_title']) ?>" title="Gerer les photos"><i class="bi bi-camera"></i></button>
                                   <?php endif; ?>
@@ -1017,27 +1054,15 @@ try {
                                   <button type="submit" name="delete_album" class="btn btn-sm btn-outline-danger" title="Supprimer" data-confirm="Supprimer définitivement cet album ?"><i class="bi bi-x-lg"></i></button>
                                   <?php endif; ?>
                                 </div>
+                                <?php if ($isLocalAlbum): ?>
+                                <div class="mt-2 text-end album-meta-info">
+                                  <small class="text-muted photo-count-label" data-album-id="<?= $album['id'] ?>"><i class="bi bi-folder2-open"></i> <span class="photo-count-num"><?= $photoCount ?></span> photo<?= $photoCount > 1 ? 's' : '' ?></small>
+                                  <small class="text-muted d-block" style="font-size:10px;word-break:break-all;opacity:.75"><?= htmlspecialchars(basename($album['album_link'])) ?></small>
+                                </div>
+                                <?php endif; ?>
                               </div>
                             </div>
                         </form>
-                        <?php if ($isLocalAlbum): ?>
-                          <?php
-                            $localFolder = __DIR__ . '/../files/_albums/' . basename($album['album_link']);
-                            $photoCount = 0;
-                            if (is_dir($localFolder)) {
-                              $exts = ['jpg','jpeg','png','gif','webp'];
-                              foreach (scandir($localFolder) as $f) {
-                                if ($f === '.' || $f === '..') continue;
-                                if (in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), $exts)) $photoCount++;
-                              }
-                            }
-                          ?>
-                          <div class="mt-2 d-flex align-items-center gap-2">
-                            <small class="text-muted photo-count-label" data-album-id="<?= $album['id'] ?>"><i class="bi bi-folder2-open"></i> <span class="photo-count-num"><?= $photoCount ?></span> photo<?= $photoCount > 1 ? 's' : '' ?></small>
-                            <small class="text-muted">|</small>
-                            <small class="text-muted"><?= htmlspecialchars(basename($album['album_link'])) ?></small>
-                          </div>
-                        <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
                     </div>
@@ -1478,6 +1503,25 @@ function uploadPhotos(files) {
   uploadNext();
 }
 
+// Couverture d'album : la vignette ouvre le sélecteur de fichier ; le fichier choisi
+// remplace l'aperçu ; « Supprimer » grise l'image (retrait effectif à l'enregistrement).
+document.querySelectorAll('.album-cover-col').forEach(function (col) {
+  var img   = col.querySelector('.album-cover-thumb');
+  var input = col.querySelector('.album-cover-input');
+  var del   = col.querySelector('input[name="delete_image"]');
+  if (img && input) img.addEventListener('click', function () { input.click(); });
+  if (input) input.addEventListener('change', function () {
+    if (input.files && input.files[0]) {
+      if (img) img.src = URL.createObjectURL(input.files[0]);
+      if (del) del.checked = false;
+      col.classList.remove('will-delete');
+    }
+  });
+  if (del) del.addEventListener('change', function () {
+    col.classList.toggle('will-delete', del.checked);
+  });
+});
+
 // Confirm dialogs
 document.querySelectorAll('[data-confirm]').forEach(function(form) {
   form.addEventListener('submit', function(e) {
@@ -1486,6 +1530,22 @@ document.querySelectorAll('[data-confirm]').forEach(function(form) {
     }
   });
 });
+
+<?php if ($reopenPhotosId): unset($_SESSION['reopen_photos']); ?>
+// Nouvel album local créé : on ouvre DIRECTEMENT son gestionnaire de photos (un clic de
+// moins). À la fermeture, on revient au modal année (via parentYearModalEl).
+(function () {
+  var pmBtn = document.querySelector('.btn-manage-photos[data-album-id="<?= (int)$reopenPhotosId ?>"]');
+  if (!pmBtn) return;
+  currentAlbumId = pmBtn.dataset.albumId;
+  var titleEl = document.getElementById('pmAlbumTitle');
+  if (titleEl) titleEl.textContent = pmBtn.dataset.albumTitle;
+  parentYearModalEl = document.getElementById('modalYear<?= (int)$reopenModalId ?>'); // retour ici à la fermeture
+  if (!pmModal) pmModal = new bootstrap.Modal(document.getElementById('modalPhotosManager'));
+  pmModal.show();
+  loadPhotos();
+})();
+<?php endif; ?>
 </script>
 </body>
 </html>

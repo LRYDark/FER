@@ -390,8 +390,14 @@ document.getElementById('debogageToggle').addEventListener('change', function(){
   })
   .then(function(r){ return r.json(); })
   .then(function(j){
-    status.textContent = j.ok ? (val ? 'Activé' : 'Désactivé') : 'Erreur';
-    setTimeout(function(){ status.textContent = ''; }, 2000);
+    if (j.ok) {
+      status.textContent = val ? 'Activé' : 'Désactivé';
+      // Recharge la page pour appliquer immédiatement (barre de debug affichée / masquée).
+      setTimeout(function(){ window.location.reload(); }, 350);
+    } else {
+      status.textContent = 'Erreur';
+      setTimeout(function(){ status.textContent = ''; }, 2000);
+    }
   })
   .catch(function(){ status.textContent = 'Erreur réseau'; });
 });

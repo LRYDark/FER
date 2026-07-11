@@ -125,7 +125,15 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
 
       <div class="card card-dashboard">
         <div class="card-body">
-          <h5 class="fw-bold mb-3"><i class="bi bi-clock-history me-1"></i>Dernières remises</h5>
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-1"></i>Dernières remises</h5>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars('../config/api.php?route=tshirt-admin&export=handouts') ?>"><i class="bi bi-file-earmark-excel me-1"></i>Exporter</a>
+              <?php if ($tsCanManage): ?>
+              <button class="btn btn-sm btn-outline-danger" id="clearHandoutsBtn"><i class="bi bi-trash me-1"></i>Vider la liste</button>
+              <?php endif; ?>
+            </div>
+          </div>
           <div id="handoutList"><p class="text-muted small mb-0">Aucune remise enregistrée.</p></div>
         </div>
       </div>
@@ -219,8 +227,8 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
       var ho = data.handouts || [];
       hl.innerHTML = ho.length === 0
         ? '<p class="text-muted small mb-0">Aucune remise enregistrée.</p>'
-        : '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>N°</th><th>Taille</th><th>Bénévole</th><th>Quand</th></tr></thead><tbody>'
-          + ho.map(function(h){ return '<tr><td>'+esc(h.inscription_no)+'</td><td><span class="badge bg-dark">'+esc(h.size)+'</span></td><td>'+esc(h.volunteer_name||'—')+'</td><td class="small text-muted">'+esc(fmt(h.created_at))+'</td></tr>'; }).join('')
+        : '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>N°</th><th>Nom</th><th>Prénom</th><th>Taille</th><th>Bénévole</th><th>Quand</th></tr></thead><tbody>'
+          + ho.map(function(h){ return '<tr><td>'+esc(h.inscription_no)+'</td><td>'+esc(h.nom||'—')+'</td><td>'+esc(h.prenom||'—')+'</td><td><span class="badge bg-dark">'+esc(h.size)+'</span></td><td>'+esc(h.volunteer_name||'—')+'</td><td class="small text-muted">'+esc(fmt(h.created_at))+'</td></tr>'; }).join('')
           + '</tbody></table></div>';
     }
 
@@ -254,6 +262,17 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
   if (copyEl) copyEl.addEventListener('click', function(){
     navigator.clipboard.writeText(PUBLIC_URL).then(function(){ var t=copyEl.innerHTML; copyEl.innerHTML='<i class="bi bi-check2"></i> Copié'; setTimeout(function(){copyEl.innerHTML=t;},1500); });
   });
+  var clearEl = document.getElementById('clearHandoutsBtn');
+  if (clearEl) clearEl.addEventListener('click', function(){
+    if (!confirm('Vider la liste des remises ? Cette action est définitive.')) return;
+    clearEl.disabled = true;
+    apiPost({action:'clear_handouts'}).then(function(res){
+      clearEl.disabled = false;
+      if (res && res.ok) load();
+      else alert('Échec de la suppression.');
+    });
+  });
+
   var printEl = document.getElementById('printQrBtn');
   if (printEl) printEl.addEventListener('click', function(){
     if (!qr) return;

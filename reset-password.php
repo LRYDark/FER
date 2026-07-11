@@ -6,8 +6,9 @@ $token = $_GET['token'] ?? '';
 $tokenValid = false;
 
 if ($token) {
+    // 🔒 [SEC-RESET] Le token est stocké HACHÉ (SHA-256) en base ; on compare le haché.
     $stmt = $pdo->prepare('SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > NOW()');
-    $stmt->execute([$token]);
+    $stmt->execute([hash('sha256', $token)]);
     $tokenValid = (bool) $stmt->fetch();
 }
 

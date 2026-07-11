@@ -129,39 +129,71 @@ function regcore_convertExcelDate($value): ?string
 
 /**
  * Calcule l'âge (en années révolues) à partir d'une valeur `naissance`.
- * Miroir PHP de ageFromBirth() de js/inscription-form.js — accepte :
- *   - une année seule « AAAA »                → âge = année courante − année
+ * Miroir PHP de ageFromBirth() de js/inscription-form.js. Gère le NOUVEAU modèle
+ * (âge déjà stocké : 1 à 3 chiffres ≤ 120 → renvoyé tel quel) ET les données
+ * héritées / archives :
+ *   - une année seule « AAAA »                  → âge = (année réf) − année
  *   - une date « JJ/MM/AAAA » ou « AAAA-MM-JJ » → âge ajusté selon l'anniversaire
  * Retourne null si la valeur est vide ou non interprétable.
  *
- * NB : le front normalise déjà `naissance` en année (même un âge saisi) avant
- * l'envoi à bulk-create ; cette fonction couvre année ET date par robustesse.
+ * @param int|null $refYear Année de référence pour les valeurs au format année/date
+ *        (archives) : l'âge d'une archive 2023 se calcule sur 2023, pas sur l'année
+ *        courante. Défaut : année courante.
  */
-function regcore_ageFromNaissance(?string $naissance): ?int
+function regcore_ageFromNaissance(?string $naissance, ?int $refYear = null): ?int
 {
     $b = trim((string) $naissance);
     if ($b === '') return null;
 
-    $now = new DateTime('today');
-    $y = null; $m = 1; $d = 1;
+    $now    = new DateTime('today');
+    $nowY   = (int) $now->format('Y');
+    $ref    = ($refYear !== null && $refYear > 1900) ? $refYear : $nowY;
 
+    // Retire une éventuelle heure en suffixe (ex. « 2000-05-09 00:00:00 » d'un client
+    // API) pour que la date brute matche le format attendu.
+    $b = preg_replace('/[T ]\d{2}:\d{2}(:\d{2})?$/', '', $b);
+
+    // Âge déjà stocké (nouveau modèle) : 1 à 3 chiffres ≤ 120.
+    if (preg_match('/^\d{1,3}$/', $b)) {
+        $a = (int) $b;
+        return ($a >= 0 && $a <= 120) ? $a : null;
+    }
+
+    // Données héritées / archives : année ou date.
+    $y = null; $m = 1; $d = 1;
     if (preg_match('/^\d{4}$/', $b)) {
         $y = (int) $b;
-    } elseif (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $b, $p)) {
+        if ($y < 1900 || $y > $nowY) return null;
+        return $ref - $y;
+    } elseif (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $b, $p)) {
         $y = (int) $p[1]; $m = (int) $p[2]; $d = (int) $p[3];
-    } elseif (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $b, $p)) {
+    } elseif (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $b, $p)) {
         $d = (int) $p[1]; $m = (int) $p[2]; $y = (int) $p[3];
     } else {
         return null;
     }
-    if ($y < 1900 || $y > (int) $now->format('Y')) return null;
+    if ($y < 1900 || $y > $nowY) return null;
     if ($m < 1 || $m > 12) { $m = 1; }
     if ($d < 1 || $d > 31) { $d = 1; }
 
-    $birth = DateTime::createFromFormat('!Y-n-j', sprintf('%04d-%d-%d', $y, $m, $d));
-    if (!$birth) return null;
-    $age = (int) $now->diff($birth)->y;
-    return $age;
+    // Année courante : âge exact ajusté à l'anniversaire. Archive : approximation.
+    if ($ref === $nowY) {
+        $birth = DateTime::createFromFormat('!Y-n-j', sprintf('%04d-%d-%d', $y, $m, $d));
+        if (!$birth) return null;
+        return (int) $now->diff($birth)->y;
+    }
+    return $ref - $y;
+}
+
+/**
+ * Convertit une valeur « naissance » brute d'import (âge, année, ou date complète
+ * type « 09/05/2000 ») en ÂGE stocké (chaîne d'entier), ou null si illisible.
+ * Utilisé par les imports Excel : on ne conserve QUE l'âge, jamais la date.
+ */
+function regcore_naissanceToAge($value): ?string
+{
+    $age = regcore_ageFromNaissance(is_string($value) ? $value : (string) $value);
+    return $age === null ? null : (string) $age;
 }
 
 /** Journalise une erreur d'import dans config/logs/import_errors.log. */
@@ -193,7 +225,7 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
 
     /* Validation / assainissement (identique au dashboard) */
     $allowedSexe = ['H', 'F', 'Autre'];
-    $d['sexe']          = in_array($d['sexe'] ?? '', $allowedSexe, true) ? $d['sexe'] : 'H';
+    $d['sexe']          = in_array($d['sexe'] ?? '', $allowedSexe, true) ? $d['sexe'] : 'Autre';
     $d['nom']           = mb_substr(trim($d['nom'] ?? ''), 0, 255);
     $d['prenom']        = mb_substr(trim($d['prenom'] ?? ''), 0, 255);
     $d['tel']           = mb_substr(trim($d['tel'] ?? ''), 0, 50);
@@ -236,6 +268,12 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
 
         foreach ($fieldCols as $col => $meta) {
             $raw = $d[$col] ?? '';
+            // Champ « naissance » : on ne stocke QUE l'âge (une date/année reçue via
+            // l'API externe est convertie en âge, cohérent avec les formulaires).
+            if ($col === 'naissance' && $raw !== '') {
+                $age = regcore_naissanceToAge((string) $raw);
+                $raw = ($age !== null) ? $age : '';
+            }
             $cols[] = "`{$col}`";
             $phs[]  = '?';
             $vals[] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : ($raw !== '' ? $raw : '');
@@ -450,7 +488,20 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
                 if ($bddField === 'inscription_no') {
                     $value = 'E' . trim((string) $value);
                 } elseif ($bddField === 'naissance') {
-                    $value = (is_numeric($value) && $value >= 1900 && $value <= date('Y')) ? $value : null;
+                    // On ne stocke QUE l'âge. Une vraie date de naissance (« 09/05/2000 »),
+                    // une année ou un âge sont tous convertis en âge. Une cellule AFFICHÉE
+                    // comme une date (contient « / » ou « - ») est lue en BRUT (série Excel)
+                    // → « Y-m-d » non ambigu avant d'en déduire l'âge (évite l'inversion
+                    // jour/mois d'un export US). Un simple nombre (âge ou année) est converti
+                    // directement.
+                    $rawBirth  = ($col !== null) ? ($sheetRaw[$idx][$col] ?? null) : null;
+                    $looksDate = (is_string($value) && preg_match('#[/\-]#', $value));
+                    if ($looksDate && is_numeric($rawBirth)) {
+                        $ymd   = substr((string) regcore_convertExcelDate($rawBirth), 0, 10);
+                        $value = regcore_naissanceToAge($ymd);
+                    } else {
+                        $value = regcore_naissanceToAge((string) $value);
+                    }
                 } elseif ($bddField === 'date_inscription') {
                     // Valeur BRUTE (série Excel) plutôt que la valeur formatée :
                     // évite toute ambiguïté de format (US mm/dd vs EU dd/mm).

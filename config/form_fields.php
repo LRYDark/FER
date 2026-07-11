@@ -171,9 +171,9 @@ function renderFormField(array $field, string $value = '', bool $forceOptional =
         }
         $html .= '</select>';
     } elseif ($type === 'date' && ($field['bdd_column'] ?? '') === 'naissance') {
-        // Champ naissance « intelligent » : accepte une date complète (JJ/MM/AAAA),
-        // une année (AAAA) ou un âge (converti en année par js/inscription-form.js).
-        $html .= "<input name=\"{$name}\" type=\"text\" inputmode=\"numeric\" autocomplete=\"off\" class=\"form-control birthdate-input\" value=\"{$val}\" placeholder=\"JJ/MM/AAAA, année (AAAA) ou âge\" {$reqAttr}>";
+        // Champ « âge » intelligent : accepte un âge (conservé tel quel) ou une année
+        // (AAAA, convertie en âge par js/inscription-form.js). On ne stocke que l'âge.
+        $html .= "<input name=\"{$name}\" type=\"text\" inputmode=\"numeric\" autocomplete=\"off\" class=\"form-control birthdate-input\" value=\"{$val}\" placeholder=\"Âge ou année (AAAA)\" {$reqAttr}>";
         $html .= '<small class="form-text text-muted birthdate-hint"></small>';
     } elseif ($type === 'date') {
         $html .= "<input name=\"{$name}\" type=\"date\" class=\"form-control\" value=\"{$val}\" {$reqAttr}>";
@@ -204,10 +204,14 @@ function getAllActiveFieldColumns(PDO $pdo): array
     // et qu'il ne faut JAMAIS traiter comme un champ saisi par l'utilisateur, même
     // si elles sont marquées « active » dans la table forms.
     $reserved = ['paiement_mode', 'montant_du', 'origine', 'created_at', 'date_inscription', 'created_by'];
+    // 🔒 [SEC-PII] Champs personnels TOUJOURS chiffrés à l'écriture, quel que soit le
+    // flag `encrypted` en base (garde-fou : une mauvaise config ne doit jamais stocker
+    // un nom/email/tel en clair). La lecture gère indifféremment clair et chiffré.
+    $forceEncrypt = defined('PII_FIELDS') ? PII_FIELDS : ['nom','prenom','tel','email','naissance','ville','entreprise'];
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         if ($row['bdd_column'] && !in_array($row['bdd_column'], $reserved, true)) {
             $cols[$row['bdd_column']] = [
-                'encrypted'  => (bool) $row['encrypted'],
+                'encrypted'  => (bool) $row['encrypted'] || in_array($row['bdd_column'], $forceEncrypt, true),
                 'field_type' => $row['field_type'],
             ];
         }

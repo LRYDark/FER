@@ -115,6 +115,13 @@
   // Save AJAX d'une géométrie (x/y/w/h) pour drag/resize libre.
   // `device` (optionnel) : 'desktop' | 'mobile' — l'iframe l'envoie selon le toggle
   // courant ; le PHP préfixe alors `_mobile` au nom du champ.
+  // Erreur de sauvegarde (réseau, ou réponse non-JSON = session expirée) : on prévient
+  // l'admin au lieu de perdre sa modification silencieusement.
+  function accueilSaveError(e) {
+    console.error('Sauvegarde accueil échouée :', e);
+    alert('Sauvegarde échouée (réseau ou session expirée). Reconnectez-vous puis réessayez.');
+  }
+
   function saveGeometry(field, geom, device) {
     if (typeof setDraftState === 'function') setDraftState(true);
     var csrf = getCsrf();
@@ -132,7 +139,8 @@
         if (j && j.ok && j.savedKey) {
           showGeometrySavedToast(j.savedKey, j.device || device);
         }
-      });
+      })
+      .catch(accueilSaveError);
   }
   // Toast léger en bas/droite de l'éditeur, masqué après 1.8s. Réutilise un seul nœud DOM.
   var __geomToast = null;
@@ -188,7 +196,8 @@
         } else {
           alert('Erreur sauvegarde inline : ' + ((j && j.err) || 'inconnue'));
         }
-      });
+      })
+      .catch(accueilSaveError);
   }
 
   // Demande à l'iframe de mettre à jour son DOM sans reload
@@ -698,7 +707,8 @@
           updateIframeStyle(effectiveKey, value);
           showSaveIndicator();
         }
-      });
+      })
+      .catch(accueilSaveError);
   }
 
   // Push un changement de style à l'iframe sans reload
@@ -737,7 +747,8 @@
       fd.append('csrf_token', csrf);
       fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
         .then(function(r) { return r.json(); })
-        .then(function(j) { if (j && j.ok) showSaveIndicator(); });
+        .then(function(j) { if (j && j.ok) showSaveIndicator(); })
+        .catch(accueilSaveError);
     }, 350);
   });
 
@@ -2198,7 +2209,8 @@
           errEl.textContent = (j && j.err) || 'Erreur de sauvegarde.';
           errEl.style.display = 'block';
         }
-      });
+      })
+      .catch(accueilSaveError);
   }
 
   // Re-render la sélection courante (appelé par setting.php au changement de device

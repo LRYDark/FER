@@ -229,7 +229,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
         <tr><td><code>prenom</code></td><td><strong>Obligatoire.</strong> Prénom de l'inscrit.</td></tr>
         <tr><td><code>email</code></td><td>Email — nécessaire pour recevoir le mail de confirmation.</td></tr>
         <tr><td><code>tel</code></td><td>Téléphone.</td></tr>
-        <tr><td><code>naissance</code></td><td>Année de naissance (ex. <code>1990</code>).</td></tr>
+        <tr><td><code>naissance</code></td><td><strong>Âge</strong> (ex. <code>34</code>). Une année (<code>1990</code>) ou une date (<code>09/05/1990</code>) sont acceptées et automatiquement converties en âge.</td></tr>
         <tr><td><code>sexe</code></td><td><code>H</code>, <code>F</code> ou <code>Autre</code>.</td></tr>
         <tr><td><code>ville</code>, <code>entreprise</code></td><td>Informations complémentaires.</td></tr>
         <tr><td><code>tshirt_size</code></td><td><code>XS</code>, <code>S</code>, <code>M</code>, <code>L</code>, <code>XL</code>, <code>XXL</code> ou <code>-</code>.</td></tr>

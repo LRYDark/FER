@@ -20,23 +20,15 @@ if (!empty($GLOBALS['debogage']) || (!empty($data) && !empty($data['debogage']))
 ?>
 
 <?php if ($debugActive): ?>
-<div id="debugBanner" style="
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #fff; padding: 6px 16px; font-size: 12px; font-weight: 700;
-  display: flex; align-items: center; gap: 8px;
-  box-shadow: 0 -2px 12px rgba(0,0,0,.15);
-  text-transform: uppercase; letter-spacing: 0.05em;
-">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.97L13.75 4a2 2 0 00-3.5 0L3.32 16.03A2 2 0 005.07 19z"/></svg>
-  Mode debogage actif — Les erreurs PHP sont affichees. <a href="logs" style="color:#fff;text-decoration:underline;margin-left:8px;">Voir les logs</a>
-</div>
-<style>#oc-content { padding-bottom: 42px !important; }</style>
+<?php // L'ancien bandeau orange « Mode débogage » est remplacé par la barre de debug
+      // (config/debug.php), rendue en bas de page. On garde juste une marge basse pour
+      // que le contenu ne soit pas masqué par la barre, et on remonte les toasts. ?>
+<style>#oc-content { padding-bottom: 44px !important; }</style>
 <?php endif; ?>
 
 <!-- Toast container -->
 <div id="toastContainer" style="
-  position: fixed; bottom: <?= $debugActive ? '42px' : '12px' ?>; right: 12px;
+  position: fixed; bottom: <?= $debugActive ? '48px' : '12px' ?>; right: 12px;
   z-index: 99998; display: flex; flex-direction: column-reverse; gap: 8px;
   max-width: 400px; width: 100%;
 "></div>

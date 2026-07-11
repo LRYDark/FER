@@ -14,6 +14,7 @@ $qrToken = $_GET['token'] ?? '';
 $errorMessage = '';
 $success_message = '';
 $error_message = '';
+$confirmation = null; // données de la page de confirmation (QR, membres) après succès
 
 // Vérification du token QR si présent dans l'URL
 if ($hasGetParams && $qrToken) {
@@ -75,121 +76,178 @@ if ($_POST) {
         $error_message = "Vérification anti-robot échouée. Recommencez.";
     } else {
         try {
-            // Compteur atomique — évite la race condition (CWE-362)
-            $counterExists = false;
-            try {
-                $pdo->query('SELECT next_no FROM inscription_counter LIMIT 0');
-                $counterExists = true;
-            } catch (PDOException $e) {}
-
-            if ($counterExists) {
-                $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
-                $nextInscriptionNo = 'S' . (int)$pdo->lastInsertId();
-            } else {
-                $stmt2 = $pdo->prepare("SELECT MAX(CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED)) as max_no FROM registrations");
-                $stmt2->execute();
-                $result2 = $stmt2->fetch(PDO::FETCH_ASSOC);
-                $nextInscriptionNo = 'S' . (($result2['max_no'] ?? 0) + 1);
-            }
-
-            // Construction dynamique des données à insérer
             require_once '../config/form_fields.php';
+            require_once '../config/registrations_core.php'; // regcore_naissanceToAge()
             $fieldCols = getAllActiveFieldColumns($pdo);
+            $isOnsite  = !empty($tokenData['onsite_mode']);
 
-            $formData = ['inscription_no' => $nextInscriptionNo];
-            $columns = ['inscription_no'];
-            $placeholders = [':inscription_no'];
-
-            foreach ($fieldCols as $col => $meta) {
-                // Un champ actif mais non affiché dans CE formulaire (contexte différent :
-                // le QR n'affiche que les champs visible_qr = 1) n'est pas soumis. On l'omet
-                // de l'INSERT pour laisser la valeur par défaut de la colonne s'appliquer —
-                // sinon on insère '' dans une colonne stricte (ex. ENUM tshirt_size) →
-                // « Data truncated » et l'inscription échoue.
-                if (!isset($_POST[$col])) continue;
-                $raw = $_POST[$col];
-                if ($col === 'commentaire') $raw = mb_substr((string) $raw, 0, 2000);
-                $formData[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
-                $columns[] = "`{$col}`";
-                $placeholders[] = ":{$col}";
-            }
-
-            // Mode « inscription sur place » (défini sur le QR) : la prestation est
-            // choisie directement et la méthode de paiement est imposée côté serveur
-            // (valeur du QR, jamais le champ caché du client → non falsifiable).
-            $isOnsite = !empty($tokenData['onsite_mode']);
-
-            // origine : depuis le POST (champ caché QR-<orga>), sinon défaut.
-            if (!isset($formData['origine'])) {
-                $formData['origine'] = $_POST['origine'] ?? 'en ligne';
-                $columns[] = '`origine`';
-                $placeholders[] = ':origine';
-            }
-
-            // paiement_mode : en mode sur place → valeur serveur du QR (payment_label) ;
-            // sinon → valeur du formulaire classique.
-            if (!isset($formData['paiement_mode'])) {
-                if ($isOnsite) {
-                    $pl = mb_substr(trim((string)($tokenData['payment_label'] ?? 'retrait t-shirt')), 0, 50);
-                    $formData['paiement_mode'] = ($pl !== '') ? $pl : 'retrait t-shirt';
-                } else {
-                    $formData['paiement_mode'] = $_POST['paiement_mode'] ?? 'en ligne (CB)';
-                }
-                $columns[] = '`paiement_mode`';
-                $placeholders[] = ':paiement_mode';
-            }
-
-            // Montant dû + prestation (toujours calculés côté serveur).
             $stmtFee = $pdo->prepare('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1');
             $stmtFee->execute();
             $regFee = (float) ($stmtFee->fetchColumn() ?: 0);
 
-            $allowedPresta = ['tarif_unique', 'enfant_gratuit', 'enfant_tshirt'];
-            $postedPresta  = strtolower(trim((string) ($_POST['prestation'] ?? '')));
-            if ($isOnsite && in_array($postedPresta, $allowedPresta, true)) {
-                // Prestation choisie explicitement sur le formulaire sur place.
-                $formData['prestation'] = $postedPresta;
-                $formData['montant_du'] = ($postedPresta === 'enfant_gratuit') ? 0.0 : $regFee;
-            } else {
-                // Comportement historique : déduit du mode de paiement.
-                $formData['montant_du'] = (strcasecmp((string)($formData['paiement_mode'] ?? ''), 'gratuit') === 0) ? 0.0 : $regFee;
-                $pmPub = strtolower(trim((string)($formData['paiement_mode'] ?? '')));
-                $formData['prestation'] = ($pmPub === 'gratuit') ? 'enfant_gratuit'
-                                        : (($pmPub === 'enfant_tshirt') ? 'enfant_tshirt' : 'tarif_unique');
+            // Compteur atomique — existe-t-il ? (évite la race condition, CWE-362)
+            $counterExists = false;
+            try { $pdo->query('SELECT next_no FROM inscription_counter LIMIT 0'); $counterExists = true; }
+            catch (PDOException $e) {}
+
+            // Colonne group_id présente ? (migration update.php)
+            $hasGroupIdCol = ((int) $pdo->query(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations' AND COLUMN_NAME = 'group_id'"
+            )->fetchColumn()) > 0;
+
+            // Personnes supplémentaires (inscription groupée). Chaque bloc « extra[i][col] ».
+            // On ignore les blocs totalement vides (ni nom ni prénom).
+            $extras = [];
+            if (isset($_POST['extra']) && is_array($_POST['extra'])) {
+                foreach ($_POST['extra'] as $ex) {
+                    if (!is_array($ex)) continue;
+                    if (trim((string)($ex['nom'] ?? '')) === '' && trim((string)($ex['prenom'] ?? '')) === '') continue;
+                    $extras[] = $ex;
+                }
             }
-            $columns[] = '`montant_du`';
-            $placeholders[] = ':montant_du';
-            $columns[] = '`prestation`';
-            $placeholders[] = ':prestation';
+            // 🔒 [SEC-DOS] Plafond serveur : le JS limite à 9 accompagnants, mais un POST
+            // forgé pourrait en envoyer des milliers → autant d'INSERT en une requête.
+            if (count($extras) > 9) $extras = array_slice($extras, 0, 9);
+            $isGroup = count($extras) >= 1; // personne principale + ≥ 1 extra
+            $groupId = ($isGroup && $hasGroupIdCol) ? bin2hex(random_bytes(12)) : null;
 
-            $columns[] = 'created_at';
-            $placeholders[] = 'NOW()';
+            // Insère UNE personne à partir d'une source de champs ($src) et renvoie
+            // ['no','nom','prenom','email']. Réutilisé pour la personne principale et
+            // chaque extra → aucune duplication de la logique d'insertion.
+            $insertOne = function(array $src) use ($pdo, $fieldCols, $isOnsite, $tokenData, $regFee, $groupId, $counterExists) {
+                if ($counterExists) {
+                    $pdo->exec('UPDATE inscription_counter SET next_no = LAST_INSERT_ID(next_no + 1) WHERE id = 1');
+                    $no = 'S' . (int)$pdo->lastInsertId();
+                } else {
+                    $m = $pdo->query("SELECT MAX(CAST(REPLACE(REPLACE(inscription_no, 'S', ''), 'E', '') AS UNSIGNED)) FROM registrations")->fetchColumn();
+                    $no = 'S' . (((int)$m) + 1);
+                }
 
-            // Inscription publique / QR : date d'inscription = maintenant (aucun
-            // antidatage côté public). Ici created_at (date d'ajout) = même instant.
-            $columns[] = 'date_inscription';
-            $placeholders[] = 'NOW()';
+                $formData = ['inscription_no' => $no];
+                $columns = ['inscription_no']; $placeholders = [':inscription_no'];
 
-            $colStr = implode(', ', $columns);
-            $phStr  = implode(', ', $placeholders);
+                foreach ($fieldCols as $col => $meta) {
+                    if (!isset($src[$col])) continue; // champ non soumis → défaut colonne
+                    $raw = $src[$col];
+                    if ($col === 'commentaire') $raw = mb_substr((string) $raw, 0, 2000);
+                    // On ne stocke QUE l'âge (année/âge → âge) pour le champ naissance.
+                    if ($col === 'naissance') { $age = regcore_naissanceToAge((string) $raw); $raw = ($age !== null) ? $age : ''; }
+                    // Colonnes ENUM : on assainit toute valeur vide/invalide vers une valeur
+                    // valide, sinon MySQL renvoie « Data truncated » et l'inscription échoue.
+                    if ($col === 'tshirt_size') { $raw = in_array($raw, ['-','XS','S','M','L','XL','XXL'], true) ? $raw : '-'; }
+                    if ($col === 'sexe')        { $raw = in_array($raw, ['H','F','Autre'], true) ? $raw : 'Autre'; }
+                    $formData[$col] = $meta['encrypted'] ? encrypt($raw) : $raw;
+                    $columns[] = "`{$col}`"; $placeholders[] = ":{$col}";
+                }
 
-            $stmt = $pdo->prepare("INSERT INTO registrations ({$colStr}) VALUES ({$phStr})");
-            $stmt->execute($formData);
+                if (!isset($formData['origine'])) {
+                    $formData['origine'] = $_POST['origine'] ?? 'en ligne';
+                    $columns[] = '`origine`'; $placeholders[] = ':origine';
+                }
 
+                if (!isset($formData['paiement_mode'])) {
+                    if ($isOnsite) {
+                        $pl = mb_substr(trim((string)($tokenData['payment_label'] ?? 'retrait t-shirt')), 0, 50);
+                        $formData['paiement_mode'] = ($pl !== '') ? $pl : 'retrait t-shirt';
+                    } else {
+                        $formData['paiement_mode'] = $src['paiement_mode'] ?? ($_POST['paiement_mode'] ?? 'en ligne (CB)');
+                    }
+                    $columns[] = '`paiement_mode`'; $placeholders[] = ':paiement_mode';
+                }
+
+                // Montant + prestation calculés côté serveur (par personne).
+                $allowedPresta = ['tarif_unique', 'enfant_gratuit', 'enfant_tshirt'];
+                $postedPresta  = strtolower(trim((string) ($src['prestation'] ?? '')));
+                if ($isOnsite && in_array($postedPresta, $allowedPresta, true)) {
+                    $formData['prestation'] = $postedPresta;
+                    $formData['montant_du'] = ($postedPresta === 'enfant_gratuit') ? 0.0 : $regFee;
+                } else {
+                    $formData['montant_du'] = (strcasecmp((string)($formData['paiement_mode'] ?? ''), 'gratuit') === 0) ? 0.0 : $regFee;
+                    $pmPub = strtolower(trim((string)($formData['paiement_mode'] ?? '')));
+                    $formData['prestation'] = ($pmPub === 'gratuit') ? 'enfant_gratuit'
+                                            : (($pmPub === 'enfant_tshirt') ? 'enfant_tshirt' : 'tarif_unique');
+                }
+                $columns[] = '`montant_du`'; $placeholders[] = ':montant_du';
+                $columns[] = '`prestation`'; $placeholders[] = ':prestation';
+
+                if ($groupId !== null) { $formData['group_id'] = $groupId; $columns[] = '`group_id`'; $placeholders[] = ':group_id'; }
+
+                $columns[] = 'created_at';       $placeholders[] = 'NOW()';
+                $columns[] = 'date_inscription'; $placeholders[] = 'NOW()';
+
+                $sql = 'INSERT INTO registrations (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
+                $pdo->prepare($sql)->execute($formData);
+
+                return [
+                    'no'     => $no,
+                    'nom'    => (string)($src['nom'] ?? ''),
+                    'prenom' => (string)($src['prenom'] ?? ''),
+                    'email'  => trim((string)($src['email'] ?? '')),
+                ];
+            };
+
+            // Insertion : personne principale (champs à plat) puis extras.
+            $created = [];
+            $created[] = $insertOne($_POST);
+            foreach ($extras as $ex) $created[] = $insertOne($ex);
+
+            // ── Mail de confirmation ──
             $subject = 'Inscription enregistrée - Forbach en Rose';
-            if(($_POST['email'] ?? '') != ''){
-              try {
+            $GLOBALS['force_no_qrcode'] = (isset($tokenData['send_qrcode']) && (int)$tokenData['send_qrcode'] === 0);
+            $recipient = $created[0]['email']; // l'e-mail de la personne principale = destinataire
+            // 🔒 [SEC-MAIL] N'envoyer qu'à une adresse valide (défense en profondeur
+            // contre l'injection d'en-têtes ; le sink googleMail nettoie déjà le CRLF).
+            if ($recipient !== '' && !filter_var($recipient, FILTER_VALIDATE_EMAIL)) $recipient = '';
+            // Config globale (qrcode_mail_mode / limite) requise par shouldIncludeQrCode :
+            // sans elle, le mode retombe sur « none » → aucun QR groupé ne serait jamais joint.
+            $data = $pdo->query('SELECT * FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+            try {
                 require_once '../config/googleMail.php';
-                // Réglage propre au QR : si send_qrcode = 0, on force l'envoi du mail
-                // SANS QR code (quelle que soit la config globale du site). Sinon on
-                // laisse la config du site décider (shouldIncludeQrCode).
-                $GLOBALS['force_no_qrcode'] = (isset($tokenData['send_qrcode']) && (int)$tokenData['send_qrcode'] === 0);
-                sendMail($_POST['email'], $subject, null, null, $_POST['nom'] ?? '', $_POST['prenom'] ?? '', 'inscription', $nextInscriptionNo);
-              } catch (\Throwable $e) { /* mail failure does not block registration */ }
-            }
+                if ($isGroup) {
+                    // Récap groupé + QR groupé (selon config), même logique que l'ajout multiple.
+                    $memberNos = array_column($created, 'no');
+                    $qrOverride = (function_exists('shouldIncludeGroupQr') && $groupId !== null && shouldIncludeGroupQr($memberNos))
+                        ? ('G:' . $groupId) : null;
+                    $rowsHtml = '';
+                    foreach ($created as $c) {
+                        $rowsHtml .= '<tr>'
+                                   . '<td style="padding:8px;border:1px solid #fbcfe8;font-family:monospace;">' . htmlspecialchars($c['no']) . '</td>'
+                                   . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($c['nom']) . '</td>'
+                                   . '<td style="padding:8px;border:1px solid #fbcfe8;">' . htmlspecialchars($c['prenom']) . '</td></tr>';
+                    }
+                    $qrNote = $qrOverride
+                        ? 'Le jour de la course, <strong>présentez le QR code ci-dessous</strong> pour récupérer les dossards et t-shirts du groupe (il liste tous les inscrits).'
+                        : 'Le jour de la course, <strong>présentez ce mail à l\'accueil</strong>.';
+                    // Même tableau que l'aperçu « Récap groupé » (mail-settings) : pleine largeur, N° / Nom / Prénom.
+                    $desc = '<p style="font-size:15px;line-height:1.6;color:#334155;">Bonjour,<br><br>'
+                          . 'Nous confirmons l\'inscription des <strong>' . count($created) . '</strong> personne(s) ci-dessous.<br><br>'
+                          . $qrNote . '</p>'
+                          . '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;"><thead><tr style="background:#fdf2f6;">'
+                          . '<th style="padding:8px;border:1px solid #fbcfe8;text-align:left;">N° inscription</th>'
+                          . '<th style="padding:8px;border:1px solid #fbcfe8;text-align:left;">Nom</th>'
+                          . '<th style="padding:8px;border:1px solid #fbcfe8;text-align:left;">Prénom</th></tr></thead><tbody>'
+                          . $rowsHtml . '</tbody></table>';
+                    if ($recipient !== '') {
+                        sendMail($recipient, 'Inscriptions enregistrées - Forbach en Rose', 'Inscriptions Forbach en Rose',
+                            $desc, null, null, 'info', null, 'bulk_recap', [], $qrOverride);
+                    }
+                } elseif ($recipient !== '') {
+                    sendMail($recipient, $subject, null, null, $created[0]['nom'], $created[0]['prenom'], 'inscription', $created[0]['no']);
+                }
+            } catch (\Throwable $e) { /* l'échec du mail ne bloque jamais l'inscription */ }
+
+            // ── Données de confirmation (page + persistance navigateur) ──
+            // Le QR affiché à l'écran est TOUJOURS présent (preuve à conserver / présenter) :
+            // groupe → « G:<group_id> », sinon le numéro d'inscription du billet.
             $success_message = "Inscription enregistrée avec succès !";
-            // Affiché en toast (même système que les pages admin, via inc/toast.php).
-            $_SESSION['toasts'][] = ['msg' => $success_message, 'type' => 'success', 'delay' => 5000];
+            $confirmation = [
+                'group'   => $isGroup,
+                'qr'      => $isGroup ? ('G:' . $groupId) : $created[0]['no'],
+                'members' => array_map(function($c){ return ['no' => $c['no'], 'nom' => $c['nom'], 'prenom' => $c['prenom']]; }, $created),
+                'org'     => (string)($qrData['organisation'] ?? ($tokenData['organisation'] ?? '')),
+                'mailed'  => ($recipient !== ''),
+            ];
 
         } catch (PDOException $e) {
             error_log("Registration error: " . $e->getMessage());
@@ -270,7 +328,7 @@ try {
   </a>
   <div class="register-title-info">
     <h1>Inscription</h1>
-    <span class="register-subtitle"><?= (int)$course_km ?> km course et marche solidaire contre le cancer du sein</span>
+    <span class="register-subtitle"><?= (int)$course_km ?> km course et marche solidaire contre le cancer</span>
   </div>
   <?php if (!empty($registration_fee)): ?>
     <span class="register-donation-badge"><?= htmlspecialchars($registration_fee) ?> € intégralement reversés</span>
@@ -317,16 +375,18 @@ try {
         </div>
       <?php endif; ?>
 
-      <h2 class="text-center mb-4">Inscription via QR Code</h2>
+      <div id="regHeader">
+        <h2 class="text-center mb-4">Inscription via QR Code</h2>
 
-      <?php if ($qrData['organisation']): ?>
-        <div class="text-center mb-4">
-          <strong>Lieu d'inscription :</strong> <?= htmlspecialchars($qrData['organisation']) ?>
-          <?php if ($qrData['description']): ?>
-            <br><small><?= htmlspecialchars($qrData['description']) ?></small>
-          <?php endif; ?>
-        </div>
-      <?php endif; ?>
+        <?php if ($qrData['organisation']): ?>
+          <div class="text-center mb-4">
+            <strong>Lieu d'inscription :</strong> <?= htmlspecialchars($qrData['organisation']) ?>
+            <?php if ($qrData['description']): ?>
+              <br><small><?= htmlspecialchars($qrData['description']) ?></small>
+            <?php endif; ?>
+          </div>
+        <?php endif; ?>
+      </div>
 
       <form id="fPub" class="row g-3 needs-validation" method="POST" action="" novalidate>
         <?= csrf_field() ?>
@@ -368,6 +428,42 @@ try {
           </div>
         <?php endif; ?>
 
+        <!-- ── Inscription groupée : personnes supplémentaires (e-mail commun ci-dessus) ── -->
+        <div class="col-12" id="extraPeople"></div>
+        <div class="col-12">
+          <button type="button" id="btnAddPerson" class="btn btn-outline-secondary btn-sm">+ Ajouter une personne</button>
+          <div class="form-text" style="font-size:12px">Inscrivez plusieurs personnes d'un coup — la confirmation (et le QR groupé) est envoyée à l'e-mail renseigné ci-dessus.</div>
+        </div>
+        <?php
+          // Template d'un bloc « personne supplémentaire » : mêmes champs que le
+          // formulaire (sauf e-mail = destinataire commun), avec des noms préfixés
+          // extra[__IDX__][…] et non obligatoires. Le bloc « autorisation parentale »
+          // (guardian) est inclus : il s'affiche par carte si la personne est mineure.
+          $extraFieldsHtml = '';
+          foreach ($formFields as $ef) {
+              $ebc = $ef['bdd_column'] ?? '';
+              if ($ebc === 'email') continue;
+              $extraFieldsHtml .= renderFormField($ef, '', false, 'qr');
+          }
+          if (!empty($qrData['onsite_mode'])) {
+              $extraFieldsHtml .= '<div class="col-md-6"><label class="form-label">Prestation</label>'
+                . '<select name="prestation" class="form-select">'
+                . '<option value="tarif_unique">Tarif unique — ' . htmlspecialchars($onFeeLabel) . '</option>'
+                . '<option value="enfant_gratuit">Enfant −' . (int)$childAge . ' ans — Gratuit</option>'
+                . '<option value="enfant_tshirt">Enfant −' . (int)$childAge . ' ans avec T-shirt — ' . htmlspecialchars($onFeeLabel) . '</option>'
+                . '</select></div>';
+          }
+          $extraFieldsHtml = preg_replace('/\bname="([a-zA-Z0-9_]+)"/', 'name="extra[__IDX__][$1]"', $extraFieldsHtml);
+          $extraFieldsHtml = preg_replace('/\s+required(=("|\')required("|\'))?/', '', $extraFieldsHtml);
+        ?>
+        <template id="extraPersonTpl">
+          <div class="extra-person p-3 mb-2" style="background:#faf7f9;border:1px solid #f0e0ea;border-radius:12px;position:relative">
+            <button type="button" class="btn btn-sm btn-outline-danger extra-remove" style="position:absolute;top:8px;right:8px;line-height:1;padding:2px 8px">&times;</button>
+            <div class="fw-semibold mb-2 extra-title" style="color:#9d174d">Personne supplémentaire</div>
+            <div class="row g-3"><?= $extraFieldsHtml ?></div>
+          </div>
+        </template>
+
         <!-- Vérification anti-robot (Turnstile ou maths selon config) — identique au formulaire de contact -->
         <div class="col-12" id="regCaptcha">
           <div id="regTurnstileBox" style="display:none;"></div>
@@ -390,6 +486,117 @@ try {
           </button>
         </div>
       </form>
+
+      <!-- ═══ Page de confirmation (QR + membres) ═══
+           Affichée après une inscription, OU au retour sur la page si une confirmation
+           est mémorisée dans le navigateur (localStorage). -->
+      <div id="regConfirm" style="display:none">
+        <div class="text-center">
+          <div class="mb-2" style="font-size:2.6rem;line-height:1;color:#16a34a">✓</div>
+          <h2 class="mb-1">Inscription confirmée</h2>
+          <p class="text-muted" id="regConfirmSub"></p>
+          <div id="regConfirmMembers" class="mb-3"></div>
+          <div class="p-3 d-inline-block" style="background:#fff;border:2px dashed var(--primary,#f42182);border-radius:16px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--primary,#f42182)">À présenter pour le retrait du t-shirt</div>
+            <canvas id="regQrCanvas" width="220" height="220" style="display:block;margin:8px auto"></canvas>
+          </div>
+          <div class="d-grid gap-2 mt-4" style="max-width:340px;margin:0 auto">
+            <button type="button" id="regSaveImg" class="btn-action-primary">Enregistrer l'image</button>
+            <button type="button" id="regNew" class="btn btn-outline-secondary">Nouvelle inscription</button>
+          </div>
+          <p class="text-muted mt-3" id="regMailedNote" style="font-size:12px;display:none">Un e-mail de confirmation vous a également été envoyé.</p>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+      <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+      (function(){
+        /* ── Personnes supplémentaires (inscription groupée) ── */
+        var tpl = document.getElementById('extraPersonTpl');
+        var box = document.getElementById('extraPeople');
+        var addBtn = document.getElementById('btnAddPerson');
+        var MAX_EXTRA = 9; // + la personne principale = 10 max
+        var idx = 0;
+        if (tpl && box && addBtn) {
+          addBtn.addEventListener('click', function(){
+            if (box.querySelectorAll('.extra-person').length >= MAX_EXTRA) { addBtn.disabled = true; return; }
+            var html = tpl.innerHTML.replace(/__IDX__/g, String(idx++));
+            var wrap = document.createElement('div');
+            wrap.innerHTML = html.trim();
+            var node = wrap.firstElementChild;
+            box.appendChild(node);
+            // Câble l'autorisation parentale de cette carte (affichage selon l'âge saisi).
+            if (window.FERInscription) FERInscription.initForm(node);
+            if (box.querySelectorAll('.extra-person').length >= MAX_EXTRA) addBtn.disabled = true;
+          });
+          box.addEventListener('click', function(e){
+            var rm = e.target.closest('.extra-remove');
+            if (!rm) return;
+            var p = rm.closest('.extra-person');
+            if (p) p.remove();
+            addBtn.disabled = false;
+          });
+        }
+
+        /* ── Page de confirmation + persistance navigateur ── */
+        var KEY = 'fer_last_confirm';
+        var serverConf = <?= $confirmation ? json_encode($confirmation) : 'null' ?>;
+        var formEl = document.getElementById('fPub');
+        var confEl = document.getElementById('regConfirm');
+        if (serverConf) { try { localStorage.setItem(KEY, JSON.stringify({conf:serverConf, mailed:!!serverConf.mailed})); } catch(e){} }
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){}
+        if (!confEl || !saved || !saved.conf || !saved.conf.qr) return; // pas de confirmation → formulaire
+
+        var conf = saved.conf, mem = conf.members || [];
+        if (formEl) formEl.style.display = 'none';
+        var hdrEl = document.getElementById('regHeader');
+        if (hdrEl) hdrEl.style.display = 'none'; // masque « Inscription via QR Code / Lieu… » sur la confirmation
+        confEl.style.display = 'block';
+        function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+        var sub = document.getElementById('regConfirmSub');
+        var mbox = document.getElementById('regConfirmMembers');
+        if (conf.group) {
+          sub.textContent = mem.length + ' inscription(s) — QR code du groupe.';
+          mbox.innerHTML = mem.map(function(m){ return '<div><strong>'+esc((m.prenom||'')+' '+(m.nom||''))+'</strong> <span class="text-muted">N°'+esc(m.no)+'</span></div>'; }).join('');
+        } else if (mem[0]) {
+          sub.textContent = 'Conservez votre QR code.';
+          mbox.innerHTML = '<div class="fs-5 fw-bold">'+esc((mem[0].prenom||'')+' '+(mem[0].nom||''))+'</div><div class="text-muted">N°'+esc(mem[0].no)+'</div>';
+        }
+        if (saved.mailed) document.getElementById('regMailedNote').style.display = 'block';
+
+        var qrCanvas = document.getElementById('regQrCanvas');
+        try { new QRious({ element: qrCanvas, value: conf.qr, size: 220, level: 'M' }); } catch(e){}
+
+        document.getElementById('regNew').addEventListener('click', function(){
+          try { localStorage.removeItem(KEY); } catch(e){}
+          window.location = window.location.pathname + window.location.search;
+        });
+
+        // « Enregistrer l'image » : compose une carte propre (titre / nom / n° / QR) en PNG.
+        document.getElementById('regSaveImg').addEventListener('click', function(){
+          var W=420, H=conf.group ? 620 : 540, c=document.createElement('canvas'); c.width=W; c.height=H;
+          var ctx=c.getContext('2d');
+          ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
+          ctx.fillStyle='#f42182'; ctx.fillRect(0,0,W,68);
+          ctx.fillStyle='#ffffff'; ctx.textAlign='center'; ctx.font='bold 24px sans-serif';
+          ctx.fillText('Forbach en Rose', W/2, 43);
+          ctx.fillStyle='#0f172a'; ctx.font='bold 20px sans-serif';
+          var title = conf.group ? ('Groupe — '+mem.length+' inscrits')
+                                 : (mem[0] ? ((mem[0].prenom||'')+' '+(mem[0].nom||'')).trim() : '');
+          ctx.fillText(title, W/2, 108);
+          if (!conf.group && mem[0]) { ctx.fillStyle='#64748b'; ctx.font='14px sans-serif'; ctx.fillText('N° '+mem[0].no, W/2, 132); }
+          var qs=250; ctx.drawImage(qrCanvas, (W-qs)/2, 150, qs, qs);
+          ctx.fillStyle='#f42182'; ctx.font='bold 12px sans-serif';
+          ctx.fillText('À PRÉSENTER POUR LE RETRAIT DU T-SHIRT', W/2, 428);
+          if (conf.group) { ctx.fillStyle='#334155'; ctx.font='12px sans-serif'; var y=456;
+            mem.slice(0,8).forEach(function(m){ ctx.fillText(((m.prenom||'')+' '+(m.nom||'')).trim()+' — '+m.no, W/2, y); y+=17; });
+          }
+          var a=document.createElement('a'); a.href=c.toDataURL('image/png');
+          a.download='inscription-forbach-en-rose.png'; a.click();
+        });
+      })();
+      </script>
       <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
         .reg-captcha-question { font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:.5rem; }
         .reg-captcha-row { display:flex; gap:.5rem; align-items:stretch; }
@@ -399,6 +606,17 @@ try {
         .reg-captcha-reload:hover { background:#cbd5e1; }
         .reg-captcha-error { color:#b91c1c; font-size:.82rem; min-height:1.1em; margin-top:.4rem; }
         #regSubmitBtn:disabled { opacity:.55; cursor:not-allowed; filter:grayscale(.4); }
+        /* Bouton « supprimer une personne » (croix) : contraste garanti au survol
+           (un thème global rendait le fond ET le texte blancs → croix invisible). */
+        .extra-remove { color:#dc3545 !important; background:#fff !important; border-color:#dc3545 !important; }
+        .extra-remove:hover, .extra-remove:focus { color:#fff !important; background:#dc3545 !important; border-color:#dc3545 !important; }
+        /* Bouton « Nouvelle inscription » : contraste garanti au survol
+           (un thème global rendait le fond ET le texte blancs → bouton invisible). */
+        #regNew, #btnAddPerson { color:#475569 !important; background:#fff !important; border-color:#cbd5e1 !important; }
+        #regNew:hover, #regNew:focus,
+        #btnAddPerson:hover, #btnAddPerson:focus { color:#475569 !important; background:#f1f5f9 !important; border-color:#94a3b8 !important; }
+        /* L'âge se calcule en arrière-plan à l'enregistrement : on n'affiche pas l'indice « → âge X ans ». */
+        .birthdate-hint { display:none !important; }
       </style>
       <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
       /* Vérification anti-robot du formulaire d'inscription QR (même mécanisme que contact.php) */
@@ -517,7 +735,7 @@ try {
         update();
       })();
       </script>
-      <script src="../js/inscription-form.js?v=5" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+      <script src="../js/inscription-form.js?v=7" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
       <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
       (function(){
         var form = document.getElementById('fPub');
@@ -529,12 +747,22 @@ try {
           // (nom, prénom, email, date de naissance…) avant tout traitement, sinon on
           // pourrait enregistrer une inscription avec des champs requis vides.
           if (!form.checkValidity()) { e.preventDefault(); e.stopImmediatePropagation(); form.reportValidity(); return; }
-          // Inscrit mineur : responsable légal obligatoire.
+          // Inscrit mineur : responsable légal obligatoire (personne principale + extras).
           if (!FERInscription.ensureGuardian(form)) { e.preventDefault(); return; }
-          // Compose le commentaire (autorisation responsable) puis normalise la naissance.
+          var _cards = form.querySelectorAll('.extra-person');
+          for (var _i = 0; _i < _cards.length; _i++) {
+            if (!FERInscription.ensureGuardian(_cards[_i])) { e.preventDefault(); return; }
+          }
+          // Compose le commentaire (autorisation responsable) puis normalise la naissance,
+          // pour la personne principale ET chaque personne supplémentaire.
           FERInscription.composeComment(form);
           var b = form.querySelector('[name="naissance"]');
           if (b) b.value = FERInscription.normalizeBirthValue(b.value);
+          for (var _j = 0; _j < _cards.length; _j++) {
+            FERInscription.composeComment(_cards[_j]);
+            var _cb = _cards[_j].querySelector('[name$="[naissance]"]');
+            if (_cb) _cb.value = FERInscription.normalizeBirthValue(_cb.value);
+          }
         });
       })();
       </script>

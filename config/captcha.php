@@ -128,6 +128,26 @@ function issueMathCaptcha(): array {
 }
 
 /**
+ * 🔒 [SEC-CAPTCHA] Rate-limit par IP des bascules « fallback maths ».
+ * Empêche un bot de rétrograder Turnstile (fort) vers le captcha maths (faible) à
+ * volonté en repartant de sessions neuves. Max 15 bascules / heure / IP. Les
+ * utilisateurs légitimes (widget réellement cassé) n'atteignent jamais ce seuil.
+ */
+function _captchaFallbackAllowedByIp(): bool {
+    $ip = function_exists('fer_client_ip') ? fer_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    $key  = substr(hash('sha256', 'captchafb_' . $ip), 0, 32);
+    $file = sys_get_temp_dir() . '/fer_' . $key . '.json';
+    $now  = time();
+    $times = [];
+    if (@file_exists($file)) { $times = json_decode(@file_get_contents($file), true) ?: []; }
+    $times = array_values(array_filter($times, fn($t) => $t > $now - 3600));
+    if (count($times) >= 15) return false;
+    $times[] = $now;
+    @file_put_contents($file, json_encode($times));
+    return true;
+}
+
+/**
  * Génère un challenge captcha à exposer au client.
  * Si $fallback=true → force le mode maths (utilisé quand Turnstile a échoué côté navigateur).
  * Retourne {ok:true, mode:'turnstile', sitekey:...}
@@ -139,6 +159,12 @@ function issuePublicCaptcha(\PDO $pdo, bool $fallback = false): array {
         return ['ok' => true, 'mode' => 'turnstile', 'sitekey' => $cfg['sitekey']];
     }
     if ($fallback) {
+        // Si Turnstile est configuré, la bascule vers le captcha maths est un
+        // affaiblissement : on la limite par IP. Au-delà du quota, on renvoie le vrai
+        // widget Turnstile plutôt que le mode maths.
+        if ($cfg['enabled'] && !_captchaFallbackAllowedByIp()) {
+            return ['ok' => true, 'mode' => 'turnstile', 'sitekey' => $cfg['sitekey']];
+        }
         // Marque la session : ce navigateur a constaté que Turnstile est cassé,
         // on l'autorise donc à soumettre via le captcha maths.
         $_SESSION['partner_captcha_fallback_ok'] = time();
@@ -176,7 +202,15 @@ function verifyPublicCaptcha(array $data, \PDO $pdo): bool {
         if (!$fallbackAllowed) return false;
     }
 
-    // Validation maths (mode natif OU fallback autorisé)
+    return verifyMathCaptcha($data);
+}
+
+/**
+ * Valide UNIQUEMENT un captcha maths (token + réponse), indépendamment de Turnstile.
+ * Usage : formulaires légers (newsletter) qui veulent un captcha simple et fiable
+ * sans dépendre de la config Turnstile. Token à usage unique (consommé).
+ */
+function verifyMathCaptcha(array $data): bool {
     $capToken  = trim((string)($data['captcha_token']  ?? ''));
     $capAnswer = trim((string)($data['captcha_answer'] ?? ''));
     $store     = $_SESSION['partner_captcha'][$capToken] ?? null;

@@ -33,11 +33,22 @@ $visibility = $mtc['visibility'] ?? [];
 // on garantit qu'elle reste toujours visible pour ces sous-types, quelle que
 // soit la configuration de visibilité enregistrée (un mail vide n'a aucun sens).
 if (isset($visibility['description']) && is_array($visibility['description'])) {
-    foreach (['new_article', 'password_reset', 'bulk_recap'] as $_forcedSubtype) {
+    // Ces sous-types portent leur message DANS la section « description » (contact,
+    // 2FA, création de compte, réinitialisation, notifications, récap groupé…). On
+    // garantit qu'elle reste visible, sinon une config de visibilité enregistrée par
+    // l'admin pourrait masquer le corps de ces mails (mail vide = aucun sens).
+    foreach (['new_article', 'password_reset', 'bulk_recap', 'info', 'code', 'new_user', 'test'] as $_forcedSubtype) {
         if (!in_array($_forcedSubtype, $visibility['description'], true)) {
             $visibility['description'][] = $_forcedSubtype;
         }
     }
+}
+// La section QR doit rester affichable pour le mail récap groupé (bulk_recap) : le QR
+// n'est de toute façon généré que si la config globale l'autorise, donc s'il est fourni
+// on le montre — sans qu'une visibilité admin restrictive ne le masque par erreur.
+if (isset($visibility['qrcode']) && is_array($visibility['qrcode'])
+    && !in_array('bulk_recap', $visibility['qrcode'], true)) {
+    $visibility['qrcode'][] = 'bulk_recap';
 }
 $mailSubtype = $mail_subtype ?? ($type === 'inscription' ? 'inscription' : 'info');
 
@@ -128,18 +139,24 @@ $sections['description'] = function() use ($description, $c, $r) {
         </td></tr></table>';
 };
 
-// QR Code (inscription only)
-$sections['qrcode'] = function() use ($qrcode, $type, $inscription_no, $c, $r, $t) {
-    if (empty($qrcode) || $type !== 'inscription') return '';
+// QR Code — mail d'inscription (billet) OU mail récap groupé (un seul QR pour le lot).
+// Rendu dès qu'un QR est fourni ($qrcode = cid:...) ; le numéro de billet ne s'affiche
+// que pour un inscrit unique (absent pour un QR de groupe).
+$sections['qrcode'] = function() use ($qrcode, $inscription_no, $c, $r, $t) {
+    if (empty($qrcode)) return '';
     $accent = htmlspecialchars($c['accent']);
     $rs = (int)$r['section'];
-    return '<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+    $no  = trim((string)($inscription_no ?? ''));
+    $html = '<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
         <tr><td style="padding:28px;background:#ffffff;border-radius:'.$rs.'px;border:2px dashed '.$accent.';text-align:center;">
-            <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:'.$accent.';margin:0 0 6px;">'.htmlspecialchars($t['qrcode_title']).'</p>
-            <p style="font-size:13px;color:#64748b;margin:0 0 4px;">Billet n&deg; '.htmlspecialchars((string)($inscription_no ?? '')).'</p>
-            <p style="font-size:13px;color:#64748b;margin:0 0 16px;">'.htmlspecialchars($t['qrcode_subtitle']).'</p>
+            <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:'.$accent.';margin:0 0 6px;">'.htmlspecialchars($t['qrcode_title']).'</p>';
+    if ($no !== '') {
+        $html .= '<p style="font-size:13px;color:#64748b;margin:0 0 4px;">Billet n&deg; '.htmlspecialchars($no).'</p>';
+    }
+    $html .= '<p style="font-size:13px;color:#64748b;margin:0 0 16px;">'.htmlspecialchars($t['qrcode_subtitle']).'</p>
             <img src="'.$qrcode.'" alt="QR Code" width="200" height="200" style="display:inline-block;border-radius:16px;">
         </td></tr></table>';
+    return $html;
 };
 
 // Banner

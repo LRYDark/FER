@@ -158,12 +158,17 @@ $subtitle_accueil = $data['subtitle_accueil'] ?? '';
 $subtitle_accueil_mobile = $data['subtitle_accueil_mobile'] ?? '';
 $flash_info_text = $data['flash_info_text'] ?? '';
 $flash_info_active = !empty($data['flash_info_active']) ? 1 : 0;
+$flash_info_mode  = $data['flash_info_mode'] ?? ($flash_info_active ? 'on' : 'off'); // on | off | auto
+$flash_info_start = $data['flash_info_start'] ?? '';
+$flash_info_end   = $data['flash_info_end'] ?? '';
 $qrcode_mail_mode = $data['qrcode_mail_mode'] ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $debogage = !empty($data['debogage']) ? 1 : 0;
 $video_accueil = $data['video_accueil'] ?? 'FER.mp4';
 $maintenance_mode = !empty($data['maintenance_mode']) ? 1 : 0;
 $maintenance_message = $data['maintenance_message'] ?? '';
+$session_lifetime = (int) ($data['session_lifetime'] ?? 0); // minutes ; 0 = jamais (inactivité)
+$session_absolute_lifetime = (int) ($data['session_absolute_lifetime'] ?? 0); // minutes ; 0 = jamais (absolu)
 
 // parcours
 $titleParcours  = $data['titleParcours']   ?? 'test';
@@ -849,7 +854,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
             unset($col);
         }
         unset($row);
-        unset($row);
         require_once __DIR__ . '/../config/accueil_layout.php';
         try {
             saveAccueilLayout($pdo, $incoming);
@@ -1284,7 +1288,14 @@ if (isset($_POST['save_accueil_params'])) {
     $link_cancer = $_POST['link_cancer'] ?? null;
     $date_course = $_POST['date_course'] ?? null;
     $flash_info_text = trim($_POST['flash_info_text'] ?? '');
-    $flash_info_active = !empty($_POST['flash_info_active']) ? 1 : 0;
+    // Mode du bandeau : on (toujours) / off (jamais) / auto (programmé entre 2 dates).
+    $flash_info_mode = in_array($_POST['flash_info_mode'] ?? '', ['on','off','auto'], true) ? $_POST['flash_info_mode'] : 'off';
+    // Normalise datetime-local (YYYY-MM-DDTHH:MM) → DATETIME MySQL ; vide → NULL.
+    $__normDt = function ($v) { $v = trim((string) $v); if ($v === '') return null; $v = str_replace('T', ' ', $v); if (strlen($v) === 16) $v .= ':00'; return $v; };
+    $flash_info_start = $__normDt($_POST['flash_info_start'] ?? '');
+    $flash_info_end   = $__normDt($_POST['flash_info_end'] ?? '');
+    // Valeur legacy résolue : flash_info_active = 1 uniquement si mode = on.
+    $flash_info_active = ($flash_info_mode === 'on') ? 1 : 0;
 
     if ($date_course) {
         $date_course = $date_course . ' 00:00:00';
@@ -1308,6 +1319,15 @@ if (isset($_POST['save_accueil_params'])) {
         'dc' => $date_course, 'pp' => $newPicturePartner,
         'ft' => $flash_info_text, 'fa' => $flash_info_active,
     ]);
+
+    // Colonnes de planification du bandeau (peuvent être absentes avant migration) :
+    // UPDATE séparé pour ne pas faire échouer la sauvegarde principale.
+    try {
+        $pdo->prepare('UPDATE setting SET flash_info_mode = :m, flash_info_start = :s, flash_info_end = :e WHERE id = 1')
+            ->execute(['m' => $flash_info_mode, 's' => $flash_info_start, 'e' => $flash_info_end]);
+    } catch (\Throwable $e) {
+        addToast('warning', "Planification du bandeau non enregistrée (colonnes absentes) : lancez update.php.");
+    }
 
     addToast('success', 'Paramètres enregistrés !');
     $picture_partner = $newPicturePartner;
@@ -1360,6 +1380,39 @@ if (isset($_POST['save_maintenance'])) {
         ->execute(['m' => $maintenance_mode, 'msg' => $maintenance_message]);
 
     addToast('success', 'Mode maintenance mis à jour !');
+}
+
+/* --------------------------------------------------------------------------
+   Sécurité — Timeout de session par inactivité
+   Valeurs autorisées (minutes) : 10, 30, 60, 180, 1440, 0 (jamais).
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_session'])) {
+    $allowedLifetimes = [0, 10, 30, 60, 180, 1440];
+    $newLifetime = (int) ($_POST['session_lifetime'] ?? 0);
+    if (!in_array($newLifetime, $allowedLifetimes, true)) $newLifetime = 0;
+
+    // Cap absolu : mêmes paliers + 12 h ; « jamais » = 0.
+    $allowedAbsolute = [0, 60, 180, 480, 720, 1440];
+    $newAbsolute = (int) ($_POST['session_absolute_lifetime'] ?? 0);
+    if (!in_array($newAbsolute, $allowedAbsolute, true)) $newAbsolute = 0;
+
+    try {
+        $pdo->prepare('UPDATE setting SET session_lifetime = :v WHERE id = 1')
+            ->execute(['v' => $newLifetime]);
+        $session_lifetime = $newLifetime;
+        // La colonne du cap absolu peut être absente si update.php n'a pas encore tourné :
+        // on l'enregistre séparément et on n'échoue pas si elle manque.
+        try {
+            $pdo->prepare('UPDATE setting SET session_absolute_lifetime = :v WHERE id = 1')
+                ->execute(['v' => $newAbsolute]);
+            $session_absolute_lifetime = $newAbsolute;
+        } catch (\Throwable $e2) {
+            addToast('error', "Durée absolue non enregistrée (colonne absente) : lancez update.php.");
+        }
+        addToast('success', 'Délai d\'expiration de session mis à jour !');
+    } catch (\Throwable $e) {
+        addToast('error', "La colonne session_lifetime est absente : lancez update.php.");
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -2872,7 +2925,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 // Determine active tab based on which form was submitted
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['save_maintenance'])) $activeTab = 'maintenance';
+    if (isset($_POST['save_maintenance']) || isset($_POST['save_session'])) $activeTab = 'maintenance';
     elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
     elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params']) || isset($_POST['save_csp_domains']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
@@ -3217,12 +3270,43 @@ if (!$canTab($activeTab)) {
           <div class="col-md-8"><label class="form-label">Texte du bandeau défilant</label>
             <input type="text" class="form-control" name="flash_info_text" placeholder="Ex : Inscriptions ouvertes ! Rendez-vous le 5 juillet..." value="<?= htmlspecialchars($flash_info_text, ENT_QUOTES, 'UTF-8'); ?>" maxlength="500">
           </div>
-          <div class="col-md-4"><label class="form-label">Activer le bandeau</label>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" name="flash_info_active" id="flash_info_active" <?= $flash_info_active ? 'checked' : '' ?>>
-              <label class="form-check-label" for="flash_info_active">Oui / Non</label>
+          <div class="col-md-4"><label class="form-label d-block">Activer le bandeau</label>
+            <div class="seg3" id="flashModeSeg" role="radiogroup" aria-label="Activation du bandeau">
+              <input type="radio" name="flash_info_mode" id="flashModeOn"   value="on"   <?= $flash_info_mode === 'on'   ? 'checked' : '' ?>><label for="flashModeOn">Oui</label>
+              <input type="radio" name="flash_info_mode" id="flashModeOff"  value="off"  <?= $flash_info_mode === 'off'  ? 'checked' : '' ?>><label for="flashModeOff">Non</label>
+              <input type="radio" name="flash_info_mode" id="flashModeAuto" value="auto" <?= $flash_info_mode === 'auto' ? 'checked' : '' ?>><label for="flashModeAuto">Auto</label>
+            </div>
+            <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+              .seg3{display:inline-flex;background:#e9ecef;border-radius:10px;padding:3px;gap:2px;}
+              .seg3 input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
+              .seg3 label{margin:0;padding:6px 18px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color:#475569;transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
+              .seg3 input:checked + label{background:#fff;color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
+              .seg3 input:focus-visible + label{outline:2px solid var(--primary,#f42182);outline-offset:1px;}
+            </style>
+          </div>
+          <?php $__fmtDtLocal = function ($s) { $s = trim((string) $s); if ($s === '') return ''; $ts = strtotime($s); return $ts ? date('Y-m-d\TH:i', $ts) : ''; }; ?>
+          <div class="col-12" id="flashAutoFields" style="<?= $flash_info_mode === 'auto' ? '' : 'display:none;' ?>">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="flash_info_start">Début (activation auto)</label>
+                <input type="datetime-local" class="form-control" name="flash_info_start" id="flash_info_start" value="<?= htmlspecialchars($__fmtDtLocal($flash_info_start), ENT_QUOTES, 'UTF-8') ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="flash_info_end">Fin (désactivation auto)</label>
+                <input type="datetime-local" class="form-control" name="flash_info_end" id="flash_info_end" value="<?= htmlspecialchars($__fmtDtLocal($flash_info_end), ENT_QUOTES, 'UTF-8') ?>">
+              </div>
+              <div class="col-12"><small class="text-muted">En mode <strong>Auto</strong>, le bandeau s'affiche automatiquement entre le début et la fin. « Début » vide = dès maintenant ; « Fin » vide = pas d'arrêt automatique.</small></div>
             </div>
           </div>
+          <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+          (function(){
+            var seg = document.getElementById('flashModeSeg');
+            var box = document.getElementById('flashAutoFields');
+            if (!seg || !box) return;
+            function upd(){ var v = seg.querySelector('input:checked'); box.style.display = (v && v.value === 'auto') ? '' : 'none'; }
+            seg.addEventListener('change', upd); upd();
+          })();
+          </script>
 
           <div class="col-12 text-end">
             <button type="submit" name="save_accueil_params" class="btn btn-primary w-auto">Sauvegarder</button>
@@ -3870,13 +3954,20 @@ if (!$canTab($activeTab)) {
           <?= csrf_field() ?>
           <input type="hidden" name="header_subtab" id="header_subtab" value="<?= htmlspecialchars($headerSubTab) ?>">
 
-          <!-- Sous-onglets PC / Mobile -->
+          <!-- Sous-onglets PC / Mobile (switch segmenté 2 positions) -->
           <div class="col-12">
-            <ul class="nav nav-tabs" role="tablist" id="headerTabs">
-              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerPC' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerPC" role="tab">PC</a></li>
-              <li class="nav-item"><a class="nav-link <?= $headerSubTab === 'headerMobile' ? 'active' : '' ?>" data-bs-toggle="tab" href="#headerMobile" role="tab">Mobile</a></li>
-            </ul>
-            <div class="tab-content pt-3">
+            <div class="seg2" id="headerSeg" role="radiogroup" aria-label="Aperçu PC ou Mobile">
+              <input type="radio" name="header_seg" id="headerSegPC"     value="headerPC"     <?= $headerSubTab === 'headerMobile' ? '' : 'checked' ?>><label for="headerSegPC">PC</label>
+              <input type="radio" name="header_seg" id="headerSegMobile" value="headerMobile" <?= $headerSubTab === 'headerMobile' ? 'checked' : '' ?>><label for="headerSegMobile">Mobile</label>
+            </div>
+            <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+              .seg2{display:inline-flex;background:#e9ecef;border-radius:10px;padding:3px;gap:2px;margin-bottom:.75rem;}
+              .seg2 input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
+              .seg2 label{margin:0;padding:6px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color:#475569;transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
+              .seg2 input:checked + label{background:#fff;color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
+              .seg2 input:focus-visible + label{outline:2px solid var(--primary,#f42182);outline-offset:1px;}
+            </style>
+            <div class="tab-content pt-1">
               <!-- PC -->
               <div class="tab-pane fade <?= $headerSubTab === 'headerPC' ? 'show active' : '' ?>" id="headerPC" role="tabpanel">
                 <div class="col-12">
@@ -3895,6 +3986,23 @@ if (!$canTab($activeTab)) {
               </div>
             </div>
           </div>
+          <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+          (function(){
+            var seg = document.getElementById('headerSeg');
+            var hidden = document.getElementById('header_subtab');
+            var pc = document.getElementById('headerPC');
+            var mob = document.getElementById('headerMobile');
+            if (!seg || !pc || !mob) return;
+            function upd(){
+              var v = seg.querySelector('input:checked');
+              var isMobile = !!(v && v.value === 'headerMobile');
+              pc.classList.toggle('show', !isMobile);  pc.classList.toggle('active', !isMobile);
+              mob.classList.toggle('show', isMobile);  mob.classList.toggle('active', isMobile);
+              if (hidden) hidden.value = isMobile ? 'headerMobile' : 'headerPC';
+            }
+            seg.addEventListener('change', upd); upd();
+          })();
+          </script>
 
           <div class="col-12 text-end">
             <button type="submit" name="save_header" class="btn btn-primary w-auto">Sauvegarder</button>
@@ -5158,6 +5266,38 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
         </form>
       </div>
     </div><!-- /col-12 -->
+
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Sécurité — Expiration de session</h2>
+        <form action="" method="post" class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="session_lifetime">Déconnexion automatique après inactivité</label>
+            <?php $__lifeOpts = [0 => 'Jamais', 10 => '10 minutes', 30 => '30 minutes', 60 => '1 heure', 180 => '3 heures', 1440 => '1 jour']; ?>
+            <select class="form-select" name="session_lifetime" id="session_lifetime">
+              <?php foreach ($__lifeOpts as $__v => $__lbl): ?>
+                <option value="<?= $__v ?>" <?= ($session_lifetime === $__v) ? 'selected' : '' ?>><?= $__lbl ?></option>
+              <?php endforeach; ?>
+            </select>
+            <small class="text-muted">Un utilisateur connecté (admin/staff) <strong>inactif</strong> pendant cette durée est automatiquement déconnecté. « Jamais » désactive l'expiration. N'affecte pas les visiteurs publics.</small>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="session_absolute_lifetime">Durée de session maximale (absolue)</label>
+            <?php $__absOpts = [0 => 'Jamais', 60 => '1 heure', 180 => '3 heures', 480 => '8 heures', 720 => '12 heures', 1440 => '1 jour']; ?>
+            <select class="form-select" name="session_absolute_lifetime" id="session_absolute_lifetime">
+              <?php foreach ($__absOpts as $__v => $__lbl): ?>
+                <option value="<?= $__v ?>" <?= ($session_absolute_lifetime === $__v) ? 'selected' : '' ?>><?= $__lbl ?></option>
+              <?php endforeach; ?>
+            </select>
+            <small class="text-muted">Déconnexion automatique cette durée après la <strong>connexion</strong>, même si l'utilisateur reste actif. « Jamais » = pas de limite absolue. Indépendant de l'inactivité ci-dessus.</small>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_session" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div><!-- /col-12 -->
   </div><!-- /row -->
 </div><!-- /tab-maintenance -->
 <?php endif; // canTab('maintenance') ?>
@@ -6009,743 +6149,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/closetag.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
-(function(){
-  var rowsEl = document.getElementById('leRows');
-  if (!rowsEl) return;
-  var statusEl = document.getElementById('layoutSaveStatus');
-  var modalEl  = document.getElementById('customBlockModal');
-  var modalTitle = document.getElementById('customBlockModalTitle');
-  var editIdInput = document.getElementById('customBlockEditId');
-  var titleInput = document.getElementById('customBlockTitle');
-  var bsModal = null;
-  var pendingCol = null; // colonne en cours d'édition (pour update vs add)
-
-  var PREDEF = <?= json_encode($predefinedSections, JSON_UNESCAPED_UNICODE) ?>;
-  var ALLOWED_W = <?= json_encode($allowedWidths) ?>;
-
-  function escHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  // ── Init Sortable sur les lignes ──
-  Sortable.create(rowsEl, {
-    handle: '.le-row-handle',
-    animation: 150,
-    ghostClass: 'le-row-ghost',
-    chosenClass: 'le-row-chosen',
-  });
-
-  // ── Init Sortable sur les colonnes de chaque ligne (groupes pour permettre déplacement entre lignes) ──
-  function initColSortable(rowEl) {
-    var colsEl = rowEl.querySelector('.le-row-cols');
-    if (!colsEl || colsEl.dataset.sortableInit) return;
-    colsEl.dataset.sortableInit = '1';
-    Sortable.create(colsEl, {
-      handle: '.le-col-handle',
-      animation: 150,
-      group: 'le-cols',
-      ghostClass: 'le-col-ghost',
-      chosenClass: 'le-col-chosen',
-      onEnd: function() { refreshAllRowsInfo(); enforceRowMax(); }
-    });
-  }
-  rowsEl.querySelectorAll('.le-row').forEach(initColSortable);
-
-  function refreshAllRowsInfo() {
-    rowsEl.querySelectorAll('.le-row').forEach(function(row) {
-      var nb = row.querySelectorAll('.le-col').length;
-      var info = row.querySelector('.le-row-info-text');
-      if (info) info.textContent = 'Ligne (' + nb + ' col.)';
-      // Toggle bouton split (pas plus de 3 colonnes)
-      var splitBtn = row.querySelector('button[data-act="split"]');
-      if (splitBtn) splitBtn.style.display = nb >= 3 ? 'none' : '';
-    });
-  }
-
-  function enforceRowMax() {
-    // Supprime les lignes vides
-    rowsEl.querySelectorAll('.le-row').forEach(function(row) {
-      if (row.querySelectorAll('.le-col').length === 0) row.remove();
-    });
-  }
-
-  // ── Helpers ──
-  function newRowId() { return 'row_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
-  function newCustomId() { return 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
-
-  function makeColEl(opts) {
-    // opts = { type, width, visible, id?, title?, content? }
-    var col = document.createElement('div');
-    col.className = 'le-col' + (opts.visible === false ? ' is-hidden' : '');
-    col.dataset.sectionType = opts.type;
-    col.dataset.width = opts.width;
-    col.style.setProperty('--col-flex', opts.width);
-    if (opts.type === 'custom') {
-      col.dataset.sectionId      = opts.id || newCustomId();
-      col.dataset.sectionTitle   = opts.title || '';
-      col.dataset.sectionContent = opts.content || '';
-    }
-
-    var widthOpts = ALLOWED_W.map(function(w) {
-      return '<option value="' + w + '"' + (w == opts.width ? ' selected' : '') + '>' + w + '/12</option>';
-    }).join('');
-
-    var actions = '';
-    actions += '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="toggle-vis" title="' + (opts.visible !== false ? 'Masquer' : 'Afficher') + '">';
-    actions += '  <i class="bi ' + (opts.visible !== false ? 'bi-eye' : 'bi-eye-slash') + '"></i></button>';
-    if (opts.type === 'custom') {
-      actions += '<button type="button" class="btn btn-sm btn-outline-primary" data-act="edit" title="Modifier"><i class="bi bi-pencil"></i></button>';
-      actions += '<button type="button" class="btn btn-sm btn-outline-danger" data-act="del-col" title="Supprimer ce bloc"><i class="bi bi-trash3"></i></button>';
-    } else {
-      actions += '<button type="button" class="btn btn-sm btn-outline-danger" data-act="del-col" title="Retirer cette colonne"><i class="bi bi-x-lg"></i></button>';
-    }
-
-    col.innerHTML = ''
-      + '<div class="le-col-toolbar">'
-      + '  <span class="le-handle le-col-handle" title="Glisser"><i class="bi bi-grip-vertical"></i></span>'
-      + '  <select class="form-select form-select-sm le-width-select" title="Largeur" style="width:auto;flex-shrink:0;">' + widthOpts + '</select>'
-      + '  <div class="ms-auto d-flex gap-1">' + actions + '</div>'
-      + '</div>'
-      + '<div class="le-col-preview">' + thumbHtml(opts) + '</div>';
-    return col;
-  }
-
-  function thumbHtml(opts) {
-    // Pour les blocs custom : on rend exactement le même HTML que PHP (custom-content-section + custom-content-inner)
-    if (opts.type === 'custom') {
-      var content = opts.content || '';
-      if (content.trim() === '') {
-        return '<div style="padding:40px 20px;text-align:center;color:#94a3b8;background:#fdf8fa;border-radius:6px;">'
-             + '<i class="bi bi-text-paragraph" style="font-size:24px;display:block;margin-bottom:8px;"></i>'
-             + '<em>Bloc personnalisé vide — clic sur ✏️ pour éditer</em></div>';
-      }
-      return '<section class="custom-content-section">'
-           + '  <div class="custom-content-inner">' + content + '</div>'
-           + '</section>';
-    }
-    // Pour les pré-définis ajoutés à la volée par JS : placeholder (le rendu réel apparaîtra après save+reload)
-    var meta = PREDEF[opts.type] || { label: opts.type, icon: 'bi-square' };
-    return '<div style="padding:40px 20px;text-align:center;background:linear-gradient(135deg,#fce7f3,#fdf2f8);border-radius:6px;">'
-         + '  <i class="bi ' + meta.icon + '" style="font-size:32px;color:#9d174d;display:block;margin-bottom:8px;"></i>'
-         + '  <div style="font-weight:700;color:#1e293b;margin-bottom:4px;">' + escHtml(meta.label) + '</div>'
-         + '  <div style="font-size:11px;color:#9d174d;background:#fff;display:inline-block;padding:2px 10px;border-radius:999px;margin-top:4px;">Sauvegardez pour voir l\'aperçu réel</div>'
-         + '</div>';
-  }
-
-  function makeRowEl(cols) {
-    // cols = array of opts
-    var row = document.createElement('div');
-    row.className = 'le-row';
-    row.dataset.rowId = newRowId();
-    row.innerHTML = ''
-      + '<div class="le-row-toolbar">'
-      + '  <span class="le-handle le-row-handle" title="Réorganiser la ligne"><i class="bi bi-arrows-move"></i></span>'
-      + '  <span class="le-row-info"><i class="bi bi-layout-three-columns"></i> <span class="le-row-info-text">Ligne (' + cols.length + ' col.)</span></span>'
-      + '  <div class="ms-auto d-flex gap-1">'
-      + '    <button type="button" class="btn btn-sm btn-outline-primary" data-act="split" title="Diviser : ajouter une colonne"><i class="bi bi-layout-split"></i></button>'
-      + '    <button type="button" class="btn btn-sm btn-outline-danger" data-act="del-row" title="Supprimer la ligne"><i class="bi bi-trash3"></i></button>'
-      + '  </div>'
-      + '</div>'
-      + '<div class="le-row-cols"></div>';
-    var colsContainer = row.querySelector('.le-row-cols');
-    cols.forEach(function(c) { colsContainer.appendChild(makeColEl(c)); });
-    return row;
-  }
-
-  // ── Délégation des actions ──
-  rowsEl.addEventListener('click', function(e) {
-    var btn = e.target.closest('button[data-act]');
-    if (!btn) return;
-    var act = btn.dataset.act;
-    var row = btn.closest('.le-row');
-    var col = btn.closest('.le-col');
-
-    if (act === 'del-row') {
-      if (!confirm('Supprimer cette ligne entière (toutes ses colonnes) ?')) return;
-      row.remove();
-      return;
-    }
-    if (act === 'split') {
-      var nb = row.querySelectorAll('.le-col').length;
-      if (nb >= 3) return;
-      // Calcule largeur restante
-      var total = 0;
-      row.querySelectorAll('.le-col').forEach(function(c) { total += parseInt(c.dataset.width, 10) || 0; });
-      var newW = 12 - total;
-      if (newW < 3) {
-        // Réduit toutes les colonnes pour faire de la place
-        row.querySelectorAll('.le-col').forEach(function(c) {
-          var w = parseInt(c.dataset.width, 10) || 0;
-          var nw = Math.max(3, w - 3);
-          c.dataset.width = nw;
-          c.style.setProperty('--col-flex', nw);
-          var sel = c.querySelector('.le-width-select'); if (sel) sel.value = nw;
-        });
-        total = 0;
-        row.querySelectorAll('.le-col').forEach(function(c) { total += parseInt(c.dataset.width, 10) || 0; });
-        newW = Math.max(3, 12 - total);
-      }
-      var newCol = makeColEl({ type: 'custom', width: newW, visible: true, id: newCustomId(), title: '', content: '' });
-      row.querySelector('.le-row-cols').appendChild(newCol);
-      refreshAllRowsInfo();
-      return;
-    }
-    if (act === 'del-col') {
-      if (col.dataset.sectionType === 'custom') {
-        if (!confirm('Supprimer ce bloc personnalisé ?')) return;
-      }
-      col.remove();
-      enforceRowMax();
-      refreshAllRowsInfo();
-      return;
-    }
-    if (act === 'toggle-vis') {
-      var nowHidden = col.classList.toggle('is-hidden');
-      var icon = btn.querySelector('i');
-      icon.className = 'bi ' + (nowHidden ? 'bi-eye-slash' : 'bi-eye');
-      btn.title = nowHidden ? 'Afficher' : 'Masquer';
-      return;
-    }
-    if (act === 'edit') {
-      pendingCol = col;
-      modalTitle.textContent = 'Modifier le bloc personnalisé';
-      editIdInput.value = col.dataset.sectionId || '';
-      titleInput.value  = col.dataset.sectionTitle || '';
-      var content = col.dataset.sectionContent || '';
-      openModal(content);
-      return;
-    }
-  });
-
-  // ── Délégation : changement de largeur ──
-  rowsEl.addEventListener('change', function(e) {
-    var sel = e.target.closest('.le-width-select');
-    if (!sel) return;
-    var col = sel.closest('.le-col');
-    var newW = parseInt(sel.value, 10);
-    var row = col.closest('.le-row');
-    // Vérif somme ≤ 12
-    var others = 0;
-    row.querySelectorAll('.le-col').forEach(function(c) {
-      if (c !== col) others += parseInt(c.dataset.width, 10) || 0;
-    });
-    if (newW + others > 12) {
-      alert('Largeur impossible : la somme dépasserait 12. Réduisez d\'abord les autres colonnes de cette ligne.');
-      sel.value = col.dataset.width;
-      return;
-    }
-    col.dataset.width = newW;
-    col.style.setProperty('--col-flex', newW);
-  });
-
-  // ── Modal TinyMCE ──
-  function openModal(initialContent) {
-    if (!bsModal && typeof bootstrap !== 'undefined') bsModal = new bootstrap.Modal(modalEl);
-    if (bsModal) bsModal.show();
-    modalEl.addEventListener('shown.bs.modal', function once() {
-      modalEl.removeEventListener('shown.bs.modal', once);
-      initEditor(initialContent);
-    });
-  }
-  function initEditor(initialContent) {
-    if (typeof tinymce === 'undefined') return;
-    var ed = tinymce.get('customBlockEditor');
-    if (ed) ed.remove();
-    tinymce.init({
-      selector: '#customBlockEditor',
-      <?= getTinyMceConfig($pdo) ?>
-    }).then(function(editors) {
-      if (editors && editors[0]) editors[0].setContent(initialContent || '');
-    });
-  }
-  function getEditorContent() {
-    if (typeof tinymce === 'undefined') return '';
-    var ed = tinymce.get('customBlockEditor');
-    return ed ? ed.getContent() : (document.getElementById('customBlockEditor').value || '');
-  }
-
-  // ── Ajouter un bloc personnalisé (nouvelle ligne pleine largeur) ──
-  document.getElementById('btnAddCustomBlock').addEventListener('click', function() {
-    pendingCol = null;
-    modalTitle.textContent = 'Ajouter un bloc personnalisé';
-    editIdInput.value = '';
-    titleInput.value  = '';
-    openModal('');
-  });
-
-  // ── Replacer une section pré-définie (clic sur bouton dans sidebar Ajouter) ──
-  var restoreMenu = document.getElementById('restoreMenu');
-  if (restoreMenu) {
-    restoreMenu.addEventListener('click', function(e) {
-      var item = e.target.closest('button[data-restore-type], a[data-restore-type]');
-      if (!item) return;
-      e.preventDefault();
-      var type = item.dataset.restoreType;
-      var newRow = makeRowEl([{ type: type, width: 12, visible: true }]);
-      rowsEl.appendChild(newRow);
-      initColSortable(newRow);
-      refreshAllRowsInfo();
-    });
-  }
-
-  // ── Valider modal ──
-  document.getElementById('btnSaveCustomBlock').addEventListener('click', function() {
-    var id = editIdInput.value.trim();
-    var title = titleInput.value.trim();
-    var content = getEditorContent();
-
-    if (id && pendingCol) {
-      // Update
-      pendingCol.dataset.sectionTitle = title;
-      pendingCol.dataset.sectionContent = content;
-      pendingCol.querySelector('.le-col-preview').innerHTML = thumbHtml({
-        type: 'custom', title: title, content: content
-      });
-    } else {
-      // Add as new full-width row
-      var newRow = makeRowEl([{
-        type: 'custom', width: 12, visible: true,
-        id: newCustomId(), title: title, content: content
-      }]);
-      rowsEl.appendChild(newRow);
-      initColSortable(newRow);
-      refreshAllRowsInfo();
-    }
-    pendingCol = null;
-    if (bsModal) bsModal.hide();
-  });
-
-  // ── Sauvegarde du layout (POST AJAX du JSON) ──
-  document.getElementById('btnSaveLayout').addEventListener('click', function() {
-    var layout = [];
-    rowsEl.querySelectorAll('.le-row').forEach(function(row) {
-      var cols = [];
-      row.querySelectorAll('.le-col').forEach(function(col) {
-        var sec = {
-          type: col.dataset.sectionType,
-          visible: !col.classList.contains('is-hidden'),
-        };
-        if (sec.type === 'custom') {
-          sec.id      = col.dataset.sectionId || '';
-          sec.title   = col.dataset.sectionTitle || '';
-          sec.content = col.dataset.sectionContent || '';
-        }
-        cols.push({ width: parseInt(col.dataset.width, 10) || 12, section: sec });
-      });
-      if (cols.length === 0) return;
-      layout.push({ id: row.dataset.rowId, columns: cols });
-    });
-
-    var btn = this;
-    btn.disabled = true;
-    statusEl.style.display = 'block';
-    statusEl.style.color = '#64748b';
-    statusEl.textContent = 'Enregistrement…';
-
-    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-    var csrfTok  = csrfMeta ? csrfMeta.getAttribute('content') : '';
-
-    fetch('', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' },
-      body: JSON.stringify({ save_accueil_layout: 1, layout: layout, csrf_token: csrfTok })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(j) {
-      btn.disabled = false;
-      if (j && j.ok) {
-        statusEl.style.color = '#16a34a';
-        statusEl.textContent = '✓ Mise en page enregistrée.';
-      } else {
-        statusEl.style.color = '#dc2626';
-        statusEl.textContent = '✗ ' + ((j && j.err) || 'Échec de l\'enregistrement.');
-      }
-      setTimeout(function() { statusEl.style.display = 'none'; }, 4000);
-    })
-    .catch(function() {
-      btn.disabled = false;
-      statusEl.style.color = '#dc2626';
-      statusEl.textContent = '✗ Erreur réseau.';
-    });
-  });
-
-  // ════════════════════════════════════════════════════════════════════
-  // NOUVELLES INTERACTIONS (sidebar droite + selection + edit modal universel)
-  // ════════════════════════════════════════════════════════════════════
-
-  // ── Tabs sidebar (Propriétés / Ajouter) ──
-  document.querySelectorAll('.le-sb-tab').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      var target = tab.dataset.sbTab;
-      document.querySelectorAll('.le-sb-tab').forEach(function(t) { t.classList.toggle('active', t === tab); });
-      document.querySelectorAll('.le-sb-pane').forEach(function(p) { p.classList.toggle('active', p.dataset.sbPane === target); });
-    });
-  });
-
-  // ── Sélection au clic sur une section (col ou bloc Hero) ──
-  var currentSelected = null;
-  function selectSection(el) {
-    if (currentSelected) currentSelected.classList.remove('is-selected');
-    currentSelected = el;
-    if (el) {
-      el.classList.add('is-selected');
-      populateSidebarProps(el);
-      // Switch to Propriétés tab automatically
-      document.querySelector('.le-sb-tab[data-sb-tab="props"]').click();
-    } else {
-      document.getElementById('leSbPropsEmpty').style.display = '';
-      document.getElementById('leSbPropsContent').style.display = 'none';
-    }
-  }
-
-  function populateSidebarProps(el) {
-    var sectionType = el.dataset.sectionType || 'unknown';
-    document.getElementById('leSbPropsEmpty').style.display = 'none';
-    var content = document.getElementById('leSbPropsContent');
-    content.style.display = '';
-
-    var labels = {
-      hero: 'Héro (vidéo + titre)',
-      reg_bar: "Compteur d'inscrits",
-      partners: 'Bandeau Partenaires',
-      timeline: 'Historique (Timeline)',
-      news: 'Dernières actualités',
-      custom: 'Bloc personnalisé'
-    };
-    document.getElementById('leSbSelType').textContent = labels[sectionType] || sectionType;
-
-    // Restaure les rows section (au cas où ils ont été cachés par sélection d'un sous-élément)
-    var widthRow = document.getElementById('leSbWidth').closest('.le-sb-row');
-    var visRow   = document.getElementById('leSbVisCheck').closest('.le-sb-row');
-    var sizeRow  = document.getElementById('leSbSizeRow');
-    widthRow.style.display = (sectionType === 'hero') ? 'none' : '';
-    visRow.style.display = (sectionType === 'hero') ? 'none' : '';
-    sizeRow.style.display = 'none';
-
-    if (sectionType !== 'hero') {
-      var widthSel = document.getElementById('leSbWidth');
-      widthSel.value = parseInt(el.dataset.width || '12', 10);
-
-      var visCheck = document.getElementById('leSbVisCheck');
-      var hidden = el.classList.contains('is-hidden');
-      visCheck.checked = !hidden;
-      document.getElementById('leSbVisLabel').textContent = hidden ? 'Masqué' : 'Visible';
-    }
-
-    var editWrap = document.getElementById('leSbActionEdit');
-    if (sectionType === 'custom') {
-      editWrap.style.display = '';
-      document.getElementById('leSbBtnEdit').onclick = function() {
-        var btn = el.querySelector('button[data-act="edit"]');
-        if (btn) btn.click();
-      };
-    } else {
-      editWrap.style.display = 'none';
-    }
-
-    var delBtn = document.getElementById('leSbBtnDelete');
-    delBtn.disabled = (sectionType === 'hero');
-    delBtn.style.display = (sectionType === 'hero') ? 'none' : '';
-  }
-
-  // Click sur une colonne/section pour sélectionner (hors data-edit-field qui ouvre le modal)
-  document.addEventListener('click', function(e) {
-    // Si clic sur élément éditable, on laisse le handler dédié gérer
-    if (e.target.closest('[data-edit-field]')) return;
-    var sec = e.target.closest('.le-col, .le-section-block');
-    if (sec) {
-      selectSection(sec);
-    } else if (!e.target.closest('.le-sidebar')) {
-      // Click hors d'une section et hors sidebar → désélectionne
-      // selectSection(null);  // commenté pour éviter désélection involontaire
-    }
-  });
-
-  // Width change depuis la sidebar
-  document.getElementById('leSbWidth').addEventListener('change', function() {
-    if (!currentSelected || currentSelected.classList.contains('le-section-hero')) return;
-    var newW = parseInt(this.value, 10);
-    var sel = currentSelected.querySelector('.le-width-select');
-    if (sel) { sel.value = newW; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-  });
-
-  // Toggle visibility via checkbox
-  document.getElementById('leSbVisCheck').addEventListener('change', function() {
-    if (!currentSelected || currentSelected.classList.contains('le-section-hero')) return;
-    var btn = currentSelected.querySelector('button[data-act="toggle-vis"]');
-    if (btn) btn.click();
-    document.getElementById('leSbVisLabel').textContent = this.checked ? 'Visible' : 'Masqué';
-  });
-
-  // Slider de taille (pour élément éditable sélectionné dans le Hero)
-  var currentEditEl = null; // élément data-edit-field actuellement sélectionné
-  var sizeRange = document.getElementById('leSbSizeRange');
-  var sizeVal = document.getElementById('leSbSizeVal');
-  var sizeRow = document.getElementById('leSbSizeRow');
-  var sizeSaveTimer = null;
-
-  sizeRange.addEventListener('input', function() {
-    if (!currentEditEl) return;
-    var val = parseInt(this.value, 10);
-    sizeVal.textContent = val + '%';
-    var sizeKey = currentEditEl.dataset.editSize;
-    // Application visuelle immédiate
-    if (sizeKey === 'hero_timer_size') {
-      currentEditEl.style.transform = 'scale(' + (val / 100) + ')';
-      currentEditEl.style.transformOrigin = 'left bottom';
-    } else {
-      currentEditEl.style.fontSize = (val / 100) + 'em';
-    }
-    // Save AJAX (debounced)
-    clearTimeout(sizeSaveTimer);
-    sizeSaveTimer = setTimeout(function() { saveStyle(sizeKey, val); }, 400);
-  });
-
-  function saveStyle(sizeKey, val) {
-    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-    var csrfTok = csrfMeta ? csrfMeta.getAttribute('content') : '';
-    var fd = new FormData();
-    fd.append('save_accueil_style', '1');
-    fd.append('sizeKey', sizeKey);
-    fd.append('sizeValue', val);
-    fd.append('csrf_token', csrfTok);
-    fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
-      .then(function(r) { return r.json(); })
-      .then(function(j) {
-        if (j && j.ok) { /* OK silencieux */ }
-      });
-  }
-
-  // Edit (custom uniquement) depuis la sidebar
-  document.getElementById('leSbBtnEdit').addEventListener('click', function() {
-    if (!currentSelected) return;
-    var btn = currentSelected.querySelector('button[data-act="edit"]');
-    if (btn) btn.click();
-  });
-
-  // Delete depuis la sidebar
-  document.getElementById('leSbBtnDelete').addEventListener('click', function() {
-    if (!currentSelected || currentSelected.classList.contains('le-section-hero')) return;
-    var btn = currentSelected.querySelector('button[data-act="del-col"]');
-    if (btn) { btn.click(); selectSection(null); }
-  });
-
-  // ── Bouton "+" entre rows : insère une nouvelle ligne (bloc custom vide) ──
-  document.querySelectorAll('.le-add-row').forEach(function(addBtn) {
-    addBtn.addEventListener('click', function(e) {
-      var pos = parseInt(addBtn.dataset.addPosition || '0', 10);
-      var newRow = makeRowEl([{ type: 'custom', width: 12, visible: true, id: newCustomId(), title: '', content: '' }]);
-      var allRows = rowsEl.querySelectorAll('.le-row');
-      if (pos >= allRows.length) {
-        rowsEl.appendChild(newRow);
-      } else {
-        // Trouver le bon point d'insertion : avant la row à l'index pos
-        var targetRow = allRows[pos];
-        rowsEl.insertBefore(newRow, targetRow);
-        // Aussi insérer un bouton + après la nouvelle row
-      }
-      initColSortable(newRow);
-      refreshAllRowsInfo();
-    });
-  });
-
-  // ── Modal universel : édition d'un champ (titre, sous-titre, image, vidéo) ──
-  var fieldModalEl = document.getElementById('fieldEditModal');
-  var fieldModal = null;
-  function openFieldModal(field, kind, currentValue, label) {
-    if (!fieldModal && typeof bootstrap !== 'undefined') fieldModal = new bootstrap.Modal(fieldModalEl);
-    document.getElementById('fieldEditTitle').textContent = 'Modifier : ' + (label || field);
-    document.getElementById('fieldEditFieldName').value = field;
-    document.getElementById('fieldEditKind').value = kind;
-    document.getElementById('fieldEditStatus').style.display = 'none';
-    document.getElementById('fieldEditTinymceWrap').style.display = 'none';
-    document.getElementById('fieldEditTextWrap').style.display = 'none';
-    document.getElementById('fieldEditFileWrap').style.display = 'none';
-
-    if (kind === 'tinymce') {
-      document.getElementById('fieldEditTinymceWrap').style.display = '';
-      var ed = tinymce.get('fieldEditTinymce');
-      if (ed) ed.remove();
-      tinymce.init({
-        selector: '#fieldEditTinymce',
-        <?= getTinyMceConfig($pdo) ?>
-      }).then(function(eds) {
-        if (eds && eds[0]) eds[0].setContent(currentValue || '');
-      });
-    } else if (kind === 'text') {
-      document.getElementById('fieldEditTextWrap').style.display = '';
-      document.getElementById('fieldEditText').value = currentValue || '';
-    } else if (kind === 'image' || kind === 'video') {
-      document.getElementById('fieldEditFileWrap').style.display = '';
-      document.getElementById('fieldEditFile').value = '';
-      var hint = document.getElementById('fieldEditFileHint');
-      if (kind === 'image') {
-        hint.textContent = 'Formats : JPG, PNG, GIF, WEBP. Max ~5 Mo.';
-        document.getElementById('fieldEditFile').accept = 'image/jpeg,image/png,image/gif,image/webp';
-      } else {
-        hint.textContent = 'Formats : MP4, WebM, OGG. Max 50 Mo.';
-        document.getElementById('fieldEditFile').accept = 'video/mp4,video/webm,video/ogg';
-      }
-      var current = document.getElementById('fieldEditFileCurrent');
-      current.textContent = currentValue ? ('Fichier actuel : ' + currentValue) : 'Aucun fichier actuellement.';
-    }
-    if (fieldModal) fieldModal.show();
-  }
-
-  // ── Click simple sur élément éditable : SÉLECTIONNE + montre slider taille dans sidebar ──
-  document.addEventListener('click', function(e) {
-    var el = e.target.closest('[data-edit-field]');
-    if (!el) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Sélection visuelle
-    document.querySelectorAll('.le-edit-selected').forEach(function(x){ x.classList.remove('le-edit-selected'); });
-    el.classList.add('le-edit-selected');
-    currentEditEl = el;
-
-    // Mise à jour de la sidebar : titre, slider, bouton "modifier contenu"
-    document.querySelector('.le-sb-tab[data-sb-tab="props"]').click();
-    document.getElementById('leSbPropsEmpty').style.display = 'none';
-    document.getElementById('leSbPropsContent').style.display = '';
-    document.getElementById('leSbSelType').textContent = (el.dataset.editField || 'élément') + ' (Hero)';
-
-    // Cache les options de section (largeur, visibilité) pour un élément éditable du Hero
-    document.getElementById('leSbWidth').closest('.le-sb-row').style.display = 'none';
-    document.getElementById('leSbVisCheck').closest('.le-sb-row').style.display = 'none';
-    document.getElementById('leSbBtnDelete').style.display = 'none';
-
-    // Affiche le slider de taille s'il y a un data-edit-size
-    if (el.dataset.editSize) {
-      sizeRow.style.display = '';
-      var current = parseInt(el.dataset.editSizeCurrent || '100', 10);
-      sizeRange.value = current;
-      sizeVal.textContent = current + '%';
-    } else {
-      sizeRow.style.display = 'none';
-    }
-
-    // Bouton "Modifier le contenu" si le kind n'est pas 'size-only' (timer = size only)
-    var editWrap = document.getElementById('leSbActionEdit');
-    if (el.dataset.editKind && el.dataset.editKind !== 'size-only') {
-      editWrap.style.display = '';
-      var btn = document.getElementById('leSbBtnEdit');
-      btn.onclick = function() { openFieldModalFromEl(el); };
-    } else {
-      editWrap.style.display = 'none';
-    }
-  });
-
-  // ── Double-clic sur élément éditable : ouvre directement le modal d'édition ──
-  document.addEventListener('dblclick', function(e) {
-    var el = e.target.closest('[data-edit-field]');
-    if (!el || el.dataset.editKind === 'size-only') return;
-    e.preventDefault();
-    e.stopPropagation();
-    openFieldModalFromEl(el);
-  });
-
-  function openFieldModalFromEl(el) {
-    var field = el.dataset.editField;
-    var kind = el.dataset.editKind;
-    var currentValue = '';
-    if (kind === 'tinymce') currentValue = el.innerHTML;
-    else if (kind === 'text') currentValue = el.textContent.trim();
-    else if (kind === 'image') currentValue = el.getAttribute('src') ? el.getAttribute('src').split('/').pop() : '';
-    else if (kind === 'video') {
-      var src = el.querySelector('source');
-      currentValue = src ? src.getAttribute('src').split('/').pop() : '';
-    }
-    openFieldModal(field, kind, currentValue, field);
-  }
-
-  // Save field — robuste : capture toute erreur silencieuse pour la rendre visible
-  // (sinon le bouton apparaît inerte alors qu'une exception JS bloque le flux).
-  // On marque le bouton avec data-save-attached='1' pour neutraliser le backup
-  // (cf. <script> juste après la modal HTML) et éviter une double sauvegarde.
-  var __btnSaveField = document.getElementById('btnSaveField');
-  if (__btnSaveField) __btnSaveField.dataset.saveAttached = '1';
-  if (__btnSaveField) __btnSaveField.addEventListener('click', function() {
-    var btn = this;
-    var status = document.getElementById('fieldEditStatus');
-    function showError(msg) {
-      btn.disabled = false;
-      if (status) {
-        status.style.display = 'block';
-        status.style.color = '#dc2626';
-        status.textContent = '✗ ' + msg;
-      } else {
-        alert(msg);
-      }
-    }
-    try {
-      var field = document.getElementById('fieldEditFieldName').value;
-      var kind  = document.getElementById('fieldEditKind').value;
-      btn.disabled = true;
-      status.style.display = 'block';
-      status.style.color = '#64748b';
-      status.textContent = 'Enregistrement…';
-
-      var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-      var csrfTok = csrfMeta ? csrfMeta.getAttribute('content') : '';
-
-      var fd = new FormData();
-      fd.append('save_accueil_field', '1');
-      fd.append('field', field);
-      fd.append('csrf_token', csrfTok);
-
-      if (kind === 'tinymce') {
-        // Fallback : si TinyMCE n'est pas (encore) initialisé ou a perdu son
-        // instance, on lit le contenu brut du <textarea>. Sinon on perdrait
-        // silencieusement la saisie utilisateur (apparence "rien ne se passe").
-        var ed = (typeof tinymce !== 'undefined') ? tinymce.get('fieldEditTinymce') : null;
-        var content = '';
-        if (ed && typeof ed.getContent === 'function') {
-          content = ed.getContent();
-        } else {
-          var ta = document.getElementById('fieldEditTinymce');
-          content = ta ? (ta.value || '') : '';
-        }
-        fd.append('value', content);
-      } else if (kind === 'text') {
-        fd.append('value', document.getElementById('fieldEditText').value);
-      } else if (kind === 'image' || kind === 'video') {
-        var file = document.getElementById('fieldEditFile').files[0];
-        if (!file) {
-          showError('Sélectionnez un fichier.');
-          return;
-        }
-        fd.append('file', file);
-      } else {
-        showError('Type de champ inconnu : ' + kind);
-        return;
-      }
-
-      fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfTok, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
-        .then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function(j) {
-          btn.disabled = false;
-          if (j && j.ok) {
-            status.style.color = '#16a34a';
-            status.textContent = '✓ Enregistré. Rechargement de l\'aperçu…';
-            setTimeout(function() { location.reload(); }, 800);
-          } else {
-            showError((j && j.err) || 'Échec de l\'enregistrement.');
-          }
-        })
-        .catch(function(err) {
-          showError('Erreur réseau' + (err && err.message ? ' (' + err.message + ')' : '') + '.');
-        });
-    } catch (err) {
-      console.error('[btnSaveField] exception:', err);
-      showError('Erreur JS : ' + (err && err.message ? err.message : err));
-    }
-  });
-
-})();
 
 // ════════════════════════════════════════════════════════════════════════
 // BOOTSTRAP de l'éditeur d'accueil (config injectée pour js/accueil-editor.js)
@@ -6753,7 +6156,10 @@ document.addEventListener('DOMContentLoaded', function() {
 window.AccueilEditor = window.AccueilEditor || {};
 window.AccueilEditor.layoutData = (function() {
   var el = document.getElementById('ifeLayoutData');
-  return el ? JSON.parse(el.textContent) : [];
+  if (!el) return [];
+  // Un JSON de layout malformé ne doit pas casser tout le démarrage de l'éditeur.
+  try { return JSON.parse(el.textContent) || []; }
+  catch (e) { console.error('Layout accueil illisible :', e); return []; }
 })();
 window.AccueilEditor.predefinedSections = <?= json_encode($predefinedSections, JSON_UNESCAPED_UNICODE) ?>;
 window.AccueilEditor.allowedWidths = <?= json_encode($allowedWidths) ?>;

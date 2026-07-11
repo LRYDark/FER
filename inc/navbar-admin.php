@@ -910,13 +910,6 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
       <img src="../files/_logos/logo_blanc.png" alt="Forbach en Rose">
     </a>
   </div>
-  <?php if ($userRole === 'admin' && file_exists(__DIR__ . '/../update.php')): ?>
-  <div style="flex:1;display:flex;justify-content:center;">
-    <a href="../update.php" style="background:rgba(239,68,68,.15);color:#fca5a5;padding:4px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
-      <i class="bi bi-exclamation-triangle-fill"></i> update.php doit être supprimé une fois la mise à jour effectuée
-    </a>
-  </div>
-  <?php endif; ?>
   <div class="oc-topbar-right">
     <div class="oc-user-wrapper">
       <button class="oc-avatar-btn" id="ocAvatarBtn" type="button" title="<?= htmlspecialchars($userEmail) ?>">
@@ -936,11 +929,11 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
           <li>
             <a href="#" id="ocModeToggle">
               <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-              <span>Mode standard</span>
+              <span>Remise T-shirts</span>
             </a>
           </li>
           <li>
-            <a href="#" id="btnScanQR">
+            <a href="../public/remise-tshirts.php" id="btnScanQR">
               <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="21" y2="21"/></svg>
               <span>Scanner QR</span>
             </a>
@@ -1034,7 +1027,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.2.2</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.3.0</div>
   </aside>
 
   <?php // Rafraîchissement live de la pastille « Accès bénévoles » (uniquement pour ceux qui valident) ?>

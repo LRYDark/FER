@@ -28,6 +28,11 @@
 require __DIR__ . '/config/config.php';   // $pdo, encrypt(), decrypt(), decryptRows()
 
 /* ─── En-têtes JSON + CORS ─────────────────────────────────────────────── */
+// 🔒 [SEC-CORS] Origin '*' volontaire et SANS danger ici : l'authentification se
+// fait EXCLUSIVEMENT par secret en en-tête (X-Api-Token / Authorization: Bearer),
+// jamais par cookie, et on n'émet PAS 'Access-Control-Allow-Credentials'. Un site
+// tiers ne peut donc pas forcer le navigateur d'une victime à joindre le token.
+// Restreindre l'origine casserait des intégrations navigateur sans gain de sécurité.
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');

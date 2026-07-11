@@ -61,35 +61,45 @@
     var titles = opts.filterableTitles || [];
     var datas = opts.filterableData || [];
     var childAge = opts.childAge || 0;
-    var active = {}; // index logique de colonne -> valeur filtrée active
+    var active = {}; // clé de données (bdd_column) -> valeur filtrée active
 
     function isFilterable(title, dataKey) {
       return titles.indexOf(title) !== -1 || (dataKey && datas.indexOf(dataKey) !== -1);
     }
 
-    function applyFilter(colIdx, val, btn) {
-      if (val) {
-        var esc = String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        api.column(colIdx).search('^' + esc + '$', true, false).draw();
-        active[colIdx] = val;
-        if (btn) btn.classList.add('active');
-      } else {
-        api.column(colIdx).search('', true, false).draw();
-        delete active[colIdx];
-        if (btn) btn.classList.remove('active');
-      }
+    // Exécute cb(colApi) sur la colonne dont la source de données vaut dataKey.
+    // Robuste au réordonnancement (ColReorder) : aucun index numérique n'est mémorisé.
+    function withColByData(dataKey, cb) {
+      var done = false;
+      api.columns().every(function () {
+        if (!done && this.dataSrc() === dataKey) { cb(this); done = true; }
+      });
+      return done;
     }
 
-    function openPop(colIdx, title, dataKey, btn) {
+    function applyFilter(dataKey, val, btn) {
+      withColByData(dataKey, function (col) {
+        if (val) {
+          var esc = String(val).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          col.search('^' + esc + '$', true, false).draw();
+        } else {
+          col.search('', true, false).draw();
+        }
+      });
+      if (val) { active[dataKey] = val; if (btn) btn.classList.add('active'); }
+      else { delete active[dataKey]; if (btn) btn.classList.remove('active'); }
+    }
+
+    function openPop(dataKey, title, btn) {
       var p = getPop();
-      p._forCol = colIdx; p._forApi = api;
+      p._forCol = dataKey; p._forApi = api;
       p.innerHTML = '';
       var head = document.createElement('div');
       head.className = 'cfp-head';
       head.textContent = 'Filtrer : ' + title;
       p.appendChild(head);
 
-      var current = active[colIdx] != null ? String(active[colIdx]) : '';
+      var current = active[dataKey] != null ? String(active[dataKey]) : '';
       function addOpt(val, lbl) {
         var o = document.createElement('div');
         o.className = 'cfp-opt' + (String(val) === current ? ' active' : '');
@@ -98,17 +108,19 @@
         o.appendChild(ic); o.appendChild(sp);
         o.addEventListener('click', function (e) {
           e.stopPropagation();
-          applyFilter(colIdx, val, btn);
+          applyFilter(dataKey, val, btn);
           p.classList.remove('show');
         });
         p.appendChild(o);
       }
       addOpt('', 'Tous');
       var seen = {};
-      api.column(colIdx).data().unique().sort().each(function (v) {
-        if (v === null || v === undefined || v === '') return;
-        if (seen[v]) return; seen[v] = 1;
-        addOpt(v, makeLabel(title, dataKey, v, childAge));
+      withColByData(dataKey, function (col) {
+        col.data().unique().sort().each(function (v) {
+          if (v === null || v === undefined || v === '') return;
+          if (seen[v]) return; seen[v] = 1;
+          addOpt(v, makeLabel(title, dataKey, v, childAge));
+        });
       });
 
       var r = btn.getBoundingClientRect();
@@ -125,13 +137,11 @@
 
     // Pose/maj des entonnoirs. Idempotent : sûr à rappeler (reorder, rechargement…).
     function build() {
-      var ao = api.settings()[0].aoColumns;
       api.columns().every(function () {
-        var colIdx = this.index();
         var th = this.header();
         if (!th) return;
         var title = (th.textContent || '').trim(); // l'icône (pseudo-élément) n'est pas dans textContent
-        var dataKey = ao[colIdx] ? ao[colIdx].data : null;
+        var dataKey = this.dataSrc();               // clé de données immuable (bdd_column)
         var existing = th.querySelector('.col-filter-btn');
         if (!isFilterable(title, dataKey)) {
           if (existing) existing.remove();
@@ -147,20 +157,23 @@
           btn.addEventListener('click', function (e) {
             e.stopPropagation(); e.preventDefault();                                // ne déclenche pas le tri
             var p = getPop();
-            if (p.classList.contains('show') && p._forCol === colIdx && p._forApi === api) {
+            if (p.classList.contains('show') && p._forCol === dataKey && p._forApi === api) {
               p.classList.remove('show'); return;
             }
-            openPop(colIdx, title, dataKey, btn);
+            openPop(dataKey, title, btn);
           });
           th.appendChild(btn);
         }
-        if (active[colIdx] != null) btn.classList.add('active');
+        if (active[dataKey] != null) btn.classList.add('active');
         else btn.classList.remove('active');
       });
     }
 
     // Réordonnancement (ColReorder) : ferme un popover ouvert et rafraîchit l'état.
     api.on('column-reorder', function () { if (pop) pop.classList.remove('show'); build(); });
+    // Après masquage/affichage d'une colonne, réinstalle les entonnoirs (un <th>
+    // redevenu visible n'a plus son bouton) et ferme un popover éventuellement ouvert.
+    api.on('column-visibility.dt', function () { if (pop) pop.classList.remove('show'); build(); });
     build();
 
     return {

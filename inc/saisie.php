@@ -299,12 +299,12 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 <?php require 'admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-<script src="../js/inscription-form.js?v=5" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<script src="../js/inscription-form.js?v=7" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <?php if ($activeTab === 'inscriptions'): ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/colreorder/1.7.0/js/dataTables.colReorder.min.js"></script>
-<script src="../js/admin-table-filters.js?v=1" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
+<script src="../js/admin-table-filters.js?v=2" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
 <?php endif; ?>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
   var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -424,7 +424,19 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
       $col = htmlspecialchars($af['bdd_column'], ENT_QUOTES);
       $lbl = htmlspecialchars($af['label'], ENT_QUOTES);
     ?>
-    { data: '<?= $col ?>', title: '<?= $lbl ?>', defaultContent: '' },
+    <?php if ($af['bdd_column'] === 'naissance'): ?>
+    { data: 'naissance', title: '<?= $lbl ?>', defaultContent: '',
+      render: function(val, type){
+        // Colonne « Âge » : la valeur stockée est un âge (nouveau modèle) ou une
+        // donnée héritée (année/date) → conversion en âge. Tri/filtre : âge numérique.
+        var age = (window.FERInscription) ? FERInscription.ageFromBirth(val) : null;
+        if (type !== 'display') return (age==null?'':age);
+        return (!age?'–':(age+' ans')); // jamais « 0 ans » → tiret
+      }
+    },
+    <?php else: ?>
+    { data: '<?= $col ?>', title: '<?= $lbl ?>', defaultContent: '', render: $.fn.dataTable.render.text() },
+    <?php endif; ?>
     <?php endforeach; ?>
     { data: 'paiement_mode', title: 'Paiement', defaultContent: '',
       render: function(val, type){

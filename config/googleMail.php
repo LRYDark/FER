@@ -288,6 +288,22 @@ function shouldIncludeQrCode(string|int $inscriptionNo): bool
     }
 }
 
+/**
+ * Décide si le QR « groupé » (un seul QR pour tout un lot) doit être joint au mail
+ * récap. Même logique que l'inscrit unique, appliquée au groupe : on inclut le QR
+ * dès qu'AU MOINS UN membre du groupe est éligible selon la config globale
+ * (qrcode_mail_mode : none / all / first_x, cf. shouldIncludeQrCode).
+ *
+ * @param array $inscriptionNos Liste des numéros d'inscription du groupe.
+ */
+function shouldIncludeGroupQr(array $inscriptionNos): bool {
+    if (!empty($GLOBALS['force_no_qrcode'])) return false;
+    foreach ($inscriptionNos as $no) {
+        if ($no !== null && $no !== '' && shouldIncludeQrCode($no)) return true;
+    }
+    return false;
+}
+
 function render(string $path, array $vars = []): string
 {
     extract($vars, EXTR_SKIP);  // 1) crée $logoUrl, $subject, etc.
@@ -302,7 +318,7 @@ $lastMailError = null;
 /**
  * Envoie un mail via SMTP (PHPMailer).
  */
-function sendMailSmtp($to, string $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null, array $attachments = []) {
+function sendMailSmtp($to, string $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null, array $attachments = [], ?string $qrOverride = null) {
     global $data, $lastMailError, $pdo;
     $lastMailError = null;
 
@@ -323,7 +339,7 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
     writeSmtpLog("Envoi SMTP vers : " . (is_array($to) ? implode(', ', $to) : $to) . " | Serveur : $smtpHost:$smtpPort ($smtpEnc)");
 
     /* ---------- Corps (même template que Gmail) ---------- */
-    $built  = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    $built  = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype, $qrOverride);
     $body   = $built['body'];
     $qrPng  = $built['qrPng'];
     if (empty($body)) {
@@ -392,7 +408,7 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
  * Renvoie un tableau ['body' => string, 'qrPng' => ?string] où qrPng contient
  * les octets PNG du QR Code à embarquer en pièce jointe inline (CID), ou null.
  */
-function buildMailBody($to, string $subject, $mailTitle, $description, $lastname, $firstname, string $type, string|int|null $inscriptionNo, ?string $mailSubtype): array {
+function buildMailBody($to, string $subject, $mailTitle, $description, $lastname, $firstname, string $type, string|int|null $inscriptionNo, ?string $mailSubtype, ?string $qrOverride = null): array {
     global $data;
 
     $formattedDate = '';
@@ -411,10 +427,20 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
 
     // Le QR Code est embarqué en pièce jointe inline référencée via cid:
     // (les data: URI sont bloquées par Gmail/Outlook et apparaissent comme image cassée).
+    //   - $qrOverride fourni  → QR « groupé » (encode « G:<group_id> ») pour un mail
+    //     récap ; l'appelant a déjà décidé de l'inclusion selon la config (shouldIncludeGroupQr).
+    //   - sinon inscription unique → QR du billet si type='inscription' et config OK.
+    // Un SEUL QR par mail : on réutilise le même mécanisme inline (CID qrcode_inline).
     $qrPngBytes = null;
     $qrcodeSrc = '';
-    if ($type === 'inscription' && $inscriptionNo !== null && shouldIncludeQrCode($inscriptionNo)) {
-        $qrPngBytes = generateQrCodePngBytes($inscriptionNo);
+    $qrPayload = null;
+    if ($qrOverride !== null && $qrOverride !== '') {
+        $qrPayload = $qrOverride;
+    } elseif ($type === 'inscription' && $inscriptionNo !== null && shouldIncludeQrCode($inscriptionNo)) {
+        $qrPayload = (string) $inscriptionNo;
+    }
+    if ($qrPayload !== null) {
+        $qrPngBytes = generateQrCodePngBytes($qrPayload);
         if ($qrPngBytes !== null) {
             $qrcodeSrc = 'cid:qrcode_inline';
         }
@@ -447,14 +473,14 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
 /**
  * Envoie un mail via le fournisseur actif (Google ou SMTP).
  */
-function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null, array $attachments = []) {
+function sendMail($to, string  $subject, $mailTitle = null, $description = null, $lastname = null, $firstname = null, string  $type = 'info', string|int|null $inscriptionNo = null, ?string $mailSubtype = null, array $attachments = [], ?string $qrOverride = null) {
     global $data, $lastMailError;
     $lastMailError = null;
 
     // Route vers SMTP si c'est le fournisseur actif
     $provider = $data['mail_provider'] ?? 'google';
     if ($provider === 'smtp') {
-        return sendMailSmtp($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype, $attachments);
+        return sendMailSmtp($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype, $attachments, $qrOverride);
     }
 
     /* ---------- Auth Gmail ---------- */
@@ -470,11 +496,20 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     $service = new Google_Service_Gmail($client);
 
     /* ---------- Destinataires ---------- */
+    // 🔒 [SEC-MAIL] Neutralise l'injection d'en-têtes (CRLF) : on retire tout
+    // caractère de contrôle et on ne garde que des adresses au format valide.
+    // Sans ça, un champ « email » public du type "a@x\r\nBcc: cible" permettrait
+    // de relayer du spam/phishing depuis la boîte de l'association (CWE-93).
+    $sanitizeAddr = static function ($addr): string {
+        $addr = trim(str_replace(["\r", "\n", "\0"], '', (string) $addr));
+        return filter_var($addr, FILTER_VALIDATE_EMAIL) ? $addr : '';
+    };
     if (is_array($to)) {
-        $bccHeader = implode(', ', $to);
+        $cleanTo   = array_values(array_filter(array_map($sanitizeAddr, $to)));
+        $bccHeader = implode(', ', $cleanTo);
         $toHeader  = '';
     } else {
-        $toHeader  = $to;
+        $toHeader  = $sanitizeAddr($to);
         $bccHeader = '';
     }
 
@@ -482,7 +517,7 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
 
     /* ---------- Corps (template partagé) ---------- */
-    $built = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype);
+    $built = buildMailBody($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype, $qrOverride);
     $body  = $built['body'];
     $qrPng = $built['qrPng'];
 
