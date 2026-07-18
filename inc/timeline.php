@@ -433,7 +433,7 @@ foreach ($items as $item) {
                     $tx = $pr[0] ?? '50%'; $ty = $pr[1] ?? '50%';
                 ?>
                   <img src="../files/_TimeLine/<?= htmlspecialchars($item['image']) ?>"
-                       class="tl-thumb" alt="<?= htmlspecialchars($item['title']) ?>"
+                       class="tl-thumb" alt="<?= htmlspecialchars($item['title'] ?? '') ?>"
                        style="object-position:<?= $tx ?> <?= $ty ?>">
                 <?php else: ?>
                   <div class="tl-thumb d-flex align-items-center justify-content-center" style="background:#fdf2f8">
@@ -443,7 +443,7 @@ foreach ($items as $item) {
 
                 <div class="p-3">
                   <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="tl-kicker"><?= htmlspecialchars($item['title']) ?></span>
+                    <span class="tl-kicker"><?= htmlspecialchars($item['title'] ?? '') ?></span>
                     <div class="drag-handle" style="cursor:grab;color:#94a3b8;padding:4px 8px">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <circle cx="5" cy="3" r="1.5"/><circle cx="11" cy="3" r="1.5"/>
@@ -453,7 +453,7 @@ foreach ($items as $item) {
                     </div>
                   </div>
 
-                  <div class="tl-amount"><?= htmlspecialchars($item['content']) ?></div>
+                  <div class="tl-amount"><?= htmlspecialchars($item['content'] ?? '') ?></div>
 
                   <div class="d-flex flex-wrap gap-1 mb-2">
                     <?php foreach ($elLabels as $label): ?>
@@ -516,17 +516,17 @@ foreach ($items as $item) {
                     <?= csrf_field() ?>
                     <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                     <div class="modal-header">
-                      <h5 class="modal-title">Modifier : <?= htmlspecialchars($item['title']) ?></h5>
+                      <h5 class="modal-title">Modifier : <?= htmlspecialchars($item['title'] ?? '') ?></h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body row g-3">
                       <div class="col-12 col-md-6">
                         <label class="form-label">Titre (kicker rose)</label>
-                        <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($item['title']) ?>" required>
+                        <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($item['title'] ?? '') ?>" required>
                       </div>
                       <div class="col-12 col-md-6">
                         <label class="form-label">Contenu (montant / texte principal)</label>
-                        <input type="text" name="content" class="form-control" value="<?= htmlspecialchars($item['content']) ?>" required>
+                        <input type="text" name="content" class="form-control" value="<?= htmlspecialchars($item['content'] ?? '') ?>" required>
                       </div>
                       <div class="col-12 col-md-6">
                         <label class="form-label">Image</label>
