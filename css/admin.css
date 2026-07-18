@@ -73,6 +73,42 @@ body {
 }
 .jr-nav nav > .section:first-child { margin-top: 0; }
 
+/* ── Accordéon de sections (une seule ouverte à la fois) ── */
+.jr-nav .item.is-top { margin-bottom: var(--sp-2); }
+.jr-nav .nav-group { display: flex; flex-direction: column; }
+.jr-nav .section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: calc(100% - 2 * var(--sp-1));
+  margin: var(--sp-2) var(--sp-1) 2px;
+  padding: 0.42rem var(--sp-2);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.jr-nav .section-toggle:hover { background: var(--surface-2); color: var(--ink-dim); }
+.jr-nav .section-toggle svg {
+  width: 13px; height: 13px; flex: none;
+  stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.jr-nav .nav-group.open .section-toggle svg { transform: rotate(180deg); }
+.jr-nav .nav-group .group-items {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+.jr-nav .nav-group.open .group-items { display: flex; }
+
+/* « Mise à jour BDD » poussée en bas de la zone de navigation */
+.jr-nav .item.mt-auto-update { margin-top: var(--sp-4); }
+
 .jr-nav a.item {
   display: flex;
   align-items: center;
@@ -625,6 +661,23 @@ a:hover { color: var(--accent-strong); }
   max-width: 400px;
   margin: 0 0 var(--sp-3) auto;
   display: block;
+}
+
+/* base.css (kit) limite les <p> à 65ch — pertinent pour du contenu éditorial,
+   pas pour une interface d'admin : on lève la limite dans le contenu. */
+#oc-content p { max-width: none; }
+
+/* Largeur homogène sur toutes les pages : neutraliser les .container Bootstrap
+   éventuels à la racine du contenu (certaines pages en ont, d'autres non). */
+#oc-content > .container,
+#oc-content > .container-fluid,
+#oc-content > div > .container,
+#oc-content > div > .container-fluid {
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* ============================================================

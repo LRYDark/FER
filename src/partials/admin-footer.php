@@ -1,7 +1,7 @@
 
 <?php include __DIR__ . '/toast.php'; ?>
 
-  </main><!-- /oc-content -->
+  </div><!-- /oc-content -->
 </div><!-- /jr-shell -->
 
 <?php
@@ -30,6 +30,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Close sidebar when clicking a link (mobile)
   document.querySelectorAll('.jr-nav a.item').forEach(function(link) {
     link.addEventListener('click', closeSidebar);
+  });
+
+  // ── Accordéon des sections : ouvrir un groupe ferme les autres ──
+  document.querySelectorAll('.jr-nav .section-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var group = btn.closest('.nav-group');
+      var wasOpen = group.classList.contains('open');
+      document.querySelectorAll('.jr-nav .nav-group.open').forEach(function(g) {
+        g.classList.remove('open');
+      });
+      if (!wasOpen) group.classList.add('open');
+    });
   });
 
   // ── User dropdown ──
