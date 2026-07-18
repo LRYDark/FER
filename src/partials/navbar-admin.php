@@ -147,9 +147,12 @@ include __DIR__ . '/../content/theme.php';
   } catch (e) {}
 })();
 </script>
-<link rel="stylesheet" href="../jr-theme/css/tokens.css">
-<link rel="stylesheet" href="../jr-theme/css/base.css">
-<link rel="stylesheet" href="../css/admin.css">
+<?php // ?v=mtime : anti-cache — toute modification des CSS est rechargée immédiatement
+$jrV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $rel . '?v=' . (@filemtime($p) ?: '1'); };
+?>
+<link rel="stylesheet" href="../<?= $jrV('jr-theme/css/tokens.css') ?>">
+<link rel="stylesheet" href="../<?= $jrV('jr-theme/css/base.css') ?>">
+<link rel="stylesheet" href="../<?= $jrV('css/admin.css') ?>">
 <?php if (isset($jrGoogleFonts[$jrFont])): ?>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= $jrGoogleFonts[$jrFont] ?>:wght@400;500;600;700&display=swap">
 <?php endif; ?>
