@@ -19,50 +19,27 @@ $picture = $data['picture'] ?? '';
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
-  <title>Changer le mot de passe</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100vh; overflow: hidden; background: #0f172a; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; color: #191C1D; }
-    .oc-topbar { height: 52px; margin: 6px 0; padding: 0 16px; display: flex; align-items: center; background: #0f172a; }
-    .oc-topbar h1 { color: #fff; font-size: 16px; font-weight: 700; }
-    .oc-body { background: #fff; border-radius: 12px; margin: 0 6px 6px 6px; height: calc(100vh - 70px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; overflow: auto; }
-    .oc-logo { text-align: center; margin-bottom: 24px; }
-    .oc-logo .logo-icon { width: 56px; height: 56px; border-radius: 50%; background: #fdf2f8; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; color: var(--primary, #f42182); font-size: 24px; }
-    .oc-logo h2 { font-size: 22px; font-weight: 700; color: #191C1D; }
-    .oc-logo p { color: #5f4b52; font-size: 14px; margin-top: 4px; }
-    .oc-card { background: #fff; border: 1px solid #f0e8eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(74,32,56,.08); padding: 32px; width: 100%; max-width: 440px; }
-    .form-group { margin-bottom: 14px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #5f4b52; margin-bottom: 4px; }
-    .form-group input { width: 100%; height: 40px; padding: 8px 12px; border: 1px solid #d4c4cb; border-radius: 6px; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; color: #191C1D; background: #fff; outline: none; }
-    .form-group input:focus { border-color: var(--primary, #f42182); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent); }
-    .oc-btn { width: 100%; padding: 10px; background: var(--primary, #f42182); color: var(--primary-text, #fff); border: none; border-radius: 6px; font-size: 14px; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
-    .oc-btn:hover { background: var(--primary, #f42182); }
-    .oc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .pw-checks { margin-top: 8px; }
-    .pw-check { padding: 2px 0; color: #9e8a92; font-size: 13px; transition: color 0.2s; }
-    .pw-check.valid { color: #059669; }
-    .pw-check .pw-icon { margin-right: 6px; }
-    .oc-alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; margin-bottom: 14px; display: none; }
-    .oc-alert-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-    .oc-alert-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-    .oc-alert.show { display: block; }
-    .oc-footer { text-align: center; margin-top: 16px; font-size: 12px; color: #9e8a92; }
-  </style>
+  <title>Changer le mot de passe — Forbach en Rose</title>
+  <?php include 'src/partials/auth-head.php'; ?>
 </head>
 <body>
-  <header class="oc-topbar"><h1>Forbach en Rose</h1></header>
-  <main class="oc-body">
-    <div class="oc-logo">
-      <?php if (!empty($picture)): ?>
-        <div class="logo-icon">
-          <img src="files/_pictures/<?= htmlspecialchars($picture) ?>" alt="Logo" style="max-width:32px;max-height:32px;object-fit:contain;">
+<div class="auth">
+  <div class="auth-frame">
+    <div class="auth-pane">
+      <a class="brand" href="public/accueil">
+        <?php if (file_exists(__DIR__ . '/files/_logos/logo_fer_rose.png')): ?>
+          <img src="files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+        <?php endif; ?>
+        <span class="name">Forbach en Rose</span>
+      </a>
+      <div class="inner">
+        <div class="oc-icon-area">
+          <div class="oc-icon-circle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h1 class="oc-title">Changement de mot de passe</h1>
+          <p class="oc-subtitle">Vous devez changer votre mot de passe temporaire</p>
         </div>
-      <?php else: ?>
-        <div class="logo-icon">&#128274;</div>
-      <?php endif; ?>
-      <h2>Changement de mot de passe</h2>
-      <p>Vous devez changer votre mot de passe temporaire</p>
-    </div>
     <div class="oc-card">
       <div id="err" class="oc-alert oc-alert-danger"></div>
       <div id="ok" class="oc-alert oc-alert-success"></div>
@@ -92,7 +69,11 @@ $picture = $data['picture'] ?? '';
         </button>
       </form>
     </div>
-  </main>
+      </div><!-- /inner -->
+    </div><!-- /auth-pane -->
+    <?php include 'src/partials/auth-art.php'; ?>
+  </div><!-- /auth-frame -->
+</div><!-- /auth -->
 
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
     var pass = document.getElementById('newPass');
