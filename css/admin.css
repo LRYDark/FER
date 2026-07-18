@@ -99,12 +99,20 @@ body {
   transition: transform var(--dur-fast) var(--ease-out);
 }
 .jr-nav .nav-group.open .section-toggle svg { transform: rotate(180deg); }
+/* Ouverture/fermeture ANIMÉE (grid-template-rows 0fr → 1fr) */
 .jr-nav .nav-group .group-items {
-  display: none;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-med) var(--ease-out);
+}
+.jr-nav .nav-group.open .group-items { grid-template-rows: 1fr; }
+.jr-nav .nav-group .group-items-inner {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.jr-nav .nav-group.open .group-items { display: flex; }
 
 /* « Mise à jour BDD » poussée en bas de la zone de navigation */
 .jr-nav .item.mt-auto-update { margin-top: var(--sp-4); }
@@ -347,14 +355,22 @@ body {
 .btn-light,
 .btn-outline-dark {
   background: var(--surface) !important;
-  border-color: var(--border-strong) !important;
+  border-color: color-mix(in srgb, var(--ink-faint) 55%, transparent) !important;
   color: var(--ink-dim) !important;
 }
 .btn-secondary:hover, .btn-outline-secondary:hover, .btn-light:hover, .btn-outline-dark:hover {
   background: var(--surface-2) !important;
   color: var(--ink) !important;
-  border-color: var(--border-strong) !important;
+  border-color: color-mix(in srgb, var(--ink-faint) 75%, transparent) !important;
 }
+/* État actif (groupes de filtres type « Tous / Abonnés / Désabonnés ») */
+.btn-outline-secondary.active, .btn-outline-dark.active {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+.btn-outline-success.active { background: var(--ok-soft) !important; border-color: var(--ok) !important; color: var(--ok) !important; }
+.btn-outline-danger.active  { background: var(--danger-soft) !important; border-color: var(--danger) !important; color: var(--danger) !important; }
 
 .btn-success { background: var(--ok) !important; border-color: var(--ok) !important; color: #fff !important; }
 .btn-success:hover { filter: brightness(0.93); }
@@ -374,8 +390,10 @@ body {
 .form-label { font-size: var(--fs-small); font-weight: 600; color: var(--ink); margin-bottom: 0.3rem; }
 .form-text { color: var(--ink-faint); font-size: var(--fs-micro); }
 
+/* ⚠️ background-color (PAS le raccourci background:) — le raccourci remettrait
+   background-repeat à « repeat » et la flèche du select se répéterait en mosaïque. */
 .form-control, .form-select {
-  background: var(--surface);
+  background-color: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-m);
   color: var(--ink);
@@ -384,18 +402,22 @@ body {
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .form-control:focus, .form-select:focus {
-  background: var(--surface);
+  background-color: var(--surface);
   border-color: var(--accent);
   color: var(--ink);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
   outline: none;
 }
 .form-control::placeholder { color: var(--ink-faint); }
-.form-control:disabled, .form-select:disabled { background: var(--surface-2); color: var(--ink-faint); }
+.form-control:disabled, .form-select:disabled { background-color: var(--surface-2); color: var(--ink-faint); }
 .form-control-sm, .form-select-sm { font-size: var(--fs-micro); padding: 0.3rem 0.55rem; border-radius: var(--radius-s); }
 
 .form-select {
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2398A1B0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 14px 11px;
+  padding-right: 2.2rem;
 }
 
 .form-check-input { border-color: var(--border-strong); background-color: var(--surface); }

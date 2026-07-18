@@ -166,6 +166,10 @@ if (!isset($__themeLoaded)) {
   --radius-lg: <?= $__theme['radius'] > 0 ? $__theme['radius'] + 4 : 0 ?>px;
   --font-family: <?= $__fontStack ?>;
 }
+<?php if (empty($themeVarsOnly)) : /* ── Overrides composants : SITE PUBLIC uniquement.
+   L'admin (navbar-admin définit $themeVarsOnly = true) ne reçoit QUE les
+   variables ci-dessus — sinon ces !important (boutons, liens, radius, police)
+   écraseraient le thème jr-theme de l'administration. ── */ ?>
 
 /* ═══ Global font ═══ */
 body, .form-control, .form-select, .btn, .nav-link, .modal-content, .card {
@@ -326,4 +330,5 @@ body.dark-theme {
   --secondary-text: <?= $__darkSecondaryText ?>;
   --secondary-light: <?= $__darkSecondaryLight ?>;
 }
+<?php endif; // $themeVarsOnly ?>
 </style>

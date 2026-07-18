@@ -123,7 +123,10 @@ if (!array_key_exists($jrFont, $jrFonts)) $jrFont = 'inter';
 $jrGoogleFonts = ['poppins' => 'Poppins', 'roboto' => 'Roboto', 'open-sans' => 'Open+Sans', 'montserrat' => 'Montserrat', 'nunito' => 'Nunito'];
 ?>
 
-<?php include __DIR__ . '/../content/theme.php'; /* variables --primary du site (compat contenus existants) */ ?>
+<?php
+$themeVarsOnly = true; // admin : theme.php n'émet QUE les variables --primary/--radius…
+include __DIR__ . '/../content/theme.php';
+?>
 
 <!-- ═══════ jr-theme (habillage admin) ═══════ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
@@ -326,15 +329,17 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
             <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="group-items">
-            <?php foreach ($visible as [$href, $label, $icon, $isActive]): ?>
-              <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
-                <svg viewBox="0 0 24 24"><?= $icon ?></svg>
-                <span><?= htmlspecialchars($label) ?></span>
-                <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
-                  <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
-                <?php endif; ?>
-              </a>
-            <?php endforeach; ?>
+            <div class="group-items-inner">
+              <?php foreach ($visible as [$href, $label, $icon, $isActive]): ?>
+                <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
+                  <svg viewBox="0 0 24 24"><?= $icon ?></svg>
+                  <span><?= htmlspecialchars($label) ?></span>
+                  <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
+                    <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
+                  <?php endif; ?>
+                </a>
+              <?php endforeach; ?>
+            </div>
           </div>
         </div>
       <?php endforeach; ?>
