@@ -198,7 +198,6 @@ $ico = [
 
 $navSections = [
     'Pilotage' => [
-        ['dashboard.php',  'Tableau de bord', $ico['dashboard'], ['page' => 'dashboard']],
         ['stats.php',      'Statistiques',    $ico['stats'],     ['roles' => ['admin', 'user', 'viewer']]],
         ['page_stats.php', 'Visites',         $ico['eye'],       ['page' => 'page_stats']],
     ],
@@ -280,37 +279,68 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
     </a>
 
     <nav>
-      <?php foreach ($navSections as $sectionLabel => $items): ?>
+      <?php // ── « Tableau de bord » : seul, tout en haut, hors sections ── ?>
+      <?php if (canAccessPage('dashboard')): ?>
         <?php
-        $visible = array_filter($items, fn($it) => $jrCanSee($it[3]));
-        if (empty($visible)) continue;
+        $dashHref = 'dashboard.php'; $dashLabel = 'Tableau de bord';
+        $dashActive = ($currentPage === 'dashboard.php');
+        if ($userRole === 'saisie') {
+            $dashLabel = 'Mes inscriptions';
+            $dashHref  = 'saisie.php?tab=inscriptions';
+            $dashActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
+        }
         ?>
-        <div class="section"><?= htmlspecialchars($sectionLabel) ?></div>
-        <?php foreach ($visible as [$href, $label, $icon, $access]): ?>
-          <?php
-          $isActive = $jrIsActive($href);
-          // Rôle saisie : adaptation du dashboard
-          if ($href === 'dashboard.php' && $userRole === 'saisie') {
-              $label = 'Mes inscriptions';
-              $href  = 'saisie.php?tab=inscriptions';
-              $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
-          } elseif ($href === 'saisie.php' && $userRole === 'saisie') {
-              $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
+        <a class="item is-top<?= $dashActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($dashHref) ?>">
+          <svg viewBox="0 0 24 24"><?= $ico['dashboard'] ?></svg>
+          <span><?= htmlspecialchars($dashLabel) ?></span>
+        </a>
+      <?php endif; ?>
+
+      <?php // ── Sections en ACCORDÉON : une seule ouverte (celle de la page active) ── ?>
+      <?php
+      // Pré-calcul : items visibles + section active
+      $renderSections = [];
+      $activeSection  = null;
+      foreach ($navSections as $sectionLabel => $items) {
+          $visible = [];
+          foreach ($items as [$href, $label, $icon, $access]) {
+              if (!$jrCanSee($access)) continue;
+              $isActive = $jrIsActive($href);
+              if ($href === 'saisie.php' && $userRole === 'saisie') {
+                  $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
+              }
+              $visible[] = [$href, $label, $icon, $isActive];
+              if ($isActive && $activeSection === null) $activeSection = $sectionLabel;
           }
-          ?>
-          <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
-            <svg viewBox="0 0 24 24"><?= $icon ?></svg>
-            <span><?= htmlspecialchars($label) ?></span>
-            <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
-              <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
-            <?php endif; ?>
-          </a>
-        <?php endforeach; ?>
+          if (!empty($visible)) $renderSections[$sectionLabel] = $visible;
+      }
+      // Aucune page active dans les groupes (ex : dashboard) → premier groupe ouvert
+      if ($activeSection === null && !empty($renderSections)) {
+          $activeSection = array_key_first($renderSections);
+      }
+      ?>
+      <?php foreach ($renderSections as $sectionLabel => $visible): ?>
+        <div class="nav-group<?= $sectionLabel === $activeSection ? ' open' : '' ?>">
+          <button type="button" class="section section-toggle">
+            <span><?= htmlspecialchars($sectionLabel) ?></span>
+            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="group-items">
+            <?php foreach ($visible as [$href, $label, $icon, $isActive]): ?>
+              <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
+                <svg viewBox="0 0 24 24"><?= $icon ?></svg>
+                <span><?= htmlspecialchars($label) ?></span>
+                <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
+                  <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
+                <?php endif; ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
+        </div>
       <?php endforeach; ?>
 
       <?php if ($userRole === 'admin' && file_exists(dirname(__DIR__, 2) . '/update.php')): ?>
-        <div class="section">Mise à jour</div>
-        <a class="item is-update" href="../update.php">
+        <a class="item is-update mt-auto-update" href="../update.php">
           <svg viewBox="0 0 24 24"><?= $ico['download'] ?></svg>
           <span>Mise à jour BDD</span>
         </a>
@@ -376,20 +406,18 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
   </script>
   <?php endif; ?>
 
-  <!-- ═══════ CONTENU (fermé dans admin-footer.php) ═══════ -->
-  <main class="jr-main" id="oc-content">
+  <!-- ═══════ CONTENU (fermé dans admin-footer.php) ═══════
+       NB : volontairement une <div> et PAS <main> — certaines pages admin
+       (Réglages) chargent css/accueil.css pour l'aperçu du site public, qui
+       style l'élément main (centrage, largeurs) et polluerait l'admin. -->
+  <div class="jr-main" id="oc-content">
     <header class="jr-topbar">
       <div style="display:flex;align-items:center;gap:12px">
         <button class="jr-burger" id="ocBurger" type="button" aria-label="Menu">
           <span></span><span></span><span></span>
         </button>
         <div class="crumbs">
-          <?php if ($pageSubtitle !== ''): ?>
-            <span class="eyebrow"><?= htmlspecialchars($pageTitle) ?></span>
-            <h1><?= htmlspecialchars($pageSubtitle) ?></h1>
-          <?php else: ?>
-            <h1><?= htmlspecialchars($pageTitle) ?></h1>
-          <?php endif; ?>
+          <h1><?= htmlspecialchars($pageSubtitle !== '' ? $pageSubtitle : $pageTitle) ?></h1>
         </div>
       </div>
     </header>
