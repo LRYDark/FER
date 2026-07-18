@@ -83,6 +83,7 @@ if (!$hasCurrentMonth) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="../js/admin-charts.js"></script>
 <style>
 .stat-card {
     border: 1px solid #f0e8eb;
@@ -452,38 +453,42 @@ document.addEventListener('DOMContentLoaded', function() {
         return labels.map(function(d) { return obj[d] || 0; });
     }
 
+    // Habillage jr-theme : couleurs lues depuis les tokens du thème courant
+    jrChartDefaults();
+    var jrTok = jrChartTokens();
+
     var datasets = [
         {
             label: 'Pages vues',
             data: mapData(dailyPageViews),
-            backgroundColor: 'rgba(196, 87, 122, 0.6)',
-            borderColor: 'rgba(196, 87, 122, 1)',
-            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            backgroundColor: jrAlpha(jrTok.accent, 0.65),
+            borderColor: jrTok.accent,
+            borderWidth: 1, borderRadius: 5, maxBarThickness: 40,
             _toggle: 'tglPageViews'
         },
         {
             label: 'Visiteurs uniques',
             data: mapData(dailyUniqAll),
-            backgroundColor: 'rgba(37, 99, 235, 0.6)',
-            borderColor: 'rgba(37, 99, 235, 1)',
-            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            backgroundColor: jrAlpha(jrTok.info, 0.55),
+            borderColor: jrTok.info,
+            borderWidth: 1, borderRadius: 5, maxBarThickness: 40,
             _toggle: 'tglUniqAll'
         },
         {
             label: 'Mobile',
             data: mapData(dailyUniqMob),
-            backgroundColor: 'rgba(22, 163, 74, 0.6)',
-            borderColor: 'rgba(22, 163, 74, 1)',
-            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            backgroundColor: jrAlpha(jrTok.ok, 0.55),
+            borderColor: jrTok.ok,
+            borderWidth: 1, borderRadius: 5, maxBarThickness: 40,
             hidden: true,
             _toggle: 'tglUniqMobile'
         },
         {
             label: 'PC',
             data: mapData(dailyUniqDesk),
-            backgroundColor: 'rgba(245, 158, 11, 0.6)',
-            borderColor: 'rgba(245, 158, 11, 1)',
-            borderWidth: 1, borderRadius: 4, maxBarThickness: 40,
+            backgroundColor: jrAlpha(jrTok.warn, 0.55),
+            borderColor: jrTok.warn,
+            borderWidth: 1, borderRadius: 5, maxBarThickness: 40,
             hidden: true,
             _toggle: 'tglUniqDesktop'
         }
@@ -496,23 +501,16 @@ document.addEventListener('DOMContentLoaded', function() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: '#0f172a',
-                    titleFont: { size: 13 },
-                    bodyFont: { size: 13 },
-                    padding: 10,
-                    cornerRadius: 8,
-                }
+                legend: { display: false }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { precision: 0, color: '#9e8a92', font: { size: 12 } },
-                    grid: { color: '#f0e8eb' }
+                    ticks: { precision: 0, color: jrTok.inkFaint, font: { size: 12 } },
+                    grid: { color: jrTok.border }
                 },
                 x: {
-                    ticks: { color: '#9e8a92', font: { size: 11 }, maxRotation: 45 },
+                    ticks: { color: jrTok.inkFaint, font: { size: 11 }, maxRotation: 45 },
                     grid: { display: false }
                 }
             }
