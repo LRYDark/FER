@@ -596,6 +596,11 @@ a:hover { color: var(--accent-strong); }
 /* ---- Sections settings (connexions/logs) ---- */
 .settings-section { color: var(--ink); }
 
+/* v2 : les onglets de Réglages et Emails sont pilotés par la SIDEBAR
+   (deep-links ?tab= / ?pane=) — leurs barres internes sont masquées.
+   Ceux de Connexions / Logs / Visites (filtres de vue) restent visibles. */
+#settingsTabs, #mailSettingsTabs { display: none !important; }
+
 /* ============================================================
    PROFIL — apparence (segment thème + accents), réutilisé du kit
    ============================================================ */

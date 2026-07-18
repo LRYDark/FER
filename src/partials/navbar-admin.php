@@ -11,7 +11,9 @@
  */
 
 $currentPage = basename($_SERVER['PHP_SELF']);
-$currentTab  = $_GET['tab']  ?? ($_GET['pane'] ?? '');
+// Onglet actif : la page peut le fournir via $navActiveTab (utile après un POST,
+// où l'URL ne contient pas ?tab=) ; sinon on lit l'URL.
+$currentTab  = $navActiveTab ?? ($_GET['tab'] ?? ($_GET['pane'] ?? ''));
 
 $pageTitles = [
     'dashboard.php'     => 'Tableau de bord',
