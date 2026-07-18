@@ -605,6 +605,28 @@ a:hover { color: var(--accent-strong); }
    d'en-tête des pages (pattern historique h1.fw-bold) sont masqués. */
 .jr-main h1.fw-bold { display: none; }
 
+/* v2 : la rangée de boutons d'action qui accompagnait le h1 (Nouvel inscrit,
+   Export Excel…) est remontée À DROITE DE LA TOPBAR (le h1 masqué laissait
+   les boutons orphelins à gauche). Sur mobile, elle reste dans le flux. */
+@media (min-width: 992px) {
+  .jr-main .d-flex:has(> h1.fw-bold) {
+    justify-content: flex-end !important;
+    margin-top: -64px;   /* hauteur titre topbar + espacement */
+    margin-bottom: var(--sp-4) !important;
+    position: relative;
+    z-index: 2;
+  }
+  /* Avec sous-titre (eyebrow + h1) la topbar est plus haute */
+  .jr-topbar .crumbs .eyebrow + h1 { margin-top: 0; }
+}
+
+/* Recherche rapide (dashboard/saisie) : alignée à droite au-dessus du tableau */
+.quick-search {
+  max-width: 400px;
+  margin: 0 0 var(--sp-3) auto;
+  display: block;
+}
+
 /* ============================================================
    PROFIL — apparence (segment thème + accents), réutilisé du kit
    ============================================================ */
@@ -862,3 +884,232 @@ a:hover { color: var(--accent-strong); }
 /* Apparence : rangées */
 .pf-appearance-row { margin-bottom: var(--sp-5); }
 .pf-appearance-row > label { display: block; font-size: var(--fs-small); font-weight: 600; color: var(--ink); margin-bottom: var(--sp-2); }
+
+/* ============================================================
+   TABLEAUX & COMPOSANTS PARTAGÉS (portés de l ancien thème,
+   ré-exprimés en tokens jr-theme) — fer-table, filtres entonnoir,
+   popovers, poignées resize, voile de chargement, bouton Colonnes,
+   pagination DataTables.
+   ============================================================ */
+/* ══════════════════════════════════════════════════════════════
+   OPENCLOUD ROSE – Tables
+   ══════════════════════════════════════════════════════════════ */
+/* ── Style GLOBAL d'origine (inchangé) : s'applique à TOUS les tableaux admin
+     SAUF ceux portant la classe .fer-table (dashboard / stats / saisie). ── */
+#oc-content .table { font-size: 14px; }
+#oc-content .table > thead > tr > th {
+  background: var(--surface-2); color: var(--ink-dim); font-weight: 600;
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--border-strong); padding: 10px 12px;
+}
+#oc-content .table > tbody > tr > td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border-strong); color: var(--ink);
+  vertical-align: middle;
+}
+#oc-content .table > tbody > tr:hover > td { background: var(--surface-2); }
+
+/* ── NOUVEAU THÈME — UNIQUEMENT sur .fer-table (dashboard / stats / saisie).
+     Placé APRÈS le global pour gagner à spécificité égale. En-tête = couleur
+     secondaire + texte auto, lignes aérées, survol rose léger. ── */
+#oc-content .fer-table { border-collapse: separate; border-spacing: 0; }
+#oc-content .fer-table > thead > tr > th {
+  background: var(--ink));
+  color: var(--canvas));
+  font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: none; border-top: none; padding: 13px 8px; white-space: nowrap;
+}
+#oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
+#oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
+#oc-content .fer-table > tbody > tr > td {
+  padding: 12px 8px; border-bottom: 1px solid #eef1f5; color: var(--ink); vertical-align: middle;
+}
+#oc-content .fer-table > tbody > tr:last-child > td { border-bottom: none; }
+#oc-content .fer-table > tbody > tr:hover > td { background-color: #fdeef5; }
+
+/* Icônes de tri discrètes (rose sur la colonne triée) — scopées .fer-table */
+#oc-content .fer-table.dataTable thead .sorting:before,
+#oc-content .fer-table.dataTable thead .sorting:after,
+#oc-content .fer-table.dataTable thead .sorting_asc:after,
+#oc-content .fer-table.dataTable thead .sorting_desc:before { opacity: 0 !important; }
+#oc-content .fer-table.dataTable thead .sorting:before,
+#oc-content .fer-table.dataTable thead .sorting:after,
+#oc-content .fer-table.dataTable thead .sorting_asc:before,
+#oc-content .fer-table.dataTable thead .sorting_asc:after,
+#oc-content .fer-table.dataTable thead .sorting_desc:before,
+#oc-content .fer-table.dataTable thead .sorting_desc:after { right: .5em; font-size: .7em; }
+#oc-content .fer-table.dataTable thead th.sorting:hover:after { opacity: .5 !important; color: var(--border-strong); }
+#oc-content .fer-table.dataTable thead .sorting_asc:before,
+#oc-content .fer-table.dataTable thead .sorting_desc:after { opacity: 1 !important; color: #f472b6; }
+
+/* ── COMPOSANTS INTERACTIFS PARTAGÉS (entonnoir de filtre, popover, poignées de
+     redimensionnement, bouton « Colonnes », repère ColReorder). Réutilisés par
+     dashboard / saisie / stats — un seul jeu de styles. ── */
+#oc-content .fer-table.dataTable thead th { position: relative; }   /* ancrage poignée de resize */
+
+.col-filter-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 19px; height: 19px; margin-left: 6px; border-radius: 5px;
+  color: var(--canvas); opacity: .55;
+  cursor: pointer; font-size: 11px; vertical-align: middle;
+  transition: background .15s, color .15s, opacity .15s;
+}
+.col-filter-btn:not(.active):hover, .col-filter-btn.active { opacity: 1; }
+.col-filter-btn:hover { background: #fdf2f8; color: #9d174d; }
+.col-filter-btn.active { background: var(--accent); color: var(--accent-ink); }
+
+.col-filter-pop {
+  position: fixed; z-index: 2000; min-width: 196px; max-height: 340px; overflow-y: auto;
+  background: var(--surface); border: 1px solid #f0e8eb; border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.15); padding: 6px; display: none;
+}
+.col-filter-pop.show { display: block; }
+.col-filter-pop .cfp-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
+}
+.col-filter-pop .cfp-opt {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
+  font-size: 13px; color: var(--ink); cursor: pointer; white-space: nowrap;
+}
+.col-filter-pop .cfp-opt:hover { background: #fdf2f6; }
+.col-filter-pop .cfp-opt.active { background: #fbeaf1; color: var(--accent); font-weight: 600; }
+.col-filter-pop .cfp-opt .bi { font-size: 13px; opacity: 0; flex: 0 0 auto; }
+.col-filter-pop .cfp-opt.active .bi { opacity: 1; }
+
+/* Poignées de redimensionnement de colonne (.fer-table uniquement) */
+#oc-content .fer-table.dataTable thead th .col-resize {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
+  cursor: col-resize; user-select: none; -webkit-user-select: none; z-index: 1;
+}
+#oc-content .fer-table.dataTable thead th .col-resize:hover,
+#oc-content .fer-table.dataTable thead th .col-resize.active { background: var(--accent); }
+
+/* ── Voile de chargement des tableaux (anti-flash pendant l'init DataTables) ──
+   Le tableau est masqué (visibility:hidden → la mise en page reste calculée, donc
+   les largeurs se mesurent correctement) et un spinner s'affiche, jusqu'à ce que
+   les données + préférences + largeurs soient appliquées. Reveal = retrait de
+   .is-loading → fondu d'apparition propre, sans saut de colonnes. */
+.fer-tbl-wrap { position: relative; }
+.fer-tbl-wrap.is-loading { min-height: 180px; }
+.fer-tbl-wrap > :not(.fer-tbl-spinner) { transition: opacity .25s ease; }
+.fer-tbl-wrap.is-loading > :not(.fer-tbl-spinner) { visibility: hidden; opacity: 0; }
+.fer-tbl-spinner {
+  position: absolute; inset: 0; z-index: 5;
+  display: none; align-items: center; justify-content: center;
+}
+.fer-tbl-wrap.is-loading > .fer-tbl-spinner { display: flex; }
+.fer-tbl-spinner::after {
+  content: ""; width: 42px; height: 42px; border-radius: 50%;
+  border: 4px solid #f6d6e6; border-top-color: var(--accent);
+  animation: fer-spin .7s linear infinite;
+}
+@keyframes fer-spin { to { transform: rotate(360deg); } }
+
+/* Cellule « tampon » : remplit l'espace à droite (largeur auto en table-layout:fixed)
+   pour que l'en-tête et les lignes atteignent le bord de la page. Non interactive. */
+.fer-spacer-cell { padding: 0 !important; pointer-events: none; }
+
+/* Repère d'insertion + aperçu de la colonne déplacée (ColReorder).
+   NB : ColReorder 1.7 nomme ces éléments DTCR_pointer / DTCR_clonedTable. */
+div.DTCR_pointer { background-color: var(--accent) !important; width: 2px; border-radius: 2px; }
+/* Pendant le déplacement, on masque le clone par défaut (il copie tout le tableau
+   → bloc disgracieux). Le retour visuel vient à la place d'une petite étiquette
+   rose arrondie portant le nom de la colonne, qui suit la souris (créée en JS),
+   + du trait rose d'insertion : net, discret et aux couleurs du site. */
+table.DTCR_clonedTable.dataTable { display: none !important; }
+.dtcr-drag-label {
+  position: fixed; z-index: 2100; pointer-events: none; display: none;
+  background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.dtcr-drag-label.show { display: block; }
+
+/* Bouton « Colonnes » (afficher/masquer) — mêmes codes visuels que les popovers
+   de filtre d'en-tête (.col-filter-pop) pour une apparence uniforme sur le site. */
+.col-toggle-wrap { position: relative; display: inline-block; }
+.col-toggle-btn {
+  font-size: 13px; font-weight: 500; padding: 5px 12px;
+  border: 1px solid #d4c4cb; border-radius: 6px; background: var(--surface);
+  color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.col-toggle-btn:hover { background: #fdf8f9; }
+.col-toggle-dropdown {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 6px;
+  background: var(--surface); border: 1px solid #f0e8eb; border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.15); z-index: 100;
+  padding: 6px; min-width: 200px; max-height: 350px; overflow-y: auto;
+}
+.col-toggle-dropdown.show { display: block; }
+.col-toggle-dropdown .cfp-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
+}
+.col-toggle-dropdown label {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
+  font-size: 13px; color: var(--ink); cursor: pointer; font-weight: 400;
+  text-transform: none; letter-spacing: 0; margin: 0; white-space: nowrap;
+}
+.col-toggle-dropdown label:hover { background: #fdf2f6; }
+
+/* Boutons d'action dans les tableaux : toujours côte à côte */
+.action-buttons { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; }
+.action-buttons .btn {
+  --bs-btn-padding-y: .20rem; --bs-btn-padding-x: .45rem; --bs-btn-font-size: .75rem;
+  flex: 0 0 auto; margin: 0 !important;
+}
+
+/* Table responsive — no horizontal scrollbar unless truly needed */
+#oc-content .table-responsive { overflow-x: auto; }
+#oc-content .table { min-width: 0; }
+
+/* ══════════════════════════════════════════════════════════════
+   OPENCLOUD ROSE – DataTables overrides
+   ══════════════════════════════════════════════════════════════ */
+/* Select "Afficher X entrées" */
+#oc-content .dataTables_wrapper .dataTables_length select,
+#oc-content .dataTables_wrapper select {
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  padding: 4px 28px 4px 8px; font-size: 13px; color: var(--ink);
+  background: var(--surface) url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") no-repeat right 8px center/12px;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  cursor: pointer;
+}
+#oc-content .dataTables_wrapper .dataTables_length label,
+#oc-content .dataTables_wrapper .dataTables_filter label,
+#oc-content .dataTables_wrapper .dataTables_info,
+.modal .dataTables_wrapper .dataTables_length label,
+.modal .dataTables_wrapper .dataTables_filter label,
+.modal .dataTables_wrapper .dataTables_info {
+  font-size: 13px; color: var(--ink);
+}
+/* Search input */
+#oc-content .dataTables_wrapper .dataTables_filter input {
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  padding: 5px 10px; font-size: 13px; color: var(--ink);
+}
+#oc-content .dataTables_wrapper .dataTables_filter input:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); outline: none;
+}
+/* Pagination — Bootstrap style, rose instead of blue */
+#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button,
+.modal .dataTables_wrapper .dataTables_paginate .paginate_button,
+#oc-content .page-link,
+.modal .page-link {
+  color: var(--ink) !important;
+}
+#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button:hover,
+.modal .dataTables_wrapper .dataTables_paginate .paginate_button:hover,
+#oc-content .page-link:hover,
+.modal .page-link:hover {
+  color: var(--ink) !important;
+}
+#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
+.modal .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.modal .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
+#oc-content .page-item.active .page-link,
+.modal .page-item.active .page-link {
+  background-color: var(--accent) !important; color: #fff !important;
+  border-color: var(--accent) !important;
+}
