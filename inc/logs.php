@@ -1,11 +1,11 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('logs');
 $role = currentRole();
 $canWrite     = canDoAction('logs.write');
 $pageReadOnly = !$canWrite;
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Bloquer toute action POST si pas le droit d'écriture
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
@@ -22,35 +22,35 @@ $logFiles = [
         'key'   => 'php_errors',
         'tab'   => 'php',
         'icon'  => 'bi-bug',
-        'path'  => __DIR__ . '/../config/logs/php-error.log',
+        'path'  => __DIR__ . '/../storage/logs/php-error.log',
     ],
     'google_mails' => [
         'name'  => 'Google Mails',
         'key'   => 'google_mails',
         'tab'   => 'mail',
         'icon'  => 'bi-google',
-        'path'  => __DIR__ . '/../config/logs/logs_google_mails.log',
+        'path'  => __DIR__ . '/../storage/logs/logs_google_mails.log',
     ],
     'smtp_mails' => [
         'name'  => 'SMTP Mails',
         'key'   => 'smtp_mails',
         'tab'   => 'smtp',
         'icon'  => 'bi-server',
-        'path'  => __DIR__ . '/../config/logs/logs_smtp_mails.log',
+        'path'  => __DIR__ . '/../storage/logs/logs_smtp_mails.log',
     ],
     'import_errors' => [
         'name'  => "Erreurs d'import",
         'key'   => 'import_errors',
         'tab'   => 'import',
         'icon'  => 'bi-file-earmark-excel',
-        'path'  => __DIR__ . '/../config/logs/import_errors.log',
+        'path'  => __DIR__ . '/../storage/logs/import_errors.log',
     ],
     'api' => [
         'name'  => 'API',
         'key'   => 'api',
         'tab'   => 'api',
         'icon'  => 'bi-plug',
-        'path'  => __DIR__ . '/../config/logs/api.log',
+        'path'  => __DIR__ . '/../storage/logs/api.log',
     ],
 ];
 
@@ -257,7 +257,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 </head>
 
 <body>
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
   <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-3">
     <div>
@@ -358,7 +358,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   </div>
   <?php endforeach; ?>
 
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -383,7 +383,7 @@ document.getElementById('debogageToggle').addEventListener('change', function(){
   var val = this.checked ? 1 : 0;
   var status = document.getElementById('debogageStatus');
   status.textContent = 'Sauvegarde...';
-  fetch('../config/api.php?route=toggle-debogage', {
+  fetch('../admin-api.php?route=toggle-debogage', {
     method: 'POST',
     headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content},
     body: JSON.stringify({debogage: val})

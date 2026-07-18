@@ -6,7 +6,7 @@
 
 // Vérifier si $pdo existe
 if (!isset($pdo)) {
-    require_once __DIR__ . '/../config/config.php';
+    require_once __DIR__ . '/../core/config.php';
 }
 
 // Récupération des paramètres globaux

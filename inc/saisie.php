@@ -1,7 +1,7 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
-require 'navbar-data.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 requireRole(['saisie']);
 
 $canCreateReg = canDoAction('dashboard.create_registration');
@@ -23,7 +23,7 @@ $qrcode_mail_mode  = $data['qrcode_mail_mode']  ?? 'none';
 $qrcode_mail_limit = (int) ($data['qrcode_mail_limit'] ?? 0);
 $highlightLimit    = ($qrcode_mail_mode === 'first_x' && $qrcode_mail_limit > 0) ? $qrcode_mail_limit : 0;
 
-require_once '../config/form_fields.php';
+require_once '../src/content/form_fields.php';
 $formFields = getActiveFields($pdo, 'saisie');
 
 // Champs pour le modal d'édition + colonnes du tableau (uniquement si tableau visible)
@@ -57,7 +57,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 </head>
 <body>
 
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
 /* ── Saisie : sidebar globale conservée comme sur les autres pages admin ── */
@@ -296,7 +296,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   </div></div></div>
 <?php endif; ?>
 
-<?php require 'admin-footer.php'; ?>
+<?php require __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="../js/inscription-form.js?v=7" nonce="<?= $GLOBALS['csp_nonce'] ?>"></script>
@@ -360,7 +360,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     var fd = new FormData(e.target);
     if (window.FERInscription) FERInscription.normalizeBirth(fd);
 
-    fetch('../config/api.php?route=registrations', {
+    fetch('../admin-api.php?route=registrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
       body: JSON.stringify(Object.fromEntries(fd))
@@ -494,7 +494,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   $.fn.dataTable.ext.pager.numbers_length = 7;
 
   tblSaisie = $('#tblSaisie').DataTable({
-    ajax: { url: '../config/api.php?route=registrations', dataSrc: '' },
+    ajax: { url: '../admin-api.php?route=registrations', dataSrc: '' },
     columns: columns,
     dom: 'lrtip',
     autoWidth: false,
@@ -534,7 +534,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   var _uiPrefs = null, _uiPrefsPromise = null;
   function loadUiPrefs(){
     if(_uiPrefsPromise) return _uiPrefsPromise;
-    _uiPrefsPromise = fetch('../config/api.php?route=ui-prefs')
+    _uiPrefsPromise = fetch('../admin-api.php?route=ui-prefs')
       .then(function(r){ return r.json(); })
       .then(function(p){ _uiPrefs = (p && typeof p==='object') ? p : {}; return _uiPrefs; })
       .catch(function(){ _uiPrefs = {}; return _uiPrefs; });
@@ -542,7 +542,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   }
   function saveUiPref(patch){
     if(_uiPrefs && typeof _uiPrefs==='object') Object.assign(_uiPrefs, patch);
-    return fetch('../config/api.php?route=ui-prefs',{
+    return fetch('../admin-api.php?route=ui-prefs',{
       method:'POST',
       headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
       body: JSON.stringify(patch)
@@ -568,7 +568,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   // Compteurs GLOBAUX (toutes organisations) : le tableau ci-dessous n'affiche
   // que les inscriptions de l'organisation connectée, donc on interroge l'API.
   function updateSaisieStats(){
-    fetch('../config/api.php?route=registrations-stats', { credentials: 'same-origin' })
+    fetch('../admin-api.php?route=registrations-stats', { credentials: 'same-origin' })
       .then(function(r){ return r.json(); })
       .then(function(s){
         if (!s || !s.ok) return;
@@ -593,7 +593,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     var data = row.data();
     if (!confirm('Êtes-vous sûr de vouloir supprimer l\'inscription de ' + (data.prenom || '') + ' ' + (data.nom || '') + ' ?')) return;
 
-    fetch('../config/api.php?route=registrations', {
+    fetch('../admin-api.php?route=registrations', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
       body: new URLSearchParams({ id: data.id })
@@ -640,7 +640,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
     if (window.FERInscription) FERInscription.composeComment(e.target);
     var fd = new FormData(e.target);
     if (window.FERInscription) FERInscription.normalizeBirth(fd);
-    fetch('../config/api.php?route=registrations', {
+    fetch('../admin-api.php?route=registrations', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
       body: new URLSearchParams(fd)

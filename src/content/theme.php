@@ -2,8 +2,8 @@
 /**
  * theme.php — Génère les CSS variables du thème depuis la BDD
  * Inclure ce fichier dans le <head> ou juste après le <body> de chaque page.
- * Usage : <?php include __DIR__ . '/../config/theme.php'; ?> (admin)
- *         <?php include __DIR__ . '/config/theme.php'; ?> (public root)
+ * Usage : <?php include __DIR__ . '/../src/content/theme.php'; ?> (admin)
+ *         <?php include __DIR__ . '/src/content/theme.php'; ?> (public root)
  */
 
 // ── Charger les settings si pas déjà fait ──

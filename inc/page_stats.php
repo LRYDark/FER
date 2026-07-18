@@ -1,10 +1,10 @@
 <?php
-require '../config/config.php';
+require '../src/core/config.php';
 requirePage('page_stats');
 $role = currentRole();
 // Cette page est purement consultative — aucune action d'écriture
-require 'navbar-data.php';
-require '../config/tracker.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
+require '../src/content/tracker.php';
 
 // Current period (default: today)
 $period = $_GET['period'] ?? 'today';
@@ -148,7 +148,7 @@ if (!$hasCurrentMonth) {
 </style>
 </head>
 <body>
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <h1 class="mb-3 fw-bold"><i class="bi bi-eye me-2"></i>Visites</h1>
 
@@ -538,6 +538,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 </body>
 </html>

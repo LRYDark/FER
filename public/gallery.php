@@ -1,9 +1,9 @@
 <?php
-require '../config/config.php';
-require_once '../config/tracker.php';
+require '../src/core/config.php';
+require_once '../src/content/tracker.php';
 trackPageVisit();
 checkMaintenance();
-require '../inc/navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 $albumId = (int)($_GET['album_id'] ?? 0);
 if ($albumId <= 0) {
@@ -101,10 +101,10 @@ $photoCount = count($photos);
   <title><?= htmlspecialchars($albumTitle) ?> - Photos</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <link rel="stylesheet" href="../css/gallery.css">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
-  <?php include '../inc/navbar-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
   <main>
     <section class="gallery-hero">
@@ -178,7 +178,7 @@ $photoCount = count($photos);
   </div>
   <?php endif; ?>
 
-  <?php include '../inc/footer-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
   <?php if ($photoCount > 0): ?>

@@ -1,12 +1,12 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('connexions');
 $role = currentRole();
 $canWrite     = canDoAction('connexions.write');
 $readOnly     = !$canWrite; // pour rétro-compatibilité avec les conditions HTML existantes
 $pageReadOnly = !$canWrite;
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Bloquer toute action POST si pas le droit d'écriture
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
@@ -108,7 +108,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
 </head>
 <body>
 
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <style>
   .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
@@ -385,7 +385,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
   <?php endif; ?>
 </div>
 
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <!-- ═══════ Scripts ═══════ -->
 <!-- 🔒 [FIX-09] Ajout SRI sur jQuery (CWE-829) -->
@@ -435,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
 
     // Appel batch unique vers notre API serveur (qui gère le cache fichier)
-    fetch('../config/api.php?route=ip-geo', {
+    fetch('../admin-api.php?route=ip-geo', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {

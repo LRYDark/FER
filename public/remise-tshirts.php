@@ -10,8 +10,8 @@
  * 🔒 Aucune donnée n'est chargée ici : toute recherche passe par l'API serveur qui
  *    ne renvoie qu'un inscrit à la fois (jamais la base complète).
  */
-require '../config/config.php';
-require_once '../config/csrf.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
 
 // État initial de l'accès (l'ouverture/fermeture est aussi revérifiée côté API).
 $open = false;
@@ -155,7 +155,7 @@ if ($isAdminScan) {
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
-  var API = '../config/api.php';
+  var API = '../admin-api.php';
   var CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   var INITIAL_OPEN = <?= $open ? 'true' : 'false' ?>;
 

@@ -1,7 +1,7 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
-require '../config/googleMail.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
+require '../src/mail/googleMail.php';
 requirePage('mail-settings');
 // L'envoi de mails est protégé par mail.send (séparé de mail.write qui couvre la conf)
 if (!canDoAction('mail.send')) {

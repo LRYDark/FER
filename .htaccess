@@ -12,7 +12,8 @@
 </IfModule>
 
 # Bloquer l'accès aux fichiers sensibles
-<FilesMatch "\.(env|log|bak|sql|old)$">
+# 🔒 v2.0.0 : .enc et .key ajoutés (config.enc / master.key)
+<FilesMatch "\.(env|log|bak|sql|old|enc|key)$">
     Require all denied
 </FilesMatch>
 

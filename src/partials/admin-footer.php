@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (logoutLink) {
     logoutLink.addEventListener('click', function(e) {
       e.preventDefault();
-      fetch('../config/api.php?route=logout').then(function() { location.href = '../login.php'; });
+      fetch('../admin-api.php?route=logout').then(function() { location.href = '../login.php'; });
     });
   }
 
@@ -141,14 +141,14 @@ var _pfCsrf = document.querySelector('meta[name="csrf-token"]') ? document.query
 
 /* ── Helpers API ── */
 function apiPost(route, data) {
-  return fetch('../config/api.php?route=' + route, {
+  return fetch('../admin-api.php?route=' + route, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _pfCsrf },
     body: JSON.stringify(data)
   }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, json: j }; }); });
 }
 function apiGet(route) {
-  return fetch('../config/api.php?route=' + route, { headers: { 'X-CSRF-TOKEN': _pfCsrf } })
+  return fetch('../admin-api.php?route=' + route, { headers: { 'X-CSRF-TOKEN': _pfCsrf } })
     .then(function(r) { return r.json(); });
 }
 function showMsg(el, msg, type) {
@@ -555,7 +555,7 @@ if (($__idleMin > 0 || $__absMin > 0) && isset($_SESSION['uid'])):
     var minGap = Math.max(15000, Math.min(60000, idleMs ? idleMs/2 : 60000));
     if (now - lastPing < minGap) return;
     lastPing = now;
-    fetch('../config/api.php?route=heartbeat', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    fetch('../admin-api.php?route=heartbeat', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function(r){ return r.json(); })
       .then(function(j){ if (!j || !j.ok) goLogin(); })
       .catch(function(){});

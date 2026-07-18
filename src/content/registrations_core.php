@@ -9,20 +9,20 @@
  * selon la configuration).
  *
  * IMPORTANT : ce fichier reproduit fidèlement la logique des routes
- * `import-excel` et `registrations` de config/api.php. Si cette logique
+ * `import-excel` et `registrations` de admin-api.php. Si cette logique
  * évolue côté dashboard, penser à répercuter la modification ici.
  *
  * Toutes les fonctions sont préfixées `regcore_` pour éviter toute collision.
  */
 
-require_once __DIR__ . '/config.php';          // $pdo, encrypt(), decrypt(), decryptRows()
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../core/config.php';   // $pdo, encrypt(), decrypt(), decryptRows()
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 /* ───────────────────────── Helpers utilitaires ───────────────────────── */
 
 /**
  * Normalise un libellé de colonne Excel (accents → ASCII, minuscules, espaces).
- * Copie conforme de normaliseLabel() de config/api.php.
+ * Copie conforme de normaliseLabel() de admin-api.php.
  */
 function regcore_normaliseLabel(string $label): string
 {
@@ -47,7 +47,7 @@ function regcore_normaliseLabel(string $label): string
 
 /**
  * Catégorie d'inscrit (« prestation ») déduite du mode de paiement.
- * Copie conforme de prestationFromPaiement() de config/api.php :
+ * Copie conforme de prestationFromPaiement() de admin-api.php :
  *   gratuit → enfant_gratuit ; enfant_tshirt → enfant_tshirt ; sinon → tarif_unique.
  */
 function regcore_prestationFromPaiement(?string $paiementMode): string
@@ -69,7 +69,7 @@ function regcore_storedPaiementMode(?string $choice): ?string
 
 /**
  * Normalise le « Moyen de paiement » Excel (AssoConnect) vers la valeur stockée.
- * Copie conforme de normalisePaiementMode() de config/api.php : un import
+ * Copie conforme de normalisePaiementMode() de admin-api.php : un import
  * AssoConnect = paiement en ligne, donc carte → 'en ligne (CB)'. Conserve le
  * vrai moyen (cheque/espece/gratuit) ; repli 'en ligne (CB)'.
  */
@@ -196,10 +196,10 @@ function regcore_naissanceToAge($value): ?string
     return $age === null ? null : (string) $age;
 }
 
-/** Journalise une erreur d'import dans config/logs/import_errors.log. */
+/** Journalise une erreur d'import dans storage/logs/import_errors.log. */
 function regcore_logImportError(array $data, string $filename = 'import_errors.log'): void
 {
-    $safePath = __DIR__ . '/logs/' . basename($filename);
+    $safePath = dirname(__DIR__, 2) . '/storage/logs/' . basename($filename);
     $entry = date('Y-m-d H:i:s') . ' | ' . json_encode($data, JSON_UNESCAPED_UNICODE) . PHP_EOL;
     @file_put_contents($safePath, $entry, FILE_APPEND);
 }
@@ -318,7 +318,7 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
     $inscEmail = trim($d['email'] ?? '');
     if ($sendMail && $inscEmail !== '') {
         try {
-            require_once __DIR__ . '/googleMail.php'; // charge le $data global (réglages complets)
+            require_once __DIR__ . '/../mail/googleMail.php'; // charge le $data global (réglages complets)
             if (function_exists('shouldIncludeQrCode')) {
                 $qrIncluded = shouldIncludeQrCode($no);
             }
@@ -348,9 +348,9 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
 
 /**
  * Fonction CANONIQUE d'import des inscrits, partagée par TOUS les chemins :
- *   - l'import manuel du dashboard (config/api.php route `import-excel`),
+ *   - l'import manuel du dashboard (admin-api.php route `import-excel`),
  *   - l'API externe (api.php),
- *   - l'import automatique AssoConnect (config/sync_assoconnect.php → sync_run_import).
+ *   - l'import automatique AssoConnect (src/content/sync_assoconnect.php → sync_run_import).
  *
  * Comportement strictement identique à l'import manuel : mapping des colonnes
  * via la table `import`, détection des doublons, tri chronologique, chiffrement
@@ -613,7 +613,7 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
         $mailsSent  = 0;
         $mailErrors = 0;
         if ($sendMail && !empty($newRegistrants)) {
-            require_once __DIR__ . '/googleMail.php';
+            require_once __DIR__ . '/../mail/googleMail.php';
             foreach ($newRegistrants as $reg) {
                 try {
                     $hasQr = function_exists('shouldIncludeQrCode') ? shouldIncludeQrCode($reg['inscription_no']) : false;

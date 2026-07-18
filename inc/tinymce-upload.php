@@ -5,8 +5,8 @@
  * Returns JSON with the file location for TinyMCE to insert.
  */
 
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require_once __DIR__ . '/../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 
 header('Content-Type: application/json');
 

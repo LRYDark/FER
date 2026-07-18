@@ -1,6 +1,6 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('albums');
 $role = currentRole();
 $canCreate = canDoAction('albums.create');
@@ -8,9 +8,9 @@ $canEdit   = canDoAction('albums.edit');
 $canTrash  = canDoAction('albums.trash');
 $canDelete = canDoAction('albums.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
-require_once __DIR__ . '/../config/content-log.php';
+require_once __DIR__ . '/../src/content/content-log.php';
 $canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Détection de la migration pour choisir entre soft-delete (trash) et hard-delete.
 $__migrationDone = false;
@@ -739,7 +739,7 @@ try {
 
 <body>
 
-<?php include '../inc/navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <?php
   $reopenModalId  = $_SESSION['reopen_modal'] ?? null;
@@ -1167,7 +1167,7 @@ try {
   </div>
 </div>
 
-<?php include '../inc/admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

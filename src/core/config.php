@@ -1,29 +1,40 @@
 <?php
-require_once __DIR__ . '/../vendor/autoload.php';   // charge l'autoloader Composer
+require_once __DIR__ . '/../../vendor/autoload.php';   // charge l'autoloader Composer
 require_once __DIR__ . '/debug.php';                // mode debug (barre GLPI + profileur SQL + handlers)
+require_once __DIR__ . '/secure.php';               // configuration chiffrée (config.enc + master.key)
 
-// ── Garde d'installation ────────────────────────────────────
-// Si .env est absent ou incomplet → rediriger vers install.php
-$_envPath = __DIR__ . '/.env';
-$_needsInstall = false;
+// ── Chargement de la configuration chiffrée + garde d'installation ──────────
+// v2.0.0 : les secrets vivent dans config/config.enc (chiffré avec
+// config/master.key), plus dans un .env en clair. Si un ancien .env complet
+// est présent et que config.enc n'existe pas encore, on migre automatiquement
+// (le .env est conservé ; update.php le supprimera après vérification).
+$_secureCfg = null;
 
-if (!file_exists($_envPath)) {
-    $_needsInstall = true;
-} else {
-    $_envRaw = file_get_contents($_envPath);
-    foreach (['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'ENCRYPTION_KEY'] as $_k) {
-        if (strpos($_envRaw, $_k . '=') === false) {
-            $_needsInstall = true;
-            break;
-        }
+if (FerSecureConfig::exists()) {
+    try {
+        $_secureCfg = FerSecureConfig::load();
+    } catch (\Throwable $_e) {
+        // config.enc présent mais indéchiffrable : NE PAS rediriger vers
+        // install.php (boucle / risque d'écrasement). Message explicite.
+        http_response_code(500);
+        error_log('[FER config] ' . $_e->getMessage());
+        die('Erreur de configuration : config/config.enc est présent mais ne peut pas être déchiffré. '
+          . 'Vérifiez que config/master.key est bien le fichier de clé d\'origine (restaurez-le depuis votre sauvegarde).');
     }
-    unset($_envRaw, $_k);
+} else {
+    // Pas encore de config.enc → tenter la migration depuis l'ancien .env
+    try {
+        $_secureCfg = FerSecureConfig::migrateFromEnv(dirname(__DIR__, 2) . '/config/.env');
+    } catch (\Throwable $_e) {
+        error_log('[FER config] Migration .env -> config.enc échouée : ' . $_e->getMessage());
+        $_secureCfg = null;
+    }
 }
 
-if ($_needsInstall) {
-    // Calculer le chemin relatif vers la racine du projet
+if ($_secureCfg === null || !FerSecureConfig::isComplete($_secureCfg)) {
+    // Installation absente ou incomplète → rediriger vers install.php
     $_scriptDir = realpath(dirname($_SERVER['SCRIPT_FILENAME']));
-    $_rootDir   = realpath(__DIR__ . '/..');
+    $_rootDir   = realpath(__DIR__ . '/../..');
     $_relPath   = '';
     if ($_scriptDir !== $_rootDir) {
         $_depth   = substr_count(
@@ -35,14 +46,12 @@ if ($_needsInstall) {
     header('Location: ' . $_relPath . 'install.php');
     exit;
 }
-unset($_envPath, $_needsInstall);
-// ── Fin garde d'installation ────────────────────────────────
 
-// Charge les variables d'environnement
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__); // si .env est à la racine de config
-$dotenv->load();
-
-// Les variables sont maintenant dans $_ENV ou getenv()
+// Compatibilité : injecter la config dans $_ENV / getenv() pour tout le code
+// existant ($_ENV['DB_HOST'], ENCRYPTION_KEY, TRUSTED_PROXIES, SYNC_WORKER_TOKEN…)
+FerSecureConfig::exportToEnv($_secureCfg);
+unset($_secureCfg);
+// ── Fin chargement configuration ────────────────────────────────────────────
 $dsn = sprintf(
     'mysql:host=%s;dbname=%s;charset=utf8mb4',
     $_ENV['DB_HOST'],
@@ -82,13 +91,13 @@ try {
 }
 
 // Ne JAMAIS exposer les erreurs PHP côté client (API JSON, pages HTML) : l'affichage
-// se fait uniquement via la barre de debug (admin + mode debug), cf. config/debug.php.
+// se fait uniquement via la barre de debug (admin + mode debug), cf. src/core/debug.php.
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 
 $GLOBALS['debogage'] = (int) ($data['debogage'] ?? 0);
 
-$logDir = __DIR__ . '/logs';
+$logDir = dirname(__DIR__, 2) . '/storage/logs';
 if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
 ini_set('log_errors', 1);
 ini_set('error_log', $logDir . '/php-error.log');
@@ -592,7 +601,7 @@ function checkMaintenance()
         if (!empty($row['maintenance_mode'])) {
             $maintenance_message = $row['maintenance_message'] ?? '';
             http_response_code(503);
-            include __DIR__ . '/../errors/maintenance.php';
+            include __DIR__ . '/../../errors/maintenance.php';
             exit;
         }
     } catch (\Throwable $e) {
@@ -657,7 +666,7 @@ function oauth2_callback_url(): string
 {
     // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
     $baseUrl = getAppBaseUrl();
-    $projectRoot = realpath(__DIR__ . '/..');
+    $projectRoot = realpath(__DIR__ . '/../..');
     $docRoot = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
     if ($projectRoot === $docRoot || $projectRoot === false || $docRoot === false) {
         $baseDir = '';
@@ -820,7 +829,7 @@ function getCustomFonts(): array {
     static $cache = null;
     if ($cache !== null) return $cache;
     $cache = [];
-    $dir = __DIR__ . '/../fonts';
+    $dir = __DIR__ . '/../../fonts';
     if (!is_dir($dir)) return $cache;
     $files = glob($dir . '/*.{ttf,otf,woff,woff2}', GLOB_BRACE);
     foreach ($files as $file) {

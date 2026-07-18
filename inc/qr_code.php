@@ -1,11 +1,11 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
 requirePage('qr_code');
 $role = currentRole();
 $canWrite     = canDoAction('qrcode.write');
 $pageReadOnly = !$canWrite;
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Bloquer toute action POST si pas le droit d'écriture
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canWrite) {
@@ -87,7 +87,7 @@ $paymentMethods = ['retrait t-shirt', 'sur place', 'espèces', 'CB', 'chèque', 
 
 <body>
 
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
   <div>
     
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
@@ -290,7 +290,7 @@ $paymentMethods = ['retrait t-shirt', 'sur place', 'espèces', 'CB', 'chèque', 
   </div>
 </div>
 
-<?php require 'admin-footer.php'; ?>
+<?php require __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
@@ -353,7 +353,7 @@ $(document).ready(function() {
     // Initialisation du DataTable
     qrTable = $('#qrTable').DataTable({
         ajax: {
-            url: '../config/api.php?route=qrcodes',
+            url: '../admin-api.php?route=qrcodes',
             dataSrc: '',
             error: function(xhr, error, thrown) {
                 console.error('Erreur lors du chargement des données:', error);
@@ -505,7 +505,7 @@ $(document).ready(function() {
         };
 
         $.ajax({
-            url: '../config/api.php?route=qrcodes',
+            url: '../admin-api.php?route=qrcodes',
             method: 'POST',
             contentType: 'application/json',
             headers: { 'X-CSRF-TOKEN': _csrfToken },
@@ -556,7 +556,7 @@ $(document).ready(function() {
         const newStatus = data.is_active == 1 ? 0 : 1;
         
         $.ajax({
-            url: '../config/api.php?route=qrcodes',
+            url: '../admin-api.php?route=qrcodes',
             method: 'PUT',
             data: 'id=' + data.id + '&is_active=' + newStatus,
             contentType: 'application/x-www-form-urlencoded',
@@ -609,7 +609,7 @@ $(document).ready(function() {
         };
 
         $.ajax({
-            url: '../config/api.php?route=qrcodes',
+            url: '../admin-api.php?route=qrcodes',
             method: 'PUT',
             data: $.param(params),
             contentType: 'application/x-www-form-urlencoded',
@@ -633,7 +633,7 @@ $(document).ready(function() {
         const data = qrTable.row($(this).closest('tr')).data();
         if (confirm('Êtes-vous sûr de vouloir supprimer ce QR Code ?')) {
             $.ajax({
-                url: '../config/api.php?route=qrcodes',
+                url: '../admin-api.php?route=qrcodes',
                 method: 'DELETE',
                 data: 'id=' + data.id,
                 contentType: 'application/x-www-form-urlencoded',

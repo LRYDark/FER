@@ -1,6 +1,6 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('partners');
 $role = currentRole();
 $canCreate = canDoAction('partners.create');
@@ -8,9 +8,9 @@ $canEdit   = canDoAction('partners.edit');
 $canTrash  = canDoAction('partners.trash');
 $canDelete = canDoAction('partners.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
-require_once __DIR__ . '/../config/content-log.php';
+require_once __DIR__ . '/../src/content/content-log.php';
 $canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Détection de la migration pour choisir entre soft-delete (trash) et hard-delete.
 $__migrationDone = false;
@@ -751,7 +751,7 @@ if ($migrationDone) {
 
 <body>
 
-<?php include '../inc/navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <?php
   $reopenModalId = $_SESSION['reopen_modal'] ?? null;
@@ -1151,7 +1151,7 @@ if ($migrationDone) {
     </script>
 <!-- ############################ TinyMCE ############################ -->
 
-<?php include '../inc/admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>

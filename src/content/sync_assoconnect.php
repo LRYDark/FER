@@ -17,7 +17,7 @@
  * config/.env, il est encore honoré.
  */
 
-require_once __DIR__ . '/config.php'; // $pdo, $_ENV, encrypt() chargés
+require_once __DIR__ . '/../core/config.php'; // $pdo, $_ENV, encrypt() chargés
 
 /**
  * Token partagé des endpoints internes (lecture seule).

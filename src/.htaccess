@@ -1,0 +1,2 @@
+# src/ = librairies PHP incluses par les pages — JAMAIS accessible par URL
+Require all denied

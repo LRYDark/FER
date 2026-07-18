@@ -1,6 +1,6 @@
 <?php
-require 'config/config.php';
-require_once 'config/csrf.php';
+require 'src/core/config.php';
+require_once 'src/security/csrf.php';
 
 // L'utilisateur doit etre connecte
 if (!isset($_SESSION['uid'])) {
@@ -134,7 +134,7 @@ $picture = $data['picture'] ?? '';
       okEl.classList.remove('show');
 
       var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-      fetch('config/api.php?route=change-password', {
+      fetch('admin-api.php?route=change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ password: pass.value })

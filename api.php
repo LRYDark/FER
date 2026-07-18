@@ -25,7 +25,7 @@
  *   GET  ?endpoint=years                   Phase 3 — années archivées disponibles
  */
 
-require __DIR__ . '/config/config.php';   // $pdo, encrypt(), decrypt(), decryptRows()
+require __DIR__ . '/src/core/config.php';   // $pdo, encrypt(), decrypt(), decryptRows()
 
 /* ─── En-têtes JSON + CORS ─────────────────────────────────────────────── */
 // 🔒 [SEC-CORS] Origin '*' volontaire et SANS danger ici : l'authentification se
@@ -69,13 +69,13 @@ function api_client_ip(): string
 }
 
 /**
- * Journalise l'appel dans le fichier config/logs/api.log
+ * Journalise l'appel dans le fichier storage/logs/api.log
  * (au même endroit que php-error.log et logs_google_mails.log).
  * Consultable et videable depuis inc/logs.php. Ne bloque jamais la réponse.
  */
 function api_log(int $status, string $message = ''): void
 {
-    $dir = __DIR__ . '/config/logs';
+    $dir = __DIR__ . '/storage/logs';
     if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
 
     $line = sprintf(
@@ -238,7 +238,7 @@ switch ($endpoint) {
         // Envoi des mails : ?send_mails=1 ou champ POST send_mails (comme la case du dashboard)
         $sendMails = !empty($_POST['send_mails']) || !empty($_GET['send_mails']);
 
-        require_once __DIR__ . '/config/registrations_core.php';
+        require_once __DIR__ . '/src/content/registrations_core.php';
         $result = regcore_importExcel(
             $pdo,
             $_FILES['file']['tmp_name'],
@@ -270,7 +270,7 @@ switch ($endpoint) {
             $sendMail = ($sendMailRaw === null)
                 || filter_var($sendMailRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== false;
 
-            require_once __DIR__ . '/config/registrations_core.php';
+            require_once __DIR__ . '/src/content/registrations_core.php';
             $res = regcore_createRegistration($pdo, $d, $sendMail, $d['origine'] ?? 'API');
 
             if (empty($res['ok'])) {

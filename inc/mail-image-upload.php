@@ -3,8 +3,8 @@
  * Upload handler for mail template header image.
  * Stores in files/_imagemail/ and returns JSON with the path.
  */
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require_once __DIR__ . '/../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 
 header('Content-Type: application/json');
 requirePage('mail-settings');

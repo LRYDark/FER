@@ -1,41 +1,44 @@
 <?php
 /**
- * Assistant d'installation — Forbach en Rose
- * Accessible uniquement si config/.env est absent ou incomplet.
+ * Assistant d'installation — Forbach en Rose v2.0.0
+ * Accessible uniquement si la configuration chiffrée (config/config.enc)
+ * est absente ou incomplète.
  */
 ob_start();
 
+require_once __DIR__ . '/src/core/secure.php';
+
 // ── SECURITE : bloquer si déjà installé ─────────────────────
-// 🔒 [SEC-13] Double verrou .env + .install.lock (CWE-749)
-$envPath  = __DIR__ . '/config/.env';
+// 🔒 [SEC-13] Double verrou config.enc + .install.lock (CWE-749)
+$confPath = FerSecureConfig::configFile();      // config/config.enc
 $lockPath = __DIR__ . '/config/.install.lock';
 
-if (file_exists($lockPath) && file_exists($envPath)) {
+if (file_exists($lockPath) && file_exists($confPath)) {
     header('Location: login.php');
     exit;
 }
-if (file_exists($envPath)) {
-    $envContent = file_get_contents($envPath);
-    $complete   = true;
-    foreach (['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS', 'ENCRYPTION_KEY'] as $k) {
-        if (strpos($envContent, $k . '=') === false) {
-            $complete = false;
-            break;
-        }
+if (file_exists($confPath)) {
+    // config.enc présent : on considère le site installé (s'il est corrompu,
+    // config.php affiche un message explicite — surtout ne pas réinstaller).
+    if (!file_exists($lockPath)) {
+        @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
     }
-    if ($complete) {
-        if (!file_exists($lockPath)) {
-            @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
-        }
-        header('Location: login.php');
-        exit;
-    }
+    header('Location: login.php');
+    exit;
+}
+// Compat migration (site ≤ 1.4.0 mis à jour mais pas encore migré) : un ancien
+// config/.env présent = site déjà installé → surtout ne pas réinstaller par-dessus.
+// La migration vers config.enc se fait toute seule au premier chargement de page.
+// (Supprimable en v3, quand plus aucun site ≤ 1.4.0 n'existera.)
+if (file_exists(__DIR__ . '/config/.env')) {
+    header('Location: login.php');
+    exit;
 }
 
 if (session_status() === PHP_SESSION_NONE) {
     // Forcer un save_path accessible en écriture
     $candidates = [
-        __DIR__ . '/config/sessions',
+        __DIR__ . '/storage/sessions',
         sys_get_temp_dir() . '/php_sessions',
         sys_get_temp_dir(),
     ];
@@ -79,20 +82,9 @@ function checkCsrf(): void
     }
 }
 
-// ── Lire les valeurs .env partielles existantes ─────────────
-$existing = [];
-if (file_exists($envPath)) {
-    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos($line, '=') !== false && $line[0] !== '#') {
-            [$key, $val] = explode('=', $line, 2);
-            $existing[trim($key)] = trim($val);
-        }
-    }
-}
 
 // 🔒 [SEC-INFO] Les endpoints de diagnostic ?phpinfo / ?phpdiag ont été retirés :
-// avant installation (.env absent), ils étaient accessibles sans authentification et
+// avant installation (config.enc absent), ils étaient accessibles sans authentification et
 // divulguaient versions, chemins et configuration serveur (aide à l'intrusion).
 
 // ── Vérification des prérequis PHP ─────────────────────────
@@ -181,6 +173,13 @@ function checkPhpPrerequisites(): array
         'label'    => 'config/ accessible en écriture',
         'detail'   => __DIR__ . '/config/',
         'ok'       => is_writable(__DIR__ . '/config'),
+        'required' => true,
+    ];
+
+    $checks[] = [
+        'label'    => 'storage/ accessible en écriture (logs)',
+        'detail'   => __DIR__ . '/storage/',
+        'ok'       => is_dir(__DIR__ . '/storage') ? is_writable(__DIR__ . '/storage') : is_writable(__DIR__),
         'required' => true,
     ];
 
@@ -326,18 +325,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
                         $errors[] = "Aucun compte administrateur trouvé dans cette base. Utilisez le mode 'Nouvelle installation'.";
                         $step = 2;
                     } else {
-                        // Mode existant : écrire le .env directement (pas d'étape admin)
-                        $envContent = "DB_HOST=$dbHost\n"
-                                    . "DB_NAME=$dbName\n"
-                                    . "DB_USER=$dbUser\n"
-                                    . "DB_PASS=$dbPass\n"
-                                    . "\nENCRYPTION_KEY=$encryptionKey\n";
-
+                        // Mode existant : écrire config.enc + master.key directement (pas d'étape admin)
                         $configDir = __DIR__ . '/config';
                         if (!is_writable($configDir)) {
-                            $_SESSION['env_manual'] = $envContent;
+                            $_SESSION['config_write_error'] = true;
                         } else {
-                            file_put_contents($envPath, $envContent);
+                            FerSecureConfig::write([
+                                'DB_HOST'        => $dbHost,
+                                'DB_NAME'        => $dbName,
+                                'DB_USER'        => $dbUser,
+                                'DB_PASS'        => $dbPass,
+                                'ENCRYPTION_KEY' => $encryptionKey,
+                            ]);
                             @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed (existing db)');
                         }
                         $_SESSION['install_done'] = true;
@@ -348,6 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
                             'db_user' => $dbUser,
                             'db_pass' => $dbPass,
                             'db_mode' => 'existing',
+                            'encryption_key' => $encryptionKey,
                         ];
                         $dbSuccess = true;
                         $step = 4;
@@ -364,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
     }
 }
 
-// --- Étape 3 → 4 : créer admin + écrire .env ---
+// --- Étape 3 → 4 : créer admin + écrire config.enc ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 4) {
     checkCsrf();
     $step = 4;
@@ -376,20 +376,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 4) 
         $inst = $_SESSION['install'];
 
         if (($inst['db_mode'] ?? 'new') === 'existing') {
-            // ── Mode BDD existante : pas d'admin à créer, on écrit le .env ──
-            $encryptionKey = $inst['encryption_key'];
-            $envContent = "DB_HOST={$inst['db_host']}\n"
-                        . "DB_NAME={$inst['db_name']}\n"
-                        . "DB_USER={$inst['db_user']}\n"
-                        . "DB_PASS={$inst['db_pass']}\n"
-                        . "\nENCRYPTION_KEY=$encryptionKey\n";
-
+            // ── Mode BDD existante : pas d'admin à créer, on écrit config.enc ──
             $configDir = __DIR__ . '/config';
             if (!is_writable($configDir)) {
-                $_SESSION['env_manual'] = $envContent;
+                $_SESSION['config_write_error'] = true;
                 $step = 4;
             } else {
-                file_put_contents($envPath, $envContent);
+                FerSecureConfig::write([
+                    'DB_HOST'        => $inst['db_host'],
+                    'DB_NAME'        => $inst['db_name'],
+                    'DB_USER'        => $inst['db_user'],
+                    'DB_PASS'        => $inst['db_pass'],
+                    'ENCRYPTION_KEY' => $inst['encryption_key'] ?? '',
+                ]);
                 @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed (existing db)');
                 $_SESSION['install_done'] = true;
                 $_SESSION['install_admin'] = '(compte existant)';
@@ -430,18 +429,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 4) 
                         $stmt->execute([$adminUser, $hash, 'admin']);
 
                         $encryptionKey = base64_encode(random_bytes(48));
-                        $envContent = "DB_HOST={$inst['db_host']}\n"
-                                    . "DB_NAME={$inst['db_name']}\n"
-                                    . "DB_USER={$inst['db_user']}\n"
-                                    . "DB_PASS={$inst['db_pass']}\n"
-                                    . "\nENCRYPTION_KEY=$encryptionKey\n";
 
                         $configDir = __DIR__ . '/config';
                         if (!is_writable($configDir)) {
-                            $_SESSION['env_manual'] = $envContent;
+                            $_SESSION['config_write_error'] = true;
                             $step = 4;
                         } else {
-                            file_put_contents($envPath, $envContent);
+                            FerSecureConfig::write([
+                                'DB_HOST'        => $inst['db_host'],
+                                'DB_NAME'        => $inst['db_name'],
+                                'DB_USER'        => $inst['db_user'],
+                                'DB_PASS'        => $inst['db_pass'],
+                                'ENCRYPTION_KEY' => $encryptionKey,
+                            ]);
                             @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
                             $_SESSION['install_done'] = true;
                             $_SESSION['install_admin'] = $adminUser;
@@ -1774,14 +1774,14 @@ $stepLabels = [
             <div class="oc-form-group">
               <label class="oc-label">H&ocirc;te MySQL</label>
               <input name="db_host" id="dbHost" class="oc-input"
-                     value="<?= htmlspecialchars($_POST['db_host'] ?? $existing['DB_HOST'] ?? 'localhost') ?>"
+                     value="<?= htmlspecialchars($_POST['db_host'] ?? 'localhost') ?>"
                      placeholder="localhost" required>
             </div>
 
             <div class="oc-form-group">
               <label class="oc-label">Utilisateur MySQL</label>
               <input name="db_user" id="dbUser" class="oc-input"
-                     value="<?= htmlspecialchars($_POST['db_user'] ?? $existing['DB_USER'] ?? 'root') ?>"
+                     value="<?= htmlspecialchars($_POST['db_user'] ?? 'root') ?>"
                      placeholder="root" required>
             </div>
 
@@ -1825,7 +1825,10 @@ $stepLabels = [
                   <input name="encryption_key" class="oc-input" id="encKeyInput"
                          placeholder="Collez votre ENCRYPTION_KEY ici" required>
                   <div class="oc-form-hint">
-                    Indispensable pour d&eacute;chiffrer les donn&eacute;es existantes. Consultez votre ancien fichier <code>config/.env</code>.
+                    Indispensable pour d&eacute;chiffrer les donn&eacute;es existantes.
+                    Elle se trouve dans l'ancien fichier <code>config/.env</code> (sites &le; 1.4.0).
+                    Depuis la 2.0.0 : copiez plut&ocirc;t <code>config/config.enc</code> et
+                    <code>config/master.key</code> de l'ancien serveur au lieu de r&eacute;installer.
                   </div>
                 </div>
               </div>
@@ -2012,13 +2015,15 @@ $stepLabels = [
         <?php // ─── ETAPE 4 : Termine ───────────────────────── ?>
         <?php elseif ($displayStep === 4): ?>
 
-          <?php if (isset($_SESSION['env_manual'])): ?>
+          <?php if (isset($_SESSION['config_write_error'])): ?>
             <div class="oc-alert oc-alert-warning">
-              Le dossier <code>config/</code> n'est pas accessible en &eacute;criture.
-              Cr&eacute;ez manuellement le fichier <code>config/.env</code> avec le contenu suivant :
+              Le dossier <code>config/</code> n'est pas accessible en &eacute;criture :
+              impossible de cr&eacute;er la configuration chiffr&eacute;e
+              (<code>config.enc</code> + <code>master.key</code>).
+              Donnez les droits d'&eacute;criture au dossier <code>config/</code>
+              (chmod 755 ou 775 selon l'h&eacute;bergeur) puis relancez l'installation.
             </div>
-            <div class="oc-env-manual"><?= htmlspecialchars($_SESSION['env_manual']) ?></div>
-            <?php unset($_SESSION['env_manual']); ?>
+            <?php unset($_SESSION['config_write_error']); ?>
           <?php else: ?>
             <div style="text-align:center;margin-bottom:20px">
               <div class="oc-success-icon">
@@ -2041,8 +2046,8 @@ $stepLabels = [
                 <span class="oc-sum-value"><?= htmlspecialchars($_SESSION['install_admin'] ?? 'admin') ?></span>
               </li>
               <li>
-                <span class="oc-sum-label">Fichier .env</span>
-                <span class="oc-sum-value oc-text-success">G&eacute;n&eacute;r&eacute;</span>
+                <span class="oc-sum-label">Configuration chiffr&eacute;e</span>
+                <span class="oc-sum-value oc-text-success">config.enc + master.key g&eacute;n&eacute;r&eacute;s</span>
               </li>
               <?php if (!$wasExisting): ?>
               <li>

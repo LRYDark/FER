@@ -1,8 +1,8 @@
 <?php
-require '../config/config.php';
+require '../src/core/config.php';
 checkMaintenance();
-require '../inc/navbar-data.php';
-require_once '../config/tracker.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
+require_once '../src/content/tracker.php';
 trackPageVisit();
 
 // Récupération du nombre d'inscrits
@@ -234,12 +234,12 @@ if (!empty($textsRaw)) {
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Bebas+Neue&family=Oswald:wght@700&family=Montserrat:wght@700;900&family=Dancing+Script:wght@700&family=Lobster&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="../css/accueil.css?v=<?= @filemtime(__DIR__ . '/../css/accueil.css') ?: time() ?>">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 
 <body<?php if ($flash_info_active && !empty($flash_info_text)): ?> class="has-flash-banner"<?php endif; ?>>
 
-  <?php include '../inc/navbar-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
   <!-- FLASH INFO BANNER -->
   <?php if ($flash_info_active && !empty($flash_info_text)): ?>
@@ -662,8 +662,8 @@ if (!empty($textsRaw)) {
     // Le Héro (vidéo + countdown) ci-dessus reste fixé en haut.
     // ───────────────────────────────────────────────────────────────────────
 
-    require_once __DIR__ . '/../config/accueil_layout.php';
-    require_once __DIR__ . '/../config/accueil_sections.php';
+    require_once __DIR__ . '/../src/content/accueil_layout.php';
+    require_once __DIR__ . '/../src/content/accueil_sections.php';
     // En mode éditeur (?editor=1), on charge le brouillon (accueil_layout_draft) avec
     // fallback sur la version publiée. En mode normal (live), on charge directement
     // la version publiée → le grand public voit ce qui a été "Publié", pas le brouillon.
@@ -781,7 +781,7 @@ if (!empty($textsRaw)) {
 
   
 
-<?php include '../inc/footer-modern.php'; ?>
+<?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -882,7 +882,7 @@ if (!empty($textsRaw)) {
         btn.disabled = true;
         try {
           const body = Object.assign({ email: email, confirmed: confirmed }, payload || {});
-          const res = await fetch('../config/api.php?route=partner-request', {
+          const res = await fetch('../admin-api.php?route=partner-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
@@ -1040,7 +1040,7 @@ if (!empty($textsRaw)) {
             tsWidgetId = null;
           }
           try {
-            const r = await fetch('../config/api.php?route=partner-captcha-init&fallback=1', { method: 'GET' });
+            const r = await fetch('../admin-api.php?route=partner-captcha-init&fallback=1', { method: 'GET' });
             const j = await r.json();
             if (!j || !j.ok || j.mode !== 'math') throw new Error('fallback');
             mode = 'math';
@@ -1062,7 +1062,7 @@ if (!empty($textsRaw)) {
           setError('');
           okBtn.disabled = true;
           try {
-            const r = await fetch('../config/api.php?route=partner-captcha-init', { method: 'GET' });
+            const r = await fetch('../admin-api.php?route=partner-captcha-init', { method: 'GET' });
             const j = await r.json();
             if (!j || !j.ok) throw new Error('init');
             mode = j.mode;

@@ -1,6 +1,6 @@
 <?php
-require 'config/config.php';
-require_once 'config/csrf.php';
+require 'src/core/config.php';
+require_once 'src/security/csrf.php';
 
 $token = $_GET['token'] ?? '';
 $tokenValid = false;
@@ -143,7 +143,7 @@ $data = $stmt2->fetch(PDO::FETCH_ASSOC) ?: [];
       var token = document.querySelector('[name="token"]').value;
 
       var _csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-      fetch('config/api.php?route=reset-password-confirm', {
+      fetch('admin-api.php?route=reset-password-confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ token: token, password: pass.value })

@@ -1,6 +1,6 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
 header('Content-Type: application/json');
 
 // CSRF verification for all POST requests
@@ -163,7 +163,7 @@ case 'add_comment':
         if (preg_match('/@forbachenrose\b/i', $content)) {
             try {
                 if (isNotifyEnabled($pdo, 'mention')) {
-                    require_once __DIR__ . '/../config/googleMail.php';
+                    require_once __DIR__ . '/../src/mail/googleMail.php';
                     $recipients = getNotifyRecipients($pdo);
                     if (!empty($recipients)) {
                         $rawContent = html_entity_decode($content, ENT_QUOTES, 'UTF-8');

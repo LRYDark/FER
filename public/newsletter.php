@@ -7,12 +7,12 @@
  *  - GET  ?unsubscribe=1              → affiche la page de désabonnement.
  *  - POST + champ `unsubscribe_do`    → traite le désabonnement.
  *
- * La logique métier vit dans config/newsletter.php (helpers réutilisables).
+ * La logique métier vit dans src/mail/newsletter.php (helpers réutilisables).
  */
-require __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
-require_once __DIR__ . '/../config/newsletter.php';
-require_once __DIR__ . '/../config/captcha.php';
+require __DIR__ . '/../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
+require_once __DIR__ . '/../src/mail/newsletter.php';
+require_once __DIR__ . '/../src/security/captcha.php';
 
 /* ───────────────────────────────────────────────────────────────
  * 1) ABONNEMENT — endpoint AJAX appelé par le formulaire de l'accueil

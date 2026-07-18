@@ -1,6 +1,6 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('timeline');
 $role = currentRole();
 $canCreate = canDoAction('timeline.create');
@@ -8,9 +8,9 @@ $canEdit   = canDoAction('timeline.edit');
 $canTrash  = canDoAction('timeline.trash');
 $canDelete = canDoAction('timeline.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
-require_once __DIR__ . '/../config/content-log.php';
+require_once __DIR__ . '/../src/content/content-log.php';
 $canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // ─── Ensure _TimeLine directory exists ───
 $timelineDir = '../files/_TimeLine/';
@@ -344,7 +344,7 @@ foreach ($items as $item) {
 
 <body>
 
-<?php include '../inc/navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <?php
   $reopenModalId = $_SESSION['reopen_modal'] ?? null;
@@ -642,7 +642,7 @@ foreach ($items as $item) {
   </div>
 </div>
 
-<?php include '../inc/admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 // ===== Image Position Dragger (X+Y + Zoom) =====
 (function(){

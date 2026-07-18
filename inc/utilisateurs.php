@@ -1,9 +1,9 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
 requireRole(['admin']);
 $role = currentRole();
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Permissions par défaut actuelles (chargées depuis setting.role_permissions ou hardcodées)
 $rolePermsDefault = [
@@ -145,7 +145,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
 </style>
 </head>
 <body>
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <div>
   <h1 class="mb-3 fw-bold"><i class="bi bi-people me-2"></i>Utilisateurs & Droits</h1>
@@ -572,7 +572,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
   </div>
 </div>
 
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <!-- ═════════ JS ═════════ -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
@@ -650,7 +650,7 @@ document.querySelectorAll('.auto-dismiss').forEach(function(alert) {
 
       cell.classList.add('perm-saving');
 
-      fetch('../config/api.php?route=role-permissions', {
+      fetch('../admin-api.php?route=role-permissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ role, type, key, value: next })
@@ -777,7 +777,7 @@ const DEFAULT_PERMS = <?= json_encode([
 $.fn.dataTable.ext.pager.numbers_length = 7;
 
 let usrTbl = $('#tblUsers').DataTable({
-  ajax:{url:'../config/api.php?route=users',dataSrc:''},
+  ajax:{url:'../admin-api.php?route=users',dataSrc:''},
   columns: [
     { data: 'id', title: '#' },
     // \ud83d\udd12 [SEC-XSS] render.text() : \u00e9chappe l'email au rendu (d\u00e9fense en profondeur).
@@ -820,6 +820,17 @@ let usrTbl = $('#tblUsers').DataTable({
     { data: 'organisation', title: 'Organisation' },
     { data: 'created_at', title: 'Cr\u00e9\u00e9 le' }
   ],
+  language: {
+    emptyTable:    'Aucun utilisateur pour le moment.',
+    zeroRecords:   'Aucun résultat.',
+    loadingRecords:'Chargement…',
+    search:        'Rechercher :',
+    lengthMenu:    'Afficher _MENU_ utilisateurs',
+    info:          '_START_ à _END_ sur _TOTAL_',
+    infoEmpty:     '0 sur 0',
+    infoFiltered:  '(filtré sur _MAX_)',
+    paginate:      { first: '«', previous: '‹', next: '›', last: '»' }
+  },
   createdRow: function (row, data) {
     if (data.is_active != 1) {
       $(row).addClass('user-inactive');
@@ -1054,7 +1065,7 @@ $('#fEditUser').on('submit', function (e) {
     fd.delete('permissions');
   }
 
-  fetch('../config/api.php?route=users', {
+  fetch('../admin-api.php?route=users', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams(fd)
@@ -1075,7 +1086,7 @@ document.getElementById('btnResetPwd').addEventListener('click', function () {
   if (!currentEditUser) return;
   if (!confirm('R\u00e9initialiser le mot de passe de "' + currentEditUser.email + '" ?')) return;
 
-  fetch('../config/api.php?route=users', {
+  fetch('../admin-api.php?route=users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams({ action: 'reset-password', id: currentEditUser.id })
@@ -1102,7 +1113,7 @@ document.getElementById('btnClear2fa').addEventListener('click', function () {
   if (!confirm('Supprimer toutes les authentifications fortes (clé d\'accès et application d\'authentification) de "'
       + currentEditUser.email + '" ?\n\nL\'utilisateur devra se reconnecter avec son mot de passe.')) return;
 
-  fetch('../config/api.php?route=users', {
+  fetch('../admin-api.php?route=users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams({ action: 'clear-2fa', id: currentEditUser.id })
@@ -1125,7 +1136,7 @@ document.getElementById('btnToggleActive').addEventListener('click', function ()
   const action = currentEditUser.is_active == 1 ? 'D\u00e9sactiver' : 'Activer';
   if (!confirm(action + ' le compte "' + currentEditUser.email + '" ?')) return;
 
-  fetch('../config/api.php?route=users', {
+  fetch('../admin-api.php?route=users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
     body: new URLSearchParams({ action: 'toggle-active', id: currentEditUser.id })
@@ -1150,7 +1161,7 @@ document.getElementById('btnDeleteUser').addEventListener('click', function () {
     const params = new URLSearchParams({ action: 'delete', id: currentEditUser.id });
     if (force) params.append('force', '1');
 
-    fetch('../config/api.php?route=users', {
+    fetch('../admin-api.php?route=users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken },
       body: params
@@ -1178,7 +1189,7 @@ $('#fCreateUser').on('submit', function (e) {
   e.preventDefault();
   const fd = new FormData(this);
 
-  fetch('../config/api.php?route=users', {
+  fetch('../admin-api.php?route=users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
     body: JSON.stringify(Object.fromEntries(fd))

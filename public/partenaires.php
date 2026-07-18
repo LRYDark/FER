@@ -1,9 +1,9 @@
 <?php
-require '../config/config.php';
-require_once '../config/tracker.php';
+require '../src/core/config.php';
+require_once '../src/content/tracker.php';
 trackPageVisit();
 checkMaintenance();
-require '../inc/navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Check if status column exists
 $hasStatusCol = false;
@@ -89,10 +89,10 @@ if ($selectedYearId) {
   <title>Partenaires</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <link rel="stylesheet" href="../css/partenaires.css">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
-  <?php include '../inc/navbar-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
   <main>
     <?php if ($selectedYearId && $selectedYear): ?>
@@ -212,7 +212,7 @@ if ($selectedYearId) {
     <img id="modalImage" src="" class="modal-image" alt="">
   </div>
 
-  <?php include '../inc/footer-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

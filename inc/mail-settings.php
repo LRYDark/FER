@@ -1,7 +1,7 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
-require 'navbar-data.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 requirePage('mail-settings');
 $role = currentRole();
 $canWrite = canDoAction('mail.write'); // Template + Google + Notifications
@@ -42,7 +42,7 @@ $notify_toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'two
 $adminUsers = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY email ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // Abonnés newsletter (pour le bouton "Newsletter" des destinataires)
-require_once '../config/newsletter.php';
+require_once '../src/mail/newsletter.php';
 $newsletterEmails = newsletterSubscribedEmails($pdo);
 
 // Liste détaillée des abonnés (onglet "Abonnés newsletter" : statut + date)
@@ -70,7 +70,7 @@ $isConnected = false;
 $authUrl = '#';
 if (($data['mail_provider'] ?? 'google') !== 'smtp') {
     try {
-        require_once '../config/googleMail.php';
+        require_once '../src/mail/googleMail.php';
         $isConnected = isGoogleConnectionValid();
         $authUrl = getGoogleAuthUrl('mail-settings.php');
     } catch (\Throwable $e) {
@@ -266,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
     // SMTP test
     if (isset($_POST['action']) && $_POST['action'] === 'send_test_smtp') {
         try {
-            require_once __DIR__ . '/../config/googleMail.php';
+            require_once __DIR__ . '/../src/mail/googleMail.php';
             $email = trim($_SESSION['email'] ?? '');
             if ($email) {
                 writeSmtpLog("Test SMTP — destinataire exact : [$email]");
@@ -290,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
 
     // Cloudflare Turnstile : clés anti-bot du formulaire partenaire
     if (isset($_POST['save_turnstile'])) {
-        require_once '../config/captcha.php';
+        require_once '../src/security/captcha.php';
         $newKey    = trim($_POST['turnstile_sitekey'] ?? '');
         $newSecret = trim($_POST['turnstile_secret']  ?? '');
         // Le secret est facultatif côté UI : laisser vide = ne pas modifier
@@ -409,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
     // (le bloc OAuth plus haut ne s'exécute que pour Google). On le charge ici
     // pour que l'aperçu fonctionne quel que soit le provider.
     if (!function_exists('render')) {
-        try { require_once __DIR__ . '/../config/googleMail.php'; } catch (\Throwable $e) {}
+        try { require_once __DIR__ . '/../src/mail/googleMail.php'; } catch (\Throwable $e) {}
     }
     if (!function_exists('render')) {
         http_response_code(500);
@@ -675,7 +675,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
             break;
     }
 
-    echo render(__DIR__ . '/../config/mail_template.php', $vars);
+    echo render(__DIR__ . '/../src/mail/mail_template.php', $vars);
     exit;
 }
 
@@ -728,7 +728,7 @@ $jsConfig = json_encode([
 <script src="../js/tinymce/tinymce.min.js"></script>
 </head>
 <body>
-<?php require 'navbar-admin.php'; ?>
+<?php require __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 <link href="../css/gmail-settings.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
@@ -1788,7 +1788,7 @@ $jsConfig = json_encode([
         theme: 'light',
         callback: function(token){
           setResult('Vérification côté serveur…');
-          fetch('../config/api.php?route=turnstile-test', {
+          fetch('../admin-api.php?route=turnstile-test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfTok },
             body: JSON.stringify({ token: token, secret: secret })
@@ -2536,7 +2536,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
 })();
 </script>
 
-<?php require 'admin-footer.php'; ?>
+<?php require __DIR__ . '/../src/partials/admin-footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -2591,7 +2591,7 @@ $(document).ready(function() {
   }
 
   /* ══ Load available emails from registrations API ════ */
-  fetch('../config/api.php?route=registrations')
+  fetch('../admin-api.php?route=registrations')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var sorted = data.sort(function(a, b) { return new Date(a.created_at) - new Date(b.created_at); });
