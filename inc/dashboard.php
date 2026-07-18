@@ -648,7 +648,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 
     <!-- stats -->
     <div id="stats" class="stats-cards mb-4"></div>
-    <?php include __DIR__ . '/_stats-more-modal.php'; ?>
+    <?php include __DIR__ . '/../src/partials/_stats-more-modal.php'; ?>
 
     <input id="quickSearch" class="form-control quick-search" placeholder="Recherche rapide">
     <?php if($canEditReg || $canDeleteReg): ?>
