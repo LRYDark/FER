@@ -103,7 +103,6 @@
 }
 .oc-back:hover, .oc-back-bottom:hover, .oc-forgot-link:hover, .oc-resend-link:hover { text-decoration: underline; }
 .oc-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--sp-2); }
-.oc-back-brand { margin: var(--sp-2) 0 0 var(--sp-2); align-self: flex-start; }
 .oc-back svg { width: 15px; height: 15px; }
 .oc-back-bottom, .oc-forgot-link, .oc-resend-link { display: block; text-align: center; margin-top: var(--sp-3); }
 

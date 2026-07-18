@@ -37,15 +37,15 @@ $picture= $data['picture'] ?? '';
         <span class="name">Forbach en Rose</span>
       </a>
 
-      <!-- Back link : sous le logo -->
-      <a href="public/accueil" class="oc-back oc-back-brand" id="backToAccueil">
+      <div class="inner">
+
+      <!-- Back link -->
+      <a href="public/accueil" class="oc-back" id="backToAccueil">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
         </svg>
         Retour au site
       </a>
-
-      <div class="inner">
 
       <!-- Icon area -->
       <div class="oc-icon-area">
