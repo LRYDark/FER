@@ -8,14 +8,9 @@
 /* La colonne formulaire peut accueillir plusieurs « étapes » empilées */
 .auth-pane .inner { display: flex; flex-direction: column; gap: var(--sp-4); }
 
-/* ---- Éléments d'étape (en-tête centré : icône + titre + sous-titre) ---- */
-.oc-icon-area { text-align: center; }
-.oc-icon-circle {
-  width: 44px; height: 44px; border-radius: var(--radius-m);
-  background: var(--accent-soft);
-  display: inline-flex; align-items: center; justify-content: center;
-  margin: 0 auto var(--sp-3);
-}
+/* ---- Éléments d'étape : juste le titre + sous-titre, à gauche (sans icône) ---- */
+.oc-icon-area { text-align: left; }
+.oc-icon-circle { display: none; }
 .oc-icon-circle svg { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
 .oc-title { font-size: var(--fs-h1); font-weight: 650; color: var(--ink); margin: 0 0 2px; }
 .oc-subtitle { font-size: var(--fs-small); color: var(--ink-dim); margin: 0; }
