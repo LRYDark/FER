@@ -372,6 +372,39 @@ body {
 .btn-outline-success.active { background: var(--ok-soft) !important; border-color: var(--ok) !important; color: var(--ok) !important; }
 .btn-outline-danger.active  { background: var(--danger-soft) !important; border-color: var(--danger) !important; color: var(--danger) !important; }
 
+/* Switch segmenté (PC/Mobile, Oui/Non/Auto, Gmail/SMTP…) — version tokens,
+   partagée par toutes les pages admin (radios masqués + labels pilules). */
+.seg2, .seg3 {
+  display: inline-flex;
+  background: var(--surface-2);
+  border-radius: var(--radius-m);
+  padding: 3px;
+  gap: 2px;
+}
+.seg2 input, .seg3 input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.seg2 label, .seg3 label {
+  margin: 0;
+  padding: 6px 20px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--fs-small);
+  color: var(--ink-dim);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.seg2 label:hover, .seg3 label:hover { color: var(--ink); }
+.seg2 input:checked + label, .seg3 input:checked + label {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-card);
+}
+.seg2 input:focus-visible + label, .seg3 input:focus-visible + label {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* Groupes de boutons Bootstrap (.btn-group) : plus de boutons soudés aux bords
    carrés — chaque bouton redevient indépendant, arrondi et espacé, comme les
    boutons « Tout sélectionner / Newsletter » de l'envoi de mail. */

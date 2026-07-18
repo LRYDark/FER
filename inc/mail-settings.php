@@ -1363,11 +1363,11 @@ $jsConfig = json_encode([
             Actif : <?= $mail_provider==='google'?'Gmail':'SMTP' ?>
           </span>
         </h2>
-        <div class="btn-group" role="group">
-          <input type="radio" class="btn-check" name="prov_view" value="google" id="provViewGoogle" <?= $activeMailView==='google'?'checked':'' ?>>
-          <label class="btn btn-outline-danger" for="provViewGoogle"><i class="bi bi-google me-1"></i>Gmail (OAuth)</label>
-          <input type="radio" class="btn-check" name="prov_view" value="smtp" id="provViewSmtp" <?= $activeMailView==='smtp'?'checked':'' ?>>
-          <label class="btn btn-outline-primary" for="provViewSmtp"><i class="bi bi-server me-1"></i>Serveur SMTP</label>
+        <div class="seg2" role="radiogroup" aria-label="Fournisseur d'envoi">
+          <input type="radio" name="prov_view" value="google" id="provViewGoogle" <?= $activeMailView==='google'?'checked':'' ?>>
+          <label for="provViewGoogle"><i class="bi bi-google me-1"></i>Gmail (OAuth)</label>
+          <input type="radio" name="prov_view" value="smtp" id="provViewSmtp" <?= $activeMailView==='smtp'?'checked':'' ?>>
+          <label for="provViewSmtp"><i class="bi bi-server me-1"></i>Serveur SMTP</label>
         </div>
       </div>
     </div>
