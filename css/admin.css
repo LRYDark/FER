@@ -372,6 +372,17 @@ body {
 .btn-outline-success.active { background: var(--ok-soft) !important; border-color: var(--ok) !important; color: var(--ok) !important; }
 .btn-outline-danger.active  { background: var(--danger-soft) !important; border-color: var(--danger) !important; color: var(--danger) !important; }
 
+/* Groupes de boutons Bootstrap (.btn-group) : plus de boutons soudés aux bords
+   carrés — chaque bouton redevient indépendant, arrondi et espacé, comme les
+   boutons « Tout sélectionner / Newsletter » de l'envoi de mail. */
+#oc-content .btn-group { display: inline-flex; gap: 8px; }
+#oc-content .btn-group > .btn,
+#oc-content .btn-group > .btn:not(:first-child),
+#oc-content .btn-group > .btn:not(:last-child) {
+  border-radius: var(--radius-m) !important;
+  margin-left: 0 !important;
+}
+
 .btn-success { background: var(--ok) !important; border-color: var(--ok) !important; color: #fff !important; }
 .btn-success:hover { filter: brightness(0.93); }
 .btn-outline-success { color: var(--ok) !important; border-color: color-mix(in srgb, var(--ok) 55%, transparent) !important; background: transparent !important; }
