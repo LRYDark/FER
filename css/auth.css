@@ -1,0 +1,294 @@
+/* ============================================================
+   FER — Pages d'authentification (login, reset, change-password,
+   install, update) : habillage jr-theme du vocabulaire oc-* existant.
+   Chargé APRÈS jr-theme/css/{tokens,base,components,app}.css.
+   Le JavaScript des pages reste inchangé (mêmes ids/classes).
+   ============================================================ */
+
+/* La colonne formulaire peut accueillir plusieurs « étapes » empilées */
+.auth-pane .inner { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* ---- Éléments d'étape ---- */
+.oc-icon-area { text-align: left; }
+.oc-icon-circle {
+  width: 44px; height: 44px; border-radius: var(--radius-m);
+  background: var(--accent-soft);
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: var(--sp-3);
+}
+.oc-icon-circle svg { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
+.oc-title { font-size: var(--fs-h1); font-weight: 650; color: var(--ink); margin: 0 0 2px; }
+.oc-subtitle { font-size: var(--fs-small); color: var(--ink-dim); margin: 0; }
+
+/* L'ancienne « carte » devient un simple conteneur (style MERIDIAN : à plat) */
+.oc-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+
+.oc-form-group { margin-bottom: var(--sp-3); }
+.oc-label { display: block; font-size: var(--fs-small); font-weight: 600; color: var(--ink); margin-bottom: 0.3rem; }
+
+.oc-input {
+  width: 100%; height: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-family: inherit;
+  padding: 0.62rem 0.85rem;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  outline: none;
+}
+.oc-input::placeholder { color: var(--ink-faint); }
+.oc-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.oc-btn {
+  width: 100%; height: auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--accent); color: var(--accent-ink);
+  border: 1px solid var(--accent); border-radius: var(--radius-m);
+  font-size: var(--fs-body); font-weight: 600; font-family: inherit;
+  padding: 0.62rem 1rem; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.oc-btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.oc-btn:active { background: var(--accent-strong); }
+.oc-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Bouton clé d'accès (secondaire) + séparateur « ou » */
+.oc-btn-passkey {
+  width: 100%; height: auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-m);
+  font-size: var(--fs-body); font-weight: 600; font-family: inherit;
+  padding: 0.6rem 1rem; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.oc-btn-passkey:hover { border-color: var(--accent); background: var(--accent-soft); }
+.oc-btn-passkey:disabled { opacity: 0.6; cursor: default; }
+.oc-btn-passkey svg { width: 17px; height: 17px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.oc-or { display: flex; align-items: center; gap: 12px; margin: var(--sp-3) 0; color: var(--ink-faint); font-size: var(--fs-micro); }
+.oc-or::before, .oc-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ---- Message d'erreur ---- */
+.oc-error {
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-soft);
+  border-radius: var(--radius-m);
+  padding: 0.65rem 0.85rem;
+  margin-bottom: var(--sp-3);
+  display: none;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--fs-small);
+  color: var(--danger);
+}
+.oc-error.visible { display: flex; }
+.oc-error-icon {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--danger); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; line-height: 1;
+}
+
+/* ---- Liens ---- */
+.oc-back, .oc-back-bottom, .oc-forgot-link, .oc-resend-link {
+  color: var(--accent); font-size: var(--fs-small); text-decoration: none; cursor: pointer;
+}
+.oc-back:hover, .oc-back-bottom:hover, .oc-forgot-link:hover, .oc-resend-link:hover { text-decoration: underline; }
+.oc-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--sp-2); }
+.oc-back svg { width: 15px; height: 15px; }
+.oc-back-bottom, .oc-forgot-link, .oc-resend-link { display: block; text-align: center; margin-top: var(--sp-3); }
+
+/* ---- Mot de passe oublié (inline) ---- */
+.oc-forgot-form { display: none; margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.oc-forgot-form.visible { display: block; }
+.oc-forgot-hint { font-size: var(--fs-micro); color: var(--ink-dim); margin-bottom: var(--sp-2); }
+.oc-forgot-row { display: flex; gap: 8px; }
+.oc-forgot-row .oc-input { flex: 1; }
+.oc-forgot-row .oc-btn { width: auto; padding: 0.55rem 1rem; white-space: nowrap; }
+.oc-forgot-msg { margin-top: 8px; font-size: var(--fs-micro); }
+.oc-forgot-msg .text-success { color: var(--ok); }
+.oc-forgot-msg .text-danger { color: var(--danger); }
+
+/* ---- Case « se souvenir » ---- */
+.oc-checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-3); }
+.oc-checkbox-group input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.oc-checkbox-group label { font-size: var(--fs-small); color: var(--ink-dim); cursor: pointer; }
+
+/* ---- Sélecteur de méthode 2FA ---- */
+.oc-method-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.oc-method-btn {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3); border-radius: var(--radius-m);
+  background: var(--card); border: 1px solid var(--border);
+  cursor: pointer; transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+  text-align: left; font-family: inherit; width: 100%;
+}
+.oc-method-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.oc-method-btn-icon {
+  width: 38px; height: 38px; border-radius: var(--radius-m); flex: none;
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+}
+.oc-method-btn-icon svg { width: 18px; height: 18px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.oc-method-btn-label { font-size: var(--fs-small); font-weight: 650; color: var(--ink); }
+.oc-method-btn-sub { font-size: var(--fs-micro); color: var(--ink-faint); margin-top: 2px; }
+.oc-method-default-badge {
+  margin-left: auto; flex: none;
+  font-size: var(--fs-micro); font-weight: 650;
+  background: var(--accent-soft); color: var(--accent);
+  padding: 2px 9px; border-radius: var(--radius-pill);
+}
+
+/* ---- Alertes statiques (reset / change-password / install / update) ---- */
+.oc-alert {
+  padding: 0.65rem 0.9rem; border-radius: var(--radius-m);
+  font-size: var(--fs-small); font-weight: 500;
+  margin-bottom: var(--sp-3); display: none;
+  border: 1px solid transparent;
+}
+.oc-alert.show { display: block; }
+.oc-alert-danger  { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+.oc-alert-success { background: var(--ok-soft);     color: var(--ok);     border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.oc-alert-warning { background: var(--warn-soft);   color: var(--ink);    border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+
+/* ---- Groupes .form-group (reset / change-password) ---- */
+.auth .form-group { margin-bottom: var(--sp-3); }
+.auth .form-group label { display: block; font-size: var(--fs-small); font-weight: 600; color: var(--ink); margin-bottom: 0.3rem; }
+.auth .form-group input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-family: inherit;
+  padding: 0.62rem 0.85rem;
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.auth .form-group input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ---- Checklist mot de passe ---- */
+.pw-checks { margin-top: 8px; }
+.pw-check { padding: 2px 0; color: var(--ink-faint); font-size: var(--fs-micro); transition: color var(--dur-fast) var(--ease-out); }
+.pw-check.valid { color: var(--ok); }
+.pw-check .pw-icon { margin-right: 6px; }
+.oc-pw-checks { margin: 8px 0; }
+.oc-pw-check { padding: 2px 0; color: var(--ink-faint); font-size: var(--fs-micro); }
+.oc-pw-check.valid, .oc-pw-check.ok { color: var(--ok); }
+.oc-pw-icon { margin-right: 6px; }
+
+/* ============================================================
+   INSTALLATEUR (wizard) — install.php / update.php
+   ============================================================ */
+.oc-form-hint { font-size: var(--fs-micro); color: var(--ink-faint); margin-top: 4px; }
+.oc-footer { text-align: center; margin-top: var(--sp-4); font-size: var(--fs-micro); color: var(--ink-faint); }
+.oc-text-success { color: var(--ok) !important; }
+
+.oc-alert {
+  /* variante « toujours visible » de l'installateur (pas de .show requis) */
+  display: block;
+}
+.oc-alert-info { background: var(--info-soft); color: var(--ink); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+
+.oc-btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-m);
+  font-size: var(--fs-small); font-weight: 600; font-family: inherit;
+  padding: 0.55rem 1rem; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.oc-btn-secondary:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Stepper */
+.oc-steps { display: flex; align-items: center; margin: var(--sp-4) 0 var(--sp-2); }
+.oc-step-dot {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--ink-faint);
+  font-size: var(--fs-micro); font-weight: 700;
+  border: 1px solid var(--border-strong);
+}
+.oc-step-dot.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.oc-step-dot.done   { background: var(--ok);     border-color: var(--ok);     color: #fff; }
+.oc-step-line { flex: 1; height: 2px; background: var(--border-strong); margin: 0 6px; border-radius: 2px; }
+.oc-step-line.done { background: var(--ok); }
+.oc-step-labels { display: flex; justify-content: space-between; margin-bottom: var(--sp-4); }
+.oc-step-label { font-size: var(--fs-micro); color: var(--ink-faint); }
+.oc-step-label.active { color: var(--accent); font-weight: 650; }
+
+/* Liste des prérequis */
+.oc-prereq-summary {
+  text-align: center; padding: 0.7rem; border-radius: var(--radius-m);
+  font-size: var(--fs-small); font-weight: 650; margin-bottom: var(--sp-3);
+}
+.oc-prereq-summary.all-ok    { background: var(--ok-soft); color: var(--ok); }
+.oc-prereq-summary.has-errors { background: var(--danger-soft); color: var(--danger); }
+
+.oc-check-list { list-style: none; padding: 0; margin: 0 0 var(--sp-3); }
+.oc-check-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-small); }
+.oc-check-item:last-child { border-bottom: none; }
+.oc-check-badge {
+  width: 24px; height: 24px; border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.oc-check-badge svg { width: 13px; height: 13px; }
+.oc-check-badge.ok   { background: var(--ok-soft);     color: var(--ok); }
+.oc-check-badge.fail { background: var(--danger-soft); color: var(--danger); }
+.oc-check-badge.warn { background: var(--warn-soft);   color: var(--warn); }
+.oc-check-info { flex: 1; min-width: 0; }
+.oc-check-label { color: var(--ink); font-weight: 550; }
+.oc-check-detail { font-size: var(--fs-micro); color: var(--ink-faint); }
+.oc-check-tag {
+  flex: none; font-size: var(--fs-micro); font-weight: 650;
+  padding: 2px 9px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--ink-faint);
+}
+
+/* Sélecteur de mode (nouvelle installation / BDD existante) */
+.oc-mode-selector { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.oc-mode-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0.7rem; border-radius: var(--radius-m);
+  background: var(--surface); border: 1px solid var(--border-strong);
+  color: var(--ink-dim); font-size: var(--fs-small); font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.oc-mode-btn:hover { color: var(--ink); }
+.oc-mode-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+/* Liste d'erreurs de formulaire */
+.oc-error-list {
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius-m); padding: 0.7rem 0.9rem; margin-bottom: var(--sp-3);
+  font-size: var(--fs-small); color: var(--danger);
+}
+.oc-error-list ul { margin: 0; padding-left: 1.1rem; }
+
+/* Écran final */
+.oc-success-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--ok-soft); color: var(--ok);
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: var(--sp-3);
+}
+.oc-success-icon svg { width: 28px; height: 28px; stroke: currentColor; }
+.oc-success-title { font-size: var(--fs-h2); font-weight: 650; color: var(--ink); margin: 0 0 2px; }
+.oc-success-subtitle { font-size: var(--fs-small); color: var(--ink-dim); margin: 0; }
+
+.oc-summary { list-style: none; padding: 0; margin: var(--sp-4) 0; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--card); }
+.oc-summary li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); font-size: var(--fs-small); }
+.oc-summary li:last-child { border-bottom: none; }
+.oc-sum-label { color: var(--ink-faint); }
+.oc-sum-value { color: var(--ink); font-weight: 600; text-align: right; }

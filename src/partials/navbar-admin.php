@@ -79,31 +79,8 @@ if (!function_exists('jr_admin_ui_prefs')) {
         return $prefs;
     }
 
-    /** Dérive les 6 variables d'accent jr-theme depuis une couleur hex (comme jrApplyAccent). */
-    function jr_accent_vars_from_hex(string $hex): ?array
-    {
-        if (!preg_match('/^#?([0-9a-fA-F]{6})$/', $hex, $m)) return null;
-        $hex = '#' . strtolower($m[1]);
-        $mix = function (string $h, float $t, array $to) { // t∈[0,1] vers $to (rgb)
-            $r = hexdec(substr($h, 1, 2)); $g = hexdec(substr($h, 3, 2)); $b = hexdec(substr($h, 5, 2));
-            $r = (int) round($r + ($to[0] - $r) * $t);
-            $g = (int) round($g + ($to[1] - $g) * $t);
-            $b = (int) round($b + ($to[2] - $b) * $t);
-            return sprintf('#%02x%02x%02x', $r, $g, $b);
-        };
-        $lum = function (string $h) {
-            $r = hexdec(substr($h, 1, 2)) / 255; $g = hexdec(substr($h, 3, 2)) / 255; $b = hexdec(substr($h, 5, 2)) / 255;
-            return 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
-        };
-        $light       = $hex;
-        $lightStrong = $mix($hex, 0.14, [0, 0, 0]);
-        $lightInk    = $lum($hex) > 0.62 ? '#101828' : '#ffffff';
-        $dark        = $mix($hex, 0.30, [255, 255, 255]);
-        $darkStrong  = $mix($hex, 0.42, [255, 255, 255]);
-        $darkInk     = $lum($dark) > 0.62 ? '#0b1030' : '#ffffff';
-        return [$light, $lightStrong, $lightInk, $dark, $darkStrong, $darkInk];
-    }
 }
+/* jr_accent_vars_from_hex() est définie dans src/core/config.php */
 
 $jrPrefs  = jr_admin_ui_prefs($pdo);
 $jrTheme  = in_array($jrPrefs['admin_theme'] ?? '', ['light', 'dark', 'system'], true) ? $jrPrefs['admin_theme'] : 'light';
