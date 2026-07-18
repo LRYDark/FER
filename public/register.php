@@ -1,11 +1,11 @@
 <?php
-require '../config/config.php';
-require_once '../config/tracker.php';
+require '../src/core/config.php';
+require_once '../src/content/tracker.php';
 trackPageVisit();
 checkMaintenance();
-require_once '../config/csrf.php';
-require_once '../config/captcha.php';
-require '../inc/navbar-data.php';
+require_once '../src/security/csrf.php';
+require_once '../src/security/captcha.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Variables d'état
 $hasGetParams = !empty($_GET);
@@ -76,8 +76,8 @@ if ($_POST) {
         $error_message = "Vérification anti-robot échouée. Recommencez.";
     } else {
         try {
-            require_once '../config/form_fields.php';
-            require_once '../config/registrations_core.php'; // regcore_naissanceToAge()
+            require_once '../src/content/form_fields.php';
+            require_once '../src/content/registrations_core.php'; // regcore_naissanceToAge()
             $fieldCols = getAllActiveFieldColumns($pdo);
             $isOnsite  = !empty($tokenData['onsite_mode']);
 
@@ -203,7 +203,7 @@ if ($_POST) {
             // sans elle, le mode retombe sur « none » → aucun QR groupé ne serait jamais joint.
             $data = $pdo->query('SELECT * FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
             try {
-                require_once '../config/googleMail.php';
+                require_once '../src/mail/googleMail.php';
                 if ($isGroup) {
                     // Récap groupé + QR groupé (selon config), même logique que l'ajout multiple.
                     $memberNos = array_column($created, 'no');
@@ -297,7 +297,7 @@ $div_reglementation = $data['div_reglementation'] ?? '';
 $registration_closed_message = trim((string) ($data['registration_closed_message'] ?? ''));
 
 // Formulaire dynamique
-require_once '../config/form_fields.php';
+require_once '../src/content/form_fields.php';
 try {
     $formFields = getActiveFields($pdo, 'qr');
 } catch (PDOException $e) {
@@ -317,7 +317,7 @@ try {
       crossorigin="anonymous">
 <link rel="stylesheet" href="../css/fer-modern.css">
 <link rel="stylesheet" href="../css/register.css?v=<?= @filemtime(__DIR__ . '/../css/register.css') ?: time() ?>">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 
 <body>
@@ -367,7 +367,7 @@ try {
         <a href="?" class="btn-action-primary">Retour à l'accueil</a>
       </div>
     <?php elseif ($hasGetParams && $qrData): ?>
-<?php // Le message de succès est désormais affiché en toast (voir inc/toast.php). ?>
+<?php // Le message de succès est désormais affiché en toast (voir src/partials/toast.php). ?>
 
       <?php if ($error_message): ?>
         <div class="alert alert-danger text-center mb-4">
@@ -661,7 +661,7 @@ try {
             try { window.turnstile.remove(tsWidgetId); } catch (e) {}
             tsWidgetId = null;
           }
-          fetch('../config/api.php?route=partner-captcha-init&fallback=1', { method: 'GET' })
+          fetch('../admin-api.php?route=partner-captcha-init&fallback=1', { method: 'GET' })
             .then(function (r) { return r.json(); })
             .then(function (j) {
               if (!j || !j.ok || j.mode !== 'math') throw new Error('fallback');
@@ -677,7 +677,7 @@ try {
         function initCaptcha() {
           setError(''); setValid(false); didFallback = false;
           tsHidden.value = ''; tokHidden.value = ''; aHidden.value = '';
-          fetch('../config/api.php?route=partner-captcha-init', { method: 'GET' })
+          fetch('../admin-api.php?route=partner-captcha-init', { method: 'GET' })
             .then(function (r) { return r.json(); })
             .then(function (j) {
               if (!j || !j.ok) throw new Error('init');
@@ -897,7 +897,7 @@ try {
       </script>
       <?php endif; ?>
     <?php else: ?>
-<?php // Le message de succès est désormais affiché en toast (voir inc/toast.php). ?>
+<?php // Le message de succès est désormais affiché en toast (voir src/partials/toast.php). ?>
 
       <?php if ($error_message): ?>
         <div class="alert alert-danger text-center mb-4">
@@ -1005,11 +1005,11 @@ try {
 })();
 </script>
 
-<?php include '../inc/footer-modern.php'; ?>
+<?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
 <script src="../js/fer-modern.js"></script>
 
-<?php include '../inc/toast.php'; // Notifications toast (identique aux pages admin) ?>
+<?php include __DIR__ . '/../src/partials/toast.php'; // Notifications toast (identique aux pages admin) ?>
 
 </body>
 </html>

@@ -6,11 +6,11 @@
  * d'afficher le QR + lien à donner aux bénévoles, de valider/refuser les demandes
  * d'accès et de révoquer un appareil. Protégé par la permission de page `tshirt_access`.
  */
-require '../config/config.php';
-require_once '../config/csrf.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
 requirePage('tshirt_access');
 $role = currentRole();
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Droits granulaires de la page (admin = tout). La page seule = lecture (Dernières
 // remises) ; chaque bloc supplémentaire dépend de son droit.
@@ -47,7 +47,7 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
 </style>
 </head>
 <body>
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 <div>
 
   <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-2">
@@ -128,7 +128,7 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-1"></i>Dernières remises</h5>
             <div class="d-flex gap-2">
-              <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars('../config/api.php?route=tshirt-admin&export=handouts') ?>"><i class="bi bi-file-earmark-excel me-1"></i>Exporter</a>
+              <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars('../admin-api.php?route=tshirt-admin&export=handouts') ?>"><i class="bi bi-file-earmark-excel me-1"></i>Exporter</a>
               <?php if ($tsCanManage): ?>
               <button class="btn btn-sm btn-outline-danger" id="clearHandoutsBtn"><i class="bi bi-trash me-1"></i>Vider la liste</button>
               <?php endif; ?>
@@ -142,13 +142,13 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
   </div>
 </div>
 
-<?php require 'admin-footer.php'; ?>
+<?php require __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
-  var API = '../config/api.php';
+  var API = '../admin-api.php';
   var CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
   var PUBLIC_URL = <?= json_encode($publicUrl) ?>;
   var refreshTimer = null;

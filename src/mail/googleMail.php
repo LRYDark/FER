@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php'; // Inclure le fichier fusionné (même dossier)
+require_once __DIR__ . '/../core/config.php';
 
 // Force global scope — nécessaire quand googleMail.php est chargé depuis une fonction
 global $data, $clientID, $clientSecret, $googleMailReady;
@@ -20,7 +20,7 @@ $googleMailReady = ($clientID && $clientSecret);
 
 // Fonction pour enregistrer des logs dans un fichier texte
 function writeLog($message) {
-    $logDir = __DIR__ . '/logs';
+    $logDir = dirname(__DIR__, 2) . '/storage/logs';
     if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
     $logFile = $logDir . '/logs_google_mails.log';
     $timestamp = date("Y-m-d H:i:s");
@@ -28,7 +28,7 @@ function writeLog($message) {
 }
 
 function writeSmtpLog($message) {
-    $logDir = __DIR__ . '/logs';
+    $logDir = dirname(__DIR__, 2) . '/storage/logs';
     if (!is_dir($logDir)) { @mkdir($logDir, 0755, true); }
     $logFile = $logDir . '/logs_smtp_mails.log';
     $timestamp = date("Y-m-d H:i:s");
@@ -41,7 +41,7 @@ function isGoogleConnectionValid() {
     if (!$googleMailReady) return false;
 
     // 🔒 [FIX-06] token.json déplacé dans config/ — hors webroot direct (CWE-538)
-    $tokenFile = __DIR__ . '/token.json';
+    $tokenFile = dirname(__DIR__, 2) . '/config/token.json';
 
     if (!file_exists($tokenFile)) {
         writeLog('Fichier token.json non trouvé.');
@@ -119,7 +119,7 @@ function getAccessToken(bool $autoRedirect = true) {
         return false;
     }
     
-    $tokenFile = __DIR__ . '/token.json';
+    $tokenFile = dirname(__DIR__, 2) . '/config/token.json';
     $client = new Google_Client();
     $client->setClientId($clientID);
     $client->setClientSecret($clientSecret);
@@ -449,7 +449,7 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
     $mtcJson = $data['mail_template_config'] ?? null;
     $mtc = $mtcJson ? json_decode($mtcJson, true) : [];
 
-    $body = render('mail_template.php', [
+    $body = render(__DIR__ . '/mail_template.php', [
         'type'        => $type,
         'mailTitle'   => $mailTitle,
         'description' => $description,
@@ -611,7 +611,7 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
 
 // Fonction pour supprimer le token (déconnexion)
 function revokeGoogleConnection() {
-    $tokenFile = __DIR__ . '/token.json';
+    $tokenFile = dirname(__DIR__, 2) . '/config/token.json';
     
     if (file_exists($tokenFile)) {
         unlink($tokenFile);

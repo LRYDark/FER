@@ -21,7 +21,7 @@ if (!empty($GLOBALS['debogage']) || (!empty($data) && !empty($data['debogage']))
 
 <?php if ($debugActive): ?>
 <?php // L'ancien bandeau orange « Mode débogage » est remplacé par la barre de debug
-      // (config/debug.php), rendue en bas de page. On garde juste une marge basse pour
+      // (src/core/debug.php), rendue en bas de page. On garde juste une marge basse pour
       // que le contenu ne soit pas masqué par la barre, et on remonte les toasts. ?>
 <style>#oc-content { padding-bottom: 44px !important; }</style>
 <?php endif; ?>

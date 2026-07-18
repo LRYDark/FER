@@ -4,9 +4,9 @@
  * Réservé aux administrateurs connectés. À lancer après une mise à jour ;
  * la page propose ensuite de se supprimer elle-même (bouton « Oui / Non »).
  */
-require __DIR__ . '/config/config.php';
-require_once __DIR__ . '/config/csrf.php';
-require_once __DIR__ . '/config/registrations_core.php';
+require __DIR__ . '/src/core/config.php';
+require_once __DIR__ . '/src/security/csrf.php';
+require_once __DIR__ . '/src/content/registrations_core.php';
 
 /* ════════════════════════════════════════════════════════════════════════════
  * SÉCURITÉ : accès strictement réservé à un administrateur connecté.
@@ -358,7 +358,7 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `api_user` VARCHAR(64) DEFAULT NULL",
     "ALTER TABLE `setting` ADD COLUMN `api_token` TEXT DEFAULT NULL",
     // Les appels à l'API sont désormais journalisés dans le fichier
-    // config/logs/api.log (et non en BDD) : on supprime l'ancienne table si
+    // storage/logs/api.log (et non en BDD) : on supprime l'ancienne table si
     // elle a été créée par une version précédente de cette mise à jour.
     "DROP TABLE IF EXISTS `api_logs`",
 
@@ -547,12 +547,12 @@ $migrations = [
     "ALTER TABLE `registrations` ADD COLUMN `group_id` VARCHAR(40) DEFAULT NULL, ADD INDEX `group_id` (`group_id`)",
 
     // 🔒 [SEC-SESSION] Timeout de session par inactivité (minutes ; 0 = jamais).
-    // Configurable dans Réglages → Personnalisation. Enforcé dans config/config.php.
+    // Configurable dans Réglages → Personnalisation. Enforcé dans src/core/config.php.
     "ALTER TABLE `setting` ADD COLUMN `session_lifetime` INT NOT NULL DEFAULT 0",
 
     // 🔒 [SEC-SESSION] Durée de vie ABSOLUE de session (minutes ; 0 = jamais) : déconnexion
     // X minutes après la connexion, même si l'utilisateur est actif. Complémentaire de
-    // session_lifetime (inactivité). Enforcé dans config/config.php.
+    // session_lifetime (inactivité). Enforcé dans src/core/config.php.
     "ALTER TABLE `setting` ADD COLUMN `session_absolute_lifetime` INT NOT NULL DEFAULT 0",
 
     // Bandeau flash : mode on/off/auto + fenêtre de programmation (début/fin).
@@ -565,9 +565,174 @@ $migrations = [
 
 $results = [];
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * v2.0.0 — Configuration chiffrée : .env → config.enc + master.key
+ * -------------------------------------------------------------------------
+ * src/core/config.php (chargé en tête de ce fichier) a déjà migré automatiquement
+ * l'ancien .env vers config.enc au premier chargement. Ici on vérifie que la
+ * config chiffrée est bien fonctionnelle, puis on supprime les fichiers
+ * devenus inutiles : config/.env (secrets en clair !) et config/.env.example.
+ * ───────────────────────────────────────────────────────────────────────── */
+$cfgMigrateSql = 'MIGRATE config/.env → config.enc + master.key (v2.0.0)';
+$cfgOk = false;
+try {
+    if (FerSecureConfig::exists()) {
+        $cfgData = FerSecureConfig::load();
+        if (FerSecureConfig::isComplete($cfgData)) {
+            $cfgOk = true;
+            $results[] = ['status' => 'success', 'sql' => $cfgMigrateSql, 'msg' => 'Configuration chiffrée active et vérifiée'];
+        } else {
+            $results[] = ['status' => 'error', 'sql' => $cfgMigrateSql, 'msg' => 'config.enc incomplet (clés manquantes)'];
+        }
+    } else {
+        $results[] = ['status' => 'error', 'sql' => $cfgMigrateSql, 'msg' => 'config.enc absent — migration non effectuée'];
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => $cfgMigrateSql, 'msg' => $e->getMessage()];
+}
+
+// Suppression de config/.env — UNIQUEMENT si config.enc est vérifié fonctionnel
+$envDeleteSql = 'DELETE config/.env (secrets en clair, remplacé par config.enc)';
+$oldEnv = __DIR__ . '/config/.env';
+if (!file_exists($oldEnv)) {
+    $results[] = ['status' => 'skip', 'sql' => $envDeleteSql, 'msg' => 'Déjà supprimé'];
+} elseif (!$cfgOk) {
+    $results[] = ['status' => 'skip', 'sql' => $envDeleteSql, 'msg' => 'Conservé : config.enc non vérifié'];
+} elseif (@unlink($oldEnv)) {
+    $results[] = ['status' => 'success', 'sql' => $envDeleteSql, 'msg' => 'Fichier supprimé'];
+} else {
+    $results[] = ['status' => 'error', 'sql' => $envDeleteSql, 'msg' => 'Suppression impossible (permissions) — supprimez-le via FTP'];
+}
+
+// Suppression de config/.env.example (obsolète : install.php génère config.enc)
+$exampleDeleteSql = 'DELETE config/.env.example (obsolète en v2.0.0)';
+$oldExample = __DIR__ . '/config/.env.example';
+if (!file_exists($oldExample)) {
+    $results[] = ['status' => 'skip', 'sql' => $exampleDeleteSql, 'msg' => 'Déjà supprimé'];
+} elseif (@unlink($oldExample)) {
+    $results[] = ['status' => 'success', 'sql' => $exampleDeleteSql, 'msg' => 'Fichier supprimé'];
+} else {
+    $results[] = ['status' => 'error', 'sql' => $exampleDeleteSql, 'msg' => 'Suppression impossible (permissions)'];
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * v2.0.0 — Nouvelle arborescence : les librairies PHP de config/ ont été
+ * déplacées vers src/ (core / security / mail / content) et config/api.php
+ * est devenu admin-api.php à la racine. Sur une installation existante mise
+ * à jour par écrasement des fichiers, les anciens exemplaires restent dans
+ * config/ : on les supprime UNIQUEMENT si leur remplaçant existe bien.
+ * config/ ne contient plus que : config.enc, master.key, token.json, logs/.
+ * ───────────────────────────────────────────────────────────────────────── */
+$movedLibs = [
+    'config/config.php'             => 'src/core/config.php',
+    'config/secure.php'             => 'src/core/secure.php',
+    'config/debug.php'              => 'src/core/debug.php',
+    'config/csrf.php'               => 'src/security/csrf.php',
+    'config/captcha.php'            => 'src/security/captcha.php',
+    'config/totp.php'               => 'src/security/totp.php',
+    'config/webauthn.php'           => 'src/security/webauthn.php',
+    'config/googleMail.php'         => 'src/mail/googleMail.php',
+    'config/mail_template.php'      => 'src/mail/mail_template.php',
+    'config/newsletter.php'         => 'src/mail/newsletter.php',
+    'config/theme.php'              => 'src/content/theme.php',
+    'config/tracker.php'            => 'src/content/tracker.php',
+    'config/content-log.php'        => 'src/content/content-log.php',
+    'config/accueil_layout.php'     => 'src/content/accueil_layout.php',
+    'config/accueil_sections.php'   => 'src/content/accueil_sections.php',
+    'config/form_fields.php'        => 'src/content/form_fields.php',
+    'config/registrations_core.php' => 'src/content/registrations_core.php',
+    'config/assoconnect_client.php' => 'src/content/assoconnect_client.php',
+    'config/sync_assoconnect.php'   => 'src/content/sync_assoconnect.php',
+    'config/api.php'                => 'admin-api.php',
+    // Fragments d'interface (includes purs, jamais des URLs) : inc/ → src/partials/
+    'inc/navbar-admin.php'          => 'src/partials/navbar-admin.php',
+    'inc/navbar-data.php'           => 'src/partials/navbar-data.php',
+    'inc/navbar-modern.php'         => 'src/partials/navbar-modern.php',
+    'inc/footer-modern.php'         => 'src/partials/footer-modern.php',
+    'inc/admin-footer.php'          => 'src/partials/admin-footer.php',
+    'inc/toast.php'                 => 'src/partials/toast.php',
+    'inc/profile-modal.php'         => 'src/partials/profile-modal.php',
+    'inc/_stats-more-modal.php'     => 'src/partials/_stats-more-modal.php',
+];
+$movedSql = 'DELETE anciennes librairies config/*.php + fragments inc/*.php (déplacés vers src/, v2.0.0)';
+$movedDeleted = 0; $movedKept = 0; $movedErrors = [];
+foreach ($movedLibs as $old => $new) {
+    $oldPath = __DIR__ . '/' . $old;
+    if (!file_exists($oldPath)) continue;
+    if (!file_exists(__DIR__ . '/' . $new)) {
+        $movedKept++;
+        $movedErrors[] = "$old conservé ($new introuvable)";
+        continue;
+    }
+    if (@unlink($oldPath)) { $movedDeleted++; }
+    else { $movedKept++; $movedErrors[] = "$old : suppression impossible (permissions)"; }
+}
+if ($movedDeleted === 0 && $movedKept === 0) {
+    $results[] = ['status' => 'skip', 'sql' => $movedSql, 'msg' => 'Déjà nettoyé'];
+} elseif ($movedKept === 0) {
+    $results[] = ['status' => 'success', 'sql' => $movedSql, 'msg' => "$movedDeleted fichier(s) supprimé(s)"];
+} else {
+    $results[] = ['status' => 'error', 'sql' => $movedSql, 'msg' => "$movedDeleted supprimé(s), $movedKept conservé(s) : " . implode(' ; ', $movedErrors)];
+}
+
+// Divers fichiers/dossiers obsolètes en v2.0.0
+$obsoleteSql = 'DELETE fichiers obsolètes divers (fonts/Version-1.0.3.md, config/sessions/)';
+$obsoleteDone = [];
+$oldNotes = __DIR__ . '/fonts/Version-1.0.3.md';
+if (is_file($oldNotes) && @unlink($oldNotes)) { $obsoleteDone[] = 'fonts/Version-1.0.3.md'; }
+$oldSessions = __DIR__ . '/config/sessions';
+if (is_dir($oldSessions)) {
+    foreach (glob($oldSessions . '/{,.}*', GLOB_BRACE) ?: [] as $sf) {
+        if (is_file($sf)) { @unlink($sf); }
+    }
+    if (@rmdir($oldSessions)) { $obsoleteDone[] = 'config/sessions/'; }
+}
+$results[] = empty($obsoleteDone)
+    ? ['status' => 'skip', 'sql' => $obsoleteSql, 'msg' => 'Déjà nettoyé']
+    : ['status' => 'success', 'sql' => $obsoleteSql, 'msg' => 'Supprimé : ' . implode(', ', $obsoleteDone)];
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * v2.0.0 — Les logs quittent config/ pour storage/logs/ (config/ = config
+ * pure uniquement : config.enc, master.key, token.json). On déplace les
+ * fichiers existants puis on supprime l'ancien dossier config/logs.
+ * ───────────────────────────────────────────────────────────────────────── */
+$logsMoveSql = 'MOVE config/logs/* → storage/logs/ (v2.0.0)';
+$oldLogsDir = __DIR__ . '/config/logs';
+$newLogsDir = __DIR__ . '/storage/logs';
+if (!is_dir($oldLogsDir)) {
+    $results[] = ['status' => 'skip', 'sql' => $logsMoveSql, 'msg' => 'Déjà déplacé'];
+} else {
+    if (!is_dir($newLogsDir)) { @mkdir($newLogsDir, 0755, true); }
+    $logsMoved = 0; $logsFailed = [];
+    foreach (glob($oldLogsDir . '/*') ?: [] as $f) {
+        $dest = $newLogsDir . '/' . basename($f);
+        // Si un fichier du même nom existe déjà côté storage (log recréé entre
+        // la mise à jour des fichiers et l'exécution d'update.php), on fusionne.
+        if (is_file($dest) && is_file($f)) {
+            if (@file_put_contents($dest, (string) @file_get_contents($f), FILE_APPEND) !== false && @unlink($f)) {
+                $logsMoved++;
+            } else {
+                $logsFailed[] = basename($f);
+            }
+        } elseif (@rename($f, $dest)) {
+            $logsMoved++;
+        } else {
+            $logsFailed[] = basename($f);
+        }
+    }
+    @unlink($oldLogsDir . '/.gitkeep');
+    if (empty($logsFailed) && @rmdir($oldLogsDir)) {
+        $results[] = ['status' => 'success', 'sql' => $logsMoveSql, 'msg' => "$logsMoved fichier(s) déplacé(s), config/logs supprimé"];
+    } elseif (empty($logsFailed)) {
+        $results[] = ['status' => 'success', 'sql' => $logsMoveSql, 'msg' => "$logsMoved fichier(s) déplacé(s) — supprimez config/logs manuellement"];
+    } else {
+        $results[] = ['status' => 'error', 'sql' => $logsMoveSql, 'msg' => "$logsMoved déplacé(s), échec : " . implode(', ', $logsFailed)];
+    }
+}
+
 // Renommer le fichier de logs Google Mails .txt -> .log
-$oldLog = __DIR__ . '/config/logs/logs_google_mails.txt';
-$newLog = __DIR__ . '/config/logs/logs_google_mails.log';
+$oldLog = __DIR__ . '/storage/logs/logs_google_mails.txt';
+$newLog = __DIR__ . '/storage/logs/logs_google_mails.log';
 if (file_exists($oldLog) && !file_exists($newLog)) {
     rename($oldLog, $newLog);
     $results[] = ['status' => 'success', 'sql' => 'RENAME logs_google_mails.txt → logs_google_mails.log', 'msg' => 'Fichier renommé'];
@@ -1048,7 +1213,7 @@ function migrateContentPermissions(array $perms): array
 // faite (accueil_layout != NULL), les colonnes legacy sont supprimées.
 // ─────────────────────────────────────────────────────────────────────────
 try {
-    require_once __DIR__ . '/config/accueil_layout.php';
+    require_once __DIR__ . '/src/content/accueil_layout.php';
     $row = $pdo->query('SELECT * FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC);
     if ($row && empty($row['accueil_layout'])) {
         $layout = loadAccueilLayout($row); // gère la migration depuis legacy
@@ -1069,7 +1234,7 @@ try {
 // ici (avec leur id déterministe row_predef_<type>) → vraies lignes de layout.
 // ─────────────────────────────────────────────────────────────────────────
 try {
-    require_once __DIR__ . '/config/accueil_layout.php';
+    require_once __DIR__ . '/src/content/accueil_layout.php';
     $row = $pdo->query("SELECT accueil_layout, accueil_layout_draft FROM setting WHERE id = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
     $spDone = 0;
     foreach (['accueil_layout', 'accueil_layout_draft'] as $col) {

@@ -1,11 +1,11 @@
 <?php
-require '../config/config.php';
+require '../src/core/config.php';
 checkMaintenance();
-require_once '../config/tracker.php';
+require_once '../src/content/tracker.php';
 trackPageVisit();
 
 // Charger les données de la navbar
-require '../inc/navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Récupération du nombre d'inscrits
 try {
@@ -38,11 +38,11 @@ $picture_gradient = $data['picture_gradient'] ?? '';
   <title>Parcours</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <link rel="stylesheet" href="../css/parcours.css">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
 
-  <?php include '../inc/navbar-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
   <main>
     <!-- Hero Section -->
@@ -122,7 +122,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
     <div class="lightbox-strip" id="lbStrip"></div>
   </div>
 
-  <?php include '../inc/footer-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

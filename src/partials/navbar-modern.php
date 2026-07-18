@@ -6,7 +6,7 @@
  * Requires: navbar-data.php doit être inclus AVANT ce fichier
  * Variables requises: $galeries, $actualites, $partenaires, $link_facebook, $link_instagram, $link_cancer
  */
-include_once __DIR__ . '/../config/theme.php';
+include_once __DIR__ . '/../content/theme.php';
 ?>
 
 <!-- Theme: apply saved preference immediately to avoid flash -->
@@ -19,7 +19,7 @@ include_once __DIR__ . '/../config/theme.php';
   <div class="mega-overlay" id="megaOverlay"></div>
   <div class="nav-pill">
     <a class="brand" href="accueil">
-      <?php if (!empty($navbar_logo) && file_exists(__DIR__ . '/../files/_logos/' . $navbar_logo)): ?>
+      <?php if (!empty($navbar_logo) && file_exists(dirname(__DIR__, 2) . '/files/_logos/' . $navbar_logo)): ?>
         <img class="brand-logo" src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Forbach en Rose">
       <?php endif; ?>
     </a>
@@ -257,7 +257,7 @@ include_once __DIR__ . '/../config/theme.php';
 <!-- ===== MOBILE HEADER (Vimeo style) ===== -->
 <header class="mobile-header" id="mobileHeader">
   <a class="brand" href="accueil">
-    <?php if (!empty($navbar_logo) && file_exists(__DIR__ . '/../files/_logos/' . $navbar_logo)): ?>
+    <?php if (!empty($navbar_logo) && file_exists(dirname(__DIR__, 2) . '/files/_logos/' . $navbar_logo)): ?>
       <img class="brand-logo" src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Forbach en Rose">
     <?php endif; ?>
   </a>

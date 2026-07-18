@@ -1,11 +1,11 @@
 <?php
-require '../config/config.php';
+require '../src/core/config.php';
 checkMaintenance();
-require_once '../config/tracker.php';
-require_once '../config/csrf.php';
-require_once '../config/captcha.php';
+require_once '../src/content/tracker.php';
+require_once '../src/security/csrf.php';
+require_once '../src/security/captcha.php';
 trackPageVisit();
-require '../inc/navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 $success = false;
 $error = '';
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Adresse email invalide.';
     } else {
-        require_once '../config/googleMail.php';
+        require_once '../src/mail/googleMail.php';
 
         // Vérif de la config mail en fonction du provider actif (Google OAuth ou SMTP)
         $provider = $data['mail_provider'] ?? 'google';
@@ -155,11 +155,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <title>Contact</title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <link rel="stylesheet" href="../css/contact.css">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
 
-  <?php include '../inc/navbar-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
   <section class="contact-section">
     <h1>Contactez-nous</h1>
@@ -244,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
   </section>
 
-  <?php include '../inc/footer-modern.php'; ?>
+  <?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
   <script src="../js/fer-modern.js"></script>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -294,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           try { window.turnstile.remove(tsWidgetId); } catch(e){}
           tsWidgetId = null;
         }
-        fetch('../config/api.php?route=partner-captcha-init&fallback=1', { method: 'GET' })
+        fetch('../admin-api.php?route=partner-captcha-init&fallback=1', { method: 'GET' })
           .then(function(r){ return r.json(); })
           .then(function(j){
             if (!j || !j.ok || j.mode !== 'math') throw new Error('fallback');
@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setError(''); setValid(false);
         didFallback = false;
         tsHidden.value = ''; tokHidden.value = ''; aHidden.value = '';
-        fetch('../config/api.php?route=partner-captcha-init', { method: 'GET' })
+        fetch('../admin-api.php?route=partner-captcha-init', { method: 'GET' })
           .then(function(r){ return r.json(); })
           .then(function(j){
             if (!j || !j.ok) throw new Error('init');

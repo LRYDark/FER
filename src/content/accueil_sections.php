@@ -258,7 +258,7 @@ function renderAccueilSection_hero(array $ctx): void {
     $registration_fee = (int)($ctx['registration_fee'] ?? 0);
     $course_km        = (int)($ctx['course_km'] ?? 0);
     $videoFile        = (string)($ctx['video_accueil'] ?? '');
-    $videoExists      = $videoFile !== '' && is_file(__DIR__ . '/../files/' . $videoFile);
+    $videoExists      = $videoFile !== '' && is_file(__DIR__ . '/../../files/' . $videoFile);
     $titleAccueil     = (string)($ctx['titleAccueil'] ?? '');
     $titleAccueil_mobile = (string)($ctx['titleAccueil_mobile'] ?? '');
     $subPC            = (string)($ctx['subtitle_accueil'] ?? '');
@@ -522,7 +522,7 @@ function renderAccueilSection_reg_bar(array $ctx): void {
 
 function renderAccueilSection_partners(array $ctx): void {
     $picture_partner = (string)($ctx['picture_partner'] ?? '');
-    $hasImage = $picture_partner !== '' && is_file(__DIR__ . '/../files/_pictures/' . $picture_partner);
+    $hasImage = $picture_partner !== '' && is_file(__DIR__ . '/../../files/_pictures/' . $picture_partner);
     $editable = !empty($ctx['_editor']);
     ?>
     <section class="community-section" aria-label="Devenez partenaire">
@@ -613,7 +613,7 @@ function renderAccueilSection_timeline(array $ctx): void {
               <article class="t-card">
                 <div class="t-media">
                   <div class="t-media-inner">
-                  <?php if (!empty($ti['image']) && is_file(__DIR__ . '/../files/_TimeLine/' . $ti['image'])):
+                  <?php if (!empty($ti['image']) && is_file(__DIR__ . '/../../files/_TimeLine/' . $ti['image'])):
                     $posRaw = $ti['image_position'] ?? '50% 50% 1';
                     $posParts = preg_split('/\s+/', trim($posRaw));
                     $imgXPct = $posParts[0] ?? '50%';
@@ -1075,7 +1075,7 @@ function renderAccueilSection_newsletter(array $ctx): void {
         if (didFallback) return; didFallback = true;
         if (tsWidgetId !== null && window.turnstile) { try { window.turnstile.remove(tsWidgetId); } catch(e){} tsWidgetId = null; }
         tsBox.style.display = 'none';
-        fetch('../config/api.php?route=partner-captcha-init&fallback=1')
+        fetch('../admin-api.php?route=partner-captcha-init&fallback=1')
           .then(function(r){ return r.json(); })
           .then(function(j){
             if (!j || !j.ok || j.mode !== 'math') throw new Error('fb');
@@ -1089,7 +1089,7 @@ function renderAccueilSection_newsletter(array $ctx): void {
       function initCaptcha() {
         setCaptchaError(''); didFallback = false;
         tsHidden.value = ''; tokHidden.value = ''; aHidden.value = '';
-        return fetch('../config/api.php?route=partner-captcha-init')
+        return fetch('../admin-api.php?route=partner-captcha-init')
           .then(function(r){ return r.json(); })
           .then(function(j){
             if (!j || !j.ok) throw new Error('init');

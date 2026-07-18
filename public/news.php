@@ -1,10 +1,10 @@
 <?php
-require '../config/config.php';
+require '../src/core/config.php';
 checkMaintenance();
-require_once '../config/csrf.php';
-require_once '../config/tracker.php';
+require_once '../src/security/csrf.php';
+require_once '../src/content/tracker.php';
 trackPageVisit();
-require '../inc/navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Récupération des paramètres du site
 try {
@@ -234,11 +234,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
   <title><?= $singleArticle ? htmlspecialchars($singleArticle['title_article']) : 'Actualités' ?></title>
   <link rel="stylesheet" href="../css/fer-modern.css">
   <link rel="stylesheet" href="../css/news.css">
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
 
-<?php include '../inc/navbar-modern.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
 <main>
 
@@ -463,7 +463,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
 </main>
 
-<?php include '../inc/footer-modern.php'; ?>
+<?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">

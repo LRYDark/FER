@@ -1,7 +1,7 @@
 <?php
-require 'config.php';
-require_once __DIR__ . '/csrf.php';
-require_once __DIR__ . '/captcha.php';
+require __DIR__ . '/src/core/config.php';
+require_once __DIR__ . '/src/security/csrf.php';
+require_once __DIR__ . '/src/security/captcha.php';
 header('Content-Type: application/json; charset=utf-8');
 
 // ─── Garde-fou global : toute exception non attrapée renvoie du JSON propre ───
@@ -19,7 +19,7 @@ $route = $_GET['route'] ?? '';
 
 // ─── CSRF check for state-changing API requests (skip public/pre-auth routes) ───
 // 🔒 [FIX-13] logout retiré des routes CSRF-exempt — force-logout via CSRF impossible (CWE-352)
-$csrfExemptRoutes = ['login', 'login-check-email', 'validate-2fa', 'resend-2fa', 'validate-totp', 'webauthn-auth-verify', 'switch-2fa-method', 'forgot-password', 'reset-password-confirm', 'partner-request', 'partner-captcha-init'];
+$csrfExemptRoutes = ['login', 'login-check-email', 'validate-2fa', 'resend-2fa', 'validate-totp', 'webauthn-auth-verify', 'webauthn-direct-options', 'webauthn-direct-verify', 'switch-2fa-method', 'forgot-password', 'reset-password-confirm', 'partner-request', 'partner-captcha-init'];
 if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE']) && !in_array($route, $csrfExemptRoutes)) {
     if (!csrf_verify()) {
         http_response_code(403);
@@ -144,14 +144,14 @@ function isMailConfigured(): bool {
             return !empty($row['smtp_host']) && !empty($row['smtp_user']) && !empty($row['smtp_pass']);
         }
         // Google mode
-        if (!file_exists(__DIR__ . '/token.json')) return false;
+        if (!file_exists(__DIR__ . '/config/token.json')) return false;
         return !empty(decrypt($row['client_id'] ?? null)) && !empty(decrypt($row['client_secret'] ?? null));
     } catch (\Throwable $e) { return false; }
 }
 
 function send2faCode($pdo, $user) {
     try {
-        require_once __DIR__ . '/googleMail.php';
+        require_once __DIR__ . '/src/mail/googleMail.php';
     } catch (\Throwable $e) {
         error_log('send2faCode: impossible de charger googleMail.php — ' . $e->getMessage());
         return false;
@@ -241,7 +241,7 @@ function autoBanIpIfNeeded($pdo, $ip, int $threshold = 10, int $banMinutes = 144
 
     // Notifier les admins du ban IP (uniquement si l'INSERT a réussi)
     try {
-        require_once __DIR__ . '/googleMail.php';
+        require_once __DIR__ . '/src/mail/googleMail.php';
         if (isMailConfigured() && isNotifyEnabled($pdo, 'ip_ban')) {
             $admins = getNotifyRecipients($pdo);
             $durationH = round($banMinutes / 60);
@@ -315,7 +315,7 @@ if ($route==='login-check-email' && $_SERVER['REQUEST_METHOD']==='POST'){
             echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'totp']); exit;
         }
         if ($availableMethods[0] === 'passkey') {
-            require_once __DIR__ . '/webauthn.php';
+            require_once __DIR__ . '/src/security/webauthn.php';
             $wa   = new WebAuthn(getWebAuthnRpId());
             $opts = $wa->authOptions($passkeyIds);
             echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'passkey', 'options'=>$opts]); exit;
@@ -324,7 +324,7 @@ if ($route==='login-check-email' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     $extra = [];
     if ($defaultMethod === 'passkey') {
-        require_once __DIR__ . '/webauthn.php';
+        require_once __DIR__ . '/src/security/webauthn.php';
         $wa = new WebAuthn(getWebAuthnRpId());
         $extra['passkey_options'] = $wa->authOptions($passkeyIds);
     }
@@ -525,7 +525,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
             }
             if ($availableMethods[0] === 'passkey') {
                 try {
-                    require_once __DIR__ . '/webauthn.php';
+                    require_once __DIR__ . '/src/security/webauthn.php';
                     $wa = new WebAuthn(getWebAuthnRpId());
                     $opts = $wa->authOptions($passkeyIds);
                     echo json_encode(['ok'=>true, 'requires_2fa'=>true, 'method'=>'passkey', 'options'=>$opts]); exit;
@@ -542,7 +542,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
         $extra = [];
         if ($defaultMethod === 'passkey') {
             try {
-                require_once __DIR__ . '/webauthn.php';
+                require_once __DIR__ . '/src/security/webauthn.php';
                 $wa = new WebAuthn(getWebAuthnRpId());
                 $extra['passkey_options'] = $wa->authOptions($passkeyIds);
             } catch (\Throwable $e) {
@@ -573,7 +573,7 @@ if ($route==='login' && $_SERVER['REQUEST_METHOD']==='POST'){
                 try { $pdo->prepare('UPDATE users SET failed_attempts = ? WHERE id = ?')->execute([$attempts, $u['id']]); } catch (\Throwable $e2) {}
             }
             try {
-                require_once __DIR__ . '/googleMail.php';
+                require_once __DIR__ . '/src/mail/googleMail.php';
                 if (isMailConfigured() && isNotifyEnabled($pdo, 'lock')) {
                     $admins = getNotifyRecipients($pdo);
                     foreach ($admins as $adminEmail) {
@@ -694,7 +694,7 @@ if ($route==='logout'){
 }
 
 /* ───── HEARTBEAT (keep-alive session) ─────────
- * Utilisé par l'auto-déconnexion côté client. config/config.php a déjà, à ce stade,
+ * Utilisé par l'auto-déconnexion côté client. src/core/config.php a déjà, à ce stade,
  * rafraîchi last_activity si la session est encore valide, ou l'a détruite si expirée.
  * On renvoie simplement si l'utilisateur est toujours authentifié. */
 if ($route==='heartbeat'){
@@ -731,7 +731,7 @@ if ($route==='switch-2fa-method' && $_SERVER['REQUEST_METHOD']==='POST'){
         echo json_encode(['ok'=>true, 'method'=>'totp']); exit;
     }
     if ($method === 'passkey') {
-        require_once __DIR__ . '/webauthn.php';
+        require_once __DIR__ . '/src/security/webauthn.php';
         $stPk = $pdo->prepare('SELECT credential_id FROM user_passkeys WHERE user_id = ?');
         $stPk->execute([$uid]);
         $ids = $stPk->fetchAll(PDO::FETCH_COLUMN);
@@ -763,7 +763,7 @@ if ($route==='validate-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
     }
 
     $uid = $_SESSION['pending_2fa_uid'];
-    require_once __DIR__ . '/totp.php';
+    require_once __DIR__ . '/src/security/totp.php';
     $row = $pdo->prepare('SELECT totp_secret FROM users WHERE id = ? AND totp_enabled = 1');
     $row->execute([$uid]); $row = $row->fetch();
 
@@ -819,7 +819,7 @@ if ($route==='webauthn-auth-verify' && $_SERVER['REQUEST_METHOD']==='POST'){
     $uid = $_SESSION['pending_2fa_uid'];
     $credIdB64 = $d['credential_id'] ?? '';
 
-    require_once __DIR__ . '/webauthn.php';
+    require_once __DIR__ . '/src/security/webauthn.php';
     $stPk = $pdo->prepare('SELECT id, public_key, sign_count FROM user_passkeys WHERE user_id = ? AND credential_id = ?');
     $stPk->execute([$uid, $credIdB64]);
     $passkey = $stPk->fetch();
@@ -847,6 +847,93 @@ if ($route==='webauthn-auth-verify' && $_SERVER['REQUEST_METHOD']==='POST'){
 
     logLoginAttempt($pdo, $uid, $_SESSION['email'], true, 'Clé d\'accès validée');
     echo json_encode(['ok'=>true, 'role'=>$_SESSION['role'], 'csrf_token'=>csrf_token()]); exit;
+}
+
+/* ───── PASSKEY DIRECTE — options (sans email, comme MERIDIAN) ───────────
+ * allowCredentials vide : le navigateur propose n'importe quelle clé
+ * découvrable (resident key) enregistrée pour ce site. L'utilisateur est
+ * identifié par le credential présenté, pas par son email. */
+if ($route==='webauthn-direct-options' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $ip = getClientIp();
+    if (getIpBanInfo($pdo, $ip)) {
+        http_response_code(403);
+        echo json_encode(['ok'=>false, 'err'=>'Adresse IP bloquée.']); exit;
+    }
+    require_once __DIR__ . '/src/security/webauthn.php';
+    $wa = new WebAuthn(getWebAuthnRpId());
+    echo json_encode(['ok'=>true, 'options'=>$wa->authOptions([])]); exit;
+}
+
+/* ───── PASSKEY DIRECTE — vérification + connexion ─────── */
+if ($route==='webauthn-direct-verify' && $_SERVER['REQUEST_METHOD']==='POST'){
+    $d  = json_decode(file_get_contents('php://input'), true);
+    $ip = getClientIp();
+
+    if (getIpBanInfo($pdo, $ip)) {
+        http_response_code(403);
+        echo json_encode(['ok'=>false, 'err'=>'Adresse IP bloquée.']); exit;
+    }
+
+    // 🔒 Rate-limit : 5 tentatives max par session (même politique que la 2FA)
+    $_SESSION['passkey_direct_attempts'] = ($_SESSION['passkey_direct_attempts'] ?? 0) + 1;
+    if ($_SESSION['passkey_direct_attempts'] > 5) {
+        http_response_code(429);
+        echo json_encode(['ok'=>false, 'err'=>'Trop de tentatives. Rechargez la page.']); exit;
+    }
+
+    $credIdB64 = $d['credential_id'] ?? '';
+    require_once __DIR__ . '/src/security/webauthn.php';
+
+    // Identifier l'utilisateur par le credential présenté
+    $passkey = null;
+    try {
+        $stPk = $pdo->prepare('SELECT id, user_id, public_key, sign_count FROM user_passkeys WHERE credential_id = ? LIMIT 1');
+        $stPk->execute([$credIdB64]);
+        $passkey = $stPk->fetch();
+    } catch (\Throwable $e) {}
+
+    if (!$passkey) {
+        logLoginAttempt($pdo, null, '', false, 'Clé d\'accès directe inconnue');
+        autoBanIpIfNeeded($pdo, $ip);
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Clé d\'accès inconnue.']); exit;
+    }
+
+    $stU = $pdo->prepare('SELECT id, email, role, is_active FROM users WHERE id = ? LIMIT 1');
+    $stU->execute([$passkey['user_id']]);
+    $u = $stU->fetch();
+
+    if (!$u || !$u['is_active']) {
+        logLoginAttempt($pdo, $u['id'] ?? null, $u['email'] ?? '', false, 'Clé d\'accès directe — compte indisponible');
+        http_response_code(403);
+        echo json_encode(['ok'=>false, 'err'=>'Compte désactivé. Contactez un administrateur.']); exit;
+    }
+
+    try {
+        $wa = new WebAuthn(getWebAuthnRpId());
+        $newCount = $wa->verifyAuthentication($d, $passkey['public_key'], (int)$passkey['sign_count']);
+        $pdo->prepare('UPDATE user_passkeys SET sign_count = ?, last_used = NOW() WHERE id = ?')
+            ->execute([$newCount, $passkey['id']]);
+    } catch (\Throwable $e) {
+        logLoginAttempt($pdo, $u['id'], $u['email'], false, 'Clé d\'accès directe — signature invalide');
+        autoBanIpIfNeeded($pdo, $ip);
+        http_response_code(401);
+        echo json_encode(['ok'=>false, 'err'=>'Authentification par clé d\'accès échouée.']); exit;
+    }
+
+    // Signature valide → session authentifiée (la clé d'accès vaut connexion
+    // complète, comme dans le flux existant par email : possession + biométrie)
+    unset($_SESSION['passkey_direct_attempts'],
+          $_SESSION['pending_2fa_uid'], $_SESSION['pending_2fa_role'],
+          $_SESSION['pending_2fa_email'], $_SESSION['pending_2fa_methods'],
+          $_SESSION['wa_auth_challenge']);
+    session_regenerate_id(true);
+    $_SESSION['uid']   = $u['id'];
+    $_SESSION['role']  = $u['role'];
+    $_SESSION['email'] = $u['email'];
+
+    logLoginAttempt($pdo, $u['id'], $u['email'], true, 'Clé d\'accès directe validée');
+    echo json_encode(['ok'=>true, 'role'=>$u['role'], 'csrf_token'=>csrf_token()]); exit;
 }
 
 /* ───── FORGOT PASSWORD (public) ────────────── */
@@ -895,7 +982,7 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
 
         // Envoyer le mail si Gmail est configuré
         try {
-            require_once __DIR__ . '/googleMail.php';
+            require_once __DIR__ . '/src/mail/googleMail.php';
             if (isMailConfigured()) {
                 // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
                 $resetUrl = getAppBaseUrl()
@@ -1051,7 +1138,7 @@ if ($route==='ui-prefs'){
 /* ───── PROFILE: SETUP TOTP ────────────────────── */
 if ($route==='profile-setup-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
     if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
-    require_once __DIR__ . '/totp.php';
+    require_once __DIR__ . '/src/security/totp.php';
     $secret = TOTP::generateSecret();
     $pdo->prepare('UPDATE users SET totp_pending_secret = ? WHERE id = ?')
         ->execute([$secret, $_SESSION['uid']]);
@@ -1064,7 +1151,7 @@ if ($route==='profile-verify-totp' && $_SERVER['REQUEST_METHOD']==='POST'){
     if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
     $d = json_decode(file_get_contents('php://input'), true);
     $code = trim($d['code'] ?? '');
-    require_once __DIR__ . '/totp.php';
+    require_once __DIR__ . '/src/security/totp.php';
     $row = $pdo->prepare('SELECT totp_pending_secret FROM users WHERE id = ?');
     $row->execute([$_SESSION['uid']]); $row = $row->fetch();
     if (!$row || empty($row['totp_pending_secret']) || !TOTP::verify($row['totp_pending_secret'], $code)) {
@@ -1102,7 +1189,7 @@ if ($route==='profile-set-default-2fa' && $_SERVER['REQUEST_METHOD']==='POST'){
 /* ───── WEBAUTHN: REGISTER OPTIONS ──────────────── */
 if ($route==='webauthn-register-options' && $_SERVER['REQUEST_METHOD']==='POST'){
     if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
-    require_once __DIR__ . '/webauthn.php';
+    require_once __DIR__ . '/src/security/webauthn.php';
     $existingIds = [];
     try {
         $stPk = $pdo->prepare('SELECT credential_id FROM user_passkeys WHERE user_id = ?');
@@ -1119,7 +1206,7 @@ if ($route==='webauthn-register-verify' && $_SERVER['REQUEST_METHOD']==='POST'){
     if (!isset($_SESSION['uid'])) { http_response_code(401); echo json_encode(['ok'=>false]); exit; }
     $d    = json_decode(file_get_contents('php://input'), true);
     $name = mb_substr(trim($d['name'] ?? 'Ma clé d\'accès'), 0, 100);
-    require_once __DIR__ . '/webauthn.php';
+    require_once __DIR__ . '/src/security/webauthn.php';
     try {
         $wa   = new WebAuthn(getWebAuthnRpId());
         $cred = $wa->verifyRegistration($d['credential'] ?? []);
@@ -1329,7 +1416,7 @@ if ($route === 'users') {
         // Tente d'envoyer le lien de réinitialisation
         $emailSent = false;
         try {
-            require_once __DIR__ . '/googleMail.php';
+            require_once __DIR__ . '/src/mail/googleMail.php';
             if (isMailConfigured()) {
                 // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
                 $resetUrl = getAppBaseUrl()
@@ -1522,7 +1609,7 @@ if ($route === 'users') {
         // Tenter l'envoi du mail avec le mot de passe temporaire
         $emailSent = false;
         try {
-            require_once __DIR__ . '/googleMail.php';
+            require_once __DIR__ . '/src/mail/googleMail.php';
             if (isMailConfigured()) {
                 $emailSent = sendMail(
                     $d['email'],
@@ -1781,8 +1868,8 @@ if ($route==='registrations'){
         $origine = $myOrg ?: ($d['origine'] ?? 'en ligne');
 
         // Construction dynamique de l'INSERT basé sur la table forms
-        require_once __DIR__ . '/form_fields.php';
-        require_once __DIR__ . '/registrations_core.php'; // regcore_naissanceToAge()
+        require_once __DIR__ . '/src/content/form_fields.php';
+        require_once __DIR__ . '/src/content/registrations_core.php'; // regcore_naissanceToAge()
         $fieldCols = getAllActiveFieldColumns($pdo);
 
         $cols = ['inscription_no'];
@@ -1825,7 +1912,7 @@ if ($route==='registrations'){
         // du jour. NB : created_at (date d'ajout) reste auto via le DEFAULT de la colonne.
         $rawDateInsc = currentUserId() ? trim((string) ($d['date_inscription'] ?? '')) : '';
         if ($rawDateInsc !== '') {
-            require_once __DIR__ . '/registrations_core.php';
+            require_once __DIR__ . '/src/content/registrations_core.php';
             $cols[] = 'date_inscription'; $phs[] = '?'; $vals[] = regcore_convertExcelDate($rawDateInsc);
         }
 
@@ -1837,11 +1924,11 @@ if ($route==='registrations'){
 
         // Envoyer mail de confirmation si email renseigné
         // (Même logique que public/register.php : appel direct sans isMailConfigured(),
-        //  les erreurs éventuelles sont loguées dans config/logs/logs_*_mails.log par sendMail/sendMailSmtp.)
+        //  les erreurs éventuelles sont loguées dans storage/logs/logs_*_mails.log par sendMail/sendMailSmtp.)
         $inscEmail = trim($d['email'] ?? '');
         if ($inscEmail !== '') {
             try {
-                require_once __DIR__ . '/googleMail.php';
+                require_once __DIR__ . '/src/mail/googleMail.php';
                 sendMail(
                     $inscEmail,
                     'Inscription enregistrée - Forbach en Rose',
@@ -1932,7 +2019,7 @@ if ($route==='registrations'){
         }
 
         /* 4. Champs autorisés dynamiques depuis la table forms + champs système */
-        require_once __DIR__ . '/form_fields.php';
+        require_once __DIR__ . '/src/content/form_fields.php';
         $fieldCols = getAllActiveFieldColumns($pdo);
         $systemCols = ['origine', 'paiement_mode', 'prestation', 'montant_du'];
 
@@ -1951,7 +2038,7 @@ if ($route==='registrations'){
             if ($raw === null) $raw = '';
             // Naissance : on ne stocke QUE l'âge (année/date → âge).
             if ($col === 'naissance' && $raw !== '') {
-                require_once __DIR__ . '/registrations_core.php';
+                require_once __DIR__ . '/src/content/registrations_core.php';
                 $age = regcore_naissanceToAge((string) $raw);
                 $raw = ($age !== null) ? $age : '';
             }
@@ -1993,7 +2080,7 @@ if ($route==='registrations'){
         // l'horodatage d'origine (utile au classement QR). created_at (date d'ajout) n'est
         // jamais modifié ici.
         if (array_key_exists('date_inscription', $d) && trim((string) $d['date_inscription']) !== '') {
-            require_once __DIR__ . '/registrations_core.php';
+            require_once __DIR__ . '/src/content/registrations_core.php';
             $newDateInsc = regcore_convertExcelDate(trim((string) $d['date_inscription']));
             $curStmt = $pdo->prepare('SELECT date_inscription FROM registrations WHERE id = ?');
             $curStmt->execute([$d['id']]);
@@ -2075,7 +2162,7 @@ if ($route === 'registrations-bulk') {
             if (!$ids) { echo json_encode(['ok'=>true, 'updated'=>0]); exit; }
         }
 
-        require_once __DIR__ . '/form_fields.php';
+        require_once __DIR__ . '/src/content/form_fields.php';
         $fieldCols = getAllActiveFieldColumns($pdo);
 
         // Construction du SET commun à tous les ids (les mêmes valeurs sont
@@ -2091,7 +2178,7 @@ if ($route === 'registrations-bulk') {
             if ($col === 'commentaire') $val = mb_substr((string) $val, 0, 2000);
             // Naissance → âge (année/date convertie). ENUM assainis (anti « Data truncated »).
             if ($col === 'naissance' && $val !== '') {
-                require_once __DIR__ . '/registrations_core.php';
+                require_once __DIR__ . '/src/content/registrations_core.php';
                 $age = regcore_naissanceToAge((string) $val);
                 $val = ($age !== null) ? $age : '';
             }
@@ -2233,8 +2320,8 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        require_once __DIR__ . '/form_fields.php';
-        require_once __DIR__ . '/registrations_core.php'; // regcore_convertExcelDate() pour la date d'inscription
+        require_once __DIR__ . '/src/content/form_fields.php';
+        require_once __DIR__ . '/src/content/registrations_core.php'; // regcore_convertExcelDate() pour la date d'inscription
 
         // Champs requis en mode bulk (depuis forms.required_saisie_multiple)
         $bulkFields = $pdo->query(
@@ -2267,7 +2354,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $childAmount       = (float) $cfg['child_amount'];
             }
         } catch (\Throwable $e) { /* colonnes absentes → tarif enfant désactivé */ }
-        if ($childEnabled) require_once __DIR__ . '/registrations_core.php'; // regcore_ageFromNaissance()
+        if ($childEnabled) require_once __DIR__ . '/src/content/registrations_core.php'; // regcore_ageFromNaissance()
 
         // Compteur d'inscription
         $counterExists = false;
@@ -2346,7 +2433,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Naissance → âge (année/date convertie) : défense en profondeur, en plus
                 // de la normalisation côté client.
                 if ($col === 'naissance' && trim($raw) !== '') {
-                    require_once __DIR__ . '/registrations_core.php';
+                    require_once __DIR__ . '/src/content/registrations_core.php';
                     $age = regcore_naissanceToAge($raw);
                     $raw = ($age !== null) ? $age : '';
                 }
@@ -2422,7 +2509,7 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $recapError   = null;
 
         if ($created > 0) {
-            require_once __DIR__ . '/googleMail.php';
+            require_once __DIR__ . '/src/mail/googleMail.php';
 
             if ($mailMode === 'individual') {
                 // ── INDIVIDUEL : 1 mail par personne, exactement comme un import
@@ -2571,7 +2658,7 @@ if ($route === 'bulk-parse-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    require_once __DIR__ . '/../vendor/autoload.php';
+    require_once __DIR__ . '/vendor/autoload.php';
 
     try {
         $ws        = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath)->getActiveSheet();
@@ -2647,7 +2734,7 @@ if ($route === 'import-excel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    require_once __DIR__ . '/registrations_core.php';
+    require_once __DIR__ . '/src/content/registrations_core.php';
 
     // Émetteur de progression : bascule la réponse en flux NDJSON dès le 1er
     // événement (post-commit). Une erreur AVANT le streaming (format invalide,
@@ -2774,7 +2861,7 @@ function normalisePaiementMode(?string $val): string {
  * NB : le couple (paiement_mode, montant_du) reste l'indicateur d'éligibilité QR (montant > 0).
  */
 function prestationFromPaiement(?string $paiementMode): string {
-    require_once __DIR__ . '/registrations_core.php';
+    require_once __DIR__ . '/src/content/registrations_core.php';
     return regcore_prestationFromPaiement($paiementMode); // source unique (évite le doublon)
 }
 
@@ -2785,18 +2872,18 @@ function prestationFromPaiement(?string $paiementMode): string {
  * « gratuit » (vraiment gratuit) et les moyens réels (CB/espece/cheque/...) sont conservés.
  */
 function storedPaiementMode(?string $choice): ?string {
-    require_once __DIR__ . '/registrations_core.php';
+    require_once __DIR__ . '/src/content/registrations_core.php';
     return regcore_storedPaiementMode($choice); // source unique (évite le doublon)
 }
 
 function convertExcelDate($value): ?string {
-    require_once __DIR__ . '/registrations_core.php';
+    require_once __DIR__ . '/src/content/registrations_core.php';
     return regcore_convertExcelDate($value); // source unique (évite le doublon)
 }
 
 function logImportError(array $data, string $filename = 'import_errors.log') {
     // Écriture dans config/ (protégé par .htaccess), jamais dans le webroot
-    $safePath = __DIR__ . '/logs/' . basename($filename);
+    $safePath = __DIR__ . '/storage/logs/' . basename($filename);
     $entry = date('Y-m-d H:i:s') . " | " . json_encode($data, JSON_UNESCAPED_UNICODE) . PHP_EOL;
     file_put_contents($safePath, $entry, FILE_APPEND);
 }
@@ -2806,7 +2893,7 @@ function logImportError(array $data, string $filename = 'import_errors.log') {
 if ($route === 'export-excel' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     requireAction('dashboard.export_excel');
 
-    require_once __DIR__.'/../vendor/autoload.php';
+    require_once __DIR__ . '/vendor/autoload.php';
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet       = $spreadsheet->getActiveSheet();
 
@@ -2930,7 +3017,7 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     /* Age moyen — via la fonction centralisée (gère l'âge déjà stocké comme les
      * données héritées année/date). L'année de l'archive sert de référence pour les
      * valeurs au format année/date, afin que l'âge reflète l'année de l'événement. */
-    require_once __DIR__ . '/registrations_core.php';
+    require_once __DIR__ . '/src/content/registrations_core.php';
     $ages = [];
     foreach ($allRows as $r) {
         $age = regcore_ageFromNaissance((string) ($r['naissance'] ?? ''), $year);
@@ -3009,9 +3096,13 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $plus_vieux_h, $plus_vieille_f
     ]);
 
-    /* 9) On vide la table active pour la nouvelle saison */
-    $pdo->exec('TRUNCATE TABLE registrations');
     $pdo->commit();
+
+    /* 9) On vide la table active pour la nouvelle saison.
+     *    Hors transaction : TRUNCATE est du DDL en MySQL et provoque un commit
+     *    implicite ; le laisser avant commit() faisait lever "There is no active
+     *    transaction" alors que l'archivage avait réussi. */
+    $pdo->exec('TRUNCATE TABLE registrations');
 
     /* 10) Vider le journal des remises de T-shirts : l'archivage marque la fin de
      *     la saison, les remises de l'année écoulée ne servent plus (l'an prochain
@@ -3540,7 +3631,7 @@ if ($route === 'partner-request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Envoi du mail aux administrateurs
     try {
-        require_once __DIR__ . '/googleMail.php';
+        require_once __DIR__ . '/src/mail/googleMail.php';
 
         // Provider-agnostic : isMailConfigured() gère Google OAuth ET SMTP direct
         if (isMailConfigured() && isNotifyEnabled($pdo, 'partner')) {
@@ -3614,7 +3705,7 @@ if ($route === 'ip-geo') {
     $ips = array_slice(array_unique(array_filter($ips, 'is_string')), 0, 200);
 
     // Cache fichier (30 jours)
-    $cacheFile = __DIR__ . '/logs/ip_geo_cache.json';
+    $cacheFile = __DIR__ . '/storage/logs/ip_geo_cache.json';
     $cacheTtl  = 30 * 86400;
     $cache = [];
     if (file_exists($cacheFile)) {

@@ -20,7 +20,7 @@ $isTemp = ($type === 'temp');
 $cMail  = '';
 $cPhone = '';
 try {
-    require_once __DIR__ . '/../config/config.php';
+    require_once __DIR__ . '/../src/core/config.php';
     if (isset($pdo) && $pdo instanceof PDO) {
         $row = $pdo->query("SELECT mail_email, mail_phone FROM setting WHERE id = 1 LIMIT 1")
                    ->fetch(PDO::FETCH_ASSOC);

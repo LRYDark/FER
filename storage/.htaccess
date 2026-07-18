@@ -1,0 +1,3 @@
+# storage/ = données générées par l'application (logs, sessions…)
+# Jamais accessible par URL
+Require all denied

@@ -1,9 +1,9 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 // 🔒 [FIX-SETTING] Chargement lazy de googleMail pour éviter HTTP 500 si lib indisponible (CWE-755)
 try {
-    require '../config/googleMail.php';
+    require '../src/mail/googleMail.php';
 } catch (\Throwable $e) {
     $isConnected = false;
     $authUrl = '#';
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canWrite) {
     }
 }
 
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -220,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['publish_accueil'])) {
         http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
     }
     try {
-        require_once __DIR__ . '/../config/accueil_layout.php';
+        require_once __DIR__ . '/../src/content/accueil_layout.php';
         publishAccueilDraft($pdo);
         echo json_encode(['ok' => true]);
     } catch (\Throwable $e) {
@@ -237,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['discard_accueil_draft
         http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
     }
     try {
-        require_once __DIR__ . '/../config/accueil_layout.php';
+        require_once __DIR__ . '/../src/content/accueil_layout.php';
         discardAccueilDraft($pdo);
         echo json_encode(['ok' => true]);
     } catch (\Throwable $e) {
@@ -606,7 +606,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_text']))
     if (!$canTab('accueil') || !$canCard('accueil', 'custom')) {
         http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
     }
-    require_once __DIR__ . '/../config/accueil_sections.php';
+    require_once __DIR__ . '/../src/content/accueil_sections.php';
     $allowed = accueilEditableTexts();
     $key = (string)($_POST['textKey'] ?? '');
     $val = trim((string)($_POST['textValue'] ?? ''));
@@ -854,7 +854,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
             unset($col);
         }
         unset($row);
-        require_once __DIR__ . '/../config/accueil_layout.php';
+        require_once __DIR__ . '/../src/content/accueil_layout.php';
         try {
             saveAccueilLayout($pdo, $incoming);
             echo json_encode(['ok' => true]);
@@ -2030,7 +2030,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <body>
 
-<?php include '../inc/navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <style>
   .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
@@ -2855,7 +2855,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Le bouton porte name="save_import_auto" value="save|run|test" : on enregistre
 // toujours la config saisie, et on positionne le drapeau run/test si demandé.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_import_auto'])) {
-    require_once __DIR__ . '/../config/sync_assoconnect.php';
+    require_once __DIR__ . '/../src/content/sync_assoconnect.php';
 
     $action = in_array($_POST['save_import_auto'], ['save', 'run', 'test'], true) ? $_POST['save_import_auto'] : 'save';
 
@@ -2913,7 +2913,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_import_auto'])) 
 
 // Régénération du token (sécurise l'URL du cron : commande à mettre à jour dans le panel).
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_token'])) {
-    require_once __DIR__ . '/../config/sync_assoconnect.php';
+    require_once __DIR__ . '/../src/content/sync_assoconnect.php';
     try {
         sync_regenerate_token($pdo);
         addToast('success', "Nouveau token généré. Mettez à jour la commande du cron (URL) dans votre panel d'hébergement.");
@@ -3320,8 +3320,8 @@ if (!$canTab($activeTab)) {
 
     <!-- Carte 4 : Mise en page de l'accueil (éditeur visuel WYSIWYG) -->
     <?php if ($canCard('accueil', 'custom')):
-      require_once __DIR__ . '/../config/accueil_layout.php';
-      require_once __DIR__ . '/../config/accueil_sections.php';
+      require_once __DIR__ . '/../src/content/accueil_layout.php';
+      require_once __DIR__ . '/../src/content/accueil_sections.php';
       // useDraft=true : #ifeLayoutData (modèle interne de l'éditeur) DOIT refléter la
       // même version que l'iframe accueil.php?editor=1 (qui charge le brouillon avec
       // fallback publié). Sinon les IDs de lignes divergent entre l'éditeur et l'iframe
@@ -4700,7 +4700,7 @@ if ($canTab('import_auto') || $canImportXlsManual):
   <?php endif; ?>
 
   <?php if ($canTab('import_auto')):
-    require_once __DIR__ . '/../config/sync_assoconnect.php';
+    require_once __DIR__ . '/../src/content/sync_assoconnect.php';
     $syncCfg     = sync_get_config($pdo);
     $acEnabled   = (int) ($syncCfg['enabled'] ?? 0) === 1;
     $acSendMail  = (int) ($syncCfg['import_send_mail'] ?? 1) === 1;
@@ -5007,7 +5007,7 @@ document.getElementById('importFileInput').addEventListener('change', async func
     var dupTickets = [];
     if (tickets.length > 0) {
       try {
-        var res = await fetch('../config/api.php?route=check-duplicates', {
+        var res = await fetch('../admin-api.php?route=check-duplicates', {
           method: 'POST',
           headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': _csrfToken},
           body: JSON.stringify({tickets: tickets}),
@@ -5105,7 +5105,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   addLog('⏳', 'Import en cours…', '#666');
 
   try {
-    const res = await fetch('../config/api.php?route=import-excel', {
+    const res = await fetch('../admin-api.php?route=import-excel', {
       method:      'POST',
       headers:     {'X-CSRF-TOKEN': _csrfToken},
       body:        data,
@@ -5615,7 +5615,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 })();
 </script>
 
-<?php include '../inc/admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <!-- JS -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>

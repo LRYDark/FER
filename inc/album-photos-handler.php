@@ -3,8 +3,8 @@
  * AJAX handler for local album photo operations (upload / delete / list)
  * Returns JSON responses.
  */
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('albums');
 
 header('Content-Type: application/json');

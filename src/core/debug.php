@@ -4,7 +4,7 @@
  *
  * Objectifs :
  *   - TOUJOURS journaliser le maximum (toutes les erreurs PHP) dans
- *     config/logs/php-error.log, sans JAMAIS les afficher au visiteur.
+ *     storage/logs/php-error.log, sans JAMAIS les afficher au visiteur.
  *   - Quand le mode debug est ACTIF (setting.debogage = 1) ET que l'utilisateur
  *     est admin sur une page HTML : afficher une barre de debug en bas de page
  *     (requêtes SQL + temps + nombre + mémoire) et les erreurs PHP en cartes rouges.
@@ -12,7 +12,7 @@
  * Rien n'est affiché sur les réponses API/JSON, les redirections, les
  * téléchargements ou en CLI — la barre ne sort que sur les pages admin HTML.
  *
- * Chargé très tôt par config/config.php (avant la création de $pdo) pour que le
+ * Chargé très tôt par src/core/config.php (avant la création de $pdo) pour que le
  * profileur de requêtes (DebugPDO/DebugPDOStatement) soit disponible.
  */
 

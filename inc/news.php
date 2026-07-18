@@ -1,6 +1,6 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php';
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php';
 requirePage('news');
 $role = currentRole();
 $canCreate = canDoAction('news.create');
@@ -8,7 +8,7 @@ $canEdit   = canDoAction('news.edit');
 $canTrash  = canDoAction('news.trash');
 $canDelete = canDoAction('news.delete');
 $readOnly  = !$canCreate && !$canEdit && !$canTrash && !$canDelete;
-require_once __DIR__ . '/../config/content-log.php';
+require_once __DIR__ . '/../src/content/content-log.php';
 $canViewLogs = canDoAction('content.logs.view'); // Onglet "Logs" (journal d'activité)
 
 $stmt = $pdo->prepare(
@@ -23,7 +23,7 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
 
 // Charger les données pour la navbar
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // Check if migration has been applied (status & deleted_at columns)
 $migrationDone = false;
@@ -33,7 +33,7 @@ try {
 } catch (PDOException $e) {}
 
 // Newsletter : helpers d'envoi aux abonnés
-require_once __DIR__ . '/../config/newsletter.php';
+require_once __DIR__ . '/../src/mail/newsletter.php';
 
 /**
  * Envoie la notification "nouvel article" aux abonnés newsletter — une seule fois
@@ -487,7 +487,7 @@ if ($migrationDone) {
 
 <body>
 
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <div class="container pb-4">
   <h1 class="mb-3 fw-bold"><i class="bi bi-newspaper me-2"></i>Actualités</h1>
@@ -918,7 +918,7 @@ if ($migrationDone) {
     </script>
 <!-- ############################ Description ############################ -->
 
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>

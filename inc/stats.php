@@ -1,9 +1,9 @@
 <?php
-require '../config/config.php';
-require_once __DIR__ . '/../config/csrf.php'; // jeton CSRF pour l'enregistrement des préférences colonnes
+require '../src/core/config.php';
+require_once __DIR__ . '/../src/security/csrf.php'; // jeton CSRF pour l'enregistrement des préférences colonnes
 requirePage('stats');
 $role = currentRole();
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 try {
     $stmt = $pdo->prepare(
@@ -158,7 +158,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 <body>
 
-<?php include '../inc/navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <div class="container-fluid pb-4">
   <h1 class="mb-3 fw-bold"><i class="bi bi-bar-chart me-2"></i>Statistiques</h1>
@@ -239,7 +239,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
     </div>
   </div>
 </div>
-<?php include '../inc/admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/v/bs5/dt-1.13.10/datatables.min.js" integrity="sha384-3wB6mhez87GBdPpEqKMU2wAH2Cjcvj8ynU/n7blM/JW4BLpVD0aTrx4ZE7IwFLSH" crossorigin="anonymous"></script>
@@ -317,7 +317,7 @@ let _statsYearData = null; // dernières stats agrégées (pour le modal)
 function fillYearCards(year){
   const wrap = document.getElementById('cardsYear');
   wrap.innerHTML = '<div class="text-muted">Chargement des statistiques…</div>';
-  fetch('../config/api.php?route=registrations-archive&year=' + encodeURIComponent(year), { credentials:'same-origin' })
+  fetch('../admin-api.php?route=registrations-archive&year=' + encodeURIComponent(year), { credentials:'same-origin' })
     .then(r => r.json())
     .then(rows => {
       if(!Array.isArray(rows)) rows = [];
@@ -346,7 +346,7 @@ $.fn.dataTable.ext.pager.numbers_length = 7;
 
 let tbl = $('#tbl').DataTable({
   ajax:{
-    url:'../config/api.php',
+    url:'../admin-api.php',
     data:function(){
       return { route:'registrations-archive', year: document.getElementById('selYear').value };
     },
@@ -386,7 +386,16 @@ let tbl = $('#tbl').DataTable({
   ],
   order:[[0,'desc']],
   pageLength:25,
-  language:{loadingRecords:'Chargement…'},
+  language:{
+    loadingRecords:'Chargement…',
+    emptyTable:    'Aucune donnée disponible pour cette année.',
+    zeroRecords:   'Aucun résultat.',
+    lengthMenu:    'Afficher _MENU_ inscriptions',
+    info:          '_START_ à _END_ sur _TOTAL_',
+    infoEmpty:     '0 sur 0',
+    infoFiltered:  '(filtré sur _MAX_)',
+    paginate:      { first: '«', previous: '‹', next: '›', last: '»' }
+  },
   colReorder:true,   // déplacement des colonnes par glisser-déposer des en-têtes
   lengthMenu:[[10,25,50,100],[10,25,50,100]],
   dom:'ltpr'
@@ -446,7 +455,7 @@ $('#tbl').on('init.dt draw.dt', moveStatsPaginateOut);
   var _uiPrefs = null, _uiPrefsPromise = null;
   function loadUiPrefs(){
     if(_uiPrefsPromise) return _uiPrefsPromise;
-    _uiPrefsPromise = fetch('../config/api.php?route=ui-prefs')
+    _uiPrefsPromise = fetch('../admin-api.php?route=ui-prefs')
       .then(function(r){ return r.json(); })
       .then(function(p){ _uiPrefs = (p && typeof p==='object') ? p : {}; return _uiPrefs; })
       .catch(function(){ _uiPrefs = {}; return _uiPrefs; });
@@ -454,7 +463,7 @@ $('#tbl').on('init.dt draw.dt', moveStatsPaginateOut);
   }
   function saveUiPref(patch){
     if(_uiPrefs && typeof _uiPrefs==='object') Object.assign(_uiPrefs, patch);
-    return fetch('../config/api.php?route=ui-prefs',{
+    return fetch('../admin-api.php?route=ui-prefs',{
       method:'POST',
       headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
       body: JSON.stringify(patch)

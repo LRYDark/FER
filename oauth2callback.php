@@ -1,9 +1,9 @@
 <?php
-require 'config/config.php';
+require 'src/core/config.php';
 
 // Log helper (avant writeLog qui est définie plus bas)
 function _oauthLog($msg) {
-    $f = __DIR__ . '/config/logs/logs_google_mails.log';
+    $f = __DIR__ . '/storage/logs/logs_google_mails.log';
     file_put_contents($f, '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND);
 }
 
@@ -40,7 +40,7 @@ if (!$clientID || !$clientSecret) {
 
 // Fonction pour enregistrer des logs
 function writeLog($message) {
-    $logFile = __DIR__ . '/config/logs/logs_google_mails.log';
+    $logFile = __DIR__ . '/storage/logs/logs_google_mails.log';
     $timestamp = date("Y-m-d H:i:s");
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }

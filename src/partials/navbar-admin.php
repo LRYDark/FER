@@ -50,7 +50,7 @@ $userInitial = strtoupper(substr($userEmail, 0, 1));
 if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
 ?>
 
-<?php include __DIR__ . '/../config/theme.php'; ?>
+<?php include __DIR__ . '/../content/theme.php'; ?>
 
 <!-- ═══════ ADMIN LAYOUT CSS ═══════ -->
 <style>
@@ -1018,7 +1018,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
           </a>
         </li>
       <?php endforeach; ?>
-      <?php if ($userRole === 'admin' && file_exists(__DIR__ . '/../update.php')): ?>
+      <?php if ($userRole === 'admin' && file_exists(dirname(__DIR__, 2) . '/update.php')): ?>
         <li style="padding:8px 8px 2px">
           <a class="oc-sidebar-link" href="../update.php" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-weight:600">
             <svg viewBox="0 0 24 24" style="stroke:#856404"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1027,7 +1027,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
         </li>
       <?php endif; ?>
     </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 1.3.0</div>
+    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 2.0.0</div>
   </aside>
 
   <?php // Rafraîchissement live de la pastille « Accès bénévoles » (uniquement pour ceux qui valident) ?>
@@ -1037,7 +1037,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
     var badge = document.getElementById('tshirtPendingBadge');
     if (!badge) return;
     function refresh(){
-      fetch('../config/api.php?route=tshirt-admin', {headers:{'X-Requested-With':'XMLHttpRequest'}})
+      fetch('../admin-api.php?route=tshirt-admin', {headers:{'X-Requested-With':'XMLHttpRequest'}})
         .then(function(r){ return r.json(); })
         .then(function(res){
           if (!res || !res.ok) return;

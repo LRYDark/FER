@@ -19,7 +19,7 @@
 @set_time_limit(0); // l'import peut être long (téléchargement + emails)
 ignore_user_abort(true);
 
-require_once __DIR__ . '/../config/sync_assoconnect.php'; // charge config.php → $pdo, encrypt()/decrypt()
+require_once __DIR__ . '/../src/content/sync_assoconnect.php'; // charge config.php → $pdo, encrypt()/decrypt()
 
 $isCli = (PHP_SAPI === 'cli');
 

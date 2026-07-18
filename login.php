@@ -1,5 +1,5 @@
-<?php require 'config/config.php';
-require_once 'config/csrf.php';
+<?php require 'src/core/config.php';
+require_once 'src/security/csrf.php';
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -345,6 +345,54 @@ $picture= $data['picture'] ?? '';
       text-decoration: underline;
     }
 
+    /* ── Séparateur « ou » + bouton clé d'accès directe ── */
+    .oc-or {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0;
+      color: #a1a1aa;
+      font-size: 12px;
+    }
+    .oc-or::before, .oc-or::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #f0e8eb;
+    }
+    .oc-btn-passkey {
+      width: 100%;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #fff;
+      color: #374151;
+      border: 1px solid #d4c4cb;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .oc-btn-passkey:hover {
+      border-color: var(--primary, #f42182);
+      background: rgba(244,33,130,.04);
+    }
+    .oc-btn-passkey svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--primary, #f42182);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .oc-btn-passkey:disabled { opacity: .6; cursor: default; }
+
     /* ── Sélection de méthode ── */
     .oc-method-list { display: flex; flex-direction: column; gap: 10px; }
     .oc-method-btn {
@@ -417,6 +465,11 @@ $picture= $data['picture'] ?? '';
           </div>
           <button type="submit" id="emailNextBtn" class="oc-btn">Suivant</button>
         </form>
+        <div class="oc-or"><span>ou</span></div>
+        <button type="button" id="btnDirectPasskey" class="oc-btn-passkey">
+          <svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+          Se connecter avec une cl&eacute; d'acc&egrave;s
+        </button>
       </div>
 
       <!-- Étape 2 — Mot de passe (si aucune méthode forte) -->
@@ -742,7 +795,7 @@ $picture= $data['picture'] ?? '';
     function switchTo2faMethod(method) {
       document.getElementById('methodSelectErr').classList.remove('visible');
       if (method === 'password') { showPasswordSection(_loginEmail); return; }
-      fetch('config/api.php?route=switch-2fa-method', {
+      fetch('admin-api.php?route=switch-2fa-method', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ method: method })
@@ -796,7 +849,7 @@ $picture= $data['picture'] ?? '';
       _loginEmail = email;
       var btn = document.getElementById('emailNextBtn');
       btn.disabled = true; btn.textContent = 'Vérification…';
-      fetch('config/api.php?route=login-check-email', {
+      fetch('admin-api.php?route=login-check-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ email: email })
@@ -827,7 +880,7 @@ $picture= $data['picture'] ?? '';
       var password = document.getElementById('pwdInput').value;
       var btn = this.querySelector('button[type="submit"]');
       btn.disabled = true; btn.textContent = 'Connexion…';
-      fetch('config/api.php?route=login', {
+      fetch('admin-api.php?route=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ email: _loginEmail, password: password })
@@ -868,7 +921,7 @@ $picture= $data['picture'] ?? '';
       btn.disabled = true;
       btn.textContent = 'V\u00e9rification...';
 
-      fetch('config/api.php?route=validate-2fa', {
+      fetch('admin-api.php?route=validate-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ code: code, trust_device: trustDevice })
@@ -904,7 +957,7 @@ $picture= $data['picture'] ?? '';
       this.textContent = 'Envoi en cours...';
       var self = this;
 
-      fetch('config/api.php?route=resend-2fa', {
+      fetch('admin-api.php?route=resend-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({})
@@ -967,7 +1020,7 @@ $picture= $data['picture'] ?? '';
       }
       var btn = this.querySelector('button[type="submit"]');
       btn.disabled = true; btn.textContent = 'Vérification…';
-      fetch('config/api.php?route=validate-totp', {
+      fetch('admin-api.php?route=validate-totp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body: JSON.stringify({ code: code })
@@ -1029,7 +1082,7 @@ $picture= $data['picture'] ?? '';
           authenticatorData: toBase64url(credential.response.authenticatorData),
           signature:         toBase64url(credential.response.signature)
         };
-        var r = await fetch('config/api.php?route=webauthn-auth-verify', {
+        var r = await fetch('admin-api.php?route=webauthn-auth-verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
           body: JSON.stringify(body)
@@ -1044,6 +1097,67 @@ $picture= $data['picture'] ?? '';
           document.getElementById('passkeyErr').classList.add('visible');
         }
         btn.disabled = false; btn.textContent = 'Utiliser ma clé d\'accès';
+      }
+    });
+
+    // ── Passkey DIRECTE (premier écran, sans email — comme MERIDIAN) ──
+    document.getElementById('btnDirectPasskey').addEventListener('click', async function() {
+      var btn = this;
+      var errBox = document.getElementById('err');
+      var errText = document.getElementById('errText');
+      errBox.classList.remove('visible');
+      if (!window.PublicKeyCredential) {
+        errText.textContent = 'Votre navigateur ne supporte pas les clés d\'accès.';
+        errBox.classList.add('visible');
+        return;
+      }
+      var oldHtml = btn.innerHTML;
+      btn.disabled = true; btn.textContent = 'Authentification…';
+      function toBase64url(buf) {
+        return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+      }
+      try {
+        var r0 = await fetch('admin-api.php?route=webauthn-direct-options', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
+          body: JSON.stringify({})
+        });
+        var j0 = await r0.json();
+        if (!r0.ok || !j0.ok) throw new Error(j0.err || 'Erreur serveur.');
+        var opts = j0.options;
+        var challenge = Uint8Array.from(atob(opts.challenge.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+        var credential = await navigator.credentials.get({
+          publicKey: {
+            challenge: challenge,
+            rpId: opts.rpId,
+            allowCredentials: [],   // clé découvrable : pas besoin d'email
+            userVerification: opts.userVerification || 'preferred',
+            timeout: opts.timeout || 60000
+          }
+        });
+        var body = {
+          credential_id:     toBase64url(credential.rawId),
+          clientDataJSON:    toBase64url(credential.response.clientDataJSON),
+          authenticatorData: toBase64url(credential.response.authenticatorData),
+          signature:         toBase64url(credential.response.signature)
+        };
+        var r = await fetch('admin-api.php?route=webauthn-direct-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
+          body: JSON.stringify(body)
+        });
+        var j = await r.json();
+        if (!r.ok || !j.ok) throw new Error(j.err || 'Connexion par clé d\'accès refusée.');
+        if (j.csrf_token) _csrfToken = j.csrf_token;
+        redirectAfterLogin(j);
+        return;
+      } catch (err) {
+        // NotAllowedError = l'utilisateur a annulé la fenêtre : pas un message d'erreur
+        if (err.name !== 'NotAllowedError') {
+          errText.textContent = err.message || 'Authentification par clé d\'accès échouée.';
+          errBox.classList.add('visible');
+        }
+        btn.disabled = false; btn.innerHTML = oldHtml;
       }
     });
 
@@ -1064,7 +1178,7 @@ $picture= $data['picture'] ?? '';
       if (!email) { msgEl.innerHTML = '<span class="text-danger">Veuillez entrer votre email.</span>'; return; }
       this.disabled = true; this.textContent = 'Envoi...';
       try {
-        await fetch('config/api.php?route=forgot-password', {
+        await fetch('admin-api.php?route=forgot-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
           body: JSON.stringify({ email })

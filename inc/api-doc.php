@@ -3,7 +3,7 @@
  * api-doc.php — Documentation de l'API publique de Forbach en Rose.
  * Page d'administration accessible depuis Réglages → onglet API.
  */
-require '../config/config.php';
+require '../src/core/config.php';
 
 // Accès réservé aux administrateurs
 if (!isset($_SESSION['uid']) || currentRole() !== 'admin') {
@@ -12,7 +12,7 @@ if (!isset($_SESSION['uid']) || currentRole() !== 'admin') {
     exit;
 }
 $role = currentRole();
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 // ── URL absolue de l'API (api.php est à la racine du projet) ──────────────
 $baseUrl     = getAppBaseUrl();
@@ -101,7 +101,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
 </style>
 </head>
 <body>
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <div class="container-fluid pb-5 api-doc">
 
@@ -385,11 +385,11 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
       </tbody>
     </table>
     <p class="mb-0 text-muted"><i class="bi bi-clock-history me-1"></i>Tous les appels à l'API sont
-       journalisés dans le fichier <code>config/logs/api.log</code>, consultable et videable
+       journalisés dans le fichier <code>storage/logs/api.log</code>, consultable et videable
        depuis la page <a href="logs.php?log=api">Journaux système</a> (onglet « API »).</p>
   </div>
 
 </div>
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 </body>
 </html>

@@ -5,6 +5,7 @@
 
 # Bloquer aussi les fichiers sensibles par extension
 # 🔒 [SEC-03] .json ajouté pour protéger token.json (CWE-538)
-<FilesMatch "\.(env|log|bak|sql|old|txt|json)$">
+# 🔒 v2.0.0 : .enc et .key ajoutés pour protéger config.enc et master.key
+<FilesMatch "\.(env|log|bak|sql|old|txt|json|enc|key)$">
     Require all denied
 </FilesMatch>

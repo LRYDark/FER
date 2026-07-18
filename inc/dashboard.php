@@ -1,6 +1,6 @@
 <?php
-require '../config/config.php';
-require_once '../config/csrf.php';
+require '../src/core/config.php';
+require_once '../src/security/csrf.php';
 requirePage('dashboard');
 $role = currentRole();
 $canCreateReg  = canDoAction('dashboard.create_registration');
@@ -18,7 +18,7 @@ $canScanQr     = canDoAction('dashboard.scan_qr');
 $canTshirtMode = $canScanQr || $canEditReg;
 
 // Charger les données pour la navbar
-require 'navbar-data.php';
+require __DIR__ . '/../src/partials/navbar-data.php';
 
 $stmt = $pdo->prepare(
     'SELECT *
@@ -58,7 +58,7 @@ $initTshirtMode  = !empty($uiPrefs['tshirt_mode']);
 $initShowComment = !empty($uiPrefs['tshirt_show_comment']);
 
 // Champs dynamiques
-require_once '../config/form_fields.php';
+require_once '../src/content/form_fields.php';
 $adminFields = getActiveFields($pdo, 'admin');
 // Tous les champs actifs (pour les colonnes DataTable)
 $stmtAllFields = $pdo->prepare('SELECT * FROM forms WHERE active = 1 ORDER BY sort_order ASC');
@@ -581,7 +581,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 
 <body>
 
-<?php include 'navbar-admin.php'; ?>
+<?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <!-- ═════════ MAIN ═════════ -->
   <div>
@@ -603,7 +603,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
             <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
             document.getElementById('btnExport').addEventListener('click', () => {
               // simple redirection => déclenche le téléchargement
-              window.location = '../config/api.php?route=export-excel';
+              window.location = '../admin-api.php?route=export-excel';
             });
             </script>
           <?php endif; ?>
@@ -621,7 +621,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 
               try {
                 const _ct = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                const res  = await fetch('../config/api.php?route=archive-current', {
+                const res  = await fetch('../admin-api.php?route=archive-current', {
                   method: 'POST',
                   credentials: 'same-origin',
                   headers: {'X-CSRF-TOKEN': _ct}
@@ -678,7 +678,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
     <?php endif; ?>
   </div>
 
-<?php include 'admin-footer.php'; ?>
+<?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
 <!-- ═════════ MODALES ═════════ -->
 
@@ -1259,7 +1259,7 @@ $.fn.dataTable.ext.pager.numbers_length = 7;
 
 const tbl=$('#tbl').DataTable({
   ajax:{
-    url:'../config/api.php?route=registrations',
+    url:'../admin-api.php?route=registrations',
     dataSrc: function(json) {
       // Trier les données par date d'ajout (du plus ancien au plus récent)
       tableData = json.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -1375,6 +1375,16 @@ const tbl=$('#tbl').DataTable({
   dom:'lrtip',
   autoWidth:false,
   orderCellsTop:true,
+  language:{
+    emptyTable:    'Aucune inscription enregistrée pour le moment.',
+    zeroRecords:   'Aucun résultat.',
+    loadingRecords:'Chargement…',
+    lengthMenu:    'Afficher _MENU_ inscriptions',
+    info:          '_START_ à _END_ sur _TOTAL_',
+    infoEmpty:     '0 sur 0',
+    infoFiltered:  '(filtré sur _MAX_)',
+    paginate:      { first: '«', previous: '‹', next: '›', last: '»' }
+  },
   // Réordonnancement des colonnes par glisser-déposer des en-têtes. L'ordre choisi
   // est sauvegardé par utilisateur (route ui-prefs) et réappliqué au chargement.
   <?php
@@ -1436,7 +1446,7 @@ let _uiPrefs = null;        // objet de prefs résolu (null tant que non chargé
 let _uiPrefsPromise = null; // promesse mémoïsée du GET
 function loadUiPrefs(){
   if(_uiPrefsPromise) return _uiPrefsPromise;
-  _uiPrefsPromise = fetch('../config/api.php?route=ui-prefs')
+  _uiPrefsPromise = fetch('../admin-api.php?route=ui-prefs')
     .then(r=>r.json())
     .then(p=>{ _uiPrefs = (p && typeof p==='object') ? p : {}; return _uiPrefs; })
     .catch(()=>{ _uiPrefs = {}; return _uiPrefs; });
@@ -1444,7 +1454,7 @@ function loadUiPrefs(){
 }
 function saveUiPref(patch){
   if(_uiPrefs && typeof _uiPrefs==='object') Object.assign(_uiPrefs, patch); // copie mémoire à jour
-  return fetch('../config/api.php?route=ui-prefs',{
+  return fetch('../admin-api.php?route=ui-prefs',{
     method:'POST',
     headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
     body: JSON.stringify(patch)
@@ -1759,7 +1769,7 @@ $('#tbl').on('change','.tshirt-dd',function(){
   const id   = dd.dataset.id;
   const rowData = tbl.row($(dd).closest('tr')).data() || {};
   const who = (`${rowData.prenom||''} ${rowData.nom||''}`).trim() || ('n°' + (rowData.inscription_no || id));
-  fetch('../config/api.php?route=registrations',{
+  fetch('../admin-api.php?route=registrations',{
     method:'PUT',
     headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},
     body:new URLSearchParams({id, tshirt_size:size})
@@ -1786,7 +1796,7 @@ $('#tbl').on('click', '.delete-row', function() {
     return;
   }
 
-  fetch('../config/api.php?route=registrations', {
+  fetch('../admin-api.php?route=registrations', {
     method: 'DELETE',
     headers: {'Content-Type': 'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},
     body: new URLSearchParams({id: data.id})
@@ -1880,7 +1890,7 @@ $('#fBulkEdit').on('submit',function(e){
   });
   if(Object.keys(fields).length===0){ alert('Cochez au moins un champ à modifier.'); return; }
   const ids = [...bulkSel];
-  fetch('../config/api.php?route=registrations-bulk',{
+  fetch('../admin-api.php?route=registrations-bulk',{
     method:'PUT',
     headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
     body: JSON.stringify({ ids, fields })
@@ -1901,7 +1911,7 @@ $('#bulkDeleteBtn').on('click',function(){
   if(bulkSel.size===0){ alert('Sélectionnez au moins une inscription.'); return; }
   if(!confirm('Supprimer '+bulkSel.size+' inscription(s) ? Cette action est irréversible.')) return;
   const ids = [...bulkSel];
-  fetch('../config/api.php?route=registrations-bulk',{
+  fetch('../admin-api.php?route=registrations-bulk',{
     method:'DELETE',
     headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
     body: JSON.stringify({ ids })
@@ -1922,7 +1932,7 @@ $('#fAdd').on('submit',e=>{
   if(window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
   if(window.FERInscription) FERInscription.composeComment(e.target);
   const fd=new FormData(e.target); normalizeBirth(fd);
-  fetch('../config/api.php?route=registrations',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},body:JSON.stringify(Object.fromEntries(fd))})
+  fetch('../admin-api.php?route=registrations',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},body:JSON.stringify(Object.fromEntries(fd))})
   .then(r=>r.json()).then(j=>{
     if(j.inscription_no){
       e.target.reset();
@@ -2527,7 +2537,7 @@ function showInscriptionToast(inscriptionNo){
       try {
         const fd = new FormData();
         fd.append('file', file);
-        const res = await fetch('../config/api.php?route=bulk-parse-excel', {
+        const res = await fetch('../admin-api.php?route=bulk-parse-excel', {
           method: 'POST',
           headers: { 'X-CSRF-TOKEN': _csrfToken },
           body: fd,
@@ -2831,7 +2841,7 @@ function showInscriptionToast(inscriptionNo){
     bulkLog('⏳', 'Envoi de ' + rows.length + ' inscription(s)…', '#666');
 
     try {
-      const res = await fetch('../config/api.php?route=bulk-create', {
+      const res = await fetch('../admin-api.php?route=bulk-create', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _csrfToken },
         body:    JSON.stringify({ shared, rows }),
@@ -2925,7 +2935,7 @@ $('#fEdit').on('submit',e=>{
   if(window.FERInscription && !FERInscription.ensureGuardian(e.target)) return;
   if(window.FERInscription) FERInscription.composeComment(e.target);
   const fd=new FormData(e.target); normalizeBirth(fd);
-  fetch('../config/api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},body:new URLSearchParams(fd)})
+  fetch('../admin-api.php?route=registrations',{method:'PUT',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},body:new URLSearchParams(fd)})
   .then(()=>{tbl.ajax.reload(null,false); bootstrap.Modal.getInstance('#editModal').hide();});
 });
 
@@ -3531,7 +3541,7 @@ $('#fEdit').on('submit',e=>{
     status.style.display = 'block';
     status.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Sauvegarde…</span>';
 
-    fetch('../config/api.php?route=registrations', {
+    fetch('../admin-api.php?route=registrations', {
       method: 'PUT',
       headers: {'Content-Type':'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken},
       body: new URLSearchParams({id: person.id, tshirt_size: size})
@@ -3559,7 +3569,7 @@ $('#fEdit').on('submit',e=>{
     var size = sel.value;
     var st = row.querySelector('.qr-grp-status');
     st.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    fetch('../config/api.php?route=registrations', {
+    fetch('../admin-api.php?route=registrations', {
       method: 'PUT',
       headers: {'Content-Type':'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': _csrfToken},
       body: new URLSearchParams({id: id, tshirt_size: size})

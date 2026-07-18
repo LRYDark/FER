@@ -1,4 +1,6 @@
 # Fichiers sensibles
+config/config.enc
+config/master.key
 config/.env
 config/.env.test
 config/.install.lock
@@ -8,12 +10,13 @@ config/token.json
 /export.xlsx
 /export_test.xlsx
 
-# Logs
+# Logs et données générées
 *.log
 debug_import.log
 import_errors.log
-config/logs/*
-!config/logs/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+storage/sessions/
 
 # Fichiers de migration (one-shot)
 migrate_*.php
