@@ -468,33 +468,46 @@ body {
 .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
 .form-check-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 
-/* ── Interrupteurs (form-switch) : identiques PARTOUT ─────────────────────
-   Piste grise visible quand éteint (la règle générique ci-dessus la rendait
-   blanche sur fond blanc), accent quand allumé, curseur blanc net qui glisse
-   de gauche à droite. Géométrie verrouillée pour un rendu uniforme. */
-.form-switch .form-check-input {
-  width: 2.4em !important;
-  height: 1.3em !important;
-  margin-top: 0.1em;
-  flex: none;
+/* ── Interrupteurs (form-switch) : géométrie 100 % Bootstrap (taille, curseur,
+   glissement inchangés), seules les COULEURS passent aux tokens.
+   --bs-form-switch-bg = l'image du curseur (variable officielle BS 5.3) :
+   on la force en blanc dans tous les états (défaut/focus/checked) pour
+   qu'il reste net sur la piste grise (éteint) comme sur l'accent (allumé). */
+.form-switch .form-check-input,
+.form-switch .form-check-input:focus {
+  --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23ffffff'/%3e%3c/svg%3e");
   background-color: var(--border-strong);
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill) !important;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23ffffff'/%3e%3c/svg%3e") !important;
-  background-repeat: no-repeat !important;
-  background-position: left center !important;
-  background-size: contain !important;
-  transition: background-position var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  border-color: var(--border-strong);
   cursor: pointer;
 }
 .form-switch .form-check-input:checked {
   background-color: var(--accent);
   border-color: var(--accent);
-  background-position: right center !important;
 }
-.form-switch .form-check-input:focus {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+
+/* Conteneurs des switches et cases « inline » : espacement SYMÉTRIQUE.
+   Fin du float + padding-left 2.5em + margin-right 1rem de Bootstrap qui
+   donnaient des marges différentes d'une page à l'autre : le contrôle et
+   son libellé sont alignés en flex avec un écart fixe de 8px, l'espace
+   ENTRE items vient uniquement du gap du conteneur parent. */
+#oc-content .form-check.form-switch,
+#oc-content .form-check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 0;
+  margin-right: 0;
+  min-height: 0;
 }
+#oc-content .form-check.form-switch .form-check-input,
+#oc-content .form-check-inline .form-check-input {
+  float: none;
+  margin-left: 0;
+  margin-top: 0;
+  flex: none;
+}
+#oc-content .form-check.form-switch .form-check-label,
+#oc-content .form-check-inline .form-check-label { margin: 0; }
 .form-check-label { font-size: var(--fs-small); color: var(--ink-dim); }
 .form-range::-webkit-slider-thumb { background: var(--accent); }
 .form-range::-moz-range-thumb { background: var(--accent); }
