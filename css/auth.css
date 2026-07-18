@@ -8,12 +8,16 @@
 /* La colonne formulaire peut accueillir plusieurs « étapes » empilées */
 .auth-pane .inner { display: flex; flex-direction: column; gap: var(--sp-4); }
 
-/* Logo / marque : centré en haut de la colonne */
-.auth-pane .brand { justify-content: center; align-self: center; }
 
-/* ---- Éléments d'étape : juste le titre + sous-titre, à gauche (sans icône) ---- */
+/* ---- Éléments d'étape : icône CENTRÉE au-dessus, titre + sous-titre À GAUCHE ---- */
 .oc-icon-area { text-align: left; }
-.oc-icon-circle { display: none; }
+.oc-icon-circle {
+  width: 44px; height: 44px; border-radius: var(--radius-m);
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto var(--sp-3); /* centrée horizontalement */
+}
+.oc-icon-circle svg { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
 .oc-icon-circle svg { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
 .oc-title { font-size: var(--fs-h1); font-weight: 650; color: var(--ink); margin: 0 0 2px; }
 .oc-subtitle { font-size: var(--fs-small); color: var(--ink-dim); margin: 0; }
@@ -99,6 +103,7 @@
 }
 .oc-back:hover, .oc-back-bottom:hover, .oc-forgot-link:hover, .oc-resend-link:hover { text-decoration: underline; }
 .oc-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--sp-2); }
+.oc-back-brand { margin: var(--sp-2) 0 0 var(--sp-2); align-self: flex-start; }
 .oc-back svg { width: 15px; height: 15px; }
 .oc-back-bottom, .oc-forgot-link, .oc-resend-link { display: block; text-align: center; margin-top: var(--sp-3); }
 
