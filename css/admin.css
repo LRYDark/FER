@@ -560,6 +560,7 @@ body {
   font-size: var(--fs-small);
   font-weight: 550;
   padding: 0.45rem 1rem;
+  margin: 0 !important; /* les CSS de pages ajoutaient des margin-right → espacement asymétrique */
   text-decoration: none;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
