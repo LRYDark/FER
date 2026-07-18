@@ -40,6 +40,30 @@ CONNEXION PAR CLÉ D'ACCÈS DIRECTE (nouveau)
   de l'email.
 
 --------------------------------------------------------
+NOUVELLE INTERFACE D'ADMINISTRATION (jr-theme)
+--------------------------------------------------------
+- Toute l'administration adopte le style jr-theme (MERIDIAN) :
+  sidebar en carte flottante, menus groupés par sections (Pilotage,
+  Inscriptions, Contenu, Emails, Réglages, Sécurité & système),
+  bloc utilisateur en bas de la sidebar (profil, mode T-shirts,
+  déconnexion).
+- Les sous-menus des pages Réglages et Emails sont désormais dans
+  la sidebar (un clic = le bon onglet directement).
+- Réorganisation : l'onglet AssoConnect regroupe liaison, domaines
+  CSP et tous les imports (les 2 anciens onglets Import fusionnés) ;
+  la carte « QR Code dans les mails » rejoint le Template.
+- Apparence PAR UTILISATEUR (profil → Apparence) : thème clair /
+  sombre / système, couleur d'accent (rose du site par défaut,
+  presets ou couleur libre), police de l'admin — indépendant du
+  site public, qui garde son « Thème du site » (Réglages →
+  Personnalisation).
+- Pages de connexion, réinitialisation, changement de mot de passe,
+  installation et mise à jour : layout « split » avec panneau
+  illustré animé, aux couleurs de l'accent.
+- Graphiques (Statistiques, Visites) réhabillés aux couleurs du
+  thème (accent, clair/sombre automatiques).
+
+--------------------------------------------------------
 SÉCURITÉ
 --------------------------------------------------------
 - config/.htaccess et .htaccess racine : extensions .enc et .key

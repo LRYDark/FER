@@ -1414,117 +1414,26 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mise à jour BDD — Forbach en Rose</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    background: #f8f7f9;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-  .update-card {
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 4px 24px rgba(0,0,0,.08);
-    max-width: 700px;
-    width: 100%;
-    overflow: hidden;
-  }
-  .update-header {
-    background: linear-gradient(135deg, var(--primary, #f42182), var(--primary-hover, #db2777));
-    padding: 28px 32px;
-    color: var(--primary-text, #fff);
-  }
-  .update-header h1 {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-  .update-header p {
-    font-size: 13px;
-    opacity: .85;
-  }
-  .update-body { padding: 24px 32px 32px; }
-
-  .summary {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-  .summary-item {
-    flex: 1;
-    text-align: center;
-    padding: 14px 12px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .summary-item .num {
-    display: block;
-    font-size: 28px;
-    font-weight: 800;
-    line-height: 1.1;
-    margin-bottom: 2px;
-  }
-  .summary-ok   { background: #ecfdf5; color: #065f46; }
-  .summary-skip { background: #fffbeb; color: #92400e; }
-  .summary-err  { background: #fef2f2; color: #991b1b; }
-
-  .migration-list { list-style: none; }
-  .migration-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid #f0e8eb;
-    font-size: 13px;
-  }
-  .migration-item:last-child { border-bottom: none; }
-
-  .migration-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 14px;
-  }
-  .icon-success { background: #d1fae5; color: #059669; }
-  .icon-skip    { background: #fef3c7; color: #d97706; }
-  .icon-error   { background: #fee2e2; color: #dc2626; }
-
-  .migration-sql {
-    font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 12px;
-    color: #64748b;
-    word-break: break-all;
-    margin-top: 2px;
-  }
-  .migration-msg { font-weight: 600; color: #1e293b; }
-
-  .update-footer {
-    padding: 16px 32px;
-    background: #faf7f8;
-    border-top: 1px solid #f0e8eb;
-    text-align: center;
-    font-size: 12px;
-    color: #94a3b8;
-  }
-  .update-footer a { color: var(--primary, #f42182); text-decoration: none; font-weight: 600; }
-  .update-footer a:hover { text-decoration: underline; }
-</style>
+<?php include __DIR__ . '/src/partials/auth-head.php'; ?>
 </head>
 <body>
-<div class="update-card">
-  <div class="update-header">
-    <h1><i class="bi bi-database-gear me-2"></i>Mise à jour de la base de données</h1>
-    <p><?= count($migrations) ?> migration(s) traitée(s)</p>
-  </div>
+<div class="auth">
+  <div class="auth-frame">
+    <div class="auth-pane">
+      <a class="brand" href="inc/dashboard.php">
+        <?php if (file_exists(__DIR__ . '/files/_logos/logo_fer_rose.png')): ?>
+          <img src="files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+        <?php endif; ?>
+        <span class="name">Forbach en Rose</span>
+      </a>
+      <div class="inner is-wide">
+        <div class="oc-icon-area">
+          <div class="oc-icon-circle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+          </div>
+          <h1 class="oc-title">Mise à jour de la base de données</h1>
+          <p class="oc-subtitle"><?= count($migrations) ?> migration(s) traitée(s)</p>
+        </div>
 
   <div class="update-body">
     <div class="summary">
@@ -1556,7 +1465,7 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
 
   <div class="update-footer">
     <p style="margin-bottom:16px;">
-      <a href="update.php?tool=repair-dates" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--primary, #f42182),var(--primary-hover, #db2777));color:var(--primary-text, #fff);border-radius:10px;padding:10px 18px;text-decoration:none;font-weight:600;font-size:13px;">
+      <a href="update.php?tool=repair-dates" class="oc-btn-secondary" style="width:auto;text-decoration:none">
         <i class="bi bi-calendar-check"></i> Réparer les dates d'inscription (jour/mois inversés)
       </a>
     </p>
@@ -1564,30 +1473,37 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
     <!-- Auto-suppression : proposée maintenant que la mise à jour est terminée.
          « Oui » supprime le fichier (POST + CSRF) ; « Non » retourne au dashboard
          sans rien faire. -->
-    <div style="background:#fff;border:1px solid #f0e8eb;border-radius:12px;padding:18px 20px;margin-bottom:8px;text-align:left;">
-      <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:4px;">
-        <i class="bi bi-shield-lock" style="color:var(--primary, #f42182);"></i>
-        Voulez-vous supprimer <code style="background:#f1f5f9;padding:2px 6px;border-radius:6px;">update.php</code> ?
+    <div class="upd-danger-box">
+      <div class="upd-danger-title">
+        <i class="bi bi-shield-lock"></i>
+        Voulez-vous supprimer <code>update.php</code> ?
       </div>
-      <div style="font-size:12px;color:#64748b;line-height:1.5;margin-bottom:14px;">
+      <div class="upd-danger-text">
         La mise à jour est terminée. Par sécurité, il est recommandé de supprimer ce
         fichier du serveur. Vous pourrez le réinstaller lors de la prochaine mise à jour.
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div class="upd-actions">
         <form method="post" action="update.php" style="margin:0;"
               onsubmit="return confirm('Supprimer définitivement update.php du serveur ?');">
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="delete_self">
-          <button type="submit" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+          <button type="submit" class="upd-btn-danger">
             <i class="bi bi-trash3"></i> Oui, supprimer update.php
           </button>
         </form>
-        <a href="inc/dashboard.php" style="display:inline-flex;align-items:center;gap:8px;background:#f1f5f9;color:#475569;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:600;text-decoration:none;">
+        <a href="inc/dashboard.php" class="oc-btn-secondary" style="width:auto;text-decoration:none">
           <i class="bi bi-x-lg"></i> Non, garder le fichier
         </a>
       </div>
     </div>
+
+    <p style="margin-top:16px"><a href="inc/dashboard.php" class="oc-back"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg> Retour au tableau de bord</a></p>
   </div>
-</div>
+
+      </div><!-- /inner -->
+    </div><!-- /auth-pane -->
+    <?php include __DIR__ . '/src/partials/auth-art.php'; ?>
+  </div><!-- /auth-frame -->
+</div><!-- /auth -->
 </body>
 </html>
