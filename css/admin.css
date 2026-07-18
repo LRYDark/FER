@@ -539,28 +539,33 @@ body {
 .card-body { color: var(--ink); }
 
 /* ---- Onglets (settings-tabs, nav-tabs, period-tabs) ---- */
+/* ⚠️ Règle VERROUILLÉE (!important sur chaque propriété) : chaque page admin
+   traîne son propre CSS d'onglets (souvent via des sélecteurs #id plus forts),
+   avec soulignements, marges et paddings différents. Ici on impose LE style
+   pilule unique, partout : conteneur gris, pilules régulières, active blanche. */
 .settings-tabs, .nav-tabs, .period-tabs {
-  display: flex;
+  display: flex !important;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  background: var(--surface-2);
-  border: 0;
-  border-radius: var(--radius-m);
-  margin-bottom: var(--sp-5);
-  width: fit-content;
+  gap: 4px !important;
+  padding: 4px !important;
+  background: var(--surface-2) !important;
+  border: 0 !important;
+  border-radius: var(--radius-m) !important;
+  margin: 0 0 var(--sp-4) !important;
+  width: fit-content !important;
   max-width: 100%;
+  flex: 0 0 auto !important; /* neutralise les .flex-grow-1 des pages */
 }
-.settings-tabs .nav-item, .nav-tabs .nav-item { margin: 0; }
+.settings-tabs .nav-item, .nav-tabs .nav-item { margin: 0 !important; }
 .settings-tabs .nav-link, .nav-tabs .nav-link, .period-tabs a, .period-tabs button {
   border: 0 !important;
   border-radius: var(--radius-s) !important;
-  background: transparent;
+  background: transparent !important;
   color: var(--ink-dim) !important;
-  font-size: var(--fs-small);
+  font-size: var(--fs-small) !important;
   font-weight: 550;
-  padding: 0.45rem 1rem;
-  margin: 0 !important; /* les CSS de pages ajoutaient des margin-right → espacement asymétrique */
+  padding: 0.45rem 1rem !important;
+  margin: 0 !important;
   text-decoration: none;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
@@ -568,6 +573,70 @@ body {
 .settings-tabs .nav-link.active, .nav-tabs .nav-link.active, .period-tabs .active {
   background: var(--surface) !important;
   color: var(--ink) !important;
+  box-shadow: var(--shadow-card);
+}
+
+/* Même famille : filtres de contenus (Tous/Publiés/Brouillons — news, albums,
+   partenaires, timeline), bascule Light/Dark du thème, mini-onglets des
+   éditeurs (Éditeur/Prévisualiser, Propriétés/Ajouter). MÊME pilule partout. */
+.filter-tabs {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 4px !important;
+  padding: 4px !important;
+  background: var(--surface-2) !important;
+  border: 0 !important;
+  border-radius: var(--radius-m) !important;
+  margin: 0 0 var(--sp-4) !important;
+  width: fit-content !important;
+  max-width: 100%;
+}
+.filter-tabs a, .filter-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0 !important;
+  border-radius: var(--radius-s) !important;
+  background: transparent !important;
+  color: var(--ink-dim) !important;
+  font-size: var(--fs-small) !important;
+  font-weight: 550;
+  padding: 0.45rem 1rem !important;
+  margin: 0 !important;
+  text-decoration: none !important;
+}
+.filter-tabs a:hover, .filter-tabs button:hover { color: var(--ink) !important; }
+.filter-tabs a.active, .filter-tabs button.active {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  box-shadow: var(--shadow-card);
+}
+
+.theme-mode-tab {
+  border: 0 !important;
+  border-radius: var(--radius-s) !important;
+  background: var(--surface-2) !important;
+  color: var(--ink-dim) !important;
+  box-shadow: none !important;
+}
+.theme-mode-tab.active {
+  background: var(--surface) !important;
+  color: var(--accent) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.sb-tabs, .ife-sb-tabs { gap: 4px; padding: 4px; background: var(--surface-2); border-radius: var(--radius-m); border: 0 !important; }
+.sb-tab, .ife-sb-tab, .le-sb-tab {
+  border: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: var(--radius-s) !important;
+  background: transparent !important;
+  color: var(--ink-dim) !important;
+  margin: 0 !important;
+}
+.sb-tab.active, .ife-sb-tab.active, .le-sb-tab.active {
+  background: var(--surface) !important;
+  color: var(--accent) !important;
   box-shadow: var(--shadow-card);
 }
 
