@@ -1,0 +1,203 @@
+/* ============================================================
+   MERIDIAN — Design tokens
+   Modern, clean SaaS language. Floating panels on a tinted
+   backdrop (nav card + content card), NeuroBank-style.
+
+   Two axes, fully independent:
+   - theme  : light (default) / dark      → data-theme
+   - accent : blue (default) / teal /
+              violet / emerald            → data-accent
+
+   The accent system is indirect: each accent defines a light
+   and a dark variant; the theme picks which one feeds
+   --accent. Components only ever consume --accent tokens.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Canvas & panels ---- */
+  --bg: #E9EDF4;                 /* page backdrop (tinted) */
+  --canvas: #FFFFFF;             /* floating panels: nav card, content card */
+  --card: #FAFBFD;               /* cards inside the content panel */
+  --surface: #FFFFFF;            /* controls: buttons, inputs, modals */
+  --surface-2: #F1F3F8;          /* subtle insets, hovers */
+  --border: #E7EAF1;
+  --border-strong: #D9DEE8;
+
+  /* ---- Ink ---- */
+  --ink: #101828;
+  --ink-dim: #5A6472;
+  --ink-faint: #98A1B0;
+
+  /* ---- Accent palettes (light | dark variant each) ---- */
+  /* blue — default */
+  --accent-l: #3D63F0;
+  --accent-l-strong: #2C4FDB;
+  --accent-l-ink: #FFFFFF;
+  --accent-d: #7B93FF;
+  --accent-d-strong: #98ABFF;
+  --accent-d-ink: #0B1030;
+
+  /* ---- Resolved accent (theme remaps these) ---- */
+  --accent: var(--accent-l);
+  --accent-strong: var(--accent-l-strong);
+  --accent-ink: var(--accent-l-ink);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--canvas));
+
+  /* ---- Semantic ---- */
+  --ok: #16A34A;
+  --warn: #D97706;
+  --danger: #DC2626;
+  --info: #2563EB;
+  --ok-soft: color-mix(in srgb, var(--ok) 11%, var(--canvas));
+  --warn-soft: color-mix(in srgb, var(--warn) 12%, var(--canvas));
+  --danger-soft: color-mix(in srgb, var(--danger) 10%, var(--canvas));
+  --info-soft: color-mix(in srgb, var(--info) 10%, var(--canvas));
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --fs-hero: clamp(1.7rem, 3vw, 2.1rem);
+  --fs-h1: 1.45rem;
+  --fs-h2: 1.05rem;
+  --fs-body: 0.925rem;
+  --fs-small: 0.815rem;
+  --fs-micro: 0.72rem;
+
+  /* ---- Spacing ---- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4.5rem;
+
+  /* ---- Shape ---- */
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;              /* inner cards */
+  --radius-xl: 22px;             /* floating panels */
+  --radius-pill: 999px;
+
+  /* ---- Elevation ---- */
+  --shadow-panel: 0 2px 6px rgba(16, 24, 40, 0.04), 0 12px 32px rgba(16, 24, 40, 0.06);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 14px rgba(16, 24, 40, 0.07);
+  --shadow-card-hover: 0 2px 4px rgba(16, 24, 40, 0.05), 0 10px 28px rgba(16, 24, 40, 0.09);
+  --shadow-modal: 0 12px 48px rgba(16, 24, 40, 0.18);
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 130ms;
+  --dur-med: 260ms;
+  --dur-slow: 500ms;
+
+  /* ---- Layout ---- */
+  --nav-w: 248px;
+  --frame-gap: 1rem;             /* gap around/between floating panels */
+  --content-max: 1420px;
+
+  /* ---- Z ---- */
+  --z-nav: 40;
+  --z-modal: 100;
+  --z-toast: 120;
+}
+
+/* ============================================================
+   Accent palettes — swap with data-accent (theme-independent)
+   ============================================================ */
+:root[data-accent="teal"] {
+  --accent-l: #0FA894;
+  --accent-l-strong: #0B8A7A;
+  --accent-l-ink: #FFFFFF;
+  --accent-d: #2DD4BF;
+  --accent-d-strong: #5EEAD4;
+  --accent-d-ink: #06251F;
+}
+:root[data-accent="violet"] {
+  --accent-l: #7C5CF6;
+  --accent-l-strong: #6847E0;
+  --accent-l-ink: #FFFFFF;
+  --accent-d: #A78BFA;
+  --accent-d-strong: #C4B5FD;
+  --accent-d-ink: #1E1240;
+}
+:root[data-accent="emerald"] {
+  --accent-l: #10B981;
+  --accent-l-strong: #0B9669;
+  --accent-l-ink: #FFFFFF;
+  --accent-d: #34D399;
+  --accent-d-strong: #6EE7B7;
+  --accent-d-ink: #062B1E;
+}
+
+/* ============================================================
+   Dark theme — neutrals + pick the dark accent variant.
+   Default is LIGHT. The OS preference only applies when the
+   user explicitly chose "Système" (data-theme="system").
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    color-scheme: dark;
+
+    --bg: #05070D;
+    --canvas: #0F1219;
+    --card: #151A26;
+    --surface: #151A26;
+    --surface-2: #1D2231;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.13);
+
+    --ink: #F2F4F8;
+    --ink-dim: #A2AAB9;
+    --ink-faint: #636C7E;
+
+    --accent: var(--accent-d);
+    --accent-strong: var(--accent-d-strong);
+    --accent-ink: var(--accent-d-ink);
+
+    --ok: #4ADE80;
+    --warn: #FBBF24;
+    --danger: #F87171;
+    --info: #60A5FA;
+
+    --shadow-panel: 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.35);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.2);
+    --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.35);
+    --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Explicit user choice (toggle) overrides everything */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #05070D;
+  --canvas: #0F1219;
+  --card: #151A26;
+  --surface: #151A26;
+  --surface-2: #1D2231;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.13);
+
+  --ink: #F2F4F8;
+  --ink-dim: #A2AAB9;
+  --ink-faint: #636C7E;
+
+  --accent: var(--accent-d);
+  --accent-strong: var(--accent-d-strong);
+  --accent-ink: var(--accent-d-ink);
+
+  --ok: #4ADE80;
+  --warn: #FBBF24;
+  --danger: #F87171;
+  --info: #60A5FA;
+
+  --shadow-panel: 0 2px 6px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.5);
+}

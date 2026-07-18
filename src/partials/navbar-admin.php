@@ -1,1036 +1,381 @@
 <?php
 /**
- * Admin Layout – Sidebar + Topbar (Rose OpenCloud Theme)
- * Outputs: topbar + sidebar + opens #oc-content div
- * Close with: admin-footer.php
+ * Admin Layout v2 — habillage jr-theme (style MERIDIAN)
+ * Structure : .jr-shell > aside.jr-nav (sidebar) + main.jr-main (contenu)
+ * Ouvre le contenu (#oc-content) — fermer avec admin-footer.php.
+ *
+ * Thème par utilisateur : users.ui_prefs (admin_theme / admin_accent /
+ * admin_accent_custom / admin_font), appliqué via data-theme / data-accent
+ * sur <html> (tokens jr-theme). Accent par défaut : couleur primaire du
+ * site public (Réglages → Thème du site), le rose FER.
  */
 
 $currentPage = basename($_SERVER['PHP_SELF']);
+$currentTab  = $_GET['tab']  ?? ($_GET['pane'] ?? '');
 
 $pageTitles = [
-    'dashboard.php'  => 'Tableau de bord',
-    'utilisateurs.php' => 'Utilisateurs & Droits',
-    'setting.php'    => 'Réglages',
-    'albums.php'     => 'Albums',
-    'partners.php'   => 'Partenaires',
-    'news.php'       => 'Actualités',
-    'stats.php'      => 'Statistiques',
-    'qr_code.php'    => 'QR Code',
-    'saisie.php'     => 'Saisie',
-    'timeline.php'   => 'Timeline',
-    'connexions.php' => 'Connexions',
-    'logs.php'       => 'Logs',
-    'page_stats.php' => 'Visites',
+    'dashboard.php'     => 'Tableau de bord',
+    'utilisateurs.php'  => 'Utilisateurs & Droits',
+    'setting.php'       => 'Réglages',
+    'mail-settings.php' => 'Emails',
+    'albums.php'        => 'Albums photos',
+    'partners.php'      => 'Partenaires',
+    'news.php'          => 'Actualités',
+    'stats.php'         => 'Statistiques',
+    'qr_code.php'       => 'QR Codes',
+    'saisie.php'        => 'Saisie',
+    'timeline.php'      => 'Timeline',
+    'tshirt-access.php' => 'Accès bénévoles',
+    'connexions.php'    => 'Connexions',
+    'logs.php'          => 'Logs',
+    'page_stats.php'    => 'Visites',
 ];
-
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
 
-$adminLinks = [
-    'saisie.php'    => ['Saisie',            '<path d="M12 5v14M5 12h14"/>', ['saisie']],
-    'dashboard.php' => ['Tableau de bord', '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>', ['admin','user','viewer','saisie']],
-    'utilisateurs.php' => ['Utilisateurs & Droits', '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', ['admin']],
-    'setting.php'   => ['Réglages',        '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>', ['admin']],
-    'mail-settings.php' => ['Paramètres mail', '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>', ['admin']],
-    'albums.php'    => ['Albums',           '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>', ['admin','user']],
-    'partners.php'  => ['Partenaires',      '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>', ['admin','user']],
-    'news.php'      => ['Actualités',       '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', ['admin','user']],
-    'timeline.php'  => ['Timeline',         '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', ['admin','user']],
-    'qr_code.php'   => ['QR Code',          '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>', ['admin']],
-    'tshirt-access.php' => ['Accès bénévoles', '<path d="M16 3l5 3-2 4-2-1v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9L5 10 3 6l5-3"/><path d="M9 3a3 3 0 0 0 6 0"/>', ['admin']],
-    'connexions.php'=> ['Connexions',       '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>', ['admin']],
-    'logs.php'      => ['Logs',             '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>', ['admin']],
-    'page_stats.php' => ['Visites',          '<path d="M1 12 C 1 12, 5 4, 12 4 S 23 12, 23 12 S 19 20, 12 20 S 1 12, 1 12 Z"/><circle cx="12" cy="12" r="3"/>', ['admin']],
-    'stats.php'     => ['Statistiques',     '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>', ['admin','user','viewer']],
+// Sous-titres selon l'onglet actif (deep-links de la sidebar)
+$tabTitles = [
+    'setting.php' => [
+        'personnalisation' => 'Personnalisation',
+        'accueil'          => "Page d'accueil",
+        'inscription'      => 'Inscription',
+        'import_auto'      => 'AssoConnect',
+        'parcours'         => 'Parcours',
+        'reglementation'   => 'Réglementation',
+        'formulaire'       => 'Formulaire',
+        'api'              => 'API',
+        'maintenance'      => 'Maintenance',
+    ],
+    'mail-settings.php' => [
+        'envoi'         => 'Envoi de mail',
+        'template'      => 'Template & contenu',
+        'google'        => 'Fournisseur (Gmail / SMTP)',
+        'notifications' => 'Notifications',
+        'newsletter'    => 'Abonnés newsletter',
+    ],
 ];
+$pageSubtitle = $tabTitles[$currentPage][$currentTab] ?? '';
 
-// User info for avatar
+// User info
 $userEmail = $_SESSION['email'] ?? '';
 $userRole  = $role ?? currentRole();
-$userInitial = strtoupper(substr($userEmail, 0, 1));
-if (!$userInitial) $userInitial = strtoupper(substr($userRole, 0, 1));
+$userName  = $userEmail !== '' ? explode('@', $userEmail)[0] : ucfirst((string) $userRole);
+
+/* ── Préférences d'apparence par utilisateur (users.ui_prefs) ─────────────── */
+if (!function_exists('jr_admin_ui_prefs')) {
+    function jr_admin_ui_prefs(PDO $pdo): array
+    {
+        static $prefs = null;
+        if ($prefs !== null) return $prefs;
+        $prefs = [];
+        try {
+            $uid = $_SESSION['uid'] ?? null;
+            if ($uid) {
+                $st = $pdo->prepare('SELECT ui_prefs FROM users WHERE id = ?');
+                $st->execute([$uid]);
+                $raw = $st->fetchColumn();
+                if ($raw) { $dec = json_decode($raw, true); if (is_array($dec)) $prefs = $dec; }
+            }
+        } catch (\Throwable $e) { /* colonne absente → défauts */ }
+        return $prefs;
+    }
+
+    /** Dérive les 6 variables d'accent jr-theme depuis une couleur hex (comme jrApplyAccent). */
+    function jr_accent_vars_from_hex(string $hex): ?array
+    {
+        if (!preg_match('/^#?([0-9a-fA-F]{6})$/', $hex, $m)) return null;
+        $hex = '#' . strtolower($m[1]);
+        $mix = function (string $h, float $t, array $to) { // t∈[0,1] vers $to (rgb)
+            $r = hexdec(substr($h, 1, 2)); $g = hexdec(substr($h, 3, 2)); $b = hexdec(substr($h, 5, 2));
+            $r = (int) round($r + ($to[0] - $r) * $t);
+            $g = (int) round($g + ($to[1] - $g) * $t);
+            $b = (int) round($b + ($to[2] - $b) * $t);
+            return sprintf('#%02x%02x%02x', $r, $g, $b);
+        };
+        $lum = function (string $h) {
+            $r = hexdec(substr($h, 1, 2)) / 255; $g = hexdec(substr($h, 3, 2)) / 255; $b = hexdec(substr($h, 5, 2)) / 255;
+            return 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
+        };
+        $light       = $hex;
+        $lightStrong = $mix($hex, 0.14, [0, 0, 0]);
+        $lightInk    = $lum($hex) > 0.62 ? '#101828' : '#ffffff';
+        $dark        = $mix($hex, 0.30, [255, 255, 255]);
+        $darkStrong  = $mix($hex, 0.42, [255, 255, 255]);
+        $darkInk     = $lum($dark) > 0.62 ? '#0b1030' : '#ffffff';
+        return [$light, $lightStrong, $lightInk, $dark, $darkStrong, $darkInk];
+    }
+}
+
+$jrPrefs  = jr_admin_ui_prefs($pdo);
+$jrTheme  = in_array($jrPrefs['admin_theme'] ?? '', ['light', 'dark', 'system'], true) ? $jrPrefs['admin_theme'] : 'light';
+$jrAccent = $jrPrefs['admin_accent'] ?? 'rose';
+$jrFont   = $jrPrefs['admin_font']   ?? 'inter';
+
+// Couleur du preset « rose » = couleur primaire du site public (défaut FER)
+$jrSitePrimary = '#db2777';
+try {
+    $c = $pdo->query('SELECT theme_primary_color FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
+    if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $jrSitePrimary = $c;
+} catch (\Throwable $e) {}
+
+$jrAccentAttr = '';        // data-accent (presets tokens.css)
+$jrAccentCss  = null;      // override des 6 variables (rose / custom)
+if ($jrAccent === 'custom' && !empty($jrPrefs['admin_accent_custom'])) {
+    $jrAccentCss = jr_accent_vars_from_hex((string) $jrPrefs['admin_accent_custom']);
+    if (!$jrAccentCss) { $jrAccent = 'rose'; }
+}
+if ($jrAccent === 'rose' || ($jrAccent === 'custom' && !$jrAccentCss)) {
+    $jrAccentCss = jr_accent_vars_from_hex($jrSitePrimary);
+} elseif (in_array($jrAccent, ['blue', 'teal', 'violet', 'emerald'], true)) {
+    $jrAccentAttr = $jrAccent === 'blue' ? '' : $jrAccent; // bleu = défaut tokens (pas d'attribut)
+}
+
+// Police admin (indépendante du site public)
+$jrFonts = [
+    'inter'      => null, // défaut jr-theme (auto-hébergée)
+    'system'     => 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    'poppins'    => '"Poppins", sans-serif',
+    'roboto'     => '"Roboto", sans-serif',
+    'open-sans'  => '"Open Sans", sans-serif',
+    'montserrat' => '"Montserrat", sans-serif',
+    'nunito'     => '"Nunito", sans-serif',
+];
+if (!array_key_exists($jrFont, $jrFonts)) $jrFont = 'inter';
+$jrGoogleFonts = ['poppins' => 'Poppins', 'roboto' => 'Roboto', 'open-sans' => 'Open+Sans', 'montserrat' => 'Montserrat', 'nunito' => 'Nunito'];
 ?>
 
-<?php include __DIR__ . '/../content/theme.php'; ?>
+<?php include __DIR__ . '/../content/theme.php'; /* variables --primary du site (compat contenus existants) */ ?>
 
-<!-- ═══════ ADMIN LAYOUT CSS ═══════ -->
-<style>
-/* ══════════════════════════════════════════════════════════════
-   BLUE OPENCLOUD THEME – Light only
-   ══════════════════════════════════════════════════════════════ */
+<!-- ═══════ jr-theme (habillage admin) ═══════ -->
+<script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+(function () {
+  var d = document.documentElement;
+  d.setAttribute('data-theme', <?= json_encode($jrTheme) ?>);
+  <?php if ($jrAccentAttr !== ''): ?>d.setAttribute('data-accent', <?= json_encode($jrAccentAttr) ?>);<?php endif; ?>
+  // Miroir localStorage → les pages login/install (pré-auth) suivent le dernier choix
+  try {
+    localStorage.setItem('jr-theme', <?= json_encode($jrTheme) ?>);
+    <?php if ($jrAccentCss): ?>
+    localStorage.setItem('jr-accent', 'custom');
+    localStorage.setItem('jr-accent-custom', <?= json_encode($jrAccentCss[0]) ?>);
+    <?php else: ?>
+    localStorage.setItem('jr-accent', <?= json_encode($jrAccentAttr === '' ? '' : $jrAccentAttr) ?>);
+    localStorage.removeItem('jr-accent-custom');
+    <?php endif; ?>
+  } catch (e) {}
+})();
+</script>
+<link rel="stylesheet" href="../jr-theme/css/tokens.css">
+<link rel="stylesheet" href="../jr-theme/css/base.css">
+<link rel="stylesheet" href="../css/admin.css">
+<?php if (isset($jrGoogleFonts[$jrFont])): ?>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= $jrGoogleFonts[$jrFont] ?>:wght@400;500;600;700&display=swap">
+<?php endif; ?>
+<style id="jr-user-vars">
+<?php if ($jrAccentCss): ?>
 :root {
-  --rose-500: var(--primary, #db2777);
-  --oc-frame:        var(--secondary, #0f172a);
-  --oc-frame-text:   var(--secondary-text, #ffffff);
-  --oc-topbar-h:     52px;
-  --oc-sidebar-w:    230px;
-  --oc-sidebar-bg:   #f8fafc;
-  --oc-sidebar-active-bg:  var(--primary-light, #fce7f3);
-  --oc-sidebar-active-text: var(--primary-hover, #9d174d);
-  --oc-sidebar-hover-bg:   #fdf2f8;
-  --oc-sidebar-text:       #475569;
-  --oc-sidebar-text-dim:   #94a3b8;
-  --oc-sidebar-icon:       #94a3b8;
-  --oc-surface:      #ffffff;
-  --oc-on-surface:   #191C1D;
-  --oc-on-surface-variant: #475569;
-  --oc-border:       #e2e8f0;
-  --oc-outline:      #64748b;
-  --oc-accent:       var(--primary, #db2777);
-  --oc-accent-soft:  var(--primary-light, rgba(244,33,130,.08));
-  --oc-error:        #BA1A1A;
-  --oc-error-container: #FFDAD6;
-  --oc-radius:       var(--radius, 12px);
-  --oc-gap:          6px;
-  --font-main:       var(--font-family, 'Inter', system-ui, -apple-system, sans-serif);
-}
-
-/* ══════════════════════════════════════════════════════════════
-   BODY RESET
-   ══════════════════════════════════════════════════════════════ */
-html, body {
-  margin: 0 !important; padding: 0 !important;
-  background: var(--oc-frame) !important;
-  background-image: none !important;
-  font-family: var(--font-main);
-  font-size: 14px;
-  height: 100vh !important;
-  height: 100svh !important;
-  overflow: hidden !important;
-  position: fixed !important;
-  width: 100% !important;
-  top: 0; left: 0;
-  color: #1e293b !important;
-}
-
-/* Hide elements from public layout */
-.site-footer { display: none !important; }
-
-/* ══════════════════════════════════════════════════════════════
-   TOPBAR
-   ══════════════════════════════════════════════════════════════ */
-#oc-topbar {
-  background: var(--oc-frame);
-  color: var(--oc-frame-text);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 16px;
-  height: var(--oc-topbar-h);
-  margin: var(--oc-gap) 0;
-  z-index: 50;
-  flex-shrink: 0;
-}
-.oc-topbar-left {
-  display: flex; align-items: center; gap: 12px;
-}
-.oc-topbar-left img { height: 34px; width: auto; }
-#oc-topbar-appname {
-  color: #fff; font-size: 16px; font-weight: 700;
-  text-decoration: none;
-}
-#oc-topbar-appname:hover { text-decoration: none; color: #fff; }
-
-/* Burger (mobile only) */
-.oc-burger {
-  display: none; flex-direction: column; justify-content: center;
-  gap: 5px; background: none; border: none; padding: 8px; cursor: pointer;
-}
-.oc-burger span {
-  display: block; width: 22px; height: 2px; background: #fff;
-  border-radius: 2px; transition: all 0.2s;
-}
-
-/* Avatar & User dropdown */
-.oc-topbar-right { display: flex; align-items: center; gap: 10px; }
-.oc-user-wrapper { position: relative; }
-.oc-avatar-btn {
-  width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3);
-  background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--primary-text, #fff);
-  font-size: 14px; font-weight: 700; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.oc-avatar-btn:hover {
-  border-color: rgba(255,255,255,.6);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 30%, transparent);
-}
-.oc-avatar-lg {
-  width: 40px; height: 40px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: #fff;
-  font-size: 16px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-
-/* Dropdown */
-.oc-user-dropdown {
-  display: none;
-  position: absolute; top: calc(100% + 8px); right: 0;
-  width: 280px; background: #fff;
-  border-radius: var(--oc-radius); border: 1px solid #e2e8f0;
-  box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 10001;
-  overflow: hidden;
-}
-.oc-user-dropdown.show { display: block; }
-.oc-user-dropdown-header {
-  display: flex; align-items: center; gap: 12px; padding: 16px;
-}
-.oc-user-dropdown-name {
-  font-size: 14px; font-weight: 700; color: #1e293b;
-  word-break: break-all;
-}
-.oc-user-dropdown-role {
-  font-size: 12px; color: #475569; margin-top: 2px;
-}
-.oc-user-dropdown-divider {
-  height: 1px; background: #e2e8f0; border: none; margin: 0;
-}
-.oc-user-dropdown ul { list-style: none; margin: 4px 0; padding: 0; }
-.oc-user-dropdown ul li a {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 16px; font-size: 14px; color: #1e293b;
-  text-decoration: none; background: transparent; border: none;
-  width: 100%; cursor: pointer; font-family: var(--font-main);
-}
-.oc-user-dropdown ul li a:hover { background: #f8fafc; }
-.oc-user-dropdown ul li a svg {
-  width: 18px; height: 18px; stroke: #475569; fill: none;
-  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-}
-.oc-user-dropdown ul li a.oc-dropdown-danger { color: var(--oc-error); }
-.oc-user-dropdown ul li a.oc-dropdown-danger svg { stroke: var(--oc-error); }
-
-/* ══════════════════════════════════════════════════════════════
-   APP CONTAINER
-   ══════════════════════════════════════════════════════════════ */
-#oc-app-container {
-  display: flex; flex-direction: row;
-  height: calc(100vh - var(--oc-topbar-h) - var(--oc-gap) * 3);
-  height: calc(100svh - var(--oc-topbar-h) - var(--oc-gap) * 3);
-  overflow: hidden;
-  border-radius: var(--oc-radius);
-  margin: 0 var(--oc-gap) var(--oc-gap) var(--oc-gap);
-}
-
-/* ══════════════════════════════════════════════════════════════
-   SIDEBAR
-   ══════════════════════════════════════════════════════════════ */
-#oc-sidebar {
-  background: var(--oc-sidebar-bg);
-  width: var(--oc-sidebar-w);
-  min-width: var(--oc-sidebar-w);
-  max-width: var(--oc-sidebar-w);
-  display: flex; flex-direction: column;
-  border-radius: var(--oc-radius) 0 0 var(--oc-radius);
-  overflow-y: auto; overflow-x: hidden;
-  border-right: 1px solid var(--oc-border);
-}
-.oc-sidebar-nav {
-  list-style: none; margin: 8px 0 0 0; padding: 0; flex: 1;
-}
-.oc-sidebar-nav > li { padding: 2px 8px; }
-.oc-sidebar-link {
-  display: flex; align-items: center; gap: 14px;
-  padding: 9px 12px; border-radius: 8px;
-  color: var(--oc-sidebar-text); font-size: 14px; font-weight: 500;
-  text-decoration: none; background: transparent;
-  transition: background 0.15s, color 0.15s;
-}
-.oc-sidebar-link svg {
-  width: 20px; height: 20px; flex-shrink: 0;
-  stroke: var(--oc-sidebar-icon); fill: none;
-  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-}
-.oc-sidebar-link:hover {
-  background: var(--oc-sidebar-hover-bg);
-  color: var(--oc-sidebar-active-text);
-  text-decoration: none;
-}
-.oc-sidebar-link:hover svg { stroke: var(--oc-sidebar-active-text); }
-.oc-sidebar-link.active {
-  background: var(--oc-sidebar-active-bg);
-  color: var(--oc-sidebar-active-text);
-  font-weight: 600;
-}
-.oc-sidebar-link.active svg { stroke: var(--oc-sidebar-active-text); }
-
-/* ══════════════════════════════════════════════════════════════
-   CONTENT
-   ══════════════════════════════════════════════════════════════ */
-#oc-content {
-  flex: 1;
-  background: var(--oc-surface);
-  border-radius: 0 var(--oc-radius) var(--oc-radius) 0;
-  overflow: auto;
-  padding: 28px 32px 60px;
-  min-width: 0;
-  color: #1e293b;
-}
-
-/* Override any Bootstrap container inside content */
-#oc-content > .container,
-#oc-content > .container-fluid {
-  max-width: 100%; padding: 0; margin: 0;
-}
-
-/* ══════════════════════════════════════════════════════════════
-   MOBILE OVERLAY
-   ══════════════════════════════════════════════════════════════ */
-.oc-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.5);
-  z-index: 1060; opacity: 0; pointer-events: none; transition: opacity 0.3s;
-}
-.oc-overlay.show { opacity: 1; pointer-events: auto; }
-
-/* ══════════════════════════════════════════════════════════════
-   RESPONSIVE
-   ══════════════════════════════════════════════════════════════ */
-@media (max-width: 980px) {
-  .oc-burger { display: flex; }
-
-  #oc-sidebar {
-    position: fixed; top: 0; left: -280px; width: 270px;
-    min-width: 270px; max-width: 85vw;
-    height: 100vh; height: 100dvh;
-    border-radius: 0; z-index: 1070;
-    transition: left 0.3s ease;
-    box-shadow: 4px 0 20px rgba(0,0,0,.15);
-  }
-  #oc-sidebar.open { left: 0; }
-
-  #oc-app-container {
-    margin: 0 var(--oc-gap) var(--oc-gap) var(--oc-gap);
-  }
-
-  #oc-content {
-    border-radius: var(--oc-radius);
-    padding: 20px 16px;
-  }
-}
-
-@media (max-width: 576px) {
-  #oc-content { padding: 16px 12px; }
-  #oc-topbar { padding: 0 12px; }
-}
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Buttons
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .btn {
-  font-family: var(--font-main);
-  font-size: 13px; font-weight: 600; border-radius: 6px;
-  padding: 7px 14px; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-  box-shadow: none; transition: all 0.15s;
-  text-decoration: none; line-height: 1.4;
-}
-#oc-content .btn:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 20%, transparent); }
-
-/* Primary = blue filled */
-#oc-content .btn-primary,
-#oc-content .btn-rose {
-  background: var(--primary); color: #fff; border: none;
-}
-#oc-content .btn-primary:hover,
-#oc-content .btn-rose:hover { background: var(--primary-hover); color: #fff; }
-
-/* Success = soft green */
-#oc-content .btn-success {
-  background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;
-}
-#oc-content .btn-success:hover { background: #d1fae5; color: #065f46; }
-
-/* Danger = soft red */
-#oc-content .btn-danger {
-  background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
-}
-#oc-content .btn-danger:hover { background: #fee2e2; color: #991b1b; }
-
-/* Warning = soft amber */
-#oc-content .btn-warning {
-  background: #fffbeb; color: #92400e; border: 1px solid #fde68a;
-}
-#oc-content .btn-warning:hover { background: #fef3c7; color: #92400e; }
-
-/* Info = soft blue */
-#oc-content .btn-info {
-  background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
-}
-#oc-content .btn-info:hover { background: #dbeafe; color: #1e40af; }
-
-/* Secondary = neutral outline */
-#oc-content .btn-secondary {
-  background: transparent; color: #475569; border: 1px solid #cbd5e1;
-}
-#oc-content .btn-secondary:hover { background: #f8fafc; color: #0f172a; }
-
-/* Outline variants */
-#oc-content .btn-outline-primary {
-  background: transparent; color: var(--primary); border: 1px solid var(--primary);
-}
-#oc-content .btn-outline-primary:hover { background: color-mix(in srgb, var(--primary, #f42182) 8%, transparent); }
-
-#oc-content .btn-outline-secondary {
-  background: transparent; color: #475569; border: 1px solid #cbd5e1;
-}
-#oc-content .btn-outline-secondary:hover { background: #f8fafc; }
-
-#oc-content .btn-outline-danger {
-  background: transparent; color: #991b1b; border: 1px solid #fecaca;
-}
-#oc-content .btn-outline-danger:hover { background: #fef2f2; }
-
-#oc-content .btn-outline-success {
-  background: transparent; color: #065f46; border: 1px solid #a7f3d0;
-}
-#oc-content .btn-outline-success:hover { background: #ecfdf5; }
-
-#oc-content .btn-outline-warning {
-  background: transparent; color: #92400e; border: 1px solid #fde68a;
-}
-#oc-content .btn-outline-warning:hover { background: #fffbeb; }
-
-#oc-content .btn-outline-info {
-  background: transparent; color: #1e40af; border: 1px solid #bfdbfe;
-}
-#oc-content .btn-outline-info:hover { background: #eff6ff; }
-
-/* Small buttons */
-#oc-content .btn-sm { font-size: 12px; padding: 4px 10px; border-radius: 5px; }
-
-/* Light button */
-#oc-content .btn-light {
-  background: #f8fafc; color: #475569; border: 1px solid #e2e8f0;
-}
-#oc-content .btn-light:hover { background: #eef2f7; }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Alerts
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .alert {
-  border-radius: 8px; font-size: 13px; font-weight: 500;
-  padding: 12px 16px; border-width: 1px; border-style: solid;
-  display: flex; align-items: center; gap: 10px;
-}
-#oc-content .alert-success {
-  background: #ecfdf5; color: #065f46; border-color: #a7f3d0;
-}
-#oc-content .alert-danger {
-  background: #fef2f2; color: #991b1b; border-color: #fecaca;
-}
-#oc-content .alert-warning {
-  background: #fffbeb; color: #92400e; border-color: #fde68a;
-}
-#oc-content .alert-info {
-  background: #eff6ff; color: #1e40af; border-color: #bfdbfe;
-}
-#oc-content .alert .btn-close { filter: none; opacity: 0.5; }
-#oc-content .alert .btn-close:hover { opacity: 1; }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Cards
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .card,
-#oc-content .card-dashboard {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
-  box-shadow: none; overflow: hidden;
-}
-#oc-content .card-header {
-  background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-  font-weight: 600; color: #0f172a; padding: 12px 16px;
-}
-#oc-content .card-body { padding: 20px; }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Form controls
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .form-control:not([type="color"]),
-#oc-content .form-select {
-  border: 1px solid #cbd5e1; border-radius: 6px;
-  font-size: 14px; font-family: var(--font-main);
-  color: #1e293b; padding: 7px 12px; height: auto;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-#oc-content input[type="color"] {
-  width: 50px; height: 36px; padding: 2px; border: 1px solid #cbd5e1;
-  border-radius: 6px; cursor: pointer;
-}
-#oc-content .form-control:focus,
-#oc-content .form-select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent);
-}
-#oc-content .form-label {
-  font-size: 13px; font-weight: 600; color: #475569;
-  margin-bottom: 4px;
-}
-#oc-content .form-check-input:checked {
-  background-color: var(--primary); border-color: var(--primary);
-}
-#oc-content .form-check-input:focus {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 15%, transparent);
-  border-color: var(--primary);
-}
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD BLUE – Modals
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .modal-content,
-.modal-content {
-  border-radius: 12px; border: 1px solid #e2e8f0;
-  box-shadow: 0 20px 60px rgba(15,23,42,.15);
-}
-@media (min-width: 1200px) {
-  .modal-dialog.modal-xl { max-width: 70vw; }
-}
-.modal-header {
-  background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-  padding: 14px 20px;
-}
-.modal-header .modal-title { font-size: 16px; font-weight: 700; color: #0f172a; }
-.modal-body { padding: 20px; }
-.modal-footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 20px; }
-
-/* Buttons inside modals (modals are outside #oc-content in the DOM) */
-.modal .btn {
-  font-family: var(--font-main); font-size: 13px; font-weight: 600;
-  border-radius: 6px; padding: 7px 14px;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.modal .btn-primary, .modal .btn-rose { background: var(--primary); color: #fff; border: none; }
-.modal .btn-primary:hover, .modal .btn-rose:hover { background: var(--primary-hover); color: #fff; }
-.modal .btn-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-.modal .btn-success:hover { background: #d1fae5; }
-.modal .btn-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-.modal .btn-danger:hover { background: #fee2e2; }
-.modal .btn-secondary { background: transparent; color: #475569; border: 1px solid #cbd5e1; }
-.modal .btn-secondary:hover { background: #f8fafc; }
-.modal .btn-info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
-.modal .btn-info:hover { background: #dbeafe; }
-.modal .btn-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-.modal .btn-warning:hover { background: #fef3c7; }
-.modal .btn-outline-primary { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
-.modal .btn-outline-primary:hover { background: color-mix(in srgb, var(--primary, #f42182) 8%, transparent); }
-.modal .btn-outline-secondary { background: transparent; color: #64748b; border: 1px solid #94a3b8; }
-.modal .btn-outline-secondary:hover { background: #e2e8f0; color: #475569; }
-.modal .btn-outline-danger { background: transparent; color: #991b1b; border: 1px solid #fecaca; }
-.modal .btn-outline-danger:hover { background: #fef2f2; color: #991b1b; }
-.modal .btn-outline-success { background: transparent; color: #065f46; border: 1px solid #a7f3d0; }
-.modal .btn-outline-success:hover { background: #ecfdf5; color: #065f46; }
-.modal .btn-outline-warning { background: transparent; color: #92400e; border: 1px solid #fde68a; }
-.modal .btn-outline-warning:hover { background: #fffbeb; color: #92400e; }
-.modal .btn-outline-info { background: transparent; color: #1e40af; border: 1px solid #bfdbfe; }
-.modal .btn-outline-info:hover { background: #eff6ff; color: #1e40af; }
-.modal .btn-sm { font-size: 12px; padding: 4px 10px; }
-
-/* Form controls inside modals */
-.modal .form-control, .modal .form-select {
-  border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #1e293b;
-}
-.modal .form-control:focus, .modal .form-select:focus {
-  border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent);
-}
-.modal .form-label { font-size: 13px; font-weight: 600; color: #475569; }
-.modal .form-check-input:checked { background-color: var(--primary); border-color: var(--primary); }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Tables
-   ══════════════════════════════════════════════════════════════ */
-/* ── Style GLOBAL d'origine (inchangé) : s'applique à TOUS les tableaux admin
-     SAUF ceux portant la classe .fer-table (dashboard / stats / saisie). ── */
-#oc-content .table { font-size: 14px; }
-#oc-content .table > thead > tr > th {
-  background: #f8fafc; color: #475569; font-weight: 600;
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;
-  border-bottom: 2px solid #e2e8f0; padding: 10px 12px;
-}
-#oc-content .table > tbody > tr > td {
-  padding: 10px 12px; border-bottom: 1px solid #e2e8f0; color: #1e293b;
-  vertical-align: middle;
-}
-#oc-content .table > tbody > tr:hover > td { background: #f8fafc; }
-
-/* ── NOUVEAU THÈME — UNIQUEMENT sur .fer-table (dashboard / stats / saisie).
-     Placé APRÈS le global pour gagner à spécificité égale. En-tête = couleur
-     secondaire + texte auto, lignes aérées, survol rose léger. ── */
-#oc-content .fer-table { border-collapse: separate; border-spacing: 0; }
-#oc-content .fer-table > thead > tr > th {
-  background: var(--secondary, #0f172a);
-  color: var(--secondary-text, #ffffff);
-  font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
-  border-bottom: none; border-top: none; padding: 13px 8px; white-space: nowrap;
-}
-#oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
-#oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
-#oc-content .fer-table > tbody > tr > td {
-  padding: 12px 8px; border-bottom: 1px solid #eef1f5; color: #1e293b; vertical-align: middle;
-}
-#oc-content .fer-table > tbody > tr:last-child > td { border-bottom: none; }
-#oc-content .fer-table > tbody > tr:hover > td { background-color: #fdeef5; }
-
-/* Icônes de tri discrètes (rose sur la colonne triée) — scopées .fer-table */
-#oc-content .fer-table.dataTable thead .sorting:before,
-#oc-content .fer-table.dataTable thead .sorting:after,
-#oc-content .fer-table.dataTable thead .sorting_asc:after,
-#oc-content .fer-table.dataTable thead .sorting_desc:before { opacity: 0 !important; }
-#oc-content .fer-table.dataTable thead .sorting:before,
-#oc-content .fer-table.dataTable thead .sorting:after,
-#oc-content .fer-table.dataTable thead .sorting_asc:before,
-#oc-content .fer-table.dataTable thead .sorting_asc:after,
-#oc-content .fer-table.dataTable thead .sorting_desc:before,
-#oc-content .fer-table.dataTable thead .sorting_desc:after { right: .5em; font-size: .7em; }
-#oc-content .fer-table.dataTable thead th.sorting:hover:after { opacity: .5 !important; color: #cbd5e1; }
-#oc-content .fer-table.dataTable thead .sorting_asc:before,
-#oc-content .fer-table.dataTable thead .sorting_desc:after { opacity: 1 !important; color: #f472b6; }
-
-/* ── COMPOSANTS INTERACTIFS PARTAGÉS (entonnoir de filtre, popover, poignées de
-     redimensionnement, bouton « Colonnes », repère ColReorder). Réutilisés par
-     dashboard / saisie / stats — un seul jeu de styles. ── */
-#oc-content .fer-table.dataTable thead th { position: relative; }   /* ancrage poignée de resize */
-
-.col-filter-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 19px; height: 19px; margin-left: 6px; border-radius: 5px;
-  color: var(--secondary-text, #fff); opacity: .55;
-  cursor: pointer; font-size: 11px; vertical-align: middle;
-  transition: background .15s, color .15s, opacity .15s;
-}
-.col-filter-btn:not(.active):hover, .col-filter-btn.active { opacity: 1; }
-.col-filter-btn:hover { background: #fdf2f8; color: #9d174d; }
-.col-filter-btn.active { background: var(--primary, #f42182); color: var(--primary-text, #fff); }
-
-.col-filter-pop {
-  position: fixed; z-index: 2000; min-width: 196px; max-height: 340px; overflow-y: auto;
-  background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.15); padding: 6px; display: none;
-}
-.col-filter-pop.show { display: block; }
-.col-filter-pop .cfp-head {
-  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
-  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
-}
-.col-filter-pop .cfp-opt {
-  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
-  font-size: 13px; color: #1e293b; cursor: pointer; white-space: nowrap;
-}
-.col-filter-pop .cfp-opt:hover { background: #fdf2f6; }
-.col-filter-pop .cfp-opt.active { background: #fbeaf1; color: var(--primary, #f42182); font-weight: 600; }
-.col-filter-pop .cfp-opt .bi { font-size: 13px; opacity: 0; flex: 0 0 auto; }
-.col-filter-pop .cfp-opt.active .bi { opacity: 1; }
-
-/* Poignées de redimensionnement de colonne (.fer-table uniquement) */
-#oc-content .fer-table.dataTable thead th .col-resize {
-  position: absolute; right: 0; top: 0; bottom: 0; width: 5px;
-  cursor: col-resize; user-select: none; z-index: 1;
-}
-#oc-content .fer-table.dataTable thead th .col-resize:hover,
-#oc-content .fer-table.dataTable thead th .col-resize.active { background: var(--primary, #f42182); }
-
-/* ── Voile de chargement des tableaux (anti-flash pendant l'init DataTables) ──
-   Le tableau est masqué (visibility:hidden → la mise en page reste calculée, donc
-   les largeurs se mesurent correctement) et un spinner s'affiche, jusqu'à ce que
-   les données + préférences + largeurs soient appliquées. Reveal = retrait de
-   .is-loading → fondu d'apparition propre, sans saut de colonnes. */
-.fer-tbl-wrap { position: relative; }
-.fer-tbl-wrap.is-loading { min-height: 180px; }
-.fer-tbl-wrap > :not(.fer-tbl-spinner) { transition: opacity .25s ease; }
-.fer-tbl-wrap.is-loading > :not(.fer-tbl-spinner) { visibility: hidden; opacity: 0; }
-.fer-tbl-spinner {
-  position: absolute; inset: 0; z-index: 5;
-  display: none; align-items: center; justify-content: center;
-}
-.fer-tbl-wrap.is-loading > .fer-tbl-spinner { display: flex; }
-.fer-tbl-spinner::after {
-  content: ""; width: 42px; height: 42px; border-radius: 50%;
-  border: 4px solid #f6d6e6; border-top-color: var(--primary, #f42182);
-  animation: fer-spin .7s linear infinite;
-}
-@keyframes fer-spin { to { transform: rotate(360deg); } }
-
-/* Cellule « tampon » : remplit l'espace à droite (largeur auto en table-layout:fixed)
-   pour que l'en-tête et les lignes atteignent le bord de la page. Non interactive. */
-.fer-spacer-cell { padding: 0 !important; pointer-events: none; }
-
-/* Repère d'insertion + aperçu de la colonne déplacée (ColReorder).
-   NB : ColReorder 1.7 nomme ces éléments DTCR_pointer / DTCR_clonedTable. */
-div.DTCR_pointer { background-color: var(--primary, #f42182) !important; width: 2px; border-radius: 2px; }
-/* Pendant le déplacement, on masque le clone par défaut (il copie tout le tableau
-   → bloc disgracieux). Le retour visuel vient à la place d'une petite étiquette
-   rose arrondie portant le nom de la colonne, qui suit la souris (créée en JS),
-   + du trait rose d'insertion : net, discret et aux couleurs du site. */
-table.DTCR_clonedTable.dataTable { display: none !important; }
-.dtcr-drag-label {
-  position: fixed; z-index: 2100; pointer-events: none; display: none;
-  background: var(--primary, #f42182); color: var(--primary-text, #fff); font-size: 12px; font-weight: 600;
-  padding: 5px 12px; border-radius: 999px; white-space: nowrap;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, #f42182) 35%, transparent);
-}
-.dtcr-drag-label.show { display: block; }
-
-/* Bouton « Colonnes » (afficher/masquer) — mêmes codes visuels que les popovers
-   de filtre d'en-tête (.col-filter-pop) pour une apparence uniforme sur le site. */
-.col-toggle-wrap { position: relative; display: inline-block; }
-.col-toggle-btn {
-  font-size: 13px; font-weight: 500; padding: 5px 12px;
-  border: 1px solid #d4c4cb; border-radius: 6px; background: #fff;
-  color: #1e293b; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-}
-.col-toggle-btn:hover { background: #fdf8f9; }
-.col-toggle-dropdown {
-  display: none; position: absolute; top: 100%; right: 0; margin-top: 6px;
-  background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.15); z-index: 100;
-  padding: 6px; min-width: 200px; max-height: 350px; overflow-y: auto;
-}
-.col-toggle-dropdown.show { display: block; }
-.col-toggle-dropdown .cfp-head {
-  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
-  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
-}
-.col-toggle-dropdown label {
-  display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
-  font-size: 13px; color: #1e293b; cursor: pointer; font-weight: 400;
-  text-transform: none; letter-spacing: 0; margin: 0; white-space: nowrap;
-}
-.col-toggle-dropdown label:hover { background: #fdf2f6; }
-
-/* Boutons d'action dans les tableaux : toujours côte à côte */
-.action-buttons { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; }
-.action-buttons .btn {
-  --bs-btn-padding-y: .20rem; --bs-btn-padding-x: .45rem; --bs-btn-font-size: .75rem;
-  flex: 0 0 auto; margin: 0 !important;
-}
-
-/* Table responsive — no horizontal scrollbar unless truly needed */
-#oc-content .table-responsive { overflow-x: auto; }
-#oc-content .table { min-width: 0; }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – DataTables overrides
-   ══════════════════════════════════════════════════════════════ */
-/* Select "Afficher X entrées" */
-#oc-content .dataTables_wrapper .dataTables_length select,
-#oc-content .dataTables_wrapper select {
-  border: 1px solid #cbd5e1; border-radius: 6px;
-  padding: 4px 28px 4px 8px; font-size: 13px; color: #1e293b;
-  background: #fff url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") no-repeat right 8px center/12px;
-  -webkit-appearance: none; -moz-appearance: none; appearance: none;
-  cursor: pointer;
-}
-#oc-content .dataTables_wrapper .dataTables_length label,
-#oc-content .dataTables_wrapper .dataTables_filter label,
-#oc-content .dataTables_wrapper .dataTables_info,
-.modal .dataTables_wrapper .dataTables_length label,
-.modal .dataTables_wrapper .dataTables_filter label,
-.modal .dataTables_wrapper .dataTables_info {
-  font-size: 13px; color: #1e293b;
-}
-/* Search input */
-#oc-content .dataTables_wrapper .dataTables_filter input {
-  border: 1px solid #cbd5e1; border-radius: 6px;
-  padding: 5px 10px; font-size: 13px; color: #1e293b;
-}
-#oc-content .dataTables_wrapper .dataTables_filter input:focus {
-  border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #f42182) 12%, transparent); outline: none;
-}
-/* Pagination — Bootstrap style, rose instead of blue */
-#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button,
-.modal .dataTables_wrapper .dataTables_paginate .paginate_button,
-#oc-content .page-link,
-.modal .page-link {
-  color: #1e293b !important;
-}
-#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button:hover,
-.modal .dataTables_wrapper .dataTables_paginate .paginate_button:hover,
-#oc-content .page-link:hover,
-.modal .page-link:hover {
-  color: #1e293b !important;
-}
-#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button.current,
-#oc-content .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
-.modal .dataTables_wrapper .dataTables_paginate .paginate_button.current,
-.modal .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover,
-#oc-content .page-item.active .page-link,
-.modal .page-item.active .page-link {
-  background-color: var(--primary) !important; color: #fff !important;
-  border-color: var(--primary) !important;
-}
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Badges
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .badge {
-  font-size: 11px; font-weight: 600; padding: 3px 8px;
-  border-radius: 4px; letter-spacing: 0.02em;
-}
-#oc-content .badge.bg-primary { background: #fce7f3 !important; color: #9d174d !important; }
-#oc-content .badge.bg-success { background: #ecfdf5 !important; color: #065f46 !important; }
-#oc-content .badge.bg-danger { background: #fef2f2 !important; color: #991b1b !important; }
-#oc-content .badge.bg-warning { background: #fffbeb !important; color: #92400e !important; }
-#oc-content .badge.bg-info { background: #eff6ff !important; color: #1e40af !important; }
-#oc-content .badge.bg-secondary { background: #f3f4f6 !important; color: #4b5563 !important; }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Nav tabs
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .nav-tabs {
-  border-bottom: 2px solid #e2e8f0;
-}
-#oc-content .nav-tabs .nav-link,
-#oc-content .nav .nav-link,
-#oc-content .settings-tabs .nav-link,
-#oc-content .settings-tabs a,
-#oc-content .filter-tabs .nav-link,
-#oc-content .filter-tabs a {
-  color: #1e293b !important; font-weight: 500; font-size: 14px;
-  border: none; border-bottom: 2px solid transparent;
-  margin-bottom: -2px; border-radius: 0; padding: 10px 16px;
-  text-decoration: none;
-}
-#oc-content .nav-tabs .nav-link:hover,
-#oc-content .nav .nav-link:hover,
-#oc-content .settings-tabs .nav-link:hover,
-#oc-content .settings-tabs a:hover,
-#oc-content .filter-tabs .nav-link:hover,
-#oc-content .filter-tabs a:hover { color: #1e293b !important; border-bottom-color: #cbd5e1; }
-#oc-content .nav-tabs .nav-link.active,
-#oc-content .nav .nav-link.active,
-#oc-content .settings-tabs .nav-link.active,
-#oc-content .settings-tabs a.active,
-#oc-content .filter-tabs .nav-link.active,
-#oc-content .filter-tabs a.active {
-  color: #1e293b !important; font-weight: 600;
-  border-bottom-color: var(--primary); background: transparent;
-}
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – List groups
-   ══════════════════════════════════════════════════════════════ */
-#oc-content .list-group-item {
-  border-color: #e2e8f0; font-size: 14px; padding: 12px 16px;
-}
-#oc-content .list-group-item:hover { background: #f8fafc; }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Headings inside content
-   ══════════════════════════════════════════════════════════════ */
-#oc-content h1 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 20px; }
-#oc-content h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
-#oc-content h3 { font-size: 16px; font-weight: 700; color: #0f172a; }
-#oc-content h5 { font-size: 15px; font-weight: 700; color: #0f172a; }
-#oc-content a { color: var(--primary); }
-#oc-content a:hover { color: var(--primary-hover); }
-
-/* ══════════════════════════════════════════════════════════════
-   OPENCLOUD ROSE – Scrollbar (content area)
-   ══════════════════════════════════════════════════════════════ */
-#oc-content::-webkit-scrollbar { width: 8px; }
-#oc-content::-webkit-scrollbar-track { background: transparent; }
-#oc-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-#oc-content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-/* ══ Admin Overrides : boutons & alertes pleins ══════════════════════════ */
-
-/* Alertes pleines */
-.alert-success {
-  background: #16a34a !important;
-  color: #fff !important;
-  border: none !important;
-}
-
-.alert-danger {
-  background: #dc2626 !important;
-  color: #fff !important;
-  border: none !important;
-}
-
-.alert-warning {
-  background: #f59e0b !important;
-  color: #fff !important;
-  border: none !important;
-}
-.alert-warning .btn-close { filter: invert(1); }
-
-.alert-info {
-  background: #0ea5e9 !important;
-  color: #fff !important;
-  border: none !important;
-}
-.alert-info .btn-close { filter: invert(1); }
-
-/* Boutons pleins */
-.btn-success {
-  background: #16a34a !important;
-  border-color: #16a34a !important;
-  color: #fff !important;
-}
-.btn-success:hover { background: #15803d !important; border-color: #15803d !important; }
-
-.btn-outline-danger {
-  background: #dc2626 !important;
-  border-color: #dc2626 !important;
-  color: #fff !important;
-}
-.btn-outline-danger:hover { background: #b91c1c !important; border-color: #b91c1c !important; }
-
-/* btn-outline-secondary : garder le style Bootstrap par défaut (boutons Aperçu etc.) */
-
-/* Modals : header bord à bord */
-.modal-content.p-4 { padding: 0 !important; }
-.modal-content.p-4 .modal-header { padding: 1rem 1.5rem; }
-.modal-content.p-4 .modal-body { padding: 1.5rem; }
-.modal-content.p-4 .modal-footer { padding: 1rem 1.5rem; }
-
-.btn-danger {
-  background: #dc2626 !important;
-  border-color: #dc2626 !important;
-  color: #fff !important;
-}
-.btn-danger:hover { background: #b91c1c !important; border-color: #b91c1c !important; }
-
-.btn-outline-success {
-  background: #16a34a !important;
-  border-color: #16a34a !important;
-  color: #fff !important;
-}
-.btn-outline-success:hover { background: #15803d !important; border-color: #15803d !important; }
-
-.btn-outline-warning {
-  background: #f59e0b !important;
-  border-color: #f59e0b !important;
-  color: #fff !important;
-}
-.btn-outline-warning:hover { background: #d97706 !important; border-color: #d97706 !important; }
+  --accent-l: <?= $jrAccentCss[0] ?>; --accent-l-strong: <?= $jrAccentCss[1] ?>; --accent-l-ink: <?= $jrAccentCss[2] ?>;
+  --accent-d: <?= $jrAccentCss[3] ?>; --accent-d-strong: <?= $jrAccentCss[4] ?>; --accent-d-ink: <?= $jrAccentCss[5] ?>;
+}
+<?php endif; ?>
+<?php if ($jrFonts[$jrFont] !== null): ?>
+body { font-family: <?= $jrFonts[$jrFont] ?>; }
+<?php endif; ?>
 </style>
 
-<!-- ═══════ TOPBAR ═══════ -->
-<header id="oc-topbar">
-  <div class="oc-topbar-left">
-    <button class="oc-burger" id="ocBurger" type="button" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
-    <a href="dashboard.php" style="display:flex;align-items:center">
-      <img src="../files/_logos/logo_blanc.png" alt="Forbach en Rose">
-    </a>
-  </div>
-  <div class="oc-topbar-right">
-    <div class="oc-user-wrapper">
-      <button class="oc-avatar-btn" id="ocAvatarBtn" type="button" title="<?= htmlspecialchars($userEmail) ?>">
-        <?= $userInitial ?>
-      </button>
-      <div class="oc-user-dropdown" id="ocDropdown">
-        <div class="oc-user-dropdown-header">
-          <div class="oc-avatar-lg"><?= $userInitial ?></div>
-          <div>
-            <div class="oc-user-dropdown-name"><?= htmlspecialchars($userEmail ?: ucfirst($userRole)) ?></div>
-            <div class="oc-user-dropdown-role">Role : <?= htmlspecialchars(ucfirst($userRole)) ?></div>
-          </div>
-        </div>
-        <hr class="oc-user-dropdown-divider">
-        <ul>
-          <?php if($currentPage === 'dashboard.php' && !empty($canTshirtMode)): ?>
-          <li>
-            <a href="#" id="ocModeToggle">
-              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-              <span>Remise T-shirts</span>
-            </a>
-          </li>
-          <li>
-            <a href="../public/remise-tshirts.php" id="btnScanQR">
-              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="21" y2="21"/></svg>
-              <span>Scanner QR</span>
-            </a>
-          </li>
-          <?php endif; ?>
-          <li>
-            <a href="#" id="ocProfileLink">
-              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span>Mon profil</span>
-            </a>
-          </li>
-          <hr class="oc-user-dropdown-divider">
-          <li>
-            <a href="#" id="ocLogoutLink" class="oc-dropdown-danger">
-              <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              <span>Deconnexion</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</header>
+<?php
+/* ── Définition de la sidebar : sections → items ──────────────────────────────
+ * access : ['page' => cléPage] (canAccessPage) — ['roles' => [...]] (rôle dur)
+ *          + optionnel 'action' => permission canDoAction supplémentaire.
+ * href peut contenir ?tab= : l'item est actif si page + tab correspondent.   */
+$ico = [
+    'dashboard' => '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+    'stats'     => '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    'eye'       => '<path d="M1 12 C 1 12, 5 4, 12 4 S 23 12, 23 12 S 19 20, 12 20 S 1 12, 1 12 Z"/><circle cx="12" cy="12" r="3"/>',
+    'plus'      => '<path d="M12 5v14M5 12h14"/>',
+    'qr'        => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+    'tshirt'    => '<path d="M16 3l5 3-2 4-2-1v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9L5 10 3 6l5-3"/><path d="M9 3a3 3 0 0 0 6 0"/>',
+    'news'      => '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
+    'albums'    => '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+    'partners'  => '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+    'timeline'  => '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    'home'      => '<path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/>',
+    'send'      => '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+    'template'  => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+    'mail'      => '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+    'bell'      => '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    'users2'    => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    'palette'   => '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+    'form'      => '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+    'map'       => '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+    'gavel'     => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    'plug'      => '<path d="M9 2v6"/><path d="M15 2v6"/><path d="M12 17v5"/><path d="M5 8h14a1 1 0 0 1 1 1v3a5 5 0 0 1-5 5h-6a5 5 0 0 1-5-5V9a1 1 0 0 1 1-1z"/>',
+    'sync'      => '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+    'login'     => '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
+    'logs'      => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+    'wrench'    => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    'download'  => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+];
 
-<?php include __DIR__ . '/profile-modal.php'; ?>
+$navSections = [
+    'Pilotage' => [
+        ['dashboard.php',  'Tableau de bord', $ico['dashboard'], ['page' => 'dashboard']],
+        ['stats.php',      'Statistiques',    $ico['stats'],     ['roles' => ['admin', 'user', 'viewer']]],
+        ['page_stats.php', 'Visites',         $ico['eye'],       ['page' => 'page_stats']],
+    ],
+    'Inscriptions' => [
+        ['saisie.php',        'Saisie',          $ico['plus'],   ['roles' => ['saisie']]],
+        ['qr_code.php',       'QR Codes',        $ico['qr'],     ['page' => 'qr_code']],
+        ['tshirt-access.php', 'Accès bénévoles', $ico['tshirt'], ['roles' => ['admin']]],
+    ],
+    'Contenu' => [
+        ['news.php',     'Actualités',    $ico['news'],     ['page' => 'news']],
+        ['albums.php',   'Albums photos', $ico['albums'],   ['page' => 'albums']],
+        ['partners.php', 'Partenaires',   $ico['partners'], ['page' => 'partners']],
+        ['timeline.php', 'Timeline',      $ico['timeline'], ['page' => 'timeline']],
+        ['setting.php?tab=accueil', "Page d'accueil", $ico['home'], ['page' => 'setting', 'action' => 'settings.tab.accueil']],
+    ],
+    'Emails' => [
+        ['mail-settings.php?pane=envoi',         'Envoi de mail',      $ico['send'],     ['page' => 'mail-settings', 'action' => 'mail.send']],
+        ['mail-settings.php?pane=template',      'Template & contenu', $ico['template'], ['page' => 'mail-settings', 'action' => 'mail.write']],
+        ['mail-settings.php?pane=google',        'Fournisseur',        $ico['mail'],     ['page' => 'mail-settings', 'action' => 'mail.write']],
+        ['mail-settings.php?pane=notifications', 'Notifications',      $ico['bell'],     ['page' => 'mail-settings', 'action' => 'mail.write']],
+        ['mail-settings.php?pane=newsletter',    'Abonnés newsletter', $ico['users2'],   ['page' => 'mail-settings', 'action' => 'mail.newsletter']],
+    ],
+    'Réglages' => [
+        ['setting.php?tab=personnalisation', 'Personnalisation', $ico['palette'], ['page' => 'setting', 'action' => 'settings.tab.personnalisation']],
+        ['setting.php?tab=inscription',      'Inscription',      $ico['form'],    ['page' => 'setting', 'action' => 'settings.tab.inscription']],
+        ['setting.php?tab=import_auto',      'AssoConnect',      $ico['sync'],    ['page' => 'setting', 'action' => 'settings.tab.import_auto']],
+        ['setting.php?tab=parcours',         'Parcours',         $ico['map'],     ['page' => 'setting', 'action' => 'settings.tab.parcours']],
+        ['setting.php?tab=reglementation',   'Réglementation',   $ico['gavel'],   ['page' => 'setting', 'action' => 'settings.tab.reglementation']],
+        ['setting.php?tab=formulaire',       'Formulaire',       $ico['form'],    ['page' => 'setting', 'action' => 'settings.tab.formulaire']],
+        ['setting.php?tab=api',              'API',              $ico['plug'],    ['page' => 'setting', 'action' => 'settings.tab.api']],
+    ],
+    'Sécurité & système' => [
+        ['utilisateurs.php', 'Utilisateurs & Droits', $ico['users2'], ['roles' => ['admin']]],
+        ['connexions.php',   'Connexions',            $ico['login'],  ['page' => 'connexions']],
+        ['logs.php',         'Logs',                  $ico['logs'],   ['page' => 'logs']],
+        ['setting.php?tab=maintenance', 'Maintenance', $ico['wrench'], ['page' => 'setting', 'action' => 'settings.tab.maintenance']],
+    ],
+];
 
-<!-- ═══════ APP CONTAINER ═══════ -->
-<div id="oc-app-container">
+/** Un item est-il visible pour l'utilisateur courant ? */
+$jrCanSee = function (array $access) use ($userRole): bool {
+    if (isset($access['roles']) && !in_array($userRole, $access['roles'], true)) return false;
+    if (isset($access['page']) && !canAccessPage($access['page'])) return false;
+    if (isset($access['action']) && !canDoAction($access['action'])) return false;
+    return true;
+};
+
+/** Un item est-il actif (page + éventuel ?tab=/?pane=) ? */
+$jrIsActive = function (string $href) use ($currentPage, $currentTab): bool {
+    $parts = explode('?', $href, 2);
+    if (basename($parts[0]) !== $currentPage) return false;
+    if (!isset($parts[1])) {
+        // Lien sans tab : actif seulement si la page n'a pas de tab profilé dans la sidebar
+        return !in_array($currentPage, ['setting.php', 'mail-settings.php'], true) || $currentTab === '';
+    }
+    parse_str($parts[1], $q);
+    $want = $q['tab'] ?? ($q['pane'] ?? '');
+    return $want === $currentTab;
+};
+
+// Logo (rose sur fond clair)
+$jrLogo = null;
+foreach (['logo_fer_rose.png', 'logo.png'] as $lf) {
+    if (file_exists(dirname(__DIR__, 2) . '/files/_logos/' . $lf)) { $jrLogo = '../files/_logos/' . $lf; break; }
+}
+
+// Rôle saisie : « Tableau de bord » devient « Mes inscriptions »
+$saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscriptions') ? 'inscriptions' : 'formulaire';
+?>
+
+<!-- ═══════ SHELL ═══════ -->
+<div class="jr-shell" id="oc-app-container">
 
   <!-- ═══════ SIDEBAR ═══════ -->
-  <aside id="oc-sidebar">
-    <ul class="oc-sidebar-nav">
-      <?php
-      // Map filename → clé de page utilisée par le système de permissions
-      $fileToPageKey = [
-          'dashboard.php'     => 'dashboard',
-          'timeline.php'      => 'timeline',
-          'news.php'          => 'news',
-          'partners.php'      => 'partners',
-          'albums.php'        => 'albums',
-          'stats.php'         => 'stats',
-          'setting.php'       => 'setting',
-          'mail-settings.php' => 'mail-settings',
-          'qr_code.php'       => 'qr_code',
-          'tshirt-access.php' => 'tshirt_access',
-          'connexions.php'    => 'connexions',
-          'logs.php'          => 'logs',
-          'page_stats.php'    => 'page_stats',
-      ];
-      // Détection du tab actif sur saisie.php (rôle saisie uniquement)
-      $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscriptions') ? 'inscriptions' : 'formulaire';
+  <aside class="jr-nav" id="oc-sidebar">
+    <a class="jr-brand" href="dashboard.php">
+      <?php if ($jrLogo): ?><img src="<?= htmlspecialchars($jrLogo) ?>" alt=""><?php endif; ?>
+      <span class="name">Forbach en Rose</span>
+    </a>
 
-      foreach ($adminLinks as $file => [$label, $icon, $roles]):
-        $href = $file;
-        // Pages réservées admin (utilisateurs, etc.) : on garde la vérif rôle dure
-        if (!isset($fileToPageKey[$file])) {
-            if (!in_array($userRole, $roles, true)) continue;
-        } else {
-            // Pages dynamiques : on utilise le système de permissions
-            if (!canAccessPage($fileToPageKey[$file])) continue;
-        }
-        // Pour le rôle saisie : le lien "Tableau de bord" devient "Mes inscriptions" et reste sur saisie.php
-        if ($file === 'dashboard.php' && $userRole === 'saisie') {
-            $label = 'Mes inscriptions';
-            $href  = 'saisie.php?tab=inscriptions';
-            $icon  = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>';
-            $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
-        } elseif ($file === 'saisie.php' && $userRole === 'saisie') {
-            // "Saisie" actif uniquement si on n'est pas sur l'onglet inscriptions
-            $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
-        } else {
-            $isActive = ($currentPage === $file);
-        }
-      ?>
-        <li>
-          <a class="oc-sidebar-link <?= $isActive ? 'active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
+    <nav>
+      <?php foreach ($navSections as $sectionLabel => $items): ?>
+        <?php
+        $visible = array_filter($items, fn($it) => $jrCanSee($it[3]));
+        if (empty($visible)) continue;
+        ?>
+        <div class="section"><?= htmlspecialchars($sectionLabel) ?></div>
+        <?php foreach ($visible as [$href, $label, $icon, $access]): ?>
+          <?php
+          $isActive = $jrIsActive($href);
+          // Rôle saisie : adaptation du dashboard
+          if ($href === 'dashboard.php' && $userRole === 'saisie') {
+              $label = 'Mes inscriptions';
+              $href  = 'saisie.php?tab=inscriptions';
+              $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
+          } elseif ($href === 'saisie.php' && $userRole === 'saisie') {
+              $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
+          }
+          ?>
+          <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
             <svg viewBox="0 0 24 24"><?= $icon ?></svg>
-            <span><?= $label ?></span>
-            <?php if ($file === 'tshirt-access.php'): ?>
-              <span class="badge bg-danger rounded-pill ms-auto<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
+            <span><?= htmlspecialchars($label) ?></span>
+            <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
+              <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
             <?php endif; ?>
           </a>
-        </li>
+        <?php endforeach; ?>
       <?php endforeach; ?>
+
       <?php if ($userRole === 'admin' && file_exists(dirname(__DIR__, 2) . '/update.php')): ?>
-        <li style="padding:8px 8px 2px">
-          <a class="oc-sidebar-link" href="../update.php" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-weight:600">
-            <svg viewBox="0 0 24 24" style="stroke:#856404"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Mise a jour BDD</span>
-          </a>
-        </li>
+        <div class="section">Mise à jour</div>
+        <a class="item is-update" href="../update.php">
+          <svg viewBox="0 0 24 24"><?= $ico['download'] ?></svg>
+          <span>Mise à jour BDD</span>
+        </a>
       <?php endif; ?>
-    </ul>
-    <div style="padding:12px 16px;font-size:15px;color:rgba(15,23,42,.3);text-align:center;font-weight:500;">Version 2.0.0</div>
+    </nav>
+
+    <!-- ═══════ Bloc utilisateur (bas de sidebar) ═══════ -->
+    <footer>
+      <div class="jr-usermenu" id="ocDropdown">
+        <?php if ($currentPage === 'dashboard.php' && !empty($canTshirtMode)): ?>
+        <a href="#" id="ocModeToggle">
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <span>Remise T-shirts</span>
+        </a>
+        <a href="../public/remise-tshirts.php" id="btnScanQR">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="21" y2="21"/></svg>
+          <span>Scanner QR</span>
+        </a>
+        <hr>
+        <?php endif; ?>
+        <a href="#" id="ocProfileLink">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Mon profil</span>
+        </a>
+        <hr>
+        <a href="#" id="ocLogoutLink" class="is-danger">
+          <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Déconnexion</span>
+        </a>
+      </div>
+
+      <button class="jr-userblock" id="ocAvatarBtn" type="button" title="<?= htmlspecialchars($userEmail) ?>">
+        <span class="who">
+          <span class="name"><?= htmlspecialchars($userName) ?></span>
+          <span class="role"><?= htmlspecialchars(ucfirst((string) $userRole)) ?></span>
+        </span>
+        <span class="jr-logout" id="ocLogoutQuick" title="Déconnexion" role="button">
+          <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </span>
+      </button>
+      <div class="jr-version">Version 2.0.0</div>
+    </footer>
   </aside>
 
-  <?php // Rafraîchissement live de la pastille « Accès bénévoles » (uniquement pour ceux qui valident) ?>
+  <?php // Rafraîchissement live de la pastille « Accès bénévoles » ?>
   <?php if (canDoAction('tshirt_access.approve')): ?>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
   (function(){
@@ -1051,15 +396,30 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
   </script>
   <?php endif; ?>
 
-  <!-- ═══════ CONTENT (opened here, closed in admin-footer.php) ═══════ -->
-  <div id="oc-content">
+  <!-- ═══════ CONTENU (fermé dans admin-footer.php) ═══════ -->
+  <main class="jr-main" id="oc-content">
+    <header class="jr-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="jr-burger" id="ocBurger" type="button" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="crumbs">
+          <?php if ($pageSubtitle !== ''): ?>
+            <span class="eyebrow"><?= htmlspecialchars($pageTitle) ?></span>
+            <h1><?= htmlspecialchars($pageSubtitle) ?></h1>
+          <?php else: ?>
+            <h1><?= htmlspecialchars($pageTitle) ?></h1>
+          <?php endif; ?>
+        </div>
+      </div>
+    </header>
+
+<?php include __DIR__ . '/profile-modal.php'; ?>
 
 <!-- Mobile overlay -->
 <div class="oc-overlay" id="ocOverlay"></div>
 
-<!-- Étiquette flottante affichant le nom de la colonne pendant son déplacement
-     (ColReorder ne marque pas la colonne source ; on fournit ce retour visuel).
-     Délégation au niveau document → fonctionne pour tous les tableaux .fer-table. -->
+<!-- Étiquette flottante ColReorder (nom de colonne pendant le drag) -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
 (function () {
   var grabbed = null, startX = 0, startY = 0, armed = false, label = null, name = '';
@@ -1070,14 +430,12 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
   document.addEventListener('mousedown', function (e) {
     var th = e.target.closest && e.target.closest('th');
     if (!th || !th.closest('table.fer-table') || !th.closest('thead')) return;
-    // Ignore les contrôles interactifs (entonnoir de filtre, poignée de resize, etc.)
     if (e.target.closest('.col-filter-btn, .col-resize, a, button, input, select')) return;
     grabbed = th; startX = e.clientX; startY = e.clientY; armed = true;
     name = (th.textContent || '').trim();
   }, true);
   document.addEventListener('mousemove', function (e) {
     if (!armed || !grabbed) return;
-    // On n'affiche l'étiquette qu'à partir d'un vrai déplacement (≠ clic de tri).
     if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) {
       var l = ensureLabel();
       l.textContent = name;
