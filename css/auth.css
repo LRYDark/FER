@@ -8,6 +8,9 @@
 /* La colonne formulaire peut accueillir plusieurs « étapes » empilées */
 .auth-pane .inner { display: flex; flex-direction: column; gap: var(--sp-4); }
 
+/* Logo / marque : centré en haut de la colonne */
+.auth-pane .brand { justify-content: center; align-self: center; }
+
 /* ---- Éléments d'étape : juste le titre + sous-titre, à gauche (sans icône) ---- */
 .oc-icon-area { text-align: left; }
 .oc-icon-circle { display: none; }
