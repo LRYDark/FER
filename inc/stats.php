@@ -222,7 +222,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   <!-- Cartes de stats année sélectionnée (3 principales + bouton « Autres stats »).
        Mêmes indicateurs que le dashboard, via js/reg-stats.js. -->
   <div class="stats-cards mb-3" id="cardsYear"></div>
-  <?php include __DIR__ . '/_stats-more-modal.php'; ?>
+  <?php include __DIR__ . '/../src/partials/_stats-more-modal.php'; ?>
 
   <!-- Tableau des inscriptions -->
   <div class="fer-tbl-wrap is-loading" id="statsTblWrap">
