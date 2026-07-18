@@ -21,12 +21,15 @@ if (!$authAccent) {
     $authAccent = ['#db2777', '#bc2266', '#ffffff', '#e668a0', '#ea82b0', '#ffffff'];
 }
 ?>
+<?php // ?v=mtime : anti-cache
+$authV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $rel . '?v=' . (@filemtime($p) ?: '1'); };
+?>
 <script src="jr-theme/js/theme.js"></script>
-<link rel="stylesheet" href="jr-theme/css/tokens.css">
-<link rel="stylesheet" href="jr-theme/css/base.css">
-<link rel="stylesheet" href="jr-theme/css/components.css">
-<link rel="stylesheet" href="jr-theme/css/app.css">
-<link rel="stylesheet" href="css/auth.css">
+<link rel="stylesheet" href="<?= $authV('jr-theme/css/tokens.css') ?>">
+<link rel="stylesheet" href="<?= $authV('jr-theme/css/base.css') ?>">
+<link rel="stylesheet" href="<?= $authV('jr-theme/css/components.css') ?>">
+<link rel="stylesheet" href="<?= $authV('jr-theme/css/app.css') ?>">
+<link rel="stylesheet" href="<?= $authV('css/auth.css') ?>">
 <?php if ($authAccent): ?>
 <style>
 :root {
