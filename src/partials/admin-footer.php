@@ -1,8 +1,8 @@
 
 <?php include __DIR__ . '/toast.php'; ?>
 
-  </div><!-- /oc-content -->
-</div><!-- /oc-app-container -->
+  </main><!-- /oc-content -->
+</div><!-- /jr-shell -->
 
 <?php
 // Mode lecture seule au niveau de la page courante :
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (overlay) overlay.addEventListener('click', closeSidebar);
 
   // Close sidebar when clicking a link (mobile)
-  document.querySelectorAll('.oc-sidebar-link').forEach(function(link) {
+  document.querySelectorAll('.jr-nav a.item').forEach(function(link) {
     link.addEventListener('click', closeSidebar);
   });
 
@@ -48,14 +48,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // ── Logout ──
-  var logoutLink = document.getElementById('ocLogoutLink');
-  if (logoutLink) {
-    logoutLink.addEventListener('click', function(e) {
-      e.preventDefault();
-      fetch('../admin-api.php?route=logout').then(function() { location.href = '../login.php'; });
-    });
+  // ── Logout (entrée du menu + bouton rapide du bloc utilisateur) ──
+  function doLogout(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    fetch('../admin-api.php?route=logout').then(function() { location.href = '../login.php'; });
   }
+  var logoutLink = document.getElementById('ocLogoutLink');
+  if (logoutLink) logoutLink.addEventListener('click', doLogout);
+  var logoutQuick = document.getElementById('ocLogoutQuick');
+  if (logoutQuick) logoutQuick.addEventListener('click', doLogout);
 
   // ── Profil ──
   var profileLink = document.getElementById('ocProfileLink');
@@ -506,6 +508,145 @@ function updateDefaultMethodSection(data) {
       });
     });
     btnsCont.appendChild(btn);
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   APPARENCE (thème / accent / police par utilisateur — users.ui_prefs)
+═════════════════════════════════════════════════════════════════════════ */
+var _jrRoseVars = <?= json_encode(jr_accent_vars_from_hex($jrSitePrimary)) ?>;
+var _jrFontMap = {
+  'inter': null,
+  'system': 'system-ui, -apple-system, "Segoe UI", sans-serif',
+  'poppins': '"Poppins", sans-serif',
+  'roboto': '"Roboto", sans-serif',
+  'open-sans': '"Open Sans", sans-serif',
+  'montserrat': '"Montserrat", sans-serif',
+  'nunito': '"Nunito", sans-serif'
+};
+var _jrGoogleFonts = { 'poppins': 'Poppins', 'roboto': 'Roboto', 'open-sans': 'Open+Sans', 'montserrat': 'Montserrat', 'nunito': 'Nunito' };
+var _jrState = {
+  accent: <?= json_encode($jrAccent) ?>,
+  accentCustom: <?= json_encode($jrPrefs['admin_accent_custom'] ?? '') ?>,
+  font: <?= json_encode($jrFont) ?>
+};
+
+/* Dérive les 6 variables d'accent depuis un hex (miroir de jr_accent_vars_from_hex PHP) */
+function jrDeriveAccent(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  function mix(h, t, to) {
+    var r = parseInt(h.substr(1, 2), 16), g = parseInt(h.substr(3, 2), 16), b = parseInt(h.substr(5, 2), 16);
+    r = Math.round(r + (to[0] - r) * t); g = Math.round(g + (to[1] - g) * t); b = Math.round(b + (to[2] - b) * t);
+    return '#' + [r, g, b].map(function(x) { return x.toString(16).padStart(2, '0'); }).join('');
+  }
+  function lum(h) {
+    var r = parseInt(h.substr(1, 2), 16) / 255, g = parseInt(h.substr(3, 2), 16) / 255, b = parseInt(h.substr(5, 2), 16) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  var dark = mix(hex, 0.30, [255, 255, 255]);
+  return [hex, mix(hex, 0.14, [0, 0, 0]), lum(hex) > 0.62 ? '#101828' : '#ffffff',
+          dark, mix(hex, 0.42, [255, 255, 255]), lum(dark) > 0.62 ? '#0b1030' : '#ffffff'];
+}
+
+function jrLiveStyle() {
+  var el = document.getElementById('jr-user-vars-live');
+  if (!el) { el = document.createElement('style'); el.id = 'jr-user-vars-live'; document.head.appendChild(el); }
+  return el;
+}
+
+function jrRenderLive() {
+  var css = '';
+  var vars = null;
+  if (_jrState.accent === 'rose') vars = _jrRoseVars;
+  else if (_jrState.accent === 'custom') vars = jrDeriveAccent(_jrState.accentCustom) || _jrRoseVars;
+  if (vars) {
+    css += ':root{--accent-l:' + vars[0] + ';--accent-l-strong:' + vars[1] + ';--accent-l-ink:' + vars[2]
+        + ';--accent-d:' + vars[3] + ';--accent-d-strong:' + vars[4] + ';--accent-d-ink:' + vars[5] + ';}\n';
+  }
+  if (_jrFontMap[_jrState.font]) css += 'body{font-family:' + _jrFontMap[_jrState.font] + ';}\n';
+  jrLiveStyle().textContent = css;
+  // Neutraliser le style serveur (sinon il gagnerait sur un retour aux presets)
+  var srv = document.getElementById('jr-user-vars');
+  if (srv) srv.textContent = '';
+}
+
+function jrSaveAppearance(patch) {
+  apiPost('ui-prefs', patch).catch(function() {
+    showMsg(document.getElementById('pfAppearanceMsg'), 'Erreur de sauvegarde de la préférence.', 'error');
+  });
+}
+
+/* ── Thème clair / sombre / système ── */
+var pfThemeSeg = document.getElementById('pfThemeSeg');
+if (pfThemeSeg) {
+  pfThemeSeg.querySelectorAll('button[data-theme-choice]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var t = btn.dataset.themeChoice;
+      document.documentElement.setAttribute('data-theme', t);
+      pfThemeSeg.querySelectorAll('button').forEach(function(b) { b.classList.toggle('is-active', b === btn); });
+      try { localStorage.setItem('jr-theme', t); } catch (e) {}
+      jrSaveAppearance({ admin_theme: t });
+    });
+  });
+}
+
+/* ── Accent ── */
+var pfAccentOptions = document.getElementById('pfAccentOptions');
+function jrMarkAccent(name) {
+  if (!pfAccentOptions) return;
+  pfAccentOptions.querySelectorAll('.accent-option').forEach(function(o) {
+    o.classList.toggle('is-active', (o.dataset.accentSet || 'custom') === name);
+  });
+}
+function jrApplyAccentChoice(name, customHex) {
+  _jrState.accent = name;
+  if (name === 'custom' && customHex) _jrState.accentCustom = customHex;
+  var d = document.documentElement;
+  if (name === 'rose' || name === 'custom') {
+    d.removeAttribute('data-accent');
+    jrRenderLive();
+  } else {
+    jrLiveStyle().textContent = (_jrFontMap[_jrState.font] ? 'body{font-family:' + _jrFontMap[_jrState.font] + ';}' : '');
+    var srv = document.getElementById('jr-user-vars'); if (srv) srv.textContent = '';
+    if (name === 'blue') d.removeAttribute('data-accent'); else d.setAttribute('data-accent', name);
+  }
+  jrMarkAccent(name);
+  try {
+    if (name === 'rose') { localStorage.setItem('jr-accent', 'custom'); localStorage.setItem('jr-accent-custom', _jrRoseVars[0]); }
+    else if (name === 'custom') { localStorage.setItem('jr-accent', 'custom'); localStorage.setItem('jr-accent-custom', _jrState.accentCustom); }
+    else { localStorage.setItem('jr-accent', name === 'blue' ? '' : name); localStorage.removeItem('jr-accent-custom'); }
+  } catch (e) {}
+  jrSaveAppearance({ admin_accent: name, admin_accent_custom: _jrState.accentCustom || '' });
+}
+if (pfAccentOptions) {
+  pfAccentOptions.querySelectorAll('button.accent-option').forEach(function(btn) {
+    btn.addEventListener('click', function() { jrApplyAccentChoice(btn.dataset.accentSet); });
+  });
+  var customInput = document.getElementById('pfAccentCustomInput');
+  if (customInput) {
+    customInput.addEventListener('input',  function() { jrApplyAccentChoice('custom', customInput.value); });
+    customInput.addEventListener('change', function() { jrApplyAccentChoice('custom', customInput.value); });
+  }
+}
+
+/* ── Police ── */
+var pfFontSelect = document.getElementById('pfFontSelect');
+if (pfFontSelect) {
+  pfFontSelect.addEventListener('change', function() {
+    var f = pfFontSelect.value;
+    _jrState.font = f;
+    if (_jrGoogleFonts[f] && !document.getElementById('jr-font-' + f)) {
+      var l = document.createElement('link');
+      l.rel = 'stylesheet'; l.id = 'jr-font-' + f;
+      l.href = 'https://fonts.googleapis.com/css2?family=' + _jrGoogleFonts[f] + ':wght@400;500;600;700&display=swap';
+      document.head.appendChild(l);
+    }
+    jrRenderLive();
+    if (_jrState.accent !== 'rose' && _jrState.accent !== 'custom') {
+      // jrRenderLive a réécrit les vars accent : re-nettoyer pour les presets
+      jrLiveStyle().textContent = (_jrFontMap[f] ? 'body{font-family:' + _jrFontMap[f] + ';}' : '');
+    }
+    jrSaveAppearance({ admin_font: f });
   });
 }
 

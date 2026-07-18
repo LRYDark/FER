@@ -26,6 +26,10 @@
         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Autres méthodes de connexion
       </button>
+      <button class="pf-tab" data-tab="appearance" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+        Apparence
+      </button>
     </div>
 
     <!-- Contenu -->
@@ -194,225 +198,70 @@
 
       </div><!-- /panel auth-methods -->
 
+      <!-- ══════════════════════════════════════════════
+           Onglet 3 — Apparence (thème / accent / police, par utilisateur)
+      ══════════════════════════════════════════════ -->
+      <div class="pf-panel" data-panel="appearance">
+
+        <div class="pf-section-header">
+          <div>
+            <div class="pf-section-title">Apparence de l'administration</div>
+            <p class="pf-hint">Ces préférences ne concernent que votre compte et l'espace d'administration — le site public garde son propre thème (Réglages → Personnalisation).</p>
+          </div>
+        </div>
+
+        <div id="pfAppearanceMsg" class="pf-msg" style="display:none"></div>
+
+        <div class="pf-appearance-row">
+          <label>Thème</label>
+          <div class="jr-seg" id="pfThemeSeg">
+            <button type="button" data-theme-choice="light"<?= ($jrTheme ?? 'light') === 'light' ? ' class="is-active"' : '' ?>>
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+              Clair
+            </button>
+            <button type="button" data-theme-choice="dark"<?= ($jrTheme ?? '') === 'dark' ? ' class="is-active"' : '' ?>>
+              <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              Sombre
+            </button>
+            <button type="button" data-theme-choice="system"<?= ($jrTheme ?? '') === 'system' ? ' class="is-active"' : '' ?>>
+              <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Système
+            </button>
+          </div>
+        </div>
+
+        <div class="pf-appearance-row">
+          <label>Couleur d'accent</label>
+          <div class="accent-options" id="pfAccentOptions">
+            <button type="button" class="accent-option<?= ($jrAccent ?? 'rose') === 'rose' ? ' is-active' : '' ?>" data-accent-set="rose"><span class="dot" style="background:<?= htmlspecialchars($jrSitePrimary ?? '#db2777') ?>"></span>Rose (site)</button>
+            <button type="button" class="accent-option<?= ($jrAccent ?? '') === 'blue' ? ' is-active' : '' ?>" data-accent-set="blue"><span class="dot"></span>Bleu</button>
+            <button type="button" class="accent-option<?= ($jrAccent ?? '') === 'teal' ? ' is-active' : '' ?>" data-accent-set="teal"><span class="dot"></span>Teal</button>
+            <button type="button" class="accent-option<?= ($jrAccent ?? '') === 'violet' ? ' is-active' : '' ?>" data-accent-set="violet"><span class="dot"></span>Violet</button>
+            <button type="button" class="accent-option<?= ($jrAccent ?? '') === 'emerald' ? ' is-active' : '' ?>" data-accent-set="emerald"><span class="dot"></span>Émeraude</button>
+            <label class="accent-option<?= ($jrAccent ?? '') === 'custom' ? ' is-active' : '' ?>" id="pfAccentCustomBtn">
+              <input type="color" id="pfAccentCustomInput" value="<?= htmlspecialchars($jrPrefs['admin_accent_custom'] ?? '#3D63F0') ?>">
+              Personnalisée
+            </label>
+          </div>
+        </div>
+
+        <div class="pf-appearance-row">
+          <label>Police d'écriture (admin uniquement)</label>
+          <select class="pf-input" id="pfFontSelect" style="max-width:280px">
+            <option value="inter"<?= ($jrFont ?? 'inter') === 'inter' ? ' selected' : '' ?>>Inter (défaut)</option>
+            <option value="system"<?= ($jrFont ?? '') === 'system' ? ' selected' : '' ?>>Police du système</option>
+            <option value="poppins"<?= ($jrFont ?? '') === 'poppins' ? ' selected' : '' ?>>Poppins</option>
+            <option value="roboto"<?= ($jrFont ?? '') === 'roboto' ? ' selected' : '' ?>>Roboto</option>
+            <option value="open-sans"<?= ($jrFont ?? '') === 'open-sans' ? ' selected' : '' ?>>Open Sans</option>
+            <option value="montserrat"<?= ($jrFont ?? '') === 'montserrat' ? ' selected' : '' ?>>Montserrat</option>
+            <option value="nunito"<?= ($jrFont ?? '') === 'nunito' ? ' selected' : '' ?>>Nunito</option>
+          </select>
+          <p class="pf-hint" style="margin-top:6px">La police du site public se règle dans Réglages → Personnalisation → Thème du site.</p>
+        </div>
+
+      </div><!-- /panel appearance -->
+
     </div><!-- /pf-body -->
   </div>
 </div>
 
-<style>
-/* ═══ Profile modal ═══════════════════════════════════════════════════════ */
-.pf-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,.55); z-index: 9000;
-  align-items: center; justify-content: center; padding: 12px;
-}
-.pf-overlay.open { display: flex; }
-
-.pf-modal {
-  background: var(--oc-bg, #fff);
-  border-radius: 18px; width: 100%; max-width: 680px;
-  max-height: 92vh; display: flex; flex-direction: column;
-  box-shadow: 0 24px 80px rgba(0,0,0,.28); overflow: hidden;
-}
-
-/* ── En-tête ── */
-.pf-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px 18px;
-  border-bottom: 1px solid var(--oc-border, #e5e7eb); flex-shrink: 0;
-}
-.pf-header-left { display: flex; align-items: center; gap: 14px; }
-.pf-avatar {
-  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--primary, #db2777), var(--primary-hover, #9d174d));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 700; color: #fff;
-}
-.pf-title { font-size: 17px; font-weight: 700; margin: 0; color: var(--oc-text, #111827); }
-.pf-header-email { font-size: 13px; color: var(--oc-text-muted, #6b7280); margin: 2px 0 0; }
-.pf-close {
-  background: none; border: none; cursor: pointer;
-  font-size: 24px; line-height: 1; color: var(--oc-text-muted, #9ca3af); padding: 2px 6px;
-  border-radius: 6px; transition: background .15s, color .15s;
-}
-.pf-close:hover { background: var(--oc-border,#f3f4f6); color: var(--oc-text,#111827); }
-
-/* ── Onglets ── */
-.pf-tabs {
-  display: flex; border-bottom: 1px solid var(--oc-border, #e5e7eb);
-  flex-shrink: 0; overflow-x: auto; scrollbar-width: none; padding: 0 8px;
-}
-.pf-tabs::-webkit-scrollbar { display: none; }
-.pf-tab {
-  display: flex; align-items: center; gap: 7px;
-  padding: 13px 18px; background: none; border: none;
-  border-bottom: 2px solid transparent; font-size: 13px; font-weight: 500;
-  cursor: pointer; color: var(--oc-text-muted, #6b7280); white-space: nowrap;
-  transition: color .15s, border-color .15s;
-}
-.pf-tab svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.pf-tab:hover { color: var(--oc-primary, #db2777); }
-.pf-tab.active { color: var(--oc-primary, #db2777); border-bottom-color: var(--oc-primary, #db2777); }
-
-/* ── Corps ── */
-.pf-body { overflow-y: auto; flex: 1; }
-.pf-panel { display: none; padding: 24px 28px; }
-.pf-panel.active { display: block; }
-
-.pf-section-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
-.pf-section-title { font-size: 14px; font-weight: 600; color: var(--oc-text, #111827); margin-bottom: 4px; }
-.pf-hint { font-size: 13px; color: var(--oc-text-muted, #6b7280); margin-bottom: 16px; line-height: 1.5; }
-.pf-form-footer { margin-top: 20px; }
-
-/* ── Grille 2 colonnes ── */
-.pf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
-.pf-col-full { grid-column: 1 / -1; }
-@media (max-width: 520px) { .pf-grid-2 { grid-template-columns: 1fr; } .pf-col-full { grid-column: 1; } }
-
-/* ── Champs ── */
-.pf-field { margin-bottom: 14px; }
-.pf-field label { display: block; font-size: 13px; font-weight: 500; color: var(--oc-text,#111827); margin-bottom: 6px; }
-.pf-input-wrap { position: relative; }
-.pf-input {
-  width: 100%; box-sizing: border-box;
-  padding: 9px 36px 9px 12px; border-radius: 8px;
-  border: 1px solid var(--oc-border,#d1d5db); font-size: 14px;
-  background: var(--oc-bg,#fff); color: var(--oc-text,#111827);
-  transition: border-color .15s;
-}
-.pf-input:focus { outline: none; border-color: var(--oc-primary,#db2777); }
-.pf-input-code { letter-spacing: 8px; text-align: center; font-size: 22px; font-weight: 600; padding: 10px 12px; }
-.pf-eye {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  background: none; border: none; cursor: pointer; padding: 4px;
-  color: var(--oc-text-muted,#9ca3af);
-}
-.pf-eye svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
-.pf-eye:hover { color: var(--oc-text,#374151); }
-
-/* ── Checklist MDP ── */
-.pf-pwd-checks {
-  list-style: none; margin: 0 0 4px; padding: 8px 12px;
-  background: var(--oc-bg-muted,#f8fafc); border-radius: 8px;
-  border: 1px solid var(--oc-border,#e5e7eb);
-  display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px;
-}
-@media (max-width: 520px) { .pf-pwd-checks { grid-template-columns: 1fr; } }
-.pf-check { font-size: 12px; color: var(--oc-text-muted,#9ca3af); display: flex; align-items: center; gap: 6px; }
-.pf-check.ok { color: #16a34a; }
-.pf-ck-icon { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; }
-.pf-check.ok .pf-ck-icon::before { content: '✓'; }
-.pf-check:not(.ok) .pf-ck-icon::before { content: ''; }
-
-/* ── Boutons ── */
-.pf-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
-  cursor: pointer; border: none;
-  background: var(--oc-primary,#db2777); color: #fff;
-  transition: opacity .15s;
-}
-.pf-btn:disabled { opacity: .45; cursor: not-allowed; }
-.pf-btn:not(:disabled):hover { opacity: .88; }
-.pf-btn-sm { padding: 6px 14px; font-size: 13px; }
-.pf-btn-outline { background: transparent; border: 1.5px solid var(--oc-primary,#db2777); color: var(--oc-primary,#db2777); }
-.pf-btn-outline:not(:disabled):hover { background: rgba(219,39,119,.07); }
-.pf-btn-danger { background: #ef4444; }
-.pf-btn-danger:not(:disabled):hover { background: #dc2626; opacity: 1; }
-.pf-btn-ghost { background: transparent; color: var(--oc-text-muted,#6b7280); border: 1px solid var(--oc-border,#d1d5db); }
-.pf-btn-ghost:not(:disabled):hover { background: var(--oc-border,#f3f4f6); }
-.pf-btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
-
-/* ── Messages ── */
-.pf-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
-.pf-msg.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-.pf-msg.error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-
-/* ── Badges ── */
-.pf-badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-left: 8px; vertical-align: middle; }
-.pf-badge-on  { background: #dcfce7; color: #166534; }
-.pf-badge-off { background: #f1f5f9; color: #64748b; }
-
-/* ── Méthode par défaut ── */
-.pf-default-card {
-  background: linear-gradient(135deg, rgba(219,39,119,.06), rgba(147,51,234,.06));
-  border: 1px solid rgba(219,39,119,.2);
-  border-radius: 12px; padding: 16px 18px; margin-bottom: 4px;
-}
-.pf-default-card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-.pf-default-card-header svg { width: 20px; height: 20px; stroke: var(--oc-primary,#db2777); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; margin-top: 2px; }
-.pf-default-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.pf-default-btn {
-  display: flex; align-items: center; gap: 7px;
-  padding: 8px 16px; border-radius: 20px; cursor: pointer;
-  font-size: 13px; font-weight: 500;
-  border: 1.5px solid var(--oc-border,#d1d5db);
-  background: var(--oc-bg,#fff); color: var(--oc-text-muted,#6b7280);
-  transition: all .15s;
-}
-.pf-default-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.pf-default-btn:hover { border-color: var(--oc-primary,#db2777); color: var(--oc-primary,#db2777); }
-.pf-default-btn.active { background: var(--oc-primary,#db2777); color: #fff; border-color: var(--oc-primary,#db2777); }
-
-/* ── Séparateurs ── */
-.pf-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; }
-.pf-divider-line { flex: 1; height: 1px; background: var(--oc-border,#e5e7eb); }
-.pf-divider span { font-size: 11px; font-weight: 600; color: var(--oc-text-muted,#9ca3af); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
-
-/* ── Sections méthode (ligne icône + info + actions) ── */
-.pf-method-section { margin-bottom: 4px; }
-.pf-method-row {
-  display: flex; align-items: center; gap: 14px;
-  padding: 12px 14px; border-radius: 10px;
-  background: var(--oc-bg-muted,#f8fafc);
-  border: 1px solid var(--oc-border,#e5e7eb);
-}
-.pf-method-icon {
-  width: 42px; height: 42px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.pf-icon-totp    { background: rgba(219,39,119,.1); }
-.pf-icon-totp    svg { stroke: var(--oc-primary,#db2777); }
-.pf-icon-passkey { background: rgba(79,70,229,.1); }
-.pf-icon-passkey svg { stroke: #4f46e5; }
-.pf-method-icon svg { width: 20px; height: 20px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.pf-method-info { flex: 1; min-width: 0; }
-.pf-method-name { font-size: 14px; font-weight: 600; color: var(--oc-text,#111827); }
-.pf-method-desc { font-size: 12px; color: var(--oc-text-muted,#6b7280); margin: 3px 0 0; }
-.pf-method-actions { display: flex; gap: 8px; flex-shrink: 0; }
-
-/* ── Setup TOTP ── */
-.pf-totp-setup { padding: 16px; background: var(--oc-bg-muted,#f8fafc); border-radius: 10px; margin-top: 10px; border: 1px solid var(--oc-border,#e5e7eb); }
-.pf-qr-row { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 16px; }
-@media (max-width: 480px) { .pf-qr-row { flex-direction: column; align-items: center; } }
-.pf-qr-box { flex-shrink: 0; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid var(--oc-border,#e5e7eb); }
-.pf-qr-box img, .pf-qr-box canvas { display: block; }
-.pf-qr-side { flex: 1; }
-.pf-secret-code {
-  display: block; margin-top: 4px; font-family: monospace; font-size: 13px; letter-spacing: 2px;
-  background: #fff; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--oc-border,#e2e8f0);
-  user-select: all; word-break: break-all; line-height: 1.6;
-}
-.pf-totp-verify-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.pf-totp-verify-row .pf-input { max-width: 160px; }
-
-/* ── Liste passkeys ── */
-.pf-pk-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
-.pf-pk-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; border-radius: 10px;
-  border: 1px solid var(--oc-border,#e5e7eb); background: var(--oc-bg,#fff);
-}
-.pf-pk-icon { width: 34px; height: 34px; border-radius: 8px; background: rgba(79,70,229,.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.pf-pk-icon svg { width: 16px; height: 16px; stroke: #4f46e5; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.pf-pk-item-info { flex: 1; min-width: 0; }
-.pf-pk-name { font-size: 14px; font-weight: 500; color: var(--oc-text,#111827); }
-.pf-pk-date { font-size: 12px; color: var(--oc-text-muted,#6b7280); margin-top: 2px; }
-.pf-pk-delete {
-  background: none; border: none; cursor: pointer;
-  color: var(--oc-text-muted,#9ca3af); padding: 6px; border-radius: 6px;
-  transition: color .15s, background .15s; flex-shrink: 0;
-}
-.pf-pk-delete:hover { color: #ef4444; background: #fef2f2; }
-.pf-pk-delete svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
-.pf-loading, .pf-pk-empty { color: var(--oc-text-muted,#9ca3af); font-size: 13px; font-style: italic; padding: 4px 0; }
-</style>
