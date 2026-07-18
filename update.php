@@ -580,7 +580,11 @@ try {
         $cfgData = FerSecureConfig::load();
         if (FerSecureConfig::isComplete($cfgData)) {
             $cfgOk = true;
-            $results[] = ['status' => 'success', 'sql' => $cfgMigrateSql, 'msg' => 'Configuration chiffrée active et vérifiée'];
+            // « Appliquée » uniquement lors de la vraie migration (un .env est
+            // encore présent) ; ensuite l'étape est simplement ignorée.
+            $results[] = file_exists(__DIR__ . '/config/.env')
+                ? ['status' => 'success', 'sql' => $cfgMigrateSql, 'msg' => 'Configuration chiffrée vérifiée — le .env va être supprimé']
+                : ['status' => 'skip',    'sql' => $cfgMigrateSql, 'msg' => 'Déjà migré'];
         } else {
             $results[] = ['status' => 'error', 'sql' => $cfgMigrateSql, 'msg' => 'config.enc incomplet (clés manquantes)'];
         }
