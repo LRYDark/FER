@@ -61,6 +61,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+<script src="../js/admin-charts.js"></script>
 <style>
   /* Cartes de stats — grille responsive + style harmonisé (dashboard ≡ stats). */
   .stats-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:.75rem;align-items:stretch}
@@ -253,10 +254,12 @@ const stats = <?= json_encode($stats) ?>;
 const CHILD_AGE = <?= (int) ($childAge ?? 12) ?>;
 
 /* ─────────── 1. Graphiques généraux ─────────── */
+jrChartDefaults(); // habillage jr-theme (police, couleurs, grilles, tooltips)
+const jrTok = jrChartTokens();
 const lblYears = stats.map(s=>s.year);
 const sizeKeys = ['tshirt_xs','tshirt_s','tshirt_m','tshirt_l','tshirt_xl','tshirt_xxl'];
 const sizeLabels = ['XS','S','M','L','XL','XXL'];
-const palette = ['#f9c5d1','#f6a2b4','#f37e98','#ef5b7b','#ec3860','#d60d3a'];
+const palette = jrChartPalette(sizeKeys.length); // déclinaisons de l'accent du thème
 
 // a) barres empilées tailles
 const sizeDatasets = sizeKeys.map((k,i)=>({
@@ -280,16 +283,18 @@ new Chart(document.getElementById('chartCombined'),{
       {
         label:'Inscriptions',
         data:stats.map(s=>s.total_inscrits || 0),
-        borderColor:'#ef5b7b',
-        backgroundColor:'rgba(239,91,123,.2)',
+        borderColor:jrTok.accent,
+        backgroundColor:jrAlpha(jrTok.accent,.14),
+        fill:true,
         tension:.3,
         yAxisID:'y'
       },
       {
         label:'Âge moyen',
         data:stats.map(s=>s.age_moyen || null),
-        borderColor:'#6c757d',
-        backgroundColor:'rgba(108,117,125,.2)',
+        borderColor:jrTok.inkFaint,
+        backgroundColor:jrAlpha(jrTok.inkFaint,.15),
+        borderDash:[5,4],
         tension:.3,
         yAxisID:'y1'
       }

@@ -601,6 +601,10 @@ a:hover { color: var(--accent-strong); }
    Ceux de Connexions / Logs / Visites (filtres de vue) restent visibles. */
 #settingsTabs, #mailSettingsTabs { display: none !important; }
 
+/* v2 : le titre de page vit dans la topbar (jr-topbar) — les gros <h1>
+   d'en-tête des pages (pattern historique h1.fw-bold) sont masqués. */
+.jr-main h1.fw-bold { display: none; }
+
 /* ============================================================
    PROFIL — apparence (segment thème + accents), réutilisé du kit
    ============================================================ */
