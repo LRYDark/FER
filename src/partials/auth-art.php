@@ -5,11 +5,6 @@
       <span class="kicker">Forbach en Rose · Administration</span>
       <h2>Une seule course.<br>Tout un élan.</h2>
     </div>
-    <div class="foot">
-      <div><strong>Sécurisé</strong>2FA &amp; clés d'accès</div>
-      <div><strong>Simple</strong>à administrer</div>
-      <div><strong>100%</strong>solidaire</div>
-    </div>
   </div>
   <svg class="globe" viewBox="0 0 200 200">
     <g class="spin">
