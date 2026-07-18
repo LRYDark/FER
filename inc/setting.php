@@ -87,6 +87,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canWrite) {
 
 require __DIR__ . '/../src/partials/navbar-data.php';
 
+/* ── Onglet actif (calculé TÔT pour que la sidebar/topbar le reflète) ──────
+ * Déterminé par le bouton soumis (POST), sinon par ?tab=, sinon défaut.
+ * v2 : la navigation d'onglets se fait depuis la sidebar (navbar-admin). */
+$allTabs   = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','import_auto','maintenance','api'];
+$activeTab = 'personnalisation';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['save_maintenance']) || isset($_POST['save_session'])) $activeTab = 'maintenance';
+    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
+    elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
+    elseif (isset($_POST['save_header']) || isset($_POST['save_inscription_params']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
+    elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
+    elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
+    elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
+    // v2 : liaison AssoConnect, domaines CSP et mapping d'import vivent dans l'onglet AssoConnect
+    elseif (isset($_POST['importExcel']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_csp_domains'])) $activeTab = 'import_auto';
+    elseif (isset($_POST['save_api']) || isset($_POST['regenerate_api'])) $activeTab = 'api';
+    elseif (isset($_POST['save_import_auto']) || isset($_POST['regenerate_worker_token'])) $activeTab = 'import_auto';
+}
+if (isset($_GET['tab']) && in_array($_GET['tab'], $allTabs, true)) {
+    $activeTab = $_GET['tab'];
+}
+if ($activeTab === 'import') $activeTab = 'import_auto'; // ancien onglet fusionné (v2)
+if (!$canTab($activeTab)) {
+    $activeTab = '';
+    foreach ($allTabs as $t) { if ($canTab($t)) { $activeTab = $t; break; } }
+}
+$navActiveTab = $activeTab; // repris par navbar-admin (sidebar + titre)
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting
@@ -2922,36 +2950,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     }
 }
 
-// Determine active tab based on which form was submitted
-$activeTab = 'personnalisation';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['save_maintenance']) || isset($_POST['save_session'])) $activeTab = 'maintenance';
-    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
-    elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
-    elseif (isset($_POST['save_header']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_inscription_params']) || isset($_POST['save_csp_domains']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
-    elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
-    elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
-    elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
-    elseif (isset($_POST['importExcel'])) $activeTab = 'import';
-    elseif (isset($_POST['save_api']) || isset($_POST['regenerate_api'])) $activeTab = 'api';
-    elseif (isset($_POST['save_import_auto']) || isset($_POST['regenerate_worker_token'])) $activeTab = 'import_auto';
-}
-// Also check URL hash
-if (isset($_GET['tab']) && in_array($_GET['tab'], ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','import_auto','maintenance','api'])) {
-    $activeTab = $_GET['tab'];
-}
-
-// Si l'onglet actif n'est pas accessible, basculer sur le premier accessible
-$allTabs = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','import_auto','maintenance','api'];
-if (!$canTab($activeTab)) {
-    $activeTab = '';
-    foreach ($allTabs as $t) { if ($canTab($t)) { $activeTab = $t; break; } }
-}
+/* v2 : l'onglet actif ($activeTab) est calculé en tête de fichier, avant
+ * l'inclusion de la navbar — la sidebar et le titre de page le reflètent. */
 ?>
 
-<h1 class="mb-3 fw-bold"><i class="bi bi-gear me-2"></i>Réglages</h1>
-
-<!-- Settings Navigation Tabs -->
+<!-- Settings Navigation Tabs (masqués en v2 : navigation via la sidebar) -->
 <ul class="nav settings-tabs" id="settingsTabs">
   <?php if ($canTab('personnalisation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" href="#" data-tab="personnalisation">Personnalisation</a></li><?php endif; ?>
   <?php if ($canTab('accueil')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'accueil' ? 'active' : '' ?>" href="#" data-tab="accueil">Accueil</a></li><?php endif; ?>
@@ -4096,84 +4099,6 @@ if (!$canTab($activeTab)) {
     </div><!-- /col-lg-6 -->
     <?php endif; // canCard('inscription','params') ?>
 
-    <?php if ($canCard('inscription', 'assoconnect')): ?>
-    <div class="col-12 col-lg-6">
-      <div class="setting-card">
-        <h2>Liaison AssoConnect</h2>
-        <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
-          .ac-form .ac-label{font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px}
-          .ac-form .ac-label .ac-opt{font-weight:500;color:#94a3b8;font-size:11px}
-          .ac-hint{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.45}
-          .ac-field{margin-bottom:14px}.ac-field:last-child{margin-bottom:0}
-          .ac-form input.ac-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
-          .ac-form input::placeholder{color:#cbd5e1;opacity:1;font-style:italic}
-          .ac-form input::-webkit-input-placeholder{color:#cbd5e1;font-style:italic}
-          .ac-form input:-ms-input-placeholder{color:#cbd5e1;font-style:italic}
-          .ac-divider{border:0;border-top:1px solid #f0e8eb;margin:18px 0}
-        </style>
-                    <form action="" method="post" enctype="multipart/form-data" class="ac-form">
-                        <?= csrf_field() ?>
-
-                        <p class="ac-hint" style="margin-top:0">Collez le code fourni par AssoConnect (onglet « Diffusion » &rarr; « Afficher le formulaire de campagne sur un site externe »).</p>
-
-                        <div class="ac-field">
-                            <label class="ac-label" for="divCode"><i class="bi bi-file-earmark-code"></i>Code DIV</label>
-                            <input type="text" class="form-control ac-code" id="divCode" name="assoconnect_iframe"
-                                placeholder='<div class="iframe-asc-container" data-type="collect" ...></div>'
-                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>">
-                        </div>
-                        <div class="ac-field">
-                            <label class="ac-label" for="scriptCode"><i class="bi bi-filetype-js"></i>Code Script</label>
-                            <input type="text" class="form-control ac-code" id="scriptCode" name="assoconnect_js"
-                                placeholder='<script src="https://....assoconnect.com/..."></script>'
-                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>">
-                        </div>
-
-                        <hr class="ac-divider">
-
-                        <!-- Lien direct (bouton de repli) -->
-                        <div class="ac-field">
-                            <label class="ac-label" for="acUrl"><i class="bi bi-box-arrow-up-right"></i>Lien direct AssoConnect <span class="ac-opt">(facultatif)</span></label>
-                            <input type="url" class="form-control" id="acUrl" name="assoconnect_url"
-                                placeholder="https://www.assoconnect.com/collect/..."
-                                value="<?= htmlspecialchars($assoconnectUrl, ENT_QUOTES, 'UTF-8'); ?>">
-                            <p class="ac-hint">Affiché comme bouton de secours sous le formulaire sur la page d'inscription, dès qu'un lien valide est saisi — utile si le formulaire intégré ne se charge pas.</p>
-                        </div>
-
-                        <div class="text-end mt-3">
-                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
-                        </div>
-                    </form>
-      </div><!-- /setting-card asso -->
-    </div><!-- /col-lg-6 -->
-    <?php endif; // canCard('inscription','assoconnect') ?>
-
-    <?php if ($canCard('inscription', 'cspdomains')): ?>
-    <div class="col-12 col-lg-6">
-      <div class="setting-card">
-        <h2>Domaines autorisés (AssoConnect)</h2>
-        <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?>
-          <input type="hidden" name="active_tab" value="inscription">
-          <div class="col-12">
-            <label class="form-label fw-semibold" for="cspDomains"><i class="bi bi-shield-lock me-1"></i>Domaines autorisés dans la politique de sécurité (CSP)</label>
-            <textarea class="form-control" id="cspDomains" name="assoconnect_csp_domains" rows="5"
-              style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px"
-              placeholder="https://*.assoconnect.com&#10;https://*.team.blue&#10;https://*.adyen.com"><?= htmlspecialchars($assoconnectCspDomains !== '' ? $assoconnectCspDomains : $assoconnectCspDefault, ENT_QUOTES, 'UTF-8'); ?></textarea>
-            <div class="form-text">
-              Un domaine par ligne (format <code>https://...</code>, sous-domaine joker autorisé, ex&nbsp;: <code>https://*.assoconnect.com</code>).
-              Ces domaines sont autorisés à charger le formulaire et le paiement AssoConnect (iframe, scripts, paiement Adyen).
-              Si AssoConnect change un domaine et que le formulaire ne se charge plus, ajoutez-le ici — sans toucher au code.
-              Laisser vide réapplique les domaines par défaut.
-            </div>
-          </div>
-          <div class="col-12 text-end">
-            <button type="submit" name="save_csp_domains" class="btn btn-primary w-auto">Sauvegarder</button>
-          </div>
-        </form>
-      </div><!-- /setting-card csp -->
-    </div><!-- /col-lg-6 -->
-    <?php endif; // canCard('inscription','cspdomains') ?>
 
   </div><!-- /row -->
 </div><!-- /tab-inscription -->
@@ -4610,64 +4535,6 @@ if (!$canTab($activeTab)) {
 </div><!-- /tab-formulaire -->
 <?php endif; // canTab('formulaire') ?>
 
-<!-- ═══ TAB: Import Excel ═══ -->
-<?php if ($canTab('import')): ?>
-<div class="settings-section <?= $activeTab === 'import' ? 'active' : '' ?>" id="tab-import">
-  <div class="row g-4">
-    <div class="col-12">
-      <div class="setting-card">
-        <h2>Informations d'import excel</h2>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
-                    <?= csrf_field() ?>
-                    <div class="col-md-4"><label class="form-label">N d'inscription =</label>
-                        <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Nom = </label>
-                        <input type="text" class="form-control" name="nom" value="<?= htmlspecialchars($nom, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Prenom =</label>
-                        <input type="text" class="form-control" name="prenom" value="<?= htmlspecialchars($prenom, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Telephone =</label>
-                        <input type="text" class="form-control" name="tel" value="<?= htmlspecialchars($tel, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Email =</label>
-                        <input type="text" class="form-control" name="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Date de naissance =</label>
-                        <input type="text" class="form-control" name="naissance" value="<?= htmlspecialchars($naissance, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Sexe =</label>
-                        <input type="text" class="form-control" name="sexe" value="<?= htmlspecialchars($sexe, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Ville =</label>
-                        <input type="text" class="form-control" name="ville" value="<?= htmlspecialchars($ville, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Entreprise =</label>
-                        <input type="text" class="form-control" name="entreprise" value="<?= htmlspecialchars($entreprise, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
-                        <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Prestation =</label>
-                        <input type="text" class="form-control" name="prestation" value="<?= htmlspecialchars($prestation, ENT_QUOTES, 'UTF-8'); ?>">
-                        <div class="form-text">Colonne AssoConnect qui distingue « Enfant -12 ans avec t-shirt » (laisser « Prestations » par défaut).</div>
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Montant dû =</label>
-                        <input type="text" class="form-control" name="montant_du" value="<?= htmlspecialchars($montant_du, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
-                        <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
-                    </div>
-                    <div class="col-12 text-end">
-                        <button type="submit" name="importExcel" class="btn btn-primary w-auto">Sauvegarder</button>
-                    </div>
-                </form>
-      </div><!-- /setting-card import -->
-    </div><!-- /col-12 -->
-  </div><!-- /row -->
-</div><!-- /tab-import -->
-<?php endif; // canTab('import') ?>
 
 <!-- ═══ TAB: Import automatique ═══ -->
 <?php
@@ -4677,7 +4544,10 @@ if (!$canTab($activeTab)) {
 // L'onglet s'affiche dès que l'un des deux droits est accordé ; chaque bloc est
 // gardé indépendamment pour pouvoir autoriser l'un sans l'autre.
 $canImportXlsManual = canDoAction('dashboard.import_excel');
-if ($canTab('import_auto') || $canImportXlsManual):
+// v2 : l'onglet héberge aussi la liaison AssoConnect, les domaines CSP et le
+// mapping d'import (ex-onglets Inscription / Import Excel) — mêmes permissions.
+if ($canTab('import_auto') || $canImportXlsManual
+    || $canCard('inscription', 'assoconnect') || $canCard('inscription', 'cspdomains') || $canTab('import')):
 ?>
 <div class="settings-section <?= $activeTab === 'import_auto' ? 'active' : '' ?>" id="tab-import_auto">
 
@@ -4895,6 +4765,145 @@ if ($canTab('import_auto') || $canImportXlsManual):
     </div>
   </div><!-- /row cron -->
   <?php endif; // fin bloc automatisation (canTab('import_auto')) ?>
+
+  <!-- ═══ Cartes AssoConnect (déplacées des onglets Inscription / Import Excel, v2) ═══ -->
+  <div class="row g-4 mb-1">
+    <?php if ($canCard('inscription', 'assoconnect')): ?>
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Liaison AssoConnect</h2>
+        <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
+          .ac-form .ac-label{font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+          .ac-form .ac-label .ac-opt{font-weight:500;color:#94a3b8;font-size:11px}
+          .ac-hint{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.45}
+          .ac-field{margin-bottom:14px}.ac-field:last-child{margin-bottom:0}
+          .ac-form input.ac-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+          .ac-form input::placeholder{color:#cbd5e1;opacity:1;font-style:italic}
+          .ac-form input::-webkit-input-placeholder{color:#cbd5e1;font-style:italic}
+          .ac-form input:-ms-input-placeholder{color:#cbd5e1;font-style:italic}
+          .ac-divider{border:0;border-top:1px solid #f0e8eb;margin:18px 0}
+        </style>
+                    <form action="" method="post" enctype="multipart/form-data" class="ac-form">
+                        <?= csrf_field() ?>
+
+                        <p class="ac-hint" style="margin-top:0">Collez le code fourni par AssoConnect (onglet « Diffusion » &rarr; « Afficher le formulaire de campagne sur un site externe »).</p>
+
+                        <div class="ac-field">
+                            <label class="ac-label" for="divCode"><i class="bi bi-file-earmark-code"></i>Code DIV</label>
+                            <input type="text" class="form-control ac-code" id="divCode" name="assoconnect_iframe"
+                                placeholder='<div class="iframe-asc-container" data-type="collect" ...></div>'
+                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>">
+                        </div>
+                        <div class="ac-field">
+                            <label class="ac-label" for="scriptCode"><i class="bi bi-filetype-js"></i>Code Script</label>
+                            <input type="text" class="form-control ac-code" id="scriptCode" name="assoconnect_js"
+                                placeholder='<script src="https://....assoconnect.com/..."></script>'
+                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>">
+                        </div>
+
+                        <hr class="ac-divider">
+
+                        <!-- Lien direct (bouton de repli) -->
+                        <div class="ac-field">
+                            <label class="ac-label" for="acUrl"><i class="bi bi-box-arrow-up-right"></i>Lien direct AssoConnect <span class="ac-opt">(facultatif)</span></label>
+                            <input type="url" class="form-control" id="acUrl" name="assoconnect_url"
+                                placeholder="https://www.assoconnect.com/collect/..."
+                                value="<?= htmlspecialchars($assoconnectUrl, ENT_QUOTES, 'UTF-8'); ?>">
+                            <p class="ac-hint">Affiché comme bouton de secours sous le formulaire sur la page d'inscription, dès qu'un lien valide est saisi — utile si le formulaire intégré ne se charge pas.</p>
+                        </div>
+
+                        <div class="text-end mt-3">
+                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
+                        </div>
+                    </form>
+      </div><!-- /setting-card asso -->
+    </div><!-- /col-lg-6 -->
+    <?php endif; // canCard('inscription','assoconnect') ?>
+
+    <?php if ($canCard('inscription', 'cspdomains')): ?>
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2>Domaines autorisés (AssoConnect)</h2>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <input type="hidden" name="active_tab" value="inscription">
+          <div class="col-12">
+            <label class="form-label fw-semibold" for="cspDomains"><i class="bi bi-shield-lock me-1"></i>Domaines autorisés dans la politique de sécurité (CSP)</label>
+            <textarea class="form-control" id="cspDomains" name="assoconnect_csp_domains" rows="5"
+              style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px"
+              placeholder="https://*.assoconnect.com&#10;https://*.team.blue&#10;https://*.adyen.com"><?= htmlspecialchars($assoconnectCspDomains !== '' ? $assoconnectCspDomains : $assoconnectCspDefault, ENT_QUOTES, 'UTF-8'); ?></textarea>
+            <div class="form-text">
+              Un domaine par ligne (format <code>https://...</code>, sous-domaine joker autorisé, ex&nbsp;: <code>https://*.assoconnect.com</code>).
+              Ces domaines sont autorisés à charger le formulaire et le paiement AssoConnect (iframe, scripts, paiement Adyen).
+              Si AssoConnect change un domaine et que le formulaire ne se charge plus, ajoutez-le ici — sans toucher au code.
+              Laisser vide réapplique les domaines par défaut.
+            </div>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_csp_domains" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div><!-- /setting-card csp -->
+    </div><!-- /col-lg-6 -->
+    <?php endif; // canCard('inscription','cspdomains') ?>
+  </div><!-- /row liaison+csp -->
+
+<?php if ($canTab('import')): ?>
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Correspondance des colonnes Excel (import)</h2>
+                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                    <?= csrf_field() ?>
+                    <div class="col-md-4"><label class="form-label">N d'inscription =</label>
+                        <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Nom = </label>
+                        <input type="text" class="form-control" name="nom" value="<?= htmlspecialchars($nom, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Prenom =</label>
+                        <input type="text" class="form-control" name="prenom" value="<?= htmlspecialchars($prenom, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Telephone =</label>
+                        <input type="text" class="form-control" name="tel" value="<?= htmlspecialchars($tel, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Email =</label>
+                        <input type="text" class="form-control" name="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Date de naissance =</label>
+                        <input type="text" class="form-control" name="naissance" value="<?= htmlspecialchars($naissance, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Sexe =</label>
+                        <input type="text" class="form-control" name="sexe" value="<?= htmlspecialchars($sexe, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Ville =</label>
+                        <input type="text" class="form-control" name="ville" value="<?= htmlspecialchars($ville, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Entreprise =</label>
+                        <input type="text" class="form-control" name="entreprise" value="<?= htmlspecialchars($entreprise, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Moyen de paiement =</label>
+                        <input type="text" class="form-control" name="paiement_mode" value="<?= htmlspecialchars($paiement_mode, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Prestation =</label>
+                        <input type="text" class="form-control" name="prestation" value="<?= htmlspecialchars($prestation, ENT_QUOTES, 'UTF-8'); ?>">
+                        <div class="form-text">Colonne AssoConnect qui distingue « Enfant -12 ans avec t-shirt » (laisser « Prestations » par défaut).</div>
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Montant dû =</label>
+                        <input type="text" class="form-control" name="montant_du" value="<?= htmlspecialchars($montant_du, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-md-4"><label class="form-label">Date d'inscription =</label>
+                        <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="submit" name="importExcel" class="btn btn-primary w-auto">Sauvegarder</button>
+                    </div>
+                </form>
+      </div><!-- /setting-card import -->
+    </div><!-- /col-12 -->
+  </div><!-- /row -->
+
+<?php endif; // canTab('import') ?>
 </div><!-- /tab-import_auto -->
 
 <?php if ($canImportXlsManual): ?>

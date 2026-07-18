@@ -679,7 +679,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
     exit;
 }
 
-$activeSubTab = $_POST['active_subtab'] ?? ($_GET['tab'] ?? 'envoi');
+$activeSubTab = $_POST['active_subtab'] ?? ($_GET['pane'] ?? ($_GET['tab'] ?? 'envoi'));
 
 // Forcer un onglet par défaut accessible à l'utilisateur :
 //   - 'envoi'  → nécessite mail.send
@@ -699,6 +699,7 @@ if (empty($tabPermAllowed[$activeSubTab])) {
         if ($allowed) { $activeSubTab = $k; break; }
     }
 }
+$navActiveTab = $activeSubTab; // repris par navbar-admin (sidebar + titre)
 $activeMailView = $_POST['mail_view'] ?? ($mail_provider === 'google' ? 'google' : 'smtp');
 
 // Build full config JSON for JS
@@ -1322,8 +1323,31 @@ $jsConfig = json_encode([
     </div>
   </div>
 
-</div>
-</div>
+
+</div><!-- /ed-wrap -->
+
+  <!-- ═══ Carte « QR Code dans les mails » (déplacée de Notifications, v2 : contenu des mails) ═══ -->
+  <div class="row g-4 mt-2">
+    <div class="col-12 col-lg-6">
+      <div class="setting-card">
+        <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>
+        <p class="text-muted mb-3">Inclure un QR Code dans le mail de confirmation d'inscription. Le participant pourra le presenter le jour de l'evenement pour etre identifie ou recuperer son t-shirt.</p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="template">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Mode d'inclusion</label>
+            <select class="form-select" name="qrcode_mail_mode">
+              <option value="none" <?= $qrcode_mail_mode==='none'?'selected':'' ?>>Aucun — pas de QR Code</option>
+              <option value="all" <?= $qrcode_mail_mode==='all'?'selected':'' ?>>Pour tous les inscrits</option>
+              <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>Pour les X premiers inscrits</option>
+            </select>
+          </div>
+          <div class="col-12 text-end"><button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div><!-- /paneTemplate -->
 
 <!-- ═══ GOOGLE / SMTP PANE ═══ -->
 <div class="ed-pane <?= $activeSubTab==='google'?'active':'' ?>" id="paneGoogle" style="display:<?= $activeSubTab==='google'?'block':'none' ?>">
@@ -1566,24 +1590,6 @@ $jsConfig = json_encode([
       </div>
     </div>
 
-    <div class="col-12 col-lg-4">
-      <div class="setting-card">
-        <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>
-        <p class="text-muted mb-3">Inclure un QR Code dans le mail de confirmation d'inscription. Le participant pourra le presenter le jour de l'evenement pour etre identifie ou recuperer son t-shirt.</p>
-        <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
-          <div class="col-12">
-            <label class="form-label fw-semibold">Mode d'inclusion</label>
-            <select class="form-select" name="qrcode_mail_mode">
-              <option value="none" <?= $qrcode_mail_mode==='none'?'selected':'' ?>>Aucun — pas de QR Code</option>
-              <option value="all" <?= $qrcode_mail_mode==='all'?'selected':'' ?>>Pour tous les inscrits</option>
-              <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>Pour les X premiers inscrits</option>
-            </select>
-          </div>
-          <div class="col-12 text-end"><button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button></div>
-        </form>
-      </div>
-    </div>
 
     <div class="col-12 col-lg-4">
       <div class="setting-card">
