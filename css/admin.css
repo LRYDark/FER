@@ -78,6 +78,13 @@ body {
   overflow-y: auto;
 }
 
+/* Scrollbar fine et discrète, intégrée à la carte de la sidebar */
+.jr-nav { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.jr-nav::-webkit-scrollbar { width: 5px; }
+.jr-nav::-webkit-scrollbar-track { background: transparent; margin: var(--sp-3) 0; }
+.jr-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-pill); }
+.jr-nav::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+
 .jr-brand {
   display: flex;
   align-items: center;
