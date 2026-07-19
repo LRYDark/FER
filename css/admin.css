@@ -965,7 +965,7 @@ a:hover { color: var(--accent-strong); }
 
 /* Zone d'aperçu du template mail : fond sombre autour du rendu (via admin.css
    versionné → garanti sans cache ; le mail .prev-email lui-même reste intact) */
-.ed-preview-area { background: var(--bg) !important; }
+.ed-preview-area { background: var(--surface-2) !important; }
 
 /* Groupes de filtres en switch segmenté (newsletter : Tous/Abonnés/Désabonnés) */
 .jr-segbtn {
