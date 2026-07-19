@@ -1457,7 +1457,7 @@ a:hover { color: var(--accent-strong); }
 #oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
 #oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
 #oc-content .fer-table > tbody > tr > td {
-  padding: 12px 8px; border-bottom: 1px solid #eef1f5; color: var(--ink); vertical-align: middle;
+  padding: 12px 8px; border-bottom: 1px solid var(--border); color: var(--ink); vertical-align: middle;
 }
 #oc-content .fer-table > tbody > tr:last-child > td { border-bottom: none; }
 #oc-content .fer-table > tbody > tr:hover > td { background-color: var(--accent-soft); }
