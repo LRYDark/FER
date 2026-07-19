@@ -1469,20 +1469,20 @@ a:hover { color: var(--accent-strong); }
 
 .col-filter-pop {
   position: fixed; z-index: 2000; min-width: 196px; max-height: 340px; overflow-y: auto;
-  background: var(--surface); border: 1px solid #f0e8eb; border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.15); padding: 6px; display: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-modal); padding: 6px; display: none;
 }
 .col-filter-pop.show { display: block; }
 .col-filter-pop .cfp-head {
   font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
-  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
+  color: var(--ink-faint); font-weight: 700; padding: 5px 9px 7px;
 }
 .col-filter-pop .cfp-opt {
   display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
   font-size: 13px; color: var(--ink); cursor: pointer; white-space: nowrap;
 }
 .col-filter-pop .cfp-opt:hover { background: var(--accent-soft); }
-.col-filter-pop .cfp-opt.active { background: #fbeaf1; color: var(--accent); font-weight: 600; }
+.col-filter-pop .cfp-opt.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .col-filter-pop .cfp-opt .bi { font-size: 13px; opacity: 0; flex: 0 0 auto; }
 .col-filter-pop .cfp-opt.active .bi { opacity: 1; }
 
@@ -1546,14 +1546,14 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
 .col-toggle-btn:hover { background: #fdf8f9; }
 .col-toggle-dropdown {
   display: none; position: absolute; top: 100%; right: 0; margin-top: 6px;
-  background: var(--surface); border: 1px solid #f0e8eb; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0,0,0,.15); z-index: 100;
   padding: 6px; min-width: 200px; max-height: 350px; overflow-y: auto;
 }
 .col-toggle-dropdown.show { display: block; }
 .col-toggle-dropdown .cfp-head {
   font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
-  color: #9a8089; font-weight: 700; padding: 5px 9px 7px;
+  color: var(--ink-faint); font-weight: 700; padding: 5px 9px 7px;
 }
 .col-toggle-dropdown label {
   display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
