@@ -783,7 +783,7 @@ $jsConfig = json_encode([
 .settings-tabs{border-bottom:2px solid var(--border);margin-bottom:24px;gap:0}
 .settings-tabs .nav-link{color: var(--ink);font-weight:500;font-size:14px;padding:10px 18px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:0;background:transparent;cursor:pointer;transition:.15s}
 .settings-tabs .nav-link:hover{color: var(--ink);border-bottom-color: var(--ink-faint)}
-.settings-tabs .nav-link.active{color: var(--ink);font-weight:600;border-bottom-color:#F42182;background:transparent}
+.settings-tabs .nav-link.active{color: var(--ink);font-weight:600;border-bottom-color:var(--accent);background:transparent}
 
 /* Sidebar tabs */
 .sb-tabs{display:flex;border-bottom:2px solid var(--border);flex-shrink:0}
@@ -793,13 +793,13 @@ $jsConfig = json_encode([
   margin-bottom:-2px;cursor:pointer;transition:.15s;
 }
 .sb-tab:hover{color: var(--ink-dim)}
-.sb-tab.active{color:#F42182;border-bottom-color:#F42182}
+.sb-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 /* Preview buttons */
 .preview-btn{
   padding:10px 14px;font-size:12px;border:1px solid var(--border);text-align:left;
   background: var(--surface);color: var(--ink-dim);border-radius:8px;cursor:pointer;transition:.15s;display:block;
 }
-.preview-btn:hover{border-color:#F42182;background:var(--accent-soft)}
+.preview-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
 .preview-btn.loading{opacity:.6;pointer-events:none}
 
 .ed-pane{display:none}.ed-pane.active{display:flex;flex-wrap:wrap}
@@ -815,12 +815,12 @@ $jsConfig = json_encode([
 .sb-row .v{font-size:11px;color: var(--ink-faint);min-width:28px;text-align:right}
 .sb-hint{font-size:11px;color: var(--ink-faint);margin-bottom:8px}
 .sb-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background: var(--surface);font-size:12px;cursor:pointer;transition:.15s}
-.sb-btn:hover{border-color:#F42182;color:#F42182}
+.sb-btn:hover{border-color:var(--accent);color:var(--accent)}
 .sb-btn-danger{color:#ef4444;border-color:#fca5a5}
 .sb-btn-danger:hover{background: color-mix(in srgb, var(--danger) 12%, var(--surface));border-color:#ef4444}
 .sb-align{display:flex;gap:4px}
 .sb-align button{flex:1;padding:4px;border:1px solid var(--border);border-radius:6px;background: var(--surface);cursor:pointer;font-size:14px}
-.sb-align button.active{background: var(--accent-soft);border-color:#F42182;color:#F42182}
+.sb-align button.active{background: var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 
 /* ── Preview ── */
 .prev-email{width:<?= $mtcCardWidth ?>px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
@@ -831,11 +831,11 @@ $jsConfig = json_encode([
   outline:2px solid transparent;outline-offset:2px;border-radius:4px;
 }
 .prev-sec:hover{outline-color:rgba(244,33,130,.35)}
-.prev-sec.selected{outline-color:#F42182;outline-offset:3px}
+.prev-sec.selected{outline-color:var(--accent);outline-offset:3px}
 /* Header/Title/Footer: inside card table, outline gets clipped → use inset box-shadow */
 #prevCard>.prev-sec,#prevCard tr>td.prev-sec{outline:none !important}
 #prevCard tr>td.prev-sec:hover{box-shadow:inset 0 0 0 3px rgba(244,33,130,.35)}
-#prevCard tr>td.prev-sec.selected{box-shadow:inset 0 0 0 3px #F42182}
+#prevCard tr>td.prev-sec.selected{box-shadow:inset 0 0 0 3px var(--accent)}
 .prev-sec .sec-actions{
   display:none;position:absolute;top:-14px;right:-8px;z-index:10;
   background: var(--surface);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);
@@ -859,12 +859,12 @@ $jsConfig = json_encode([
   background: var(--surface);color: var(--ink-faint);font-size:18px;cursor:pointer;transition:.15s;
   display:flex;align-items:center;justify-content:center;opacity:0;
 }
-.prev-add:hover button,.prev-add button:focus{opacity:1;border-color:#F42182;color:#F42182}
+.prev-add:hover button,.prev-add button:focus{opacity:1;border-color:var(--accent);color:var(--accent)}
 
 /* Editable text */
 [data-ed]{position:relative;transition:.12s;outline:1px dashed transparent;outline-offset:1px;cursor:pointer;min-height:1em}
 [data-ed]:hover{outline-color:rgba(244,33,130,.4)}
-[data-ed].editing{outline-color:#F42182;outline-style:solid;cursor:text;background:rgba(244,33,130,.05)}
+[data-ed].editing{outline-color:var(--accent);outline-style:solid;cursor:text;background:color-mix(in srgb, var(--accent) 8%, transparent)}
 /* Element inline actions (trash + arrows) */
 .el-actions{
   position:absolute;top:-10px;right:4px;z-index:10;
@@ -1902,7 +1902,9 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
   // ── Apply all styles to preview ──
   function applyAllStyles(){
     var C=CFG.colors, R=CFG.radius;
-    $('#previewArea').style.background = C.bg;
+    // La grande zone d'aperçu (#previewArea) garde le fond de l'INTERFACE admin
+    // (défini en CSS) → coins sombres cohérents. Seul le conteneur du mail
+    // (#prevOuter) reçoit le fond du mail.
     $('#prevOuter').style.background = C.bg;
     $('#prevCard').style.background = C.card_bg;
     $('#prevCard').style.borderRadius = R.card+'px';
