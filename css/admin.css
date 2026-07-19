@@ -23,6 +23,16 @@ body {
   min-height: 100vh;
 }
 
+/* Bootstrap utilise --bs-border-color (gris clair figé) pour .border,
+   .table-bordered, les séparateurs… → on le remappe sur le token du thème
+   pour que TOUTES les bordures Bootstrap soient discrètes en sombre. */
+#oc-content, .modal, .pf-modal { --bs-border-color: var(--border); }
+#oc-content .border,
+#oc-content .border-top,
+#oc-content .border-bottom,
+#oc-content .border-start,
+#oc-content .border-end { border-color: var(--border) !important; }
+
 /* base.css (kit) met TOUS les svg en display:block — ce qui fait passer les
    icônes des boutons/liens/badges AU-DESSUS du texte (boutons « sur 2 lignes »).
    On rétablit inline-block pour les icônes en ligne avec du texte. */
