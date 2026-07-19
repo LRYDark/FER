@@ -332,7 +332,7 @@ foreach ($items as $item) {
   .img-positioner .pos-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 12px;border-radius:20px;pointer-events:none;white-space:nowrap;z-index:2}
   .img-pos-controls{display:flex;align-items:center;gap:10px;margin-top:8px;max-width:min(480px, 100%)}
   .img-pos-controls label{font-size:12px;color: var(--ink-dim);font-weight:600;white-space:nowrap}
-  .img-pos-controls input[type=range]{flex:1;accent-color:var(--primary, #f42182)}
+  .img-pos-controls input[type=range]{flex:1;accent-color:var(--accent)}
 
   /* Filter tabs */
   .filter-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:2px solid var(--border); margin-bottom:1rem; }

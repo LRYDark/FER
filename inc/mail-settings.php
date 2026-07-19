@@ -2218,7 +2218,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
         lbl.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color: var(--ink-dim);margin-bottom:4px;cursor:pointer';
         var cb=document.createElement('input');
         cb.type='checkbox'; cb.checked=curVis.indexOf(mt[0])!==-1;
-        cb.style.cssText='accent-color:#F42182';
+        cb.style.cssText='accent-color:var(--accent)';
         cb.addEventListener('change', function(){
           var arr=CFG.visibility[secKey]||[];
           if(this.checked){ if(arr.indexOf(mt[0])===-1) arr.push(mt[0]); }

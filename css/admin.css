@@ -78,6 +78,16 @@ body {
   overflow-y: auto;
 }
 
+/* Cases à cocher / radios / sliders natifs de l'admin : couleur = accent choisi
+   (menu Colonnes, listes, etc.) — suit le thème de l'utilisateur. */
+#oc-content input[type="checkbox"],
+#oc-content input[type="radio"],
+#oc-content input[type="range"],
+.col-toggle-dropdown input[type="checkbox"],
+.col-filter-pop input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
 /* Scrollbar fine et discrète, intégrée à la carte de la sidebar */
 .jr-nav { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 .jr-nav::-webkit-scrollbar { width: 5px; }
