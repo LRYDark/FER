@@ -824,24 +824,50 @@ table.dataTable > tbody > tr:hover { background: color-mix(in srgb, var(--accent
 .settings-tabs.mb-0, .nav-tabs.mb-0, .period-tabs.mb-0, .filter-tabs.mb-0 { margin-bottom: 0 !important; }
 
 /* Pagination DataTables « simple » (boutons ‹ › hors .pagination Bootstrap) */
-#oc-content .dataTables_paginate .paginate_button {
+/* Pagination DataTables — SANS préfixe #oc-content : le JS du dashboard déplace
+   le bloc de pagination dans un pied hors de #oc-content. Couvre les deux
+   structures (span.paginate_button ET a.page-link). */
+.dataTables_paginate .paginate_button,
+.dataTables_paginate a.paginate_button {
   background: var(--surface) !important;
   border: 1px solid var(--border-strong) !important;
   border-radius: var(--radius-s) !important;
   color: var(--ink-dim) !important;
-  padding: 0.3rem 0.7rem;
+  padding: 0.3rem 0.7rem !important;
   margin-left: 4px;
+  box-shadow: none !important;
 }
-#oc-content .dataTables_paginate .paginate_button.current,
-#oc-content .dataTables_paginate .paginate_button:not(.disabled):hover {
+.dataTables_paginate .paginate_button.current,
+.dataTables_paginate .paginate_button:not(.disabled):hover {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
   color: var(--accent-ink) !important;
 }
-#oc-content .dataTables_paginate .paginate_button.disabled {
-  opacity: 0.45;
+.dataTables_paginate .paginate_button.disabled {
+  opacity: 0.4;
   color: var(--ink-faint) !important;
   background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+/* Structure Bootstrap 5 (.pagination) hors #oc-content aussi */
+.dataTables_wrapper .pagination .page-link,
+#tbl_paginate .page-link {
+  background: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--ink-dim) !important;
+  box-shadow: none !important;
+}
+.dataTables_wrapper .pagination .page-item.active .page-link,
+#tbl_paginate .page-item.active .page-link {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-ink) !important;
+}
+.dataTables_wrapper .pagination .page-item.disabled .page-link,
+#tbl_paginate .page-item.disabled .page-link {
+  background: var(--surface) !important;
+  color: var(--ink-faint) !important;
+  border-color: var(--border) !important;
 }
 
 /* Contrôles DataTables : couleurs FORCÉES en tokens (les CSS de pages posent
@@ -1540,10 +1566,10 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
 .col-toggle-wrap { position: relative; display: inline-block; }
 .col-toggle-btn {
   font-size: 13px; font-weight: 500; padding: 5px 12px;
-  border: 1px solid #d4c4cb; border-radius: 6px; background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface);
   color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
-.col-toggle-btn:hover { background: #fdf8f9; }
+.col-toggle-btn:hover { background: var(--surface-2); border-color: var(--accent); }
 .col-toggle-dropdown {
   display: none; position: absolute; top: 100%; right: 0; margin-top: 6px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
