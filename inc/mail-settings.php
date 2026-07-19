@@ -753,10 +753,10 @@ $jsConfig = json_encode([
 .suggestion-item:last-child { border-bottom: none; }
 
 .ed-pane{width:100%}
-.ed-wrap{width:100%}
+.ed-wrap{width:100%;flex:0 0 100%}
 
 /* ── Layout ── */
-.ed-wrap{position:relative;height:calc(100vh - var(--oc-topbar-h,52px) - 230px);margin:8px 0 0;border-radius:12px;overflow:hidden}
+.ed-wrap{position:relative;height:calc(100vh - 265px);min-height:540px;margin:8px 0 0;border-radius:12px;overflow:hidden}
 .ed-sidebar{
   position:absolute;top:8px;left:8px;bottom:8px;z-index:20;
   width:300px;background:#fff;
@@ -802,7 +802,7 @@ $jsConfig = json_encode([
 .preview-btn:hover{border-color:#F42182;background:#fdf2f8}
 .preview-btn.loading{opacity:.6;pointer-events:none}
 
-.ed-pane{display:none}.ed-pane.active{display:flex}
+.ed-pane{display:none}.ed-pane.active{display:flex;flex-wrap:wrap}
 #paneEnvoi.active{display:block}
 
 /* ── Sidebar controls ── */
@@ -1327,7 +1327,7 @@ $jsConfig = json_encode([
 </div><!-- /ed-wrap -->
 
   <!-- ═══ Carte « QR Code dans les mails » (déplacée de Notifications, v2 : contenu des mails) ═══ -->
-  <div class="row g-4 mt-2">
+  <div class="row g-4 mt-2" style="flex:0 0 100%">
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>

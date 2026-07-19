@@ -247,13 +247,24 @@
 
         <div class="pf-appearance-row">
           <label>Police d'écriture (admin uniquement)</label>
-          <select class="pf-input" id="pfFontSelect" style="max-width:280px">
-            <?php foreach (($jrFonts ?? jr_admin_fonts()) as $__fName => $__fDef): ?>
-              <option value="<?= htmlspecialchars($__fName) ?>"<?= ($jrFont ?? 'Inter') === $__fName ? ' selected' : '' ?>><?=
-                $__fName === 'Inter' ? 'Inter (défaut)' : ($__fName === 'system-ui' ? 'Police du système' : htmlspecialchars($__fName))
-              ?></option>
-            <?php endforeach; ?>
-          </select>
+          <?php
+            $__pfFonts = $jrFonts ?? jr_admin_fonts();
+            $__pfFontLbl = fn(string $n) => $n === 'Inter' ? 'Inter (défaut)' : ($n === 'system-ui' ? 'Police du système' : $n);
+            $__pfCur = $jrFont ?? 'Inter';
+          ?>
+          <div class="pf-font-picker" id="pfFontPicker">
+            <div class="pf-font-toggle" id="pfFontToggle" role="button" tabindex="0">
+              <span id="pfFontLabel" style="font-family:<?= $__pfFonts[$__pfCur][0] ?? 'inherit' ?>"><?= htmlspecialchars($__pfFontLbl($__pfCur)) ?></span>
+              <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="pf-font-dropdown" id="pfFontDropdown">
+              <?php foreach ($__pfFonts as $__fName => $__fDef): ?>
+                <div class="pf-font-item<?= $__pfCur === $__fName ? ' active' : '' ?><?= $__fDef[2] ? ' is-custom' : '' ?>"
+                     data-value="<?= htmlspecialchars($__fName) ?>"
+                     style="font-family:<?= $__fDef[0] ?>"><?= htmlspecialchars($__pfFontLbl($__fName)) ?></div>
+              <?php endforeach; ?>
+            </div>
+          </div>
           <p class="pf-hint" style="margin-top:6px">La police du site public se règle dans Réglages → Personnalisation → Thème du site.</p>
         </div>
 

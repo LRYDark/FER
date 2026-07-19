@@ -48,15 +48,33 @@ if ($isAdminScan) {
 <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token()) ?>">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<?php
+// Habillage jr-theme (v2) : tokens + reskin Bootstrap, accent = rose du site
+$tsV = function (string $rel) { $p = dirname(__DIR__) . '/' . $rel; return '../' . $rel . '?v=' . (@filemtime($p) ?: '1'); };
+$tsPrimary = '#db2777';
+try {
+    $c = $pdo->query('SELECT theme_primary_color FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
+    if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $tsPrimary = $c;
+} catch (\Throwable $e) {}
+$tsAccent = jr_accent_vars_from_hex($tsPrimary);
+?>
+<link rel="stylesheet" href="<?= $tsV('jr-theme/css/tokens.css') ?>">
+<link rel="stylesheet" href="<?= $tsV('jr-theme/css/base.css') ?>">
+<link rel="stylesheet" href="<?= $tsV('css/admin.css') ?>">
 <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
-  body { background:#faf7f8; }
+  <?php if ($tsAccent): ?>
+  :root {
+    --accent-l: <?= $tsAccent[0] ?>; --accent-l-strong: <?= $tsAccent[1] ?>; --accent-l-ink: <?= $tsAccent[2] ?>;
+    --accent-d: <?= $tsAccent[3] ?>; --accent-d-strong: <?= $tsAccent[4] ?>; --accent-d-ink: <?= $tsAccent[5] ?>;
+  }
+  <?php endif; ?>
   .ts-wrap { max-width:560px; margin:0 auto; padding:16px 14px 48px; }
   .ts-head { text-align:center; margin:10px 0 20px; }
-  .ts-head h1 { font-size:1.4rem; font-weight:800; color:var(--primary, #f42182); margin:0; }
-  .ts-head p { color:#64748b; font-size:.9rem; margin:.25rem 0 0; }
-  .ts-card { background:#fff; border:none; border-radius:1rem; box-shadow:0 4px 24px rgba(0,0,0,.07); }
+  .ts-head h1 { font-size:1.4rem; font-weight:800; color:var(--accent); margin:0; }
+  .ts-head p { color:var(--ink-faint); font-size:.9rem; margin:.25rem 0 0; }
+  .ts-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius-l); box-shadow:var(--shadow-card); }
   .qr-size-btn { min-width:64px; font-weight:700; font-size:1.1rem; }
-  #qrReader { width:100%; border-radius:.75rem; overflow:hidden; }
+  #qrReader { width:100%; border-radius:var(--radius-m); overflow:hidden; }
   .ts-result-item { cursor:pointer; }
   .ts-hidden { display:none !important; }
 </style>
@@ -88,7 +106,7 @@ if ($isAdminScan) {
         <label class="form-label fw-semibold">Nom et prénom du bénévole</label>
         <input type="text" id="volName" class="form-control form-control-lg" placeholder="Ex : Marie Dupont" maxlength="120" autocomplete="name">
       </div>
-      <button id="btnRequest" class="btn btn-lg w-100 text-white" style="background:var(--primary, #f42182)">
+      <button id="btnRequest" class="btn btn-lg w-100 text-white" style="background:var(--accent)">
         <i class="bi bi-send me-1"></i>Demander l'accès
       </button>
     </div>
