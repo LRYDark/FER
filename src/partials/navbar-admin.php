@@ -127,6 +127,11 @@ include __DIR__ . '/../content/theme.php';
 (function () {
   var d = document.documentElement;
   d.setAttribute('data-theme', <?= json_encode($jrTheme) ?>);
+  // Anti-flash : fond posé IMMÉDIATEMENT (avant l'arrivée des CSS du thème),
+  // sinon le fond blanc de Bootstrap apparaît un instant en mode sombre.
+  var dark = <?= json_encode($jrTheme === 'dark') ?> ||
+    (<?= json_encode($jrTheme === 'system') ?> && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  d.style.backgroundColor = dark ? '#05070D' : '#E9EDF4';
   <?php if ($jrAccentAttr !== ''): ?>d.setAttribute('data-accent', <?= json_encode($jrAccentAttr) ?>);<?php endif; ?>
   // Miroir localStorage → les pages login/install (pré-auth) suivent le dernier choix
   try {

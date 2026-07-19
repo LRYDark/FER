@@ -256,7 +256,7 @@ if ($canBulkCreate) {
 }
 /* Non-éligibles (montant dû = 0) : léger fond gris pour les distinguer. */
 #oc-content #tbl tbody tr.row-unpaid td { background-color: #f3f5f9; }
-#oc-content #tbl tbody tr.row-unpaid:hover td { background-color: #eaeff4; }
+#oc-content #tbl tbody tr.row-unpaid:hover td { background-color: var(--surface-2); }
 
 /* Légende des couleurs du tableau */
 .tbl-legend {
@@ -426,7 +426,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 .bulk-map-dropzone.drag-over,
 .bulk-map-pool.drag-over {
   border-color: var(--primary, #f42182);
-  background: #fdf2f6;
+  background: var(--accent-soft);
 }
 .bulk-map-placeholder {
   font-size: 12px;
@@ -490,14 +490,14 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   color: var(--ink-faint);
   font-style: italic;
 }
-.bulk-comment-rich.drag-over { border-color: var(--primary, #f42182); background: #fdf2f6; }
+.bulk-comment-rich.drag-over { border-color: var(--primary, #f42182); background: var(--accent-soft); }
 /* Card « colonne » intégrée dans le texte (déplaçable) */
 .ce-chip {
   display: inline-block;
   font-size: 12px;
   font-weight: 600;
   color: var(--primary, #f42182);
-  background: #fdf2f6;
+  background: var(--accent-soft);
   border: 1px solid #fbcfe8;
   border-radius: 6px;
   padding: 0 7px;

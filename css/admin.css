@@ -459,6 +459,9 @@ body {
 }
 .form-control::placeholder { color: var(--ink-faint); }
 .form-control:disabled, .form-select:disabled { background-color: var(--surface-2); color: var(--ink-faint); }
+/* Champs en lecture seule (ex : lien de campagne bénévoles) : lisibles en sombre
+   (Bootstrap leur applique sinon un fond gris clair avec texte invisible). */
+.form-control[readonly] { background-color: var(--surface-2) !important; color: var(--ink) !important; }
 .form-control-sm, .form-select-sm { font-size: var(--fs-micro); padding: 0.3rem 0.55rem; border-radius: var(--radius-s); }
 
 .form-select {
@@ -1261,7 +1264,7 @@ a:hover { color: var(--accent-strong); }
   padding: 12px 8px; border-bottom: 1px solid #eef1f5; color: var(--ink); vertical-align: middle;
 }
 #oc-content .fer-table > tbody > tr:last-child > td { border-bottom: none; }
-#oc-content .fer-table > tbody > tr:hover > td { background-color: #fdeef5; }
+#oc-content .fer-table > tbody > tr:hover > td { background-color: var(--accent-soft); }
 
 /* Icônes de tri discrètes (rose sur la colonne triée) — scopées .fer-table */
 #oc-content .fer-table.dataTable thead .sorting:before,
@@ -1312,7 +1315,7 @@ a:hover { color: var(--accent-strong); }
   display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 8px;
   font-size: 13px; color: var(--ink); cursor: pointer; white-space: nowrap;
 }
-.col-filter-pop .cfp-opt:hover { background: #fdf2f6; }
+.col-filter-pop .cfp-opt:hover { background: var(--accent-soft); }
 .col-filter-pop .cfp-opt.active { background: #fbeaf1; color: var(--accent); font-weight: 600; }
 .col-filter-pop .cfp-opt .bi { font-size: 13px; opacity: 0; flex: 0 0 auto; }
 .col-filter-pop .cfp-opt.active .bi { opacity: 1; }
@@ -1391,7 +1394,7 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
   font-size: 13px; color: var(--ink); cursor: pointer; font-weight: 400;
   text-transform: none; letter-spacing: 0; margin: 0; white-space: nowrap;
 }
-.col-toggle-dropdown label:hover { background: #fdf2f6; }
+.col-toggle-dropdown label:hover { background: var(--accent-soft); }
 
 /* Boutons d'action dans les tableaux : toujours côte à côte */
 .action-buttons { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; }
