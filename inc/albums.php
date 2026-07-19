@@ -636,24 +636,24 @@ try {
     display: flex;
     flex-wrap: wrap;
     gap: 0;
-    border-bottom: 2px solid #f0e8eb;
+    border-bottom: 2px solid var(--border);
     margin-bottom: 1rem;
   }
   .filter-tabs a {
     padding: 0.5rem 1.25rem;
     text-decoration: none;
-    color: #1e293b;
+    color: var(--ink);
     font-weight: 500;
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
     transition: color .15s, border-color .15s;
   }
   .filter-tabs a:hover {
-    color: #1e293b;
-    border-bottom-color: #d4c4cb;
+    color: var(--ink);
+    border-bottom-color: var(--border-strong);
   }
   .filter-tabs a.active {
-    color: #1e293b;
+    color: var(--ink);
     border-bottom-color: var(--primary, #f42182);
     font-weight: 600;
   }
@@ -665,7 +665,7 @@ try {
 
   /* Year list item */
   .year-list-item {
-    background: #fff;
+    background: var(--surface);
     border: 1px solid #dee2e6;
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
@@ -726,7 +726,7 @@ try {
   /* Couverture : vignette cliquable (remplacer) + case « Supprimer ». */
   .album-cover-thumb {
     width: 110px; height: 110px; object-fit: cover;
-    border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;
+    border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface);
     cursor: pointer; display: block;
     transition: border-color .15s, opacity .15s;
   }
@@ -931,7 +931,7 @@ try {
 
                     <?php if ($canCreate): ?>
                     <h6>Ajouter un nouvel album</h6>
-                    <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff" class="add-album-form">
+                    <form method="post" enctype="multipart/form-data" style="border:1px solid var(--border);border-radius:8px;padding:16px;background: var(--surface)" class="add-album-form">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-2 mb-3">
@@ -999,14 +999,14 @@ try {
                             }
                           }
                         ?>
-                        <div class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid <?= $isLocalAlbum ? '#c4b5fd' : '#f0e8eb' ?>;border-radius:8px;background:<?= $isLocalAlbum ? '#f5f3ff' : '#fdf8f9' ?>">
+                        <div class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid <?= $isLocalAlbum ? '#c4b5fd' : 'var(--border)' ?>;border-radius:8px;background:<?= $isLocalAlbum ? '#f5f3ff' : '#fdf8f9' ?>">
                         <form method="post" enctype="multipart/form-data">
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                             <div class="row g-2 align-items-center flex-wrap">
                               <div class="col-auto d-flex align-items-center album-align-col" style="min-width:30px">
-                                <span class="drag-handle-album" style="cursor:grab;color:#94a3b8;font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
+                                <span class="drag-handle-album" style="cursor:grab;color: var(--ink-faint);font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
                               </div>
                               <div class="col-auto d-flex align-items-center album-align-col">
                                 <?php if ($isLocalAlbum): ?>
@@ -1154,7 +1154,7 @@ try {
         <div id="pmPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
         </div>
 
-        <div id="pmEmpty" style="text-align:center;padding:40px;color:#94a3b8;display:none">
+        <div id="pmEmpty" style="text-align:center;padding:40px;color: var(--ink-faint);display:none">
           <i class="bi bi-image" style="font-size:3rem"></i>
           <p class="mt-2">Aucune photo dans cet album</p>
         </div>
@@ -1372,7 +1372,7 @@ document.getElementById('pmDeleteAll').addEventListener('click', function() {
 
 function createPhotoCard(photo) {
   var card = document.createElement('div');
-  card.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9';
+  card.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:var(--surface-2)';
   card.innerHTML =
     '<img src="' + photo.url + '" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">' +
     '<div style="position:absolute;top:6px;right:6px;display:flex;gap:4px">' +

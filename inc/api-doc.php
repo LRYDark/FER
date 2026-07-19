@@ -52,7 +52,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <style>
-  body { background:#faf7f8; }
+  body { background:var(--surface-2); }
   .api-doc h2 { color:#880e4f; font-weight:700; margin-top:2.5rem; }
   .api-doc h3 { color:#c4577a; font-weight:600; margin-top:1.75rem; font-size:1.2rem; }
   .api-code {
@@ -61,7 +61,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
   }
   .api-code code { color:inherit; background:none; white-space:pre; }
   .api-card {
-    background:#fff; border:1px solid #f0e8eb; border-radius:14px;
+    background: var(--surface); border:1px solid var(--border); border-radius:14px;
     padding:1.5rem; margin-bottom:1.5rem;
   }
   .endpoint-badge {
@@ -81,7 +81,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
   /* Les <code> dans les alertes : puce blanche lisible sur tout fond
      (y compris le fond rouge de alert-danger). */
   #oc-content .api-doc .alert code {
-    background:#fff; color:#1e293b;
+    background: var(--surface); color: var(--ink);
     padding:.05rem .35rem; border-radius:4px;
     font-size:.85em; word-break:break-word;
   }

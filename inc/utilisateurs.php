@@ -122,11 +122,11 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
     position: relative;
   }
   .perm-cell:hover:not(.perm-disabled) {
-    background-color: #fdf2f8;
+    background-color: var(--accent-soft);
     transform: scale(1.05);
   }
   .perm-cell.perm-on  { color: #16a34a; background-color: #f0fdf4; }
-  .perm-cell.perm-off { color: #94a3b8; background-color: #f8fafc; }
+  .perm-cell.perm-off { color: var(--ink-faint); background-color: var(--surface-2); }
   .perm-cell.perm-disabled {
     cursor: not-allowed;
     opacity: .5;

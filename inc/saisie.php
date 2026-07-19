@@ -84,7 +84,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 .saisie-table-card h2 {
   font-size: 16px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ink);
   margin: 0 0 14px;
   display: flex;
   align-items: center;
@@ -105,11 +105,11 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 #tblSaisie thead tr:first-child th:active { cursor: grabbing; }
 
 /* « Afficher X inscriptions » (DataTables) : tout sur une ligne. */
-#tblSaisie_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: #475569; font-weight: 400; }
+#tblSaisie_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: var(--ink-dim); font-weight: 400; }
 #tblSaisie_length select, #tblSaisie_length .form-select {
   display: inline-block !important; width: auto !important; min-width: 64px;
   padding: 5px 30px 5px 10px; font-size: 13px;
-  border: 1px solid #d4c4cb; border-radius: 6px; background-color: #fff;
+  border: 1px solid var(--border-strong); border-radius: 6px; background-color: var(--surface);
   background-position: right 9px center;
 }
 
@@ -120,19 +120,19 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 .saisie-page-header h1 {
   font-size: 20px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ink);
   margin: 0 0 4px;
 }
 .saisie-page-header p {
   font-size: 13px;
-  color: #64748b;
+  color: var(--ink-dim);
   margin: 0;
 }
 
 /* ── Card formulaire ── */
 .saisie-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   padding: 28px 32px 32px;
@@ -142,18 +142,18 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
 .saisie-card .form-label {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ink-dim);
   margin-bottom: 5px;
 }
 .saisie-card .form-control,
 .saisie-card .form-select {
   border-radius: 6px;
-  border: 1px solid #d4c4cb;
+  border: 1px solid var(--border-strong);
   font-size: 13px;
   height: 36px;
   padding: 0 10px;
   color: #1a1a2e;
-  background: #fff;
+  background: var(--surface);
   transition: border-color .15s, box-shadow .15s;
 }
 .saisie-card textarea.form-control {
@@ -166,7 +166,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   box-shadow: 0 0 0 3px rgba(196,87,122,.1);
   outline: none;
 }
-.saisie-card .form-control::placeholder { color: #a1a1aa; }
+.saisie-card .form-control::placeholder { color: var(--ink-faint); }
 
 /* ── Bouton enregistrer ── */
 .btn-saisie {
@@ -233,7 +233,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
           <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
           <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
         </select>
-        <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+        <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color: var(--ink)"></div>
       </div>
 
       <div class="col-12 mt-2">
@@ -288,7 +288,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
             <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
             <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
           </select>
-          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color: var(--ink)"></div>
         </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn-saisie" style="width:auto;padding:0 18px">Sauvegarder</button></div>

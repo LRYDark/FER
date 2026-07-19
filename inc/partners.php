@@ -630,15 +630,15 @@ if ($migrationDone) {
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
 
   /* ═══ Tab styles ═══ */
-  .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+  .settings-tabs { border-bottom: 2px solid var(--border); margin-bottom: 24px; gap: 0; }
   .settings-tabs .nav-link {
-    color: #1e293b; font-weight: 500; font-size: 14px;
+    color: var(--ink); font-weight: 500; font-size: 14px;
     padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
     margin-bottom: -2px; border-radius: 0; background: transparent;
   }
-  .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+  .settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--border-strong); }
   .settings-tabs .nav-link.active {
-    color: #1e293b; font-weight: 600;
+    color: var(--ink); font-weight: 600;
     border-bottom-color: var(--primary, #f42182); background: transparent;
   }
   .partner-tab-section { display: none; }
@@ -649,24 +649,24 @@ if ($migrationDone) {
     display: flex;
     flex-wrap: wrap;
     gap: 0;
-    border-bottom: 2px solid #f0e8eb;
+    border-bottom: 2px solid var(--border);
     margin-bottom: 1rem;
   }
   .filter-tabs a {
     padding: 0.5rem 1.25rem;
     text-decoration: none;
-    color: #1e293b;
+    color: var(--ink);
     font-weight: 500;
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
     transition: color .15s, border-color .15s;
   }
   .filter-tabs a:hover {
-    color: #1e293b;
-    border-bottom-color: #d4c4cb;
+    color: var(--ink);
+    border-bottom-color: var(--border-strong);
   }
   .filter-tabs a.active {
-    color: #1e293b;
+    color: var(--ink);
     border-bottom-color: var(--primary, #f42182);
     font-weight: 600;
   }
@@ -678,7 +678,7 @@ if ($migrationDone) {
 
   /* Year list item */
   .year-list-item {
-    background: #fff;
+    background: var(--surface);
     border: 1px solid #dee2e6;
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
@@ -738,7 +738,7 @@ if ($migrationDone) {
   /* Image : vignette cliquable (remplacer) + case « Supprimer ». */
   .album-cover-thumb {
     width: 110px; height: 110px; object-fit: cover;
-    border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;
+    border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface);
     cursor: pointer; display: block;
     transition: border-color .15s, opacity .15s;
   }
@@ -982,7 +982,7 @@ if ($migrationDone) {
 
                     <?php if ($canCreate): ?>
                     <h6>Ajouter un partenaire</h6>
-                    <form method="post" enctype="multipart/form-data" style="border:1px solid #f0e8eb;border-radius:8px;padding:16px;background:#fff">
+                    <form method="post" enctype="multipart/form-data" style="border:1px solid var(--border);border-radius:8px;padding:16px;background: var(--surface)">
                         <?= csrf_field() ?>
                         <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                         <div class="row g-2 align-items-end">
@@ -1010,13 +1010,13 @@ if ($migrationDone) {
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
                     <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
-                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid #f0e8eb;border-radius:8px;background:#fdf8f9">
+                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid var(--border);border-radius:8px;background:#fdf8f9">
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
                             <div class="row g-2 align-items-center flex-wrap">
                               <div class="col-auto d-flex align-items-center album-align-col" style="min-width:30px">
-                                <span class="drag-handle-album" style="cursor:grab;color:#94a3b8;font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
+                                <span class="drag-handle-album" style="cursor:grab;color: var(--ink-faint);font-size:1.2rem" title="Glisser pour réordonner"><i class="bi bi-grip-vertical"></i></span>
                               </div>
                               <div class="col-12 col-sm-auto album-cover-col<?= !empty($album['album_img']) ? ' has-cover' : '' ?>" style="min-width:120px">
                                 <label class="form-label" style="font-size:12px">Image</label>

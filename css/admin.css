@@ -748,6 +748,35 @@ body {
 table.dataTable > tbody > tr { background: transparent; }
 table.dataTable > tbody > tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 
+/* Contrôles DataTables : couleurs FORCÉES en tokens (les CSS de pages posent
+   des gris codés en dur, invisibles en thème sombre). */
+#oc-content .dataTables_wrapper .dataTables_length label,
+#oc-content .dataTables_wrapper .dataTables_filter label,
+#oc-content .dataTables_wrapper .dataTables_info,
+#oc-content #tbl_length label {
+  color: var(--ink-dim) !important;
+}
+#oc-content .dataTables_wrapper .pagination .page-link {
+  background: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--ink-dim) !important;
+}
+#oc-content .dataTables_wrapper .pagination .page-item.active .page-link {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-ink) !important;
+}
+#oc-content .dataTables_wrapper .pagination .page-item.disabled .page-link {
+  background: transparent !important;
+  color: var(--ink-faint) !important;
+}
+#oc-content .dataTables_wrapper .dataTables_length select,
+#oc-content #tbl_length select {
+  background-color: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--ink) !important;
+}
+
 /* Étiquette de drag ColReorder */
 .dtcr-drag-label {
   position: fixed;
@@ -1187,15 +1216,19 @@ a:hover { color: var(--accent-strong); }
      dashboard / saisie / stats — un seul jeu de styles. ── */
 #oc-content .fer-table.dataTable thead th { position: relative; }   /* ancrage poignée de resize */
 
+/* Entonnoirs de filtre dans les en-têtes de colonnes : bien visibles dans les
+   deux thèmes — l'en-tête .fer-table est en var(--ink), le bouton hérite donc
+   de currentColor (couleur inverse) avec un fond léger permanent. */
 .col-filter-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 19px; height: 19px; margin-left: 6px; border-radius: 5px;
-  color: var(--canvas); opacity: .55;
+  color: inherit; opacity: .75;
+  background: color-mix(in srgb, currentColor 16%, transparent);
   cursor: pointer; font-size: 11px; vertical-align: middle;
   transition: background .15s, color .15s, opacity .15s;
 }
 .col-filter-btn:not(.active):hover, .col-filter-btn.active { opacity: 1; }
-.col-filter-btn:hover { background: #fdf2f8; color: #9d174d; }
+.col-filter-btn:hover { background: color-mix(in srgb, currentColor 30%, transparent); }
 .col-filter-btn.active { background: var(--accent); color: var(--accent-ink); }
 
 .col-filter-pop {
