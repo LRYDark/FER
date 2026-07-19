@@ -161,15 +161,15 @@ if ($canBulkCreate) {
   .statCard{min-width:180px}
   /* Harmonisation des cartes de stats : même hauteur, même style de libellé/valeur. */
   .statCard .card-body{display:flex;flex-direction:column;justify-content:center;min-height:104px;padding:1rem .75rem}
-  .statCard .stat-label{font-size:.78rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;min-height:2.2em;display:flex;align-items:center;justify-content:center}
-  .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color:#1e293b;margin:0}
+  .statCard .stat-label{font-size:.78rem;font-weight:600;color: var(--ink-dim);text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;min-height:2.2em;display:flex;align-items:center;justify-content:center}
+  .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color: var(--ink);margin:0}
   .statCard .stat-value--sm{font-size:1rem;font-weight:600;line-height:1.3}
   /* Cartes de stats — grille responsive + style harmonisé (dashboard ≡ stats). */
   .stats-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:.75rem;align-items:stretch}
   .stats-cards .statCard{min-width:0;margin:0}
   .stats-cards .statCard .card-body{display:flex;flex-direction:column;justify-content:center;min-height:104px;padding:1rem .75rem}
-  .stats-cards .statCard .stat-label{font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;display:flex;align-items:center;justify-content:center}
-  .stats-cards .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color:#1e293b;margin:0}
+  .stats-cards .statCard .stat-label{font-size:.72rem;font-weight:600;color: var(--ink-dim);text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;display:flex;align-items:center;justify-content:center}
+  .stats-cards .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color: var(--ink);margin:0}
   .stats-cards .statCard .stat-value--sm{font-size:1rem;font-weight:600;line-height:1.3}
   .stats-cards .reg-stats-more{align-self:center;white-space:nowrap}
   @media (max-width:575.98px){
@@ -205,7 +205,7 @@ if ($canBulkCreate) {
   .dashboard-actions .btn-secondary{
     background:#64748b!important;
     color:#fff!important;
-    border-color:#64748b!important;
+    border-color: var(--ink-dim)!important;
   }
   .dashboard-actions .btn-secondary:hover,
   .dashboard-actions .btn-secondary:focus{
@@ -261,17 +261,17 @@ if ($canBulkCreate) {
 /* Légende des couleurs du tableau */
 .tbl-legend {
   display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
-  margin: 14px 2px 4px; font-size: 12px; color: #64748b;
+  margin: 14px 2px 4px; font-size: 12px; color: var(--ink-dim);
 }
 .tbl-legend .lg-item { display: inline-flex; align-items: center; gap: 7px; }
 .tbl-legend .lg-bar {
   width: 4px; height: 15px; border-radius: 2px; background: var(--primary, #f42182); display: inline-block;
 }
-.tbl-legend .lg-muted { color: #94a3b8; }
+.tbl-legend .lg-muted { color: var(--ink-faint); }
 
 /* ═══ Onglets du modal "Nouvel inscrit" (rose theme) ═══ */
 #addModalTabs {
-  border-bottom: 2px solid #f0e8eb;
+  border-bottom: 2px solid var(--border);
   margin: 0;
   padding: 0 1.25rem;
 }
@@ -303,7 +303,7 @@ if ($canBulkCreate) {
 .bulk-table-wrap {
   max-height: 58vh;
   overflow: auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 10px;
 }
 table.bulk-table {
@@ -317,8 +317,8 @@ table.bulk-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8fafc;
-  color: #475569;
+  background: var(--surface-2);
+  color: var(--ink-dim);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -326,15 +326,15 @@ table.bulk-table thead th {
   padding: 8px;
   white-space: nowrap;
   text-align: left;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
 }
 table.bulk-table tbody td {
   padding: 4px 6px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--surface-2);
   vertical-align: middle;
 }
 table.bulk-table tbody tr:last-child td { border-bottom: 0; }
-table.bulk-table tbody tr:hover td { background: #f8fafc; }
+table.bulk-table tbody tr:hover td { background: var(--surface-2); }
 table.bulk-table .bulk-field {
   font-size: 13px;
   padding: 5px 8px;
@@ -346,8 +346,8 @@ table.bulk-table td.col-num {
   width: 40px;
   text-align: center;
   font-weight: 700;
-  color: #94a3b8;
-  background: #f8fafc;
+  color: var(--ink-faint);
+  background: var(--surface-2);
 }
 table.bulk-table th.col-num { width: 40px; text-align: center; }
 table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; text-align: center; }
@@ -362,7 +362,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 .bulk-show-optional .bulk-col-optional { display: table-cell; }
 
 /* Bloc « Réglages du lot » : fond sobre, léger liseré rose en accent. */
-#bulkSharedBlock { background: #f8fafc; border: 1px solid #e5e7eb; border-left: 3px solid var(--primary, #f42182); }
+#bulkSharedBlock { background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--primary, #f42182); }
 /* Résumé replié cliquable. */
 #bulkSharedSummary {
   display: none;
@@ -370,17 +370,17 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   gap: 10px;
   width: 100%;
   text-align: left;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-left: 3px solid var(--primary, #f42182);
   border-radius: 10px;
   padding: 8px 14px;
   font-size: 13px;
-  color: #475569;
+  color: var(--ink-dim);
   cursor: pointer;
 }
-#bulkSharedSummary:hover { background: #f1f5f9; }
-#bulkSharedSummary .bss-sep { color: #cbd5e1; }
+#bulkSharedSummary:hover { background: var(--surface-2); }
+#bulkSharedSummary .bss-sep { color: var(--border-strong); }
 #bulkSharedSummary .bss-edit { margin-left: auto; font-size: 12px; color: var(--primary, #f42182); }
 
 /* ═══ Ajout multiple : correspondance colonnes Excel ↔ champs ═══ */
@@ -389,16 +389,16 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #f0e8eb;
+  border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 #bulkMapView .bulk-map-target-label {
   flex: 0 0 38%;
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: var(--ink-dim);
 }
 .bulk-map-dropzone {
   flex: 1 1 auto;
@@ -407,9 +407,9 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-strong);
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--surface-2);
   transition: border-color .15s, background .15s;
 }
 .bulk-map-pool {
@@ -419,9 +419,9 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   align-content: flex-start;
   gap: 6px;
   padding: 8px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-strong);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 .bulk-map-dropzone.drag-over,
 .bulk-map-pool.drag-over {
@@ -430,7 +430,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 }
 .bulk-map-placeholder {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--ink-faint);
   font-style: italic;
 }
 .bulk-map-chip {
@@ -439,8 +439,8 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   gap: 4px;
   font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
-  background: #fff;
+  color: var(--ink);
+  background: var(--surface);
   border: 1px solid #fbcfe8;
   border-radius: 6px;
   padding: 4px 8px;
@@ -471,7 +471,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 .bulk-map-hint {
   font-size: 11px;
   font-weight: 400;
-  color: #94a3b8;
+  color: var(--ink-faint);
   margin-top: 2px;
 }
 .bulk-comment-editor { margin-top: 8px; }
@@ -487,7 +487,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 }
 .bulk-comment-rich:empty::before {
   content: attr(data-placeholder);
-  color: #94a3b8;
+  color: var(--ink-faint);
   font-style: italic;
 }
 .bulk-comment-rich.drag-over { border-color: var(--primary, #f42182); background: #fdf2f6; }
@@ -549,16 +549,16 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 /* « Show X entries » (DataTables) : garder tout sur une ligne et éviter que la
    flèche du <select> ne chevauche le « 10 » (le select hérite parfois de
    .form-select = block + width:100%, d'où l'empilement Show / 10 / entries). */
-#tbl_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: #475569; font-weight: 400; }
+#tbl_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: var(--ink-dim); font-weight: 400; }
 #tbl_length select, #tbl_length .form-select {
   display: inline-block !important;
   width: auto !important;
   min-width: 64px;
   padding: 5px 30px 5px 10px;   /* place à droite pour la flèche */
   font-size: 13px;
-  border: 1px solid #d4c4cb;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background-color: #fff;
+  background-color: var(--surface);
   background-position: right 9px center;  /* repositionne la flèche (Bootstrap .form-select) */
 }
 
@@ -653,7 +653,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
     <input id="quickSearch" class="form-control quick-search" placeholder="Recherche rapide">
     <?php if($canEditReg || $canDeleteReg): ?>
     <!-- Barre d'actions groupées : visible dès qu'au moins une inscription est cochée -->
-    <div id="bulkBar" class="bulk-bar d-none align-items-center gap-2 my-2 p-2 rounded" style="background:#fdf2f8;border:1px solid #fbcfe8">
+    <div id="bulkBar" class="bulk-bar d-none align-items-center gap-2 my-2 p-2 rounded" style="background:var(--accent-soft);border:1px solid #fbcfe8">
       <span class="me-1"><i class="bi bi-check2-square me-1"></i><b id="bulkCount">0</b> sélectionné(s)</span>
       <?php if($canEditReg): ?>
       <button type="button" id="bulkEditBtn" class="btn btn-sm btn-rose"><i class="bi bi-pencil me-1"></i>Modifier la sélection</button>
@@ -728,7 +728,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
                 <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
                 <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
               </select>
-              <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+              <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color: var(--ink)"></div>
             </div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Enregistrer</button></div>
@@ -744,7 +744,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
             <!-- Réglages du lot : ouvert au départ, puis repliable en résumé cliquable -->
             <div id="bulkSharedBlock" class="mb-3 p-3 rounded">
               <div class="d-flex justify-content-between align-items-center mb-2">
-                <strong style="font-size:13px;color:#334155;"><i class="bi bi-sliders me-1"></i>Réglages du lot</strong>
+                <strong style="font-size:13px;color: var(--ink-dim);"><i class="bi bi-sliders me-1"></i>Réglages du lot</strong>
                 <button type="button" id="bulkSharedCollapse" class="btn btn-sm btn-link text-decoration-none p-0 text-muted">
                   Replier <i class="bi bi-chevron-up ms-1" style="font-size:11px;"></i>
                 </button>
@@ -856,7 +856,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
               </div>
               <div class="bulk-map-flow">
                 <div class="bulk-map-side bulk-map-side-targets">
-                  <strong class="text-muted d-block mb-2" style="font-size:13px;"><span class="bulk-map-step">2</span>Vos champs <span class="fw-normal" style="font-size:11px;color:#94a3b8">— déposez la colonne sur le bon champ</span></strong>
+                  <strong class="text-muted d-block mb-2" style="font-size:13px;"><span class="bulk-map-step">2</span>Vos champs <span class="fw-normal" style="font-size:11px;color: var(--ink-faint)">— déposez la colonne sur le bon champ</span></strong>
                   <div id="bulkMapTargets">
                     <?php foreach ($bulkRowFields as $bf):
                       if (empty($bf['bdd_column']) || ($bf['field_type'] ?? '') === 'guardian') continue;
@@ -994,7 +994,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
             <option value="gratuit">Gratuit / Enfant -<?= $childAge ?> ans (sans T-shirt)</option>
             <option value="enfant_tshirt">Enfant -<?= $childAge ?> ans (avec T-shirt)</option>
           </select>
-          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color:#1e293b"></div>
+          <div class="montant-du-display mt-2" style="display:none;font-size:14px;font-weight:600;color: var(--ink)"></div>
         </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button class="btn btn-rose">Sauvegarder</button></div>

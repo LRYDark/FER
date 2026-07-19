@@ -100,22 +100,22 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   box-shadow: 0 4px 16px rgba(0,0,0,.08);
   overflow: hidden;
   margin-bottom: 1.5rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
 }
 
 .log-card-header {
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-2));
   padding: 1rem 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .log-card-header h5 {
   margin: 0;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ink);
   font-size: 1rem;
 }
 
@@ -124,7 +124,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   align-items: center;
   gap: 1rem;
   font-size: 0.85rem;
-  color: #64748b;
+  color: var(--ink-dim);
 }
 
 .log-tab-section.active { display: flex; flex-direction: column; }
@@ -161,8 +161,8 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 .log-empty {
   padding: 3rem;
   text-align: center;
-  color: #94a3b8;
-  background: #f8fafc;
+  color: var(--ink-faint);
+  background: var(--surface-2);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -174,7 +174,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   font-size: 2.5rem;
   margin-bottom: 0.75rem;
   display: block;
-  color: #cbd5e1;
+  color: var(--border-strong);
 }
 
 .btn-clear {
@@ -230,25 +230,25 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 
 .page-header h2 {
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ink);
   margin: 0;
 }
 
 .page-header p {
-  color: #64748b;
+  color: var(--ink-dim);
   margin: 0.25rem 0 0;
 }
 
 /* ═══ Tab styles ═══ */
-.settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+.settings-tabs { border-bottom: 2px solid var(--border); margin-bottom: 24px; gap: 0; }
 .settings-tabs .nav-link {
-  color: #1e293b; font-weight: 500; font-size: 14px;
+  color: var(--ink); font-weight: 500; font-size: 14px;
   padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
   margin-bottom: -2px; border-radius: 0; background: transparent;
 }
-.settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+.settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--border-strong); }
 .settings-tabs .nav-link.active {
-  color: #1e293b; font-weight: 600;
+  color: var(--ink); font-weight: 600;
   border-bottom-color: var(--primary, #f42182); background: transparent;
 }
 .log-tab-section { display: none; height: calc(90vh - 180px); }

@@ -316,29 +316,29 @@ foreach ($items as $item) {
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
   .tl-thumb{width:100%;height:160px;object-fit:cover;border-radius:.75rem .75rem 0 0}
-  .tl-kicker{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--primary, #f42182);font-weight:800;padding:4px 10px;background:linear-gradient(135deg,#fdf2f8,#fce7f3);border-radius:100px}
-  .tl-amount{font-size:1.15rem;font-weight:800;letter-spacing:-.02em;color:#0f172a;margin:4px 0 8px}
-  .tl-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;background:#f8fafc;border:1px solid #f1f5f9;color:#64748b;font-weight:600;font-size:11px}
-  .tl-order{font-size:12px;color:#94a3b8;font-weight:600}
+  .tl-kicker{display:inline-block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--primary, #f42182);font-weight:800;padding:4px 10px;background:linear-gradient(135deg,var(--accent-soft),#fce7f3);border-radius:100px}
+  .tl-amount{font-size:1.15rem;font-weight:800;letter-spacing:-.02em;color: var(--ink);margin:4px 0 8px}
+  .tl-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--surface-2);color: var(--ink-dim);font-weight:600;font-size:11px}
+  .tl-order{font-size:12px;color: var(--ink-faint);font-weight:600}
   .tl-card{border:1px solid rgba(0,0,0,.06);border-radius:.75rem;overflow:hidden;transition:box-shadow .2s}
   .tl-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
   .sortable-ghost { opacity: 0.4; }
   .drag-handle:hover { color: var(--primary, #f42182); }
 
   /* Image position dragger — same ratio as card (480×180) */
-  .img-positioner{position:relative;width:100%;max-width:min(480px, 100%);aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed #e2e8f0;cursor:grab;background:#f1f5f9;user-select:none}
+  .img-positioner{position:relative;width:100%;max-width:min(480px, 100%);aspect-ratio:480/180;overflow:hidden;border-radius:.75rem;border:2px dashed var(--border);cursor:grab;background:var(--surface-2);user-select:none}
   .img-positioner:active{cursor:grabbing}
   .img-positioner img{position:absolute;top:0;left:0;pointer-events:none;user-select:none;-webkit-user-drag:none;transform-origin:0 0}
   .img-positioner .pos-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:11px;padding:3px 12px;border-radius:20px;pointer-events:none;white-space:nowrap;z-index:2}
   .img-pos-controls{display:flex;align-items:center;gap:10px;margin-top:8px;max-width:min(480px, 100%)}
-  .img-pos-controls label{font-size:12px;color:#64748b;font-weight:600;white-space:nowrap}
+  .img-pos-controls label{font-size:12px;color: var(--ink-dim);font-weight:600;white-space:nowrap}
   .img-pos-controls input[type=range]{flex:1;accent-color:var(--primary, #f42182)}
 
   /* Filter tabs */
-  .filter-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:2px solid #f0e8eb; margin-bottom:1rem; }
-  .filter-tabs a { padding:0.5rem 1.25rem; text-decoration:none; color:#1e293b; font-weight:500; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s, border-color .15s; }
-  .filter-tabs a:hover { color:#1e293b; border-bottom-color:#d4c4cb; }
-  .filter-tabs a.active { color:#1e293b; border-bottom-color:var(--primary, #f42182); font-weight:600; }
+  .filter-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:2px solid var(--border); margin-bottom:1rem; }
+  .filter-tabs a { padding:0.5rem 1.25rem; text-decoration:none; color: var(--ink); font-weight:500; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s, border-color .15s; }
+  .filter-tabs a:hover { color: var(--ink); border-bottom-color:var(--border-strong); }
+  .filter-tabs a.active { color: var(--ink); border-bottom-color:var(--primary, #f42182); font-weight:600; }
 </style>
 </head>
 
@@ -436,7 +436,7 @@ foreach ($items as $item) {
                        class="tl-thumb" alt="<?= htmlspecialchars($item['title'] ?? '') ?>"
                        style="object-position:<?= $tx ?> <?= $ty ?>">
                 <?php else: ?>
-                  <div class="tl-thumb d-flex align-items-center justify-content-center" style="background:#fdf2f8">
+                  <div class="tl-thumb d-flex align-items-center justify-content-center" style="background:var(--accent-soft)">
                     <i class="bi bi-image text-muted" style="font-size:2rem"></i>
                   </div>
                 <?php endif; ?>
@@ -444,7 +444,7 @@ foreach ($items as $item) {
                 <div class="p-3">
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <span class="tl-kicker"><?= htmlspecialchars($item['title'] ?? '') ?></span>
-                    <div class="drag-handle" style="cursor:grab;color:#94a3b8;padding:4px 8px">
+                    <div class="drag-handle" style="cursor:grab;color: var(--ink-faint);padding:4px 8px">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <circle cx="5" cy="3" r="1.5"/><circle cx="11" cy="3" r="1.5"/>
                         <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
@@ -561,7 +561,7 @@ foreach ($items as $item) {
                         <div class="img-pos-controls">
                           <label><i class="bi bi-zoom-in me-1"></i>Zoom</label>
                           <input type="range" class="zoom-slider" data-field="imgpos_<?= $item['id'] ?>" min="100" max="300" value="100" step="5">
-                          <span class="zoom-val" style="font-size:12px;color:#64748b;min-width:36px">100%</span>
+                          <span class="zoom-val" style="font-size:12px;color: var(--ink-dim);min-width:36px">100%</span>
                         </div>
                         <input type="hidden" name="image_position" id="imgpos_<?= $item['id'] ?>" value="<?= htmlspecialchars($item['image_position'] ?? '50% 50% 1') ?>">
                       </div>
@@ -628,7 +628,7 @@ foreach ($items as $item) {
             <div class="img-pos-controls">
               <label><i class="bi bi-zoom-in me-1"></i>Zoom</label>
               <input type="range" class="zoom-slider" data-field="imgpos_new" min="100" max="300" value="100" step="5">
-              <span class="zoom-val" style="font-size:12px;color:#64748b;min-width:36px">100%</span>
+              <span class="zoom-val" style="font-size:12px;color: var(--ink-dim);min-width:36px">100%</span>
             </div>
             <input type="hidden" name="image_position" id="imgpos_new" value="50% 50% 1">
           </div>

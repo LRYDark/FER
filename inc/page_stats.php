@@ -86,11 +86,11 @@ if (!$hasCurrentMonth) {
 <script src="../js/admin-charts.js"></script>
 <style>
 .stat-card {
-    border: 1px solid #f0e8eb;
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.25rem;
     text-align: center;
-    background: #fff;
+    background: var(--surface);
     transition: box-shadow 0.2s;
 }
 .stat-card:hover {
@@ -103,12 +103,12 @@ if (!$hasCurrentMonth) {
 }
 .stat-card .stat-label {
     font-size: 0.85rem;
-    color: #5f4b52;
+    color: var(--ink-dim);
     margin-top: 0.25rem;
 }
 .period-tabs .nav-link {
-    color: #5f4b52;
-    border: 1px solid #f0e8eb;
+    color: var(--ink-dim);
+    border: 1px solid var(--border);
     border-radius: 8px;
     margin-right: 0.5rem;
     padding: 0.4rem 1rem;
@@ -122,7 +122,7 @@ if (!$hasCurrentMonth) {
     font-weight: 600;
 }
 .period-tabs .nav-link:hover:not(.active) {
-    background: #faf7f8;
+    background: var(--surface-2);
 }
 .month-select {
     font-size: 14px; font-weight: 600; color: #880e4f; border: 1px solid #f8bbd0;
@@ -132,14 +132,14 @@ if (!$hasCurrentMonth) {
     font-size: 0.9rem;
 }
 .stats-table thead th {
-    background: #faf7f8;
-    color: #5f4b52;
+    background: var(--surface-2);
+    color: var(--ink-dim);
     font-weight: 600;
-    border-bottom: 2px solid #f0e8eb;
+    border-bottom: 2px solid var(--border);
 }
 .stats-table td {
-    color: #1e293b;
-    border-bottom: 1px solid #f0e8eb;
+    color: var(--ink);
+    border-bottom: 1px solid var(--border);
 }
 .chart-container {
     position: relative;
@@ -192,7 +192,7 @@ $desktopPct = $activeStats['unique_visitors'] > 0
                 <div class="stat-value"><?= number_format($activeStats['unique_visitors']) ?></div>
                 <div class="stat-label"><i class="bi bi-people me-1"></i>Visiteurs uniques</div>
             </div>
-            <div class="d-flex flex-column gap-2 ps-5" style="border-left:2px solid #f0e8eb">
+            <div class="d-flex flex-column gap-2 ps-5" style="border-left:2px solid var(--border)">
                 <div class="d-flex align-items-center gap-2">
                     <span style="font-size:1.1rem;font-weight:700;color:#16a34a"><?= number_format($activeStats['unique_mobile']) ?></span>
                     <span class="small text-muted"><i class="bi bi-phone"></i> Mobile (<?= $mobilePct ?>%)</span>
@@ -219,10 +219,10 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 </div>
 
 <!-- Chart -->
-<div class="card mb-4" style="border:1px solid #f0e8eb; border-radius:12px;">
+<div class="card mb-4" style="border:1px solid var(--border); border-radius:12px;">
     <div class="card-body">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-            <h6 class="mb-0" style="color:#5f4b52; font-weight:600;">
+            <h6 class="mb-0" style="color: var(--ink-dim); font-weight:600;">
                 <i class="bi bi-graph-up me-1"></i>Visites par jour – <?= $period === 'month' ? $monthNames[$selMonth] . ' ' . $selYear : $periodLabels[$period] ?>
             </h6>
             <div class="d-flex gap-3 flex-wrap" id="chartToggles">
@@ -253,9 +253,9 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 <div class="row g-4">
     <!-- Top pages -->
     <div class="col-lg-6">
-        <div class="card" style="border:1px solid #f0e8eb; border-radius:12px;">
+        <div class="card" style="border:1px solid var(--border); border-radius:12px;">
             <div class="card-body">
-                <h6 class="mb-3" style="color:#5f4b52; font-weight:600;">
+                <h6 class="mb-3" style="color: var(--ink-dim); font-weight:600;">
                     <i class="bi bi-file-earmark-text me-1"></i>Top 5 pages
                     <span class="ms-1" style="cursor:help;" data-bs-toggle="tooltip" data-bs-placement="top" title="Les 5 pages les plus visitees sur votre site. Chaque ligne correspond a une URL unique (avec ses parametres). Le nombre indique le total de pages vues sur la periode selectionnee."><i class="bi bi-info-circle text-muted" style="font-size:13px;"></i></span>
                 </h6>
@@ -299,9 +299,9 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 
     <!-- Top referers -->
     <div class="col-lg-6">
-        <div class="card" style="border:1px solid #f0e8eb; border-radius:12px;">
+        <div class="card" style="border:1px solid var(--border); border-radius:12px;">
             <div class="card-body">
-                <h6 class="mb-3" style="color:#5f4b52; font-weight:600;">
+                <h6 class="mb-3" style="color: var(--ink-dim); font-weight:600;">
                     <i class="bi bi-box-arrow-in-right me-1"></i>Top 5 referents
                     <span class="ms-1" style="cursor:help;" data-bs-toggle="tooltip" data-bs-placement="top" title="D'ou viennent vos visiteurs. 'Visite directe' = l'URL a ete tapee dans le navigateur ou ajoutee en favori. Les autres domaines (google.com, facebook.com...) indiquent que le visiteur a clique un lien vers votre site depuis ce site."><i class="bi bi-info-circle text-muted" style="font-size:13px;"></i></span>
                 </h6>
@@ -347,7 +347,7 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 <div class="modal fade" id="modalAllPages" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content" style="border-radius:16px;border:none;">
-      <div class="modal-header" style="border-bottom:1px solid #f0e8eb;">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
         <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Toutes les pages (<?= count($activeStats['all_pages'] ?? []) ?>)</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -376,7 +376,7 @@ $desktopPct = $activeStats['unique_visitors'] > 0
 <div class="modal fade" id="modalAllReferers" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content" style="border-radius:16px;border:none;">
-      <div class="modal-header" style="border-bottom:1px solid #f0e8eb;">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
         <h5 class="modal-title"><i class="bi bi-box-arrow-in-right me-2"></i>Tous les referents (<?= count($activeStats['all_referers'] ?? []) ?>)</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>

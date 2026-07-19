@@ -42,7 +42,7 @@ $publicUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . $appRoot . '/public/rem
 <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.08)}
   .ts-link-box{font-family:monospace;font-size:.85rem;background:#f8f9fa;padding:8px 12px;border-radius:6px;word-break:break-all}
-  #tsQr canvas{border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:#fff}
+  #tsQr canvas{border:1px solid var(--border);border-radius:8px;padding:6px;background: var(--surface)}
   .pulse-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
 </style>
 </head>

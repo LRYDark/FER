@@ -418,24 +418,24 @@ if ($migrationDone) {
   display: flex;
   flex-wrap: wrap;
   gap: 0;
-  border-bottom: 2px solid #f0e8eb;
+  border-bottom: 2px solid var(--border);
   margin-bottom: 1rem;
 }
 .filter-tabs a {
   padding: 0.5rem 1.25rem;
   text-decoration: none;
-  color: #1e293b;
+  color: var(--ink);
   font-weight: 500;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   transition: color .15s, border-color .15s;
 }
 .filter-tabs a:hover {
-  color: #1e293b;
-  border-bottom-color: #d4c4cb;
+  color: var(--ink);
+  border-bottom-color: var(--border-strong);
 }
 .filter-tabs a.active {
-  color: #1e293b;
+  color: var(--ink);
   border-bottom-color: var(--primary, #f42182);
   font-weight: 600;
 }
@@ -451,10 +451,10 @@ if ($migrationDone) {
   width: 100%;
 }
 .news-search-bar .input-group {
-  border: 1px solid #d4c4cb;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .news-search-bar .input-group:focus-within {
@@ -464,7 +464,7 @@ if ($migrationDone) {
 .news-search-bar .input-group-text {
   border: none !important;
   background: transparent !important;
-  color: #9e8a92;
+  color: var(--ink-faint);
   padding: 8px 10px 8px 14px;
 }
 .news-search-bar .form-control {
@@ -472,9 +472,9 @@ if ($migrationDone) {
   box-shadow: none !important;
   padding: 8px 14px 8px 4px;
   font-size: 13px;
-  color: #1e293b;
+  color: var(--ink);
 }
-.news-search-bar .form-control::placeholder { color: #9e8a92; }
+.news-search-bar .form-control::placeholder { color: var(--ink-faint); }
 .news-search-bar .form-control:focus { box-shadow: none !important; }
 
 /* Trashed card style */
@@ -570,7 +570,7 @@ if ($migrationDone) {
           <?php if (!empty($n['img_article']) && file_exists("../files/_news/" . $n['img_article'])): ?>
             <img src="../files/_news/<?= htmlspecialchars($n['img_article']) ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
           <?php else: ?>
-            <div style="height:200px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.3;">📰</div>
+            <div style="height:200px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.3;">📰</div>
           <?php endif; ?>
           <div class="card-body d-flex flex-column">
             <h6 class="card-title fw-bold"><?= htmlspecialchars($n['title_article']) ?></h6>

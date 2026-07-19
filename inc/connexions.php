@@ -111,15 +111,15 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <style>
-  .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+  .settings-tabs { border-bottom: 2px solid var(--border); margin-bottom: 24px; gap: 0; }
   .settings-tabs .nav-link {
-    color: #1e293b; font-weight: 500; font-size: 14px;
+    color: var(--ink); font-weight: 500; font-size: 14px;
     padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
     margin-bottom: -2px; border-radius: 0; background: transparent;
   }
-  .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+  .settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--border-strong); }
   .settings-tabs .nav-link.active {
-    color: #1e293b; font-weight: 600;
+    color: var(--ink); font-weight: 600;
     border-bottom-color: var(--primary, #f42182); background: transparent;
   }
   .settings-section { display: none; }

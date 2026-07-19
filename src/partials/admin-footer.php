@@ -590,8 +590,17 @@ function jrRenderLive() {
 }
 
 function jrSaveAppearance(patch) {
-  apiPost('ui-prefs', patch).catch(function() {
-    showMsg(document.getElementById('pfAppearanceMsg'), 'Erreur de sauvegarde de la préférence.', 'error');
+  // keepalive : la sauvegarde aboutit même si l'utilisateur navigue immédiatement
+  // (sinon le POST est annulé par le changement de page et la préférence est perdue).
+  fetch('../admin-api.php?route=ui-prefs', {
+    method: 'POST',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _pfCsrf },
+    body: JSON.stringify(patch)
+  }).then(function(r) { return r.json(); }).then(function(j) {
+    if (!j || !j.ok) showMsg(document.getElementById('pfAppearanceMsg'), (j && j.err) || 'Préférence non enregistrée.', 'error');
+  }).catch(function() {
+    showMsg(document.getElementById('pfAppearanceMsg'), 'Erreur de communication — préférence non enregistrée.', 'error');
   });
 }
 

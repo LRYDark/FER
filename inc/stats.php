@@ -67,8 +67,8 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   .stats-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:.75rem;align-items:stretch}
   .stats-cards .statCard{min-width:0;margin:0}
   .stats-cards .statCard .card-body{display:flex;flex-direction:column;justify-content:center;min-height:104px;padding:1rem .75rem}
-  .stats-cards .statCard .stat-label{font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;display:flex;align-items:center;justify-content:center}
-  .stats-cards .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color:#1e293b;margin:0}
+  .stats-cards .statCard .stat-label{font-size:.72rem;font-weight:600;color: var(--ink-dim);text-transform:uppercase;letter-spacing:.03em;line-height:1.25;margin:0 0 .4rem;display:flex;align-items:center;justify-content:center}
+  .stats-cards .statCard .stat-value{font-size:1.85rem;font-weight:700;line-height:1.1;color: var(--ink);margin:0}
   .stats-cards .statCard .stat-value--sm{font-size:1rem;font-weight:600;line-height:1.3}
   .stats-cards .reg-stats-more{align-self:center;white-space:nowrap}
   @media (max-width:575.98px){
@@ -80,20 +80,20 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   }
   /* Sélecteur « Show N entries » sur UNE ligne (sinon le <select> hérite de
      .form-select = block + width:100%, d'où l'empilement Show / 10 / entries). */
-  #tbl_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: #475569; font-weight: 400; }
+  #tbl_length label { display: inline-flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; font-size: 13px; color: var(--ink-dim); font-weight: 400; }
   #tbl_length select, #tbl_length .form-select {
     display: inline-block !important;
     width: auto !important;
     min-width: 64px;
     padding: 5px 30px 5px 10px;   /* place à droite pour la flèche */
     font-size: 13px;
-    border: 1px solid #d4c4cb;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
-    background-color: #fff;
+    background-color: var(--surface);
     background-position: right 9px center;
   }
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-  .stat-card{border-radius:1.25rem;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
+  .stat-card{border-radius:1.25rem;background: var(--surface);box-shadow:0 0 20px rgba(0,0,0,.08);padding:1.25rem}
   .stat-title{font-size:.9rem;color:#6c757d;margin-bottom:0.5rem}
   /* Select « Année » : largeur mini + place pour la flèche (sinon elle chevauche le texte). */
   #selYear{ min-width:7rem; padding-right:2.5rem; }
@@ -101,7 +101,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 
 /* ===== En-tête du tableau ===== */
 #tbl thead tr:first-child th{
-  background:#ffffff;                     /* fond blanc */
+  background: var(--surface);                     /* fond blanc */
   color:#dc267f;                          /* rose identitaire (ou var(--rose-500) ) */
   font-weight:600;
   font-size:.8rem;
@@ -114,7 +114,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
 }
 #tbl thead th.sorting_asc,
 #tbl thead th.sorting_desc{
-  background:#fafafa;                     /* colonne triée légèrement grisée */
+  background:var(--surface-2);                     /* colonne triée légèrement grisée */
 }
 
 #tbl thead tr:first-child th:first-child{border-radius:8px 0 0 0}
@@ -126,13 +126,13 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   vertical-align:middle;
   font-size:.86rem;
 }
-#tbl tbody tr:nth-child(even){background:#fcfcfd}    /* zébrage soft */
+#tbl tbody tr:nth-child(even){background:var(--surface-2)}    /* zébrage soft */
 
 #tbl tbody tr{
   transition:background .2s,box-shadow .2s;
 }
 #tbl tbody tr:hover{
-  background:#f9f9fb;
+  background:var(--surface-2);
   box-shadow:0 1px 4px rgba(0,0,0,.06);
 }
 
