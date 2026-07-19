@@ -205,29 +205,37 @@
 
         <div class="pf-section-header">
           <div>
-            <div class="pf-section-title">Apparence de l'administration et de la connexion</div>
-            <p class="pf-hint">Ces préférences ne concernent que votre compte : elles s'appliquent à l'espace d'administration <strong>et</strong> à votre page de connexion. Le site public garde son propre thème (Réglages → Personnalisation).</p>
+            <div class="pf-section-title">Apparence de votre compte</div>
+            <p class="pf-hint">Ces préférences ne concernent que votre compte. Le site public garde son propre thème (Réglages → Personnalisation).</p>
           </div>
         </div>
 
         <div id="pfAppearanceMsg" class="pf-msg" style="display:none"></div>
 
+        <?php
+          $__themeBtns = function (string $segId, string $attr, string $current) {
+              $mk = function (string $val, string $label, string $svg) use ($attr, $current) {
+                  $active = $current === $val ? ' class="is-active"' : '';
+                  return '<button type="button" data-' . $attr . '="' . $val . '"' . $active . '>' . $svg . ' ' . $label . '</button>';
+              };
+              $sun  = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
+              $moon = '<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+              $sys  = '<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
+              echo '<div class="jr-seg" id="' . $segId . '">'
+                 . $mk('light', 'Clair', $sun) . $mk('dark', 'Sombre', $moon) . $mk('system', 'Système', $sys)
+                 . '</div>';
+          };
+        ?>
+
         <div class="pf-appearance-row">
-          <label>Thème</label>
-          <div class="jr-seg" id="pfThemeSeg">
-            <button type="button" data-theme-choice="light"<?= ($jrTheme ?? 'light') === 'light' ? ' class="is-active"' : '' ?>>
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-              Clair
-            </button>
-            <button type="button" data-theme-choice="dark"<?= ($jrTheme ?? '') === 'dark' ? ' class="is-active"' : '' ?>>
-              <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-              Sombre
-            </button>
-            <button type="button" data-theme-choice="system"<?= ($jrTheme ?? '') === 'system' ? ' class="is-active"' : '' ?>>
-              <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              Système
-            </button>
-          </div>
+          <label>Thème de l'administration</label>
+          <?php $__themeBtns('pfThemeSeg', 'theme-choice', $jrTheme ?? 'light'); ?>
+        </div>
+
+        <div class="pf-appearance-row">
+          <label>Thème des pages de connexion</label>
+          <?php $__themeBtns('pfLoginThemeSeg', 'login-theme-choice', $jrLoginTheme ?? 'light'); ?>
+          <p class="pf-hint" style="margin-top:6px">La page de connexion, de réinitialisation et de mise à jour — indépendant de l'administration.</p>
         </div>
 
         <div class="pf-appearance-row">

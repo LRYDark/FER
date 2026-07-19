@@ -20,11 +20,42 @@ if (!$authAccent) {
     // Repli (install.php : config.php pas encore chargé) — rose FER pré-dérivé
     $authAccent = ['#db2777', '#bc2266', '#ffffff', '#e668a0', '#ea82b0', '#ffffff'];
 }
+
+// Thème DÉDIÉ aux pages de connexion (séparé de l'admin). Si l'utilisateur est
+// connecté (update.php, change-password), on lit sa préférence login_theme en
+// base ; sinon (login, reset : pré-auth) le script client lira le localStorage.
+$authLoginTheme = null;
+try {
+    if (isset($pdo) && isset($_SESSION['uid'])) {
+        $st = $pdo->prepare('SELECT ui_prefs FROM users WHERE id = ?');
+        $st->execute([$_SESSION['uid']]);
+        $raw = $st->fetchColumn();
+        if ($raw) {
+            $p = json_decode($raw, true);
+            if (is_array($p) && in_array($p['login_theme'] ?? '', ['light', 'dark', 'system'], true)) {
+                $authLoginTheme = $p['login_theme'];
+            }
+        }
+    }
+} catch (\Throwable $e) {}
 ?>
 <?php // ?v=mtime : anti-cache
 $authV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $rel . '?v=' . (@filemtime($p) ?: '1'); };
 ?>
 <script src="jr-theme/js/theme.js"></script>
+<script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
+/* Applique le thème des pages de connexion (indépendant de l'admin), APRÈS
+   theme.js qui aurait posé le thème admin. Anti-flash : fond immédiat. */
+(function () {
+  var d = document.documentElement;
+  var t = <?= $authLoginTheme !== null ? json_encode($authLoginTheme) : 'null' ?>;
+  if (t === null) { try { t = localStorage.getItem('jr-login-theme'); } catch (e) {} }
+  if (t !== 'dark' && t !== 'system') t = 'light';
+  d.setAttribute('data-theme', t);
+  var dark = t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  d.style.backgroundColor = dark ? '#05070D' : '#E9EDF4';
+})();
+</script>
 <link rel="stylesheet" href="<?= $authV('jr-theme/css/tokens.css') ?>">
 <link rel="stylesheet" href="<?= $authV('jr-theme/css/base.css') ?>">
 <link rel="stylesheet" href="<?= $authV('jr-theme/css/components.css') ?>">
