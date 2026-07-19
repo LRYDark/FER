@@ -1211,7 +1211,7 @@ $jsConfig = json_encode([
             <div class="drag-bar"></div>
             <p id="prevBadge" data-dyn="dynamique" data-acc="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:5px 16px;margin:0 0 16px;text-transform:uppercase;letter-spacing:.08em;color:<?= $mtcColors['accent'] ?>;background:<?= $mtcColors['card_bg'] ?>;border-radius:<?= $mtcRadius['badge'] ?>px">Inscription confirmée</p>
             <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color: #0f172a;margin:0 0 8px">Bienvenue Jean !</h2>
-            <p data-ed="title_subtitle" style="font-size:15px;color: #475569;margin:0;line-height:1.6"><?= nl2br(htmlspecialchars($mtcTexts['title_subtitle'])) ?></p>
+            <p data-ed="title_subtitle" style="font-size:15px;color: #475569;margin:0;line-height:1.6"><?= str_replace("\n", '<br>', htmlspecialchars($mtcTexts['title_subtitle'])) ?></p>
           </td></tr>
 
           <!-- Sections -->
@@ -2465,8 +2465,8 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       var clone=el.cloneNode(true);
       clone.querySelectorAll('.el-actions').forEach(function(a){a.remove();});
       // Préserve les sauts de ligne (<br> ou <div> issus de contenteditable) sous forme de \n
-      clone.innerHTML=clone.innerHTML.replace(/<div>/gi,'\n').replace(/<br\s*\/?>/gi,'\n');
-      add('mtc_'+el.dataset.ed,clone.textContent.replace(/\n{3,}/g,'\n\n').replace(/^\n+|\n+$/g,''));
+      clone.innerHTML=clone.innerHTML.replace(/<div><br\s*\/?><\/div>/gi,'\n').replace(/<\/div><div>/gi,'\n').replace(/<div>/gi,'\n').replace(/<br\s*\/?>/gi,'\n');
+      add('mtc_'+el.dataset.ed,clone.textContent.trim());
       if(el.style.fontFamily) add('mtc_font_'+el.dataset.ed,el.style.fontFamily);
       if(el.style.fontSize) add('mtc_size_'+el.dataset.ed,el.style.fontSize);
       if(el.style.textAlign) add('mtc_align_'+el.dataset.ed,el.style.textAlign);
