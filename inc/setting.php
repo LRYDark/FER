@@ -4298,7 +4298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
         <h2>Reglement de la course</h2>
                 <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
                     <?= csrf_field() ?>
-                    <div class="form-group mb-3">
+                    <div>
                         <label for="divReglementation" class="form-label">Reglement de la course</label>
                         <textarea class="form-control" id="divReglementation" name="div_reglementation" rows="10" required>
                             <?= htmlspecialchars($div_reglementation) ?>
