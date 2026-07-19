@@ -527,21 +527,28 @@ function updateDefaultMethodSection(data) {
    APPARENCE (thème / accent / police par utilisateur — users.ui_prefs)
 ═════════════════════════════════════════════════════════════════════════ */
 var _jrRoseVars = <?= json_encode(jr_accent_vars_from_hex($jrSitePrimary)) ?>;
-var _jrFontMap = {
-  'inter': null,
-  'system': 'system-ui, -apple-system, "Segoe UI", sans-serif',
-  'poppins': '"Poppins", sans-serif',
-  'roboto': '"Roboto", sans-serif',
-  'open-sans': '"Open Sans", sans-serif',
-  'montserrat': '"Montserrat", sans-serif',
-  'nunito': '"Nunito", sans-serif'
-};
-var _jrGoogleFonts = { 'poppins': 'Poppins', 'roboto': 'Roboto', 'open-sans': 'Open+Sans', 'montserrat': 'Montserrat', 'nunito': 'Nunito' };
+/* Catalogue complet (même liste que le Thème du site) : nom → {stack, google, custom} */
+var _jrFonts = <?= json_encode(array_map(fn($d) => ['stack' => $d[0], 'google' => $d[1], 'custom' => $d[2]], $jrFonts), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var _jrState = {
   accent: <?= json_encode($jrAccent) ?>,
   accentCustom: <?= json_encode($jrPrefs['admin_accent_custom'] ?? '') ?>,
   font: <?= json_encode($jrFont) ?>
 };
+
+/* CSS de la police courante : @font-face éventuel (custom) + override body */
+function jrFontCss() {
+  var name = _jrState.font;
+  var f = _jrFonts[name];
+  if (!f || name === 'Inter') return '';
+  var css = '';
+  if (f.custom) {
+    var ext = f.custom.split('.').pop().toLowerCase();
+    var fmt = { otf: 'opentype', woff2: 'woff2', woff: 'woff', ttf: 'truetype' }[ext] || 'truetype';
+    css += '@font-face{font-family:"' + name.replace(/"/g, '') + '";src:url("../' + f.custom + '") format("' + fmt + '");font-display:swap;}\n';
+  }
+  css += 'body{font-family:' + f.stack + ';}\n';
+  return css;
+}
 
 /* Dérive les 6 variables d'accent depuis un hex (miroir de jr_accent_vars_from_hex PHP) */
 function jrDeriveAccent(hex) {
@@ -575,7 +582,7 @@ function jrRenderLive() {
     css += ':root{--accent-l:' + vars[0] + ';--accent-l-strong:' + vars[1] + ';--accent-l-ink:' + vars[2]
         + ';--accent-d:' + vars[3] + ';--accent-d-strong:' + vars[4] + ';--accent-d-ink:' + vars[5] + ';}\n';
   }
-  if (_jrFontMap[_jrState.font]) css += 'body{font-family:' + _jrFontMap[_jrState.font] + ';}\n';
+  css += jrFontCss();
   jrLiveStyle().textContent = css;
   // Neutraliser le style serveur (sinon il gagnerait sur un retour aux presets)
   var srv = document.getElementById('jr-user-vars');
@@ -618,7 +625,7 @@ function jrApplyAccentChoice(name, customHex) {
     d.removeAttribute('data-accent');
     jrRenderLive();
   } else {
-    jrLiveStyle().textContent = (_jrFontMap[_jrState.font] ? 'body{font-family:' + _jrFontMap[_jrState.font] + ';}' : '');
+    jrLiveStyle().textContent = jrFontCss();
     var srv = document.getElementById('jr-user-vars'); if (srv) srv.textContent = '';
     if (name === 'blue') d.removeAttribute('data-accent'); else d.setAttribute('data-accent', name);
   }
@@ -645,20 +652,25 @@ if (pfAccentOptions) {
 var pfFontSelect = document.getElementById('pfFontSelect');
 if (pfFontSelect) {
   pfFontSelect.addEventListener('change', function() {
-    var f = pfFontSelect.value;
-    _jrState.font = f;
-    if (_jrGoogleFonts[f] && !document.getElementById('jr-font-' + f)) {
+    var name = pfFontSelect.value;
+    var f = _jrFonts[name];
+    if (!f) return;
+    _jrState.font = name;
+    // Google Font : charger la feuille à la volée pour l'aperçu immédiat
+    var slug = name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    if (f.google && !document.getElementById('jr-font-' + slug)) {
       var l = document.createElement('link');
-      l.rel = 'stylesheet'; l.id = 'jr-font-' + f;
-      l.href = 'https://fonts.googleapis.com/css2?family=' + _jrGoogleFonts[f] + ':wght@400;500;600;700&display=swap';
+      l.rel = 'stylesheet'; l.id = 'jr-font-' + slug;
+      l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@400;500;600;700&display=swap';
       document.head.appendChild(l);
     }
-    jrRenderLive();
-    if (_jrState.accent !== 'rose' && _jrState.accent !== 'custom') {
-      // jrRenderLive a réécrit les vars accent : re-nettoyer pour les presets
-      jrLiveStyle().textContent = (_jrFontMap[f] ? 'body{font-family:' + _jrFontMap[f] + ';}' : '');
+    if (_jrState.accent === 'rose' || _jrState.accent === 'custom') {
+      jrRenderLive();
+    } else {
+      jrLiveStyle().textContent = jrFontCss();
+      var srv = document.getElementById('jr-user-vars'); if (srv) srv.textContent = '';
     }
-    jrSaveAppearance({ admin_font: f });
+    jrSaveAppearance({ admin_font: name });
   });
 }
 

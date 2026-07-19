@@ -109,18 +109,12 @@ if ($jrAccent === 'rose' || ($jrAccent === 'custom' && !$jrAccentCss)) {
     $jrAccentAttr = $jrAccent === 'blue' ? '' : $jrAccent; // bleu = défaut tokens (pas d'attribut)
 }
 
-// Police admin (indépendante du site public)
-$jrFonts = [
-    'inter'      => null, // défaut jr-theme (auto-hébergée)
-    'system'     => 'system-ui, -apple-system, "Segoe UI", sans-serif',
-    'poppins'    => '"Poppins", sans-serif',
-    'roboto'     => '"Roboto", sans-serif',
-    'open-sans'  => '"Open Sans", sans-serif',
-    'montserrat' => '"Montserrat", sans-serif',
-    'nunito'     => '"Nunito", sans-serif',
-];
-if (!array_key_exists($jrFont, $jrFonts)) $jrFont = 'inter';
-$jrGoogleFonts = ['poppins' => 'Poppins', 'roboto' => 'Roboto', 'open-sans' => 'Open+Sans', 'montserrat' => 'Montserrat', 'nunito' => 'Nunito'];
+// Police admin (indépendante du site public) — même catalogue que le Thème du site
+$jrFonts = jr_admin_fonts(); // nom => [stack, google, customPath]
+// Compat anciens slugs (premières versions du profil)
+$jrFontLegacy = ['inter' => 'Inter', 'system' => 'system-ui', 'poppins' => 'Poppins', 'roboto' => 'Roboto', 'open-sans' => 'Open Sans', 'montserrat' => 'Montserrat', 'nunito' => 'Nunito'];
+if (isset($jrFontLegacy[$jrFont])) $jrFont = $jrFontLegacy[$jrFont];
+if (!array_key_exists($jrFont, $jrFonts)) $jrFont = 'Inter';
 ?>
 
 <?php
@@ -153,8 +147,8 @@ $jrV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $r
 <link rel="stylesheet" href="../<?= $jrV('jr-theme/css/tokens.css') ?>">
 <link rel="stylesheet" href="../<?= $jrV('jr-theme/css/base.css') ?>">
 <link rel="stylesheet" href="../<?= $jrV('css/admin.css') ?>">
-<?php if (isset($jrGoogleFonts[$jrFont])): ?>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= $jrGoogleFonts[$jrFont] ?>:wght@400;500;600;700&display=swap">
+<?php if ($jrFonts[$jrFont][1]): // Google Font ?>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= str_replace(' ', '+', $jrFont) ?>:wght@400;500;600;700&display=swap">
 <?php endif; ?>
 <style id="jr-user-vars">
 <?php if ($jrAccentCss): ?>
@@ -163,8 +157,14 @@ $jrV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $r
   --accent-d: <?= $jrAccentCss[3] ?>; --accent-d-strong: <?= $jrAccentCss[4] ?>; --accent-d-ink: <?= $jrAccentCss[5] ?>;
 }
 <?php endif; ?>
-<?php if ($jrFonts[$jrFont] !== null): ?>
-body { font-family: <?= $jrFonts[$jrFont] ?>; }
+<?php if ($jrFonts[$jrFont][2]): // Police custom du dossier fonts/ : @font-face
+    $__fmtMap = ['otf' => 'opentype', 'woff2' => 'woff2', 'woff' => 'woff', 'ttf' => 'truetype'];
+    $__ext = strtolower(pathinfo($jrFonts[$jrFont][2], PATHINFO_EXTENSION));
+?>
+@font-face { font-family: "<?= addslashes($jrFont) ?>"; src: url("../<?= addslashes($jrFonts[$jrFont][2]) ?>") format("<?= $__fmtMap[$__ext] ?? 'truetype' ?>"); font-display: swap; }
+<?php endif; ?>
+<?php if ($jrFont !== 'Inter'): ?>
+body { font-family: <?= $jrFonts[$jrFont][0] ?>; }
 <?php endif; ?>
 </style>
 

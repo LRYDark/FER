@@ -248,13 +248,11 @@
         <div class="pf-appearance-row">
           <label>Police d'écriture (admin uniquement)</label>
           <select class="pf-input" id="pfFontSelect" style="max-width:280px">
-            <option value="inter"<?= ($jrFont ?? 'inter') === 'inter' ? ' selected' : '' ?>>Inter (défaut)</option>
-            <option value="system"<?= ($jrFont ?? '') === 'system' ? ' selected' : '' ?>>Police du système</option>
-            <option value="poppins"<?= ($jrFont ?? '') === 'poppins' ? ' selected' : '' ?>>Poppins</option>
-            <option value="roboto"<?= ($jrFont ?? '') === 'roboto' ? ' selected' : '' ?>>Roboto</option>
-            <option value="open-sans"<?= ($jrFont ?? '') === 'open-sans' ? ' selected' : '' ?>>Open Sans</option>
-            <option value="montserrat"<?= ($jrFont ?? '') === 'montserrat' ? ' selected' : '' ?>>Montserrat</option>
-            <option value="nunito"<?= ($jrFont ?? '') === 'nunito' ? ' selected' : '' ?>>Nunito</option>
+            <?php foreach (($jrFonts ?? jr_admin_fonts()) as $__fName => $__fDef): ?>
+              <option value="<?= htmlspecialchars($__fName) ?>"<?= ($jrFont ?? 'Inter') === $__fName ? ' selected' : '' ?>><?=
+                $__fName === 'Inter' ? 'Inter (défaut)' : ($__fName === 'system-ui' ? 'Police du système' : htmlspecialchars($__fName))
+              ?></option>
+            <?php endforeach; ?>
           </select>
           <p class="pf-hint" style="margin-top:6px">La police du site public se règle dans Réglages → Personnalisation → Thème du site.</p>
         </div>

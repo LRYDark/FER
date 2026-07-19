@@ -747,6 +747,36 @@ function jr_accent_vars_from_hex(string $hex): ?array
     return [$light, $lightStrong, $lightInk, $dark, $darkStrong, $darkInk];
 }
 
+/**
+ * Polices proposées pour l'ADMIN (profil → Apparence) : même catalogue que le
+ * « Thème du site » (Réglages → Personnalisation), polices custom du dossier
+ * fonts/ incluses. Retourne [nom => [stack CSS, googleLoadable(bool), customPath|null]].
+ */
+function jr_admin_fonts(): array
+{
+    $google = [
+        'Poppins', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Nunito', 'Raleway',
+        'Source Sans 3', 'Work Sans', 'DM Sans', 'Outfit', 'Plus Jakarta Sans', 'Manrope',
+        'Figtree', 'Quicksand', 'Cabin', 'Rubik', 'Karla', 'Playfair Display',
+        'Bebas Neue', 'Oswald', 'Dancing Script', 'Lobster',
+    ];
+    $fonts = [
+        'Inter'     => ["'Inter', sans-serif", false, null],          // défaut (auto-hébergée jr-theme)
+        'system-ui' => ['system-ui, -apple-system, "Segoe UI", sans-serif', false, null],
+    ];
+    foreach ($google as $g) {
+        $serif = in_array($g, ['Playfair Display'], true) ? 'serif'
+               : (in_array($g, ['Dancing Script', 'Lobster'], true) ? 'cursive' : 'sans-serif');
+        $fonts[$g] = ["'" . $g . "', " . $serif, true, null];
+    }
+    $fonts['Georgia'] = ['Georgia, serif', false, null];
+    $fonts['Impact']  = ['Impact, sans-serif', false, null];
+    foreach (getCustomFonts() as $name => $path) {
+        if (!isset($fonts[$name])) $fonts[$name] = ["'" . addslashes($name) . "', sans-serif", false, $path];
+    }
+    return $fonts;
+}
+
 /* ── Chiffrement AES-256-GCM (authentifié) ──────────────────────────────── */
 define('CIPHER_ALGO', 'aes-256-gcm');
 define('CIPHER_KEY', base64_decode($_ENV['ENCRYPTION_KEY']));

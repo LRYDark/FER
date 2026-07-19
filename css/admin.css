@@ -933,7 +933,7 @@ a:hover { color: var(--accent-strong); }
 }
 .pf-overlay.open { display: flex; }
 .pf-modal {
-  width: min(680px, 100%);
+  width: min(820px, 100%);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-l);
@@ -1102,7 +1102,13 @@ a:hover { color: var(--accent-strong); }
 .pf-pk-empty { font-size: var(--fs-small); color: var(--ink-faint); }
 
 .pf-default-card { border: 1px solid var(--border); border-radius: var(--radius-m); padding: var(--sp-4); background: var(--card); margin-bottom: var(--sp-4); }
-.pf-default-card-header { margin-bottom: var(--sp-3); }
+.pf-default-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: var(--sp-3); }
+.pf-default-card-header > svg {
+  width: 20px; height: 20px; flex: none;
+  stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+/* Filet de sécurité : aucun SVG du modal ne doit exploser en taille/remplissage */
+.pf-modal svg:not([class]) { max-width: 24px; max-height: 24px; fill: none; stroke: currentColor; }
 .pf-default-btns { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .pf-default-btn {
   display: inline-flex; align-items: center; gap: 7px;
