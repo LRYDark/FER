@@ -3,8 +3,9 @@
 ========================================================
 
 ⚠️ Après mise à jour : exécuter update.php une fois (admin connecté).
-   Il migre la configuration vers le nouveau format chiffré puis
-   supprime les fichiers devenus inutiles (config/.env, .env.example).
+   Il migre la configuration vers le nouveau format chiffré, crée les
+   colonnes/tables de l'assistant virtuel (chatbot), puis supprime les
+   fichiers devenus inutiles (config/.env, .env.example).
 
 --------------------------------------------------------
 CONFIGURATION CHIFFRÉE (nouveau — comme MERIDIAN)
@@ -57,11 +58,43 @@ NOUVELLE INTERFACE D'ADMINISTRATION (jr-theme)
   presets ou couleur libre), police de l'admin — indépendant du
   site public, qui garde son « Thème du site » (Réglages →
   Personnalisation).
+- Deux réglages de thème INDÉPENDANTS : « Apparence de
+  l'administration » et « Apparence des pages de connexion »
+  (login/reset/installation/mise à jour peuvent être sombres avec
+  une administration claire, et inversement).
 - Pages de connexion, réinitialisation, changement de mot de passe,
   installation et mise à jour : layout « split » avec panneau
   illustré animé, aux couleurs de l'accent.
 - Graphiques (Statistiques, Visites) réhabillés aux couleurs du
   thème (accent, clair/sombre automatiques).
+
+--------------------------------------------------------
+ASSISTANT VIRTUEL — CHATBOT (nouveau)
+--------------------------------------------------------
+- Une bulle de chat s'affiche en bas à droite de TOUTES les pages du
+  site public et répond immédiatement aux questions des visiteurs :
+  « suis-je bien inscrit ? », « ai-je droit à un t-shirt ? » (vérifié
+  par e-mail dans les inscriptions, sans divulguer de données
+  personnelles), lieu de départ, point de rendez-vous, horaires,
+  date, parcours/distance, tarif (tarif enfant inclus), comment
+  s'inscrire, retrait des t-shirts, newsletter, photos, dons…
+- Moteur à règles 100 % LOCAL : aucune clé API, aucun coût, aucune
+  donnée envoyée à un service externe. Tolère fautes et variantes
+  (t-shirt/tshirt/tee-shirt, sans accents…).
+- La page Contact est remplacée : le bouton « Contactez-nous » ouvre
+  le chat, et le formulaire de contact (avec captcha et pièces
+  jointes, identique à l'ancien) s'affiche DANS le chat quand
+  l'assistant ne sait pas répondre ou sur demande. L'ancienne
+  adresse /contact redirige vers le chat.
+- Réglages → Accueil → « Assistant virtuel » : activer/désactiver la
+  bulle, renseigner les horaires, le point de rendez-vous et les
+  modalités de retrait des t-shirts, et consulter le journal des
+  questions incomprises (pour enrichir les réponses).
+- Si l'assistant est désactivé, la page Contact classique est
+  automatiquement rétablie (le site garde toujours un moyen de
+  contact).
+- La vérification « suis-je inscrit » de la page d'accueil reconnaît
+  désormais aussi les e-mails importés stockés en clair.
 
 --------------------------------------------------------
 SÉCURITÉ
