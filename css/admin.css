@@ -92,14 +92,10 @@ body {
   accent-color: var(--accent);
 }
 
-/* Seule la liste de menus scrolle : le logo (haut) et le bloc utilisateur (bas)
-   restent fixes, et la scrollbar reste à l'intérieur — plus de débordement
-   sur les coins arrondis de la carte. */
-.jr-nav > nav { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
-.jr-nav > nav::-webkit-scrollbar { width: 5px; }
-.jr-nav > nav::-webkit-scrollbar-track { background: transparent; }
-.jr-nav > nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-pill); }
-.jr-nav > nav::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+/* Seule la liste de menus scrolle (logo + bloc utilisateur fixes), et la
+   scrollbar est MASQUÉE — le défilement reste fonctionnel (molette / tactile). */
+.jr-nav > nav { overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.jr-nav > nav::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 .jr-brand {
   display: flex;
