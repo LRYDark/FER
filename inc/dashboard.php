@@ -908,7 +908,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
             </div>
 
             <div id="bulkProgress" class="mt-3" style="display:none">
-              <div id="bulkProgressLog" style="max-height:200px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
+              <div id="bulkProgressLog" style="max-height:200px;overflow-y:auto;font-size:13px;background:var(--surface-2);border-radius:8px;padding:12px;font-family:monospace;"></div>
               <div id="bulkRecap" class="mt-3" style="display:none"></div>
             </div>
           </div>

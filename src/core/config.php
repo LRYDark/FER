@@ -940,6 +940,23 @@ function getTinyMceConfig(PDO $pdo, array $overrides = []): string {
     $googleFontsUrl = getTinyMceGoogleFontsUrl();
     $csrfToken = function_exists('csrf_token') ? csrf_token() : '';
 
+    // Thème sombre de l'ADMIN (préférence utilisateur) → skin TinyMCE assorti.
+    static $__tmDark = null;
+    if ($__tmDark === null) {
+        $__tmDark = false;
+        try {
+            if (isset($_SESSION['uid'])) {
+                $st = $pdo->prepare('SELECT ui_prefs FROM users WHERE id = ?');
+                $st->execute([$_SESSION['uid']]);
+                $raw = $st->fetchColumn();
+                if ($raw) {
+                    $prefs = json_decode($raw, true);
+                    $__tmDark = is_array($prefs) && (($prefs['admin_theme'] ?? '') === 'dark');
+                }
+            }
+        } catch (\Throwable $e) {}
+    }
+
     // Mode permissif : autorise l'admin à coller du HTML/CSS/JS quelconque
     // (utilisé pour les blocs custom de l'accueil par exemple). À NE PAS activer
     // pour des éditeurs accessibles à des utilisateurs non-admin.
@@ -949,12 +966,14 @@ function getTinyMceConfig(PDO $pdo, array $overrides = []): string {
     $defaults = [
         'license_key' => 'gpl',
         'language' => 'fr_FR',
+        'skin' => $__tmDark ? 'oxide-dark' : 'oxide',
         'plugins' => 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
         'toolbar' => 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat',
         'height' => 400,
         'menubar' => false,
         'branding' => false,
-        'content_style' => $fontStyles . 'body { font-family: ' . $fontStack . '; font-size: 14px; }',
+        'content_style' => $fontStyles . 'body { font-family: ' . $fontStack . '; font-size: 14px;'
+            . ($__tmDark ? ' background:#0F1219; color:#F4F7FC;' : '') . ' }',
         'content_css' => $googleFontsUrl,
         'font_family_formats' => $fontFormats,
         'automatic_uploads' => true,

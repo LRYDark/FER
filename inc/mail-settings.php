@@ -749,7 +749,7 @@ $jsConfig = json_encode([
 .email-search-container { position: relative; }
 .email-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; z-index: 1050; display: none; }
 .suggestion-item { padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid #eee; }
-.suggestion-item:hover { background-color: #f8f9fa; }
+.suggestion-item:hover { background-color: var(--surface-2); }
 .suggestion-item:last-child { border-bottom: none; }
 
 .ed-pane{width:100%}
