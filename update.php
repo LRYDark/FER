@@ -561,6 +561,22 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `flash_info_end` DATETIME DEFAULT NULL",
     // Report de l'état existant : un bandeau actuellement activé reste en mode « on ».
     "UPDATE `setting` SET `flash_info_mode` = 'on' WHERE `flash_info_active` = 1 AND `flash_info_mode` = 'off'",
+
+    // ── Assistant virtuel (chatbot) : infos pratiques + activation ──
+    // Horaires de la course (texte libre), point de rendez-vous, modalités de
+    // retrait des t-shirts — réponses servies par le chatbot du site public.
+    "ALTER TABLE `setting` ADD COLUMN `course_horaires` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `course_rdv` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `tshirt_retrait_info` TEXT DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `chatbot_enabled` TINYINT(1) NOT NULL DEFAULT 1",
+    // Questions incomprises par le chatbot (journal anonyme, consultable dans
+    // Réglages pour enrichir les réponses au fil du temps).
+    "CREATE TABLE IF NOT EXISTS `chatbot_unmatched` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `question` varchar(500) NOT NULL,
+      `created_at` timestamp NULL DEFAULT current_timestamp(),
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 ];
 
 $results = [];

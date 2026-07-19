@@ -1145,6 +1145,40 @@ if (isset($_POST['save_inscription_params'])) {
 }
 
 /* --------------------------------------------------------------------------
+   Assistant virtuel (chatbot) : activation + infos pratiques servies au bot
+   (horaires, point de rendez-vous, retrait des t-shirts). Texte libre stocké
+   tel quel, échappé à l'affichage (public comme admin).
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_chatbot_infos'])) {
+    $chatbot_enabled     = !empty($_POST['chatbot_enabled']) ? 1 : 0;
+    $course_horaires     = trim($_POST['course_horaires'] ?? '');
+    $course_rdv          = trim($_POST['course_rdv'] ?? '');
+    $tshirt_retrait_info = trim($_POST['tshirt_retrait_info'] ?? '');
+
+    $pdo->prepare(
+        'UPDATE setting SET chatbot_enabled = :en, course_horaires = :hor,
+         course_rdv = :rdv, tshirt_retrait_info = :ret WHERE id = 1'
+    )->execute([
+        'en'  => $chatbot_enabled,
+        'hor' => $course_horaires !== '' ? $course_horaires : null,
+        'rdv' => $course_rdv !== '' ? $course_rdv : null,
+        'ret' => $tshirt_retrait_info !== '' ? $tshirt_retrait_info : null,
+    ]);
+    $data['chatbot_enabled'] = $chatbot_enabled;
+    $data['course_horaires'] = $course_horaires;
+    $data['course_rdv'] = $course_rdv;
+    $data['tshirt_retrait_info'] = $tshirt_retrait_info;
+
+    addToast('success', 'Réglages de l\'assistant enregistrés !');
+}
+
+// Vider le journal des questions incomprises par le chatbot
+if (isset($_POST['clear_chatbot_unmatched'])) {
+    try { $pdo->exec('DELETE FROM chatbot_unmatched'); } catch (\Throwable $e) {}
+    addToast('success', 'Journal des questions vidé.');
+}
+
+/* --------------------------------------------------------------------------
    Message affiché quand les inscriptions sont fermées (TinyMCE)
    Même mécanisme que la réglementation : champ HTML encodé en Base64 côté JS
    (contournement WAF), décodé si AJAX puis nettoyé par sanitizeHtml (CWE-79).
@@ -3243,6 +3277,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 <?php if ($canTab('accueil')): ?>
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
   <div class="row g-4">
+
+    <!-- Carte : Assistant virtuel (chatbot) + infos pratiques -->
+    <?php if ($canCard('accueil', 'params')): ?>
+    <div class="col-12">
+      <div class="setting-card">
+        <h2><i class="bi bi-chat-heart me-2"></i>Assistant virtuel (chatbot)</h2>
+        <p class="text-muted" style="font-size:13px;margin-top:-6px">
+          Bulle de chat sur le site public : répond aux questions des visiteurs (inscription,
+          t-shirt, lieu, horaires…) à partir des informations ci-dessous, et remplace la page
+          Contact (le formulaire s'ouvre dans le chat). Si l'assistant est désactivé, la page
+          Contact classique est de nouveau servie.
+        </p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <input type="hidden" name="save_chatbot_infos" value="1">
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="chatbotEnabled"
+                     name="chatbot_enabled" value="1" <?= !empty($data['chatbot_enabled']) ? 'checked' : '' ?>>
+              <label class="form-check-label" for="chatbotEnabled">Activer l'assistant sur le site public</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="courseHoraires">Horaires de la course</label>
+            <textarea class="form-control" id="courseHoraires" name="course_horaires" rows="3"
+                      placeholder="Ex. : Ouverture du village à 8h — Échauffement à 9h15 — Départ à 9h30"><?= htmlspecialchars($data['course_horaires'] ?? '') ?></textarea>
+            <small class="text-muted">Répond aux questions « quand ? », « à quelle heure ? »…</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="courseRdv">Point de rendez-vous</label>
+            <textarea class="form-control" id="courseRdv" name="course_rdv" rows="3"
+                      placeholder="Ex. : Rendez-vous devant la piscine de Forbach — parking gratuit rue X"><?= htmlspecialchars($data['course_rdv'] ?? '') ?></textarea>
+            <small class="text-muted">Complète le lieu de départ (« Retrouver le départ ») pour « où ? », « rendez-vous ? »…</small>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="tshirtRetrait">Retrait des t-shirts</label>
+            <textarea class="form-control" id="tshirtRetrait" name="tshirt_retrait_info" rows="3"
+                      placeholder="Ex. : Les t-shirts sont à retirer le jour J au stand Accueil, de 8h à 9h15, sur présentation du QR code reçu par mail"><?= htmlspecialchars($data['tshirt_retrait_info'] ?? '') ?></textarea>
+            <small class="text-muted">Répond à « comment récupérer mon t-shirt ? » et complète la vérification d'éligibilité par e-mail.</small>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button type="submit" class="btn btn-rose">Enregistrer</button>
+          </div>
+        </form>
+
+        <?php
+        // Journal des questions incomprises (pour enrichir les réponses du bot)
+        $chatbotUnmatched = [];
+        try {
+            $chatbotUnmatched = $pdo->query('SELECT question, created_at FROM chatbot_unmatched ORDER BY id DESC LIMIT 15')->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {}
+        ?>
+        <?php if ($chatbotUnmatched): ?>
+        <hr>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0"><i class="bi bi-question-circle me-1"></i>Dernières questions incomprises par l'assistant</h6>
+          <form method="post" class="mb-0">
+            <?= csrf_field() ?>
+            <input type="hidden" name="clear_chatbot_unmatched" value="1">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Vider le journal</button>
+          </form>
+        </div>
+        <ul class="list-unstyled mb-0" style="font-size:13px;max-height:220px;overflow-y:auto">
+          <?php foreach ($chatbotUnmatched as $q): ?>
+          <li class="py-1 border-bottom d-flex justify-content-between gap-3">
+            <span>« <?= htmlspecialchars($q['question']) ?> »</span>
+            <span class="text-muted flex-shrink-0"><?= htmlspecialchars(date('d/m H:i', strtotime($q['created_at']))) ?></span>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Carte 1 : Titre / Image sur la vidéo (SUPPRIMÉE — édition désormais via l'éditeur visuel "Mise en page de l'accueil" plus bas) -->
 

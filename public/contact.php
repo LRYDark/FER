@@ -1,6 +1,21 @@
 <?php
 require '../src/core/config.php';
 checkMaintenance();
+
+// Assistant virtuel actif → la page contact est remplacée par le chatbot
+// (bulle en bas à droite, ouvert directement sur le formulaire de contact).
+// Cette page reste servie uniquement si le chatbot est désactivé dans les
+// Réglages : le site conserve ainsi TOUJOURS un moyen de contact.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    try {
+        $chatbotOn = (int)($pdo->query('SELECT chatbot_enabled FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0) === 1;
+    } catch (\Throwable $e) { $chatbotOn = false; } // colonne absente avant migration
+    if ($chatbotOn) {
+        header('Location: accueil?chat=contact');
+        exit;
+    }
+}
+
 require_once '../src/content/tracker.php';
 require_once '../src/security/csrf.php';
 require_once '../src/security/captcha.php';

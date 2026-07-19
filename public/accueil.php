@@ -44,13 +44,15 @@ if (isset($_GET['check_registration'])) {
             @file_put_contents($_rlFile, json_encode($_rlTimes));
 
             // Les emails sont chiffrés AES-256-GCM (IV aléatoire) : on ne peut pas faire WHERE email = ?
-            // On déchiffre côté PHP et on compare en minuscules.
+            // On déchiffre côté PHP et on compare en minuscules. Certains imports ont pu stocker
+            // l'email EN CLAIR : on compare aussi la valeur brute pour ne rater aucune inscription.
             try {
                 $stmtSearch = $pdo->query('SELECT email FROM registrations');
                 $matchCount = 0;
                 $needle = strtolower($searchEmail);
                 while ($row = $stmtSearch->fetch(PDO::FETCH_ASSOC)) {
-                    if (strtolower((string)decrypt($row['email'])) === $needle) {
+                    if (strtolower((string)@decrypt($row['email'])) === $needle
+                        || strtolower((string)$row['email']) === $needle) {
                         $matchCount++;
                     }
                 }
