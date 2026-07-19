@@ -1445,15 +1445,19 @@ a:hover { color: var(--accent-strong); }
   border-bottom: none; border-top: none; padding: 13px 8px; white-space: nowrap;
 }
 :root[data-theme="dark"] #oc-content .fer-table > thead > tr > th {
-  background: var(--surface-2);
+  background: #0d1118;               /* nettement plus foncé que les lignes/zébrage */
   color: var(--ink);
+  border-bottom: 2px solid var(--accent);
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] #oc-content .fer-table > thead > tr > th {
-    background: var(--surface-2);
+    background: #0d1118;
     color: var(--ink);
+    border-bottom: 2px solid var(--accent);
   }
 }
+/* Séparation nette sous l'en-tête aussi en thème clair */
+#oc-content .fer-table > thead > tr > th { border-bottom: 2px solid var(--accent); }
 #oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
 #oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
 #oc-content .fer-table > tbody > tr > td {

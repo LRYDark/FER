@@ -126,7 +126,7 @@ $avgAgeGlob = $nbYr ? round($sumAge / $nbYr,1) : null;
   vertical-align:middle;
   font-size:.86rem;
 }
-#tbl tbody tr:nth-child(even){background:var(--surface-2)}    /* zébrage soft */
+#tbl tbody tr:nth-child(even){background:color-mix(in srgb, var(--ink) 4%, transparent)}    /* zébrage soft */
 
 #tbl tbody tr{
   transition:background .2s,box-shadow .2s;
