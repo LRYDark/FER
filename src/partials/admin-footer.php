@@ -619,10 +619,24 @@ if (pfThemeSeg) {
   pfThemeSeg.querySelectorAll('button[data-theme-choice]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var t = btn.dataset.themeChoice;
-      document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-theme', t); // aperçu immédiat (admin)
       pfThemeSeg.querySelectorAll('button').forEach(function(b) { b.classList.toggle('is-active', b === btn); });
       try { localStorage.setItem('jr-theme', t); } catch (e) {}
       jrSaveAppearance({ admin_theme: t });
+    });
+  });
+}
+
+/* ── Thème des pages de connexion (indépendant de l'admin) ── */
+var pfLoginThemeSeg = document.getElementById('pfLoginThemeSeg');
+if (pfLoginThemeSeg) {
+  pfLoginThemeSeg.querySelectorAll('button[data-login-theme-choice]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var t = btn.dataset.loginThemeChoice;
+      pfLoginThemeSeg.querySelectorAll('button').forEach(function(b) { b.classList.toggle('is-active', b === btn); });
+      // pas d'aperçu (on n'est pas sur la page de connexion) : on mémorise seulement
+      try { localStorage.setItem('jr-login-theme', t); } catch (e) {}
+      jrSaveAppearance({ login_theme: t });
     });
   });
 }

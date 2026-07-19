@@ -85,10 +85,11 @@ if (!function_exists('jr_admin_ui_prefs')) {
 }
 /* jr_accent_vars_from_hex() est définie dans src/core/config.php */
 
-$jrPrefs  = jr_admin_ui_prefs($pdo);
-$jrTheme  = in_array($jrPrefs['admin_theme'] ?? '', ['light', 'dark', 'system'], true) ? $jrPrefs['admin_theme'] : 'light';
-$jrAccent = $jrPrefs['admin_accent'] ?? 'rose';
-$jrFont   = $jrPrefs['admin_font']   ?? 'inter';
+$jrPrefs      = jr_admin_ui_prefs($pdo);
+$jrTheme      = in_array($jrPrefs['admin_theme'] ?? '', ['light', 'dark', 'system'], true) ? $jrPrefs['admin_theme'] : 'light';
+$jrLoginTheme = in_array($jrPrefs['login_theme'] ?? '', ['light', 'dark', 'system'], true) ? $jrPrefs['login_theme'] : 'light';
+$jrAccent     = $jrPrefs['admin_accent'] ?? 'rose';
+$jrFont       = $jrPrefs['admin_font']   ?? 'inter';
 
 // Couleur du preset « rose » = couleur primaire du site public (défaut FER)
 $jrSitePrimary = '#db2777';
@@ -136,6 +137,7 @@ include __DIR__ . '/../content/theme.php';
   // Miroir localStorage → les pages login/install (pré-auth) suivent le dernier choix
   try {
     localStorage.setItem('jr-theme', <?= json_encode($jrTheme) ?>);
+    localStorage.setItem('jr-login-theme', <?= json_encode($jrLoginTheme) ?>); // thème dédié aux pages de connexion
     <?php if ($jrAccentCss): ?>
     localStorage.setItem('jr-accent', 'custom');
     localStorage.setItem('jr-accent-custom', <?= json_encode($jrAccentCss[0]) ?>);
