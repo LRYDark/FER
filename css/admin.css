@@ -824,50 +824,44 @@ table.dataTable > tbody > tr:hover { background: color-mix(in srgb, var(--accent
 .settings-tabs.mb-0, .nav-tabs.mb-0, .period-tabs.mb-0, .filter-tabs.mb-0 { margin-bottom: 0 !important; }
 
 /* Pagination DataTables « simple » (boutons ‹ › hors .pagination Bootstrap) */
-/* Pagination DataTables — SANS préfixe #oc-content : le JS du dashboard déplace
-   le bloc de pagination dans un pied hors de #oc-content. Couvre les deux
-   structures (span.paginate_button ET a.page-link). */
-.dataTables_paginate .paginate_button,
-.dataTables_paginate a.paginate_button {
+/* Pagination DataTables (SANS préfixe #oc-content : le bloc est déplacé hors
+   du conteneur par le JS). En intégration Bootstrap 5, le <li> porte À LA FOIS
+   .paginate_button et .page-item, le <a> porte .page-link → on ne stylise QUE
+   le <a> (le lien) et on rend le <li> transparent, sinon double bordure
+   (« bouton dans un bouton »). */
+.dataTables_paginate .paginate_button {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 2px !important;
+  box-shadow: none !important;
+}
+.dataTables_paginate .page-link,
+#tbl_paginate .page-link {
   background: var(--surface) !important;
   border: 1px solid var(--border-strong) !important;
   border-radius: var(--radius-s) !important;
   color: var(--ink-dim) !important;
-  padding: 0.3rem 0.7rem !important;
-  margin-left: 4px;
   box-shadow: none !important;
+  margin: 0 !important;
 }
-.dataTables_paginate .paginate_button.current,
-.dataTables_paginate .paginate_button:not(.disabled):hover {
-  background: var(--accent) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent-ink) !important;
-}
-.dataTables_paginate .paginate_button.disabled {
-  opacity: 0.4;
-  color: var(--ink-faint) !important;
-  background: var(--surface) !important;
-  border-color: var(--border) !important;
-}
-/* Structure Bootstrap 5 (.pagination) hors #oc-content aussi */
-.dataTables_wrapper .pagination .page-link,
-#tbl_paginate .page-link {
-  background: var(--surface) !important;
-  border-color: var(--border-strong) !important;
-  color: var(--ink-dim) !important;
-  box-shadow: none !important;
-}
-.dataTables_wrapper .pagination .page-item.active .page-link,
+.dataTables_paginate .page-item.active .page-link,
 #tbl_paginate .page-item.active .page-link {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
   color: var(--accent-ink) !important;
 }
-.dataTables_wrapper .pagination .page-item.disabled .page-link,
+.dataTables_paginate .page-item.disabled .page-link,
 #tbl_paginate .page-item.disabled .page-link {
   background: var(--surface) !important;
   color: var(--ink-faint) !important;
   border-color: var(--border) !important;
+  opacity: 0.55;
+}
+.dataTables_paginate .page-link:not(.disabled):hover {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
 }
 
 /* Contrôles DataTables : couleurs FORCÉES en tokens (les CSS de pages posent
