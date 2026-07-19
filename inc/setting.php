@@ -147,7 +147,7 @@ $child_amount          = (int) ($data['child_amount'] ?? 0);
 $theme_primary        = $data['theme_primary_color']        ?? '#db2777';
 $theme_secondary      = $data['theme_secondary_color']      ?? '#0f172a';
 $theme_dark_primary   = $data['theme_dark_primary_color']   ?? '#f472b6';
-$theme_dark_secondary = $data['theme_dark_secondary_color'] ?? '#e2e8f0';
+$theme_dark_secondary = $data['theme_dark_secondary_color'] ?? 'var(--border)';
 $theme_radius         = (int)($data['theme_border_radius']  ?? 12);
 $theme_font           = $data['theme_font_family']          ?? 'Inter';
 $flash_bg_color       = $data['flash_bg_color']             ?? '#db2777';
@@ -1041,7 +1041,7 @@ if (isset($_POST['save_theme'])) {
     $theme_primary        = $_POST['theme_primary_color']        ?? '#db2777';
     $theme_secondary      = $_POST['theme_secondary_color']      ?? '#0f172a';
     $theme_dark_primary   = $_POST['theme_dark_primary_color']   ?? '#f472b6';
-    $theme_dark_secondary = $_POST['theme_dark_secondary_color'] ?? '#e2e8f0';
+    $theme_dark_secondary = $_POST['theme_dark_secondary_color'] ?? 'var(--border)';
     $theme_radius         = max(0, min(32, (int)($_POST['theme_border_radius'] ?? 12)));
     $theme_font           = $_POST['theme_font_family']          ?? 'Inter';
 
@@ -1049,7 +1049,7 @@ if (isset($_POST['save_theme'])) {
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_primary))        $theme_primary = '#db2777';
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_secondary))      $theme_secondary = '#0f172a';
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_primary))   $theme_dark_primary = '#f472b6';
-    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_secondary)) $theme_dark_secondary = '#e2e8f0';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_secondary)) $theme_dark_secondary = 'var(--border)';
     if (!in_array($theme_font, $allowedFonts)) $theme_font = 'Inter';
 
     $pdo->prepare(
@@ -1087,7 +1087,7 @@ if (isset($_POST['reset_flash_colors'])) {
 
 if (isset($_POST['reset_theme'])) {
     $theme_primary = '#db2777'; $theme_secondary = '#0f172a';
-    $theme_dark_primary = '#f472b6'; $theme_dark_secondary = '#e2e8f0';
+    $theme_dark_primary = '#f472b6'; $theme_dark_secondary = 'var(--border)';
     $theme_radius = 12; $theme_font = 'Inter';
     $flash_bg_color = '#db2777'; $flash_text_color = '#ffffff';
 
@@ -2061,47 +2061,47 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <style>
-  .settings-tabs { border-bottom: 2px solid #f0e8eb; margin-bottom: 24px; gap: 0; }
+  .settings-tabs { border-bottom: 2px solid var(--border); margin-bottom: 24px; gap: 0; }
   .settings-tabs .nav-link {
-    color: #1e293b; font-weight: 500; font-size: 14px;
+    color: var(--ink); font-weight: 500; font-size: 14px;
     padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
     margin-bottom: -2px; border-radius: 0; background: transparent;
   }
-  .settings-tabs .nav-link:hover { color: #1e293b; border-bottom-color: #d4c4cb; }
+  .settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--ink-faint); }
   .settings-tabs .nav-link.active {
-    color: #1e293b; font-weight: 600;
+    color: var(--ink); font-weight: 600;
     border-bottom-color: var(--primary, #f42182); background: transparent;
   }
   .settings-section { display: none; }
   .settings-section.active { display: block; }
   .setting-card {
-    background: #fff; border: 1px solid #f0e8eb; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
     padding: 24px; margin-bottom: 20px;
   }
   .setting-card h2 {
-    font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;
-    padding-bottom: 12px; border-bottom: 1px solid #f0e8eb;
+    font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 16px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border);
   }
   .theme-mode-tab {
-    background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+    background: var(--surface-2); color: var(--ink-dim); border: 1px solid var(--border);
     border-radius: 8px; cursor: pointer; transition: all .2s;
   }
-  .theme-mode-tab:hover { background: #e2e8f0; color: #1e293b; }
-  .theme-mode-tab.active[data-mode="light"] { background: #ffffff; color: #1e293b; border-color: #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-  .theme-mode-tab.active[data-mode="dark"] { background: #0f172a; color: #e2e8f0; border-color: #334155; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .theme-mode-tab:hover { background: var(--border); color: var(--ink); }
+  .theme-mode-tab.active[data-mode="light"] { background: var(--surface); color: var(--ink); border-color: var(--ink-faint); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .theme-mode-tab.active[data-mode="dark"] { background: #0f172a; color: var(--border); border-color: var(--ink-dim); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 
   /* ─────────────────────────────────────────────
      ÉDITEUR VISUEL « Mise en page accueil »
      ───────────────────────────────────────────── */
   .layout-editor {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 16px;
   }
   .le-rows { display: flex; flex-direction: column; gap: 12px; }
   .le-row {
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
     overflow: hidden; transition: box-shadow .15s, border-color .15s;
   }
   .le-row:hover { border-color: var(--primary, #f42182); }
@@ -2109,10 +2109,10 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-row.le-row-chosen { box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, #f42182) 25%, transparent); }
   .le-row-toolbar {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; background: #f1f5f9;
-    border-bottom: 1px solid #e2e8f0; font-size: 12px;
+    padding: 6px 10px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); font-size: 12px;
   }
-  .le-row-info { color: #64748b; font-weight: 500; }
+  .le-row-info { color: var(--ink-dim); font-weight: 500; }
   .le-row-cols {
     display: flex; gap: 8px; padding: 8px;
     align-items: stretch; min-height: 80px;
@@ -2120,28 +2120,28 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-col {
     flex: var(--col-flex, 12) 0 0;
     min-width: 0;
-    background: #fdf8fa; border: 1px solid #f0e8eb; border-radius: 8px;
+    background: #fdf8fa; border: 1px solid var(--border); border-radius: 8px;
     display: flex; flex-direction: column;
     transition: opacity .15s, border-color .15s;
   }
-  .le-col.is-hidden { opacity: 0.5; background: repeating-linear-gradient(45deg, #f8fafc, #f8fafc 8px, #fdf2f8 8px, #fdf2f8 16px); }
+  .le-col.is-hidden { opacity: 0.5; background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 8px, var(--accent-soft) 8px, var(--accent-soft) 16px); }
   .le-col.le-col-ghost { opacity: 0.4; border-style: dashed; }
   .le-col.le-col-chosen { box-shadow: 0 2px 8px color-mix(in srgb, var(--primary, #f42182) 25%, transparent); }
   .le-col-toolbar {
     display: flex; align-items: center; gap: 6px;
-    padding: 6px 8px; border-bottom: 1px solid #f0e8eb;
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
     font-size: 12px;
   }
   .le-col-preview { padding: 10px; flex: 1; min-height: 60px; }
 
-  .le-handle { cursor: grab; color: #94a3b8; padding: 2px; user-select: none; }
+  .le-handle { cursor: grab; color: var(--ink-faint); padding: 2px; user-select: none; }
   .le-handle:hover { color: var(--primary, #f42182); }
   .le-handle.le-row-handle { font-size: 16px; }
   .le-handle.le-col-handle { font-size: 14px; }
 
   /* ── Conteneur d'aperçu réel des sections (sans scroll, taille naturelle comme la page réelle) ── */
   .accueil-edit-preview {
-    background: #fff;
+    background: var(--surface);
     border-radius: 6px;
     pointer-events: none;
     user-select: none;
@@ -2162,8 +2162,8 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-sidebar {
     width: 300px;
     flex-shrink: 0;
-    background: #fff;
-    border: 1px solid #e2e8f0;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 10px;
     overflow: hidden;
     position: sticky;
@@ -2172,41 +2172,41 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex;
     flex-direction: column;
   }
-  .le-sb-tabs { display: flex; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+  .le-sb-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .le-sb-tab {
     flex: 1; padding: 10px 8px; border: 0; background: transparent;
-    font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer;
     border-bottom: 2px solid transparent;
   }
-  .le-sb-tab:hover { color: #0f172a; }
+  .le-sb-tab:hover { color: var(--ink); }
   .le-sb-tab.active { color: var(--primary, #f42182); border-bottom-color: var(--primary, #f42182); }
   .le-sb-content { padding: 14px; flex: 1; overflow-y: auto; }
   .le-sb-pane { display: none; }
   .le-sb-pane.active { display: block; }
   .le-sb-empty {
-    text-align: center; color: #94a3b8; font-size: 13px;
+    text-align: center; color: var(--ink-faint); font-size: 13px;
     padding: 32px 8px;
   }
   .le-sb-title {
     font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
-    font-weight: 700; color: #94a3b8; margin: 0 0 10px;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 10px;
   }
   .le-sb-row {
     display: flex; align-items: center; justify-content: space-between;
     gap: 8px; margin-bottom: 10px; font-size: 13px;
   }
-  .le-sb-row label { color: #475569; font-size: 12px; flex-shrink: 0; }
+  .le-sb-row label { color: var(--ink-dim); font-size: 12px; flex-shrink: 0; }
   .le-sb-row select { width: auto; min-width: 80px; }
   .le-sb-add-btn {
     display: flex; align-items: center; gap: 10px;
     width: 100%; padding: 10px 12px; margin-bottom: 6px;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     text-align: left; cursor: pointer; transition: .15s;
   }
-  .le-sb-add-btn:hover { border-color: var(--primary, #f42182); background: #fdf2f8; }
+  .le-sb-add-btn:hover { border-color: var(--primary, #f42182); background: var(--accent-soft); }
   .le-sb-add-btn i { font-size: 18px; color: #9d174d; flex-shrink: 0; }
-  .le-sb-add-btn strong { display: block; font-size: 13px; color: #1e293b; }
-  .le-sb-add-btn small { font-size: 11px; color: #64748b; }
+  .le-sb-add-btn strong { display: block; font-size: 13px; color: var(--ink); }
+  .le-sb-add-btn small { font-size: 11px; color: var(--ink-dim); }
 
   /* ── Bouton "+" entre les rows ── */
   .le-add-row {
@@ -2215,8 +2215,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .le-add-row button {
     width: 28px; height: 28px; border-radius: 50%;
-    border: 2px dashed #cbd5e1; background: #fff;
-    color: #94a3b8; font-size: 16px; cursor: pointer;
+    border: 2px dashed var(--border-strong); background: var(--surface);
+    color: var(--ink-faint); font-size: 16px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     opacity: 0.4; transition: .15s;
   }
@@ -2239,45 +2239,45 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-sidebar {
     width: 300px; flex-shrink: 0;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
     display: flex; flex-direction: column;
     max-height: 80vh; position: sticky; top: 12px;
   }
-  .ife-sb-tabs { display: flex; border-bottom: 1px solid #e2e8f0; }
+  .ife-sb-tabs { display: flex; border-bottom: 1px solid var(--border); }
   .ife-sb-tab {
     flex: 1; padding: 10px 8px; border: 0; background: transparent;
-    font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--ink-dim); cursor: pointer;
     border-bottom: 2px solid transparent;
   }
-  .ife-sb-tab:hover { color: #0f172a; }
+  .ife-sb-tab:hover { color: var(--ink); }
   .ife-sb-tab.active { color: var(--primary, #f42182); border-bottom-color: var(--primary, #f42182); }
   .ife-sb-content { padding: 14px; flex: 1; overflow-y: auto; }
   .ife-sb-pane { display: none; }
   .ife-sb-pane.active { display: block; }
-  .ife-sb-empty { text-align: center; color: #94a3b8; font-size: 13px; padding: 32px 8px; }
+  .ife-sb-empty { text-align: center; color: var(--ink-faint); font-size: 13px; padding: 32px 8px; }
   .ife-sb-title {
     font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
-    font-weight: 700; color: #94a3b8; margin: 0 0 10px;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 10px;
   }
   .ife-sb-row {
     display: flex; align-items: center; justify-content: space-between;
     gap: 8px; margin-bottom: 10px; font-size: 13px;
   }
-  .ife-sb-row label { color: #475569; font-size: 12px; }
+  .ife-sb-row label { color: var(--ink-dim); font-size: 12px; }
   .ife-sb-row select { min-width: 90px; padding-right: 28px; }
   /* Tableau de la ligne (multi-col) */
   .ife-sb-grid-label {
-    display: block; color: #475569; font-size: 12px;
+    display: block; color: var(--ink-dim); font-size: 12px;
     margin: 6px 0 6px;
   }
   .ife-sb-grid {
     display: flex; gap: 4px; margin-bottom: 8px;
-    border: 1px dashed #cbd5e1; border-radius: 6px;
-    padding: 4px; background: #f8fafc; overflow: hidden;
+    border: 1px dashed var(--border-strong); border-radius: 6px;
+    padding: 4px; background: var(--surface-2); overflow: hidden;
   }
   .ife-sb-grid-cell {
     flex: 1 1 auto;
-    background: #fff; border: 1px solid #e2e8f0;
+    background: var(--surface); border: 1px solid var(--border);
     border-radius: 4px; padding: 6px 4px;
     display: flex; flex-direction: column; gap: 4px;
     text-align: center; min-width: 0;
@@ -2285,13 +2285,13 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-sb-grid-cell:hover { border-color: var(--primary, #f42182); }
   .ife-sb-grid-cell .label {
-    font-size: 10px; color: #64748b;
+    font-size: 10px; color: var(--ink-dim);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .ife-sb-grid-cell input {
-    width: 100%; border: 0; background: #f8fafc;
+    width: 100%; border: 0; background: var(--surface-2);
     border-radius: 3px; text-align: center;
-    font-size: 12px; font-weight: 600; color: #0f172a;
+    font-size: 12px; font-weight: 600; color: var(--ink);
     padding: 2px;
   }
   .ife-sb-grid-cell input:focus { outline: 2px solid var(--primary, #f42182); }
@@ -2300,22 +2300,22 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Cellule en cours de drag (Sortable) */
   .ife-sb-grid-cell.is-dragging { opacity: .5; }
   .ife-sb-grid-cell .drag-handle {
-    font-size: 11px; color: #94a3b8; cursor: grab;
+    font-size: 11px; color: var(--ink-faint); cursor: grab;
     line-height: 1;
   }
   .ife-sb-grid-cell .drag-handle:active { cursor: grabbing; }
   /* Boutons d'action par cellule (edit / delete / hide) */
   .ife-sb-grid-cell .cell-actions {
     display: flex; gap: 2px; justify-content: center;
-    margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 4px;
+    margin-top: 4px; border-top: 1px solid var(--border); padding-top: 4px;
   }
   .ife-sb-grid-cell .cell-btn {
     border: 0; background: transparent; padding: 3px 5px;
-    border-radius: 4px; color: #64748b; cursor: pointer;
+    border-radius: 4px; color: var(--ink-dim); cursor: pointer;
     font-size: 12px; line-height: 1;
     transition: background .12s, color .12s;
   }
-  .ife-sb-grid-cell .cell-btn:hover { background: #f1f5f9; color: #0f172a; }
+  .ife-sb-grid-cell .cell-btn:hover { background: var(--surface-2); color: var(--ink); }
   .ife-sb-grid-cell .cell-btn-danger:hover { background: #fef2f2; color: #ef4444; }
   .ife-sb-grid-presets {
     display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
@@ -2325,25 +2325,25 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; align-items: center; justify-content: space-between;
     gap: 8px; margin: 6px 0 12px; font-size: 12px;
   }
-  .ife-sb-align-row label { color: #475569; font-size: 12px; }
+  .ife-sb-align-row label { color: var(--ink-dim); font-size: 12px; }
   .ife-sb-align-row .btn { padding: 2px 8px; }
   .ife-sb-align-row .btn.active { background: var(--primary, #f42182); color: var(--primary-text, #fff); border-color: var(--primary, #f42182); }
   /* Labels de section dans la sidebar (clarifient ce qui suit) */
   .ife-sb-section-label {
     font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
-    font-weight: 700; color: #94a3b8;
-    margin: 12px 0 6px; padding-top: 8px; border-top: 1px solid #e2e8f0;
+    font-weight: 700; color: var(--ink-faint);
+    margin: 12px 0 6px; padding-top: 8px; border-top: 1px solid var(--border);
   }
   .ife-sb-section-label:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
   /* Blocs d'options de section empilés (ex: reg_bar + news dans une même ligne) :
      chaque bloc est un div wrapper, donc son label est :first-child — on restaure
      le séparateur pour tous les blocs sauf le tout premier du panneau. */
   .ife-sb-section-options > div:not(:first-child) > .ife-sb-section-label:first-child {
-    border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 12px;
+    border-top: 1px solid var(--border); padding-top: 8px; margin-top: 12px;
   }
   /* Icône info à côté d'un label de section : déclenche un tooltip Bootstrap */
   .ife-sb-info-icon {
-    color: #94a3b8; font-size: 12px; margin-left: 4px;
+    color: var(--ink-faint); font-size: 12px; margin-left: 4px;
     cursor: help; vertical-align: middle;
     transition: color .12s;
   }
@@ -2354,12 +2354,12 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #0f172a; color: #fff;
     padding: 8px 12px; font-size: 12px; line-height: 1.4;
   }
-  .ife-sb-tooltip .tooltip-inner strong { color: #fdf2f8; }
+  .ife-sb-tooltip .tooltip-inner strong { color: var(--accent-soft); }
   .ife-sb-tooltip .tooltip-inner em { color: #fbcfe8; font-style: italic; }
-  .ife-sb-tooltip.bs-tooltip-end .tooltip-arrow::before { border-right-color: #0f172a; }
-  .ife-sb-tooltip.bs-tooltip-start .tooltip-arrow::before { border-left-color: #0f172a; }
-  .ife-sb-tooltip.bs-tooltip-top .tooltip-arrow::before { border-top-color: #0f172a; }
-  .ife-sb-tooltip.bs-tooltip-bottom .tooltip-arrow::before { border-bottom-color: #0f172a; }
+  .ife-sb-tooltip.bs-tooltip-end .tooltip-arrow::before { border-right-color: var(--ink); }
+  .ife-sb-tooltip.bs-tooltip-start .tooltip-arrow::before { border-left-color: var(--ink); }
+  .ife-sb-tooltip.bs-tooltip-top .tooltip-arrow::before { border-top-color: var(--ink); }
+  .ife-sb-tooltip.bs-tooltip-bottom .tooltip-arrow::before { border-bottom-color: var(--ink); }
   /* Espacement de ligne (margin haut/bas) */
   .ife-sb-spacing-row { margin: 8px 0; }
   .ife-sb-spacing-grid {
@@ -2387,28 +2387,28 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   /* Liste des éléments éditables dans la sidebar (sous les contrôles d'une row) */
-  .ife-sb-editable-list { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  .ife-sb-editable-list { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
   .ife-sb-editable-head {
     font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
-    font-weight: 700; color: #94a3b8; margin: 0 0 8px;
+    font-weight: 700; color: var(--ink-faint); margin: 0 0 8px;
   }
   .ife-sb-editable-btn {
     display: flex; align-items: center; gap: 10px;
     width: 100%; padding: 8px 10px; margin-bottom: 4px;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     text-align: left; cursor: pointer; transition: .12s;
     font-size: 13px;
   }
-  .ife-sb-editable-btn:hover { border-color: var(--primary, #f42182); background: #fdf2f8; }
+  .ife-sb-editable-btn:hover { border-color: var(--primary, #f42182); background: var(--accent-soft); }
   .ife-sb-editable-btn > i:first-child { color: var(--primary, #f42182); font-size: 16px; flex-shrink: 0; }
   .ife-sb-editable-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-  .ife-sb-editable-info strong { font-size: 12px; color: #0f172a; font-weight: 600; }
-  .ife-sb-editable-kind { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+  .ife-sb-editable-info strong { font-size: 12px; color: var(--ink); font-weight: 600; }
+  .ife-sb-editable-kind { font-size: 10px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .04em; }
   .ife-sb-editable-preview {
-    font-size: 11px; color: #64748b; font-style: italic;
+    font-size: 11px; color: var(--ink-dim); font-style: italic;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .ife-sb-editable-chev { color: #cbd5e1; font-size: 12px; flex-shrink: 0; }
+  .ife-sb-editable-chev { color: var(--ink-faint); font-size: 12px; flex-shrink: 0; }
   /* Options spécifiques d'une section (ex: news.card_style) */
   .ife-sb-section-options { margin-top: 12px; }
   .ife-sb-toggle-row {
@@ -2416,7 +2416,7 @@ document.addEventListener('DOMContentLoaded', function() {
     margin-bottom: 8px;
   }
   .ife-sb-toggle-row label {
-    font-size: 12px; color: #475569; font-weight: 600;
+    font-size: 12px; color: var(--ink-dim); font-weight: 600;
   }
   .ife-sb-toggle-row .btn-group .btn {
     font-size: 12px; padding: 6px 10px;
@@ -2428,7 +2428,7 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Barre d'alignement (6 boutons) sous une entry de bloc HTML */
   .ife-sb-html-align-bar {
     margin: -2px 0 6px 0; padding: 8px 10px;
-    background: #f8fafc; border: 1px solid #e2e8f0; border-top: 0;
+    background: var(--surface-2); border: 1px solid var(--border); border-top: 0;
     border-radius: 0 0 8px 8px;
     display: flex; flex-direction: column; gap: 6px;
   }
@@ -2436,7 +2436,7 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
   }
   .ife-sb-html-align-label {
-    font-size: 11px; color: #64748b; font-weight: 600;
+    font-size: 11px; color: var(--ink-dim); font-weight: 600;
     text-transform: uppercase; letter-spacing: .04em;
   }
   .ife-sb-html-align-bar .btn { padding: 2px 6px; font-size: 11px; }
@@ -2445,14 +2445,14 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-sb-add-btn {
     display: flex; align-items: center; gap: 10px;
     width: 100%; padding: 10px 12px; margin-bottom: 6px;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     text-align: left; cursor: pointer; transition: .15s;
   }
-  .ife-sb-add-btn:hover { border-color: var(--primary, #f42182); background: #fdf2f8; }
+  .ife-sb-add-btn:hover { border-color: var(--primary, #f42182); background: var(--accent-soft); }
   .ife-sb-add-btn i { font-size: 18px; color: #9d174d; flex-shrink: 0; }
-  .ife-sb-add-btn strong { display: block; font-size: 13px; color: #1e293b; }
-  .ife-sb-add-btn small { font-size: 11px; color: #64748b; }
-  .ife-sb-footer { padding: 12px; border-top: 1px solid #e2e8f0; }
+  .ife-sb-add-btn strong { display: block; font-size: 13px; color: var(--ink); }
+  .ife-sb-add-btn small { font-size: 11px; color: var(--ink-dim); }
+  .ife-sb-footer { padding: 12px; border-top: 1px solid var(--border); }
 
   /* ── Aperçu iframe + overlay ── */
   .ife-preview-wrap {
@@ -2466,7 +2466,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-preview-scroll {
     position: relative;
     overflow-x: auto;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
   }
   /* Spinner de chargement de l'éditeur : recouvre l'aperçu (.ife-preview-wrap est
      position:relative) jusqu'à ce que l'iframe + les overlays soient prêts. */
@@ -2475,8 +2475,8 @@ document.addEventListener('DOMContentLoaded', function() {
     /* centré horizontalement, mais en HAUT (pas centré verticalement) */
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     padding-top: 48px;
-    gap: 14px; background: #fff; border-radius: 10px;
-    color: #64748b; font-size: 14px; font-weight: 500;
+    gap: 14px; background: var(--surface); border-radius: 10px;
+    color: var(--ink-dim); font-size: 14px; font-weight: 500;
     transition: opacity .35s ease;
   }
   .ife-loader.is-hidden { opacity: 0; pointer-events: none; }
@@ -2496,7 +2496,7 @@ document.addEventListener('DOMContentLoaded', function() {
        min-width, accueil.php basculait en mode mobile et la social-card s'étirait
        sur toute la largeur même en édition Desktop). */
     min-width: 1100px;
-    border: 0; background: #fff;
+    border: 0; background: var(--surface);
     /* PAS de transition CSS sur max/min-width : sinon, au toggle Mobile/Desktop, l'iframe
        met 200ms à se redimensionner et applyHeroPositionPct calcule avec une cardRect
        intermédiaire → video_toggle (et autres) atterrissent à un endroit incorrect.
@@ -2535,30 +2535,30 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
     z-index: 1000; pointer-events: auto;
     background: rgba(255,255,255,.96);
-    border: 1px solid #e2e8f0; border-radius: 8px;
+    border: 1px solid var(--border); border-radius: 8px;
     padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
   }
   .ife-preview-toolbar .ife-device-group {
     display: inline-flex; gap: 2px;
-    background: #f1f5f9; border-radius: 6px; padding: 2px;
+    background: var(--surface-2); border-radius: 6px; padding: 2px;
   }
   .ife-preview-toolbar .ife-device-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 4px 10px; font-size: 12px; font-weight: 600;
-    color: #475569; background: transparent;
+    color: var(--ink-dim); background: transparent;
     border: 0; border-radius: 5px; cursor: pointer;
     transition: background .15s, color .15s;
   }
-  .ife-preview-toolbar .ife-device-btn:hover { color: #1e293b; }
+  .ife-preview-toolbar .ife-device-btn:hover { color: var(--ink); }
   .ife-preview-toolbar .ife-device-btn.is-active {
-    background: #fff; color: var(--primary, #f42182);
+    background: var(--surface); color: var(--primary, #f42182);
     box-shadow: 0 1px 2px rgba(0,0,0,.06);
   }
   .ife-preview-toolbar .ife-migrate-btn,
   .ife-preview-toolbar .ife-restore-btn {
     padding: 5px 10px; font-size: 12px; font-weight: 600;
-    color: #475569; background: #fff;
-    border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;
+    color: var(--ink-dim); background: var(--surface);
+    border: 1px solid var(--border-strong); border-radius: 6px; cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
   }
   .ife-preview-toolbar .ife-migrate-btn:hover,
@@ -2585,16 +2585,16 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-sp-suggest {
     position: absolute; left: 0; right: 0; top: 100%;
     margin-top: 2px; z-index: 30;
-    background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px;
     box-shadow: 0 8px 22px rgba(0,0,0,.12);
     max-height: 220px; overflow-y: auto;
   }
   .ife-sp-suggest-item {
-    padding: 7px 10px; font-size: 12px; color: #334155;
-    cursor: pointer; border-bottom: 1px solid #f1f5f9;
+    padding: 7px 10px; font-size: 12px; color: var(--ink-dim);
+    cursor: pointer; border-bottom: 1px solid var(--surface-2);
   }
   .ife-sp-suggest-item:last-child { border-bottom: 0; }
-  .ife-sp-suggest-item:hover { background: #fdf2f8; color: var(--primary-hover, #be185d); }
+  .ife-sp-suggest-item:hover { background: var(--accent-soft); color: var(--primary-hover, #be185d); }
   /* outline (et pas border) : ne prend AUCUN espace dans le layout, donc le rail
      de drag ne se décale plus au hover → plus de clignotement infini */
   .ife-row-overlay {
@@ -2628,7 +2628,7 @@ document.addEventListener('DOMContentLoaded', function() {
     position: absolute; top: 4px; right: 4px;
     pointer-events: auto;
     display: none; gap: 4px;
-    background: #fff; border-radius: 8px;
+    background: var(--surface); border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0,0,0,.2);
     padding: 2px; z-index: 12;
   }
@@ -2636,12 +2636,12 @@ document.addEventListener('DOMContentLoaded', function() {
   .ife-row-overlay.is-selected .ife-row-actions { display: flex; }
   .ife-row-actions button {
     width: 28px; height: 28px; border: 0; background: transparent;
-    border-radius: 6px; cursor: pointer; color: #475569; padding: 0;
+    border-radius: 6px; cursor: pointer; color: var(--ink-dim); padding: 0;
     display: flex; align-items: center; justify-content: center;
   }
-  .ife-row-actions button:hover { background: #f1f5f9; }
+  .ife-row-actions button:hover { background: var(--surface-2); }
   .ife-row-actions button.danger:hover { background: #fef2f2; color: #ef4444; }
-  .ife-row-actions .ife-handle { cursor: grab; color: #94a3b8; }
+  .ife-row-actions .ife-handle { cursor: grab; color: var(--ink-faint); }
   .ife-add-marker {
     position: absolute; pointer-events: auto;
     height: 28px; left: 0; right: 0;
@@ -2650,8 +2650,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-add-marker button {
     width: 28px; height: 28px; border-radius: 50%;
-    border: 2px dashed #cbd5e1; background: #fff;
-    color: #94a3b8; font-size: 16px; cursor: pointer;
+    border: 2px dashed var(--border-strong); background: var(--surface);
+    color: var(--ink-faint); font-size: 16px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     opacity: 0; transition: .15s;
   }
@@ -2661,7 +2661,7 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Menu contextuel (clic droit) flottant au-dessus de l'iframe */
   .ife-ctx-menu {
     position: fixed; z-index: 10000;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     box-shadow: 0 10px 32px rgba(0,0,0,.18);
     padding: 4px;
     min-width: 220px;
@@ -2676,15 +2676,15 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; align-items: center; gap: 10px;
     width: 100%; padding: 8px 12px;
     background: transparent; border: 0; border-radius: 6px;
-    text-align: left; cursor: pointer; color: #0f172a;
+    text-align: left; cursor: pointer; color: var(--ink);
     font-size: 13px;
   }
-  .ife-ctx-item i { color: #64748b; font-size: 14px; }
-  .ife-ctx-item:hover { background: #f1f5f9; }
+  .ife-ctx-item i { color: var(--ink-dim); font-size: 14px; }
+  .ife-ctx-item:hover { background: var(--surface-2); }
   .ife-ctx-item.is-danger:hover { background: #fef2f2; color: #ef4444; }
   .ife-ctx-item.is-danger:hover i { color: #ef4444; }
   .ife-ctx-sep {
-    height: 1px; background: #e2e8f0; margin: 4px 6px;
+    height: 1px; background: var(--border); margin: 4px 6px;
   }
 
   /* Drop overlay (full-screen fixed, contient as-col + new-row) */
@@ -2801,7 +2801,7 @@ document.addEventListener('DOMContentLoaded', function() {
     display: none;
     align-items: center;
     gap: 2px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0,0,0,.15);
     padding: 2px;
@@ -2821,12 +2821,12 @@ document.addEventListener('DOMContentLoaded', function() {
     border: 0; background: transparent; border-radius: 6px;
     cursor: pointer; font-size: 13px;
     display: flex; align-items: center; justify-content: center;
-    color: #475569; transition: .1s;
+    color: var(--ink-dim); transition: .1s;
     padding: 0;
   }
   .le-row-toolbar button:hover,
   .le-section-toolbar button:hover,
-  .le-col-toolbar button:hover { background: #f1f5f9; }
+  .le-col-toolbar button:hover { background: var(--surface-2); }
   .le-row-toolbar button.btn-outline-danger,
   .le-col-toolbar button.btn-outline-danger { color: #ef4444; }
   .le-row-toolbar button.btn-outline-danger:hover,
@@ -2840,7 +2840,7 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Drag handle : petit, en haut-gauche du toolbar, déclenche le drag Sortable */
   .le-row-toolbar .le-handle,
   .le-col-toolbar .le-handle {
-    color: #94a3b8; cursor: grab; padding: 4px 6px;
+    color: var(--ink-faint); cursor: grab; padding: 4px 6px;
     font-size: 14px; line-height: 1;
   }
   .le-row-toolbar .le-handle:hover,
@@ -3141,7 +3141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                 <div class="font-picker-selected form-select" id="fontPickerToggle" style="cursor:pointer;">
                   <span id="fontPickerLabel" style="font-family:<?= $theme_font === 'system-ui' ? 'system-ui' : "'" . htmlspecialchars($theme_font) . "'" ?>;"><?= htmlspecialchars($allFontsForPicker[$theme_font] ?? $theme_font) ?></span>
                 </div>
-                <div class="font-picker-dropdown" id="fontPickerDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:320px;overflow-y:auto;margin-top:4px;">
+                <div class="font-picker-dropdown" id="fontPickerDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background: var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:320px;overflow-y:auto;margin-top:4px;">
                   <?php foreach ($allFontsForPicker as $val => $label):
                     $isCustom = isset($customFonts[$val]);
                     $ff = $val === 'system-ui' ? 'system-ui, sans-serif' : "'" . htmlspecialchars($val) . "', sans-serif";
@@ -3159,8 +3159,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <!-- Aperçu en direct -->
             <div class="col-12 mt-3">
               <label class="form-label fw-bold">Aperçu en direct</label>
-              <div id="themePreview" style="border:1px solid #e2e8f0;border-radius:12px;padding:24px;transition:background .3s,color .3s;">
-                <div id="prevFontSample" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e2e8f0;">
+              <div id="themePreview" style="border:1px solid var(--border);border-radius:12px;padding:24px;transition:background .3s,color .3s;">
+                <div id="prevFontSample" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
                   <div style="font-size:28px;font-weight:700;margin-bottom:4px;">Forbach en Rose</div>
                   <div style="font-size:16px;opacity:.7;">Course caritative contre le cancer du sein — abcdefghijklmnopqrstuvwxyz 0123456789</div>
                 </div>
@@ -3282,8 +3282,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
               .seg3{display:inline-flex;background:#e9ecef;border-radius:10px;padding:3px;gap:2px;}
               .seg3 input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
-              .seg3 label{margin:0;padding:6px 18px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color:#475569;transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
-              .seg3 input:checked + label{background:#fff;color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
+              .seg3 label{margin:0;padding:6px 18px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color: var(--ink-dim);transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
+              .seg3 input:checked + label{background: var(--surface);color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
               .seg3 input:focus-visible + label{outline:2px solid var(--primary,#f42182);outline-offset:1px;}
             </style>
           </div>
@@ -3375,7 +3375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
               <!-- Pane PROPRIÉTÉS -->
               <div class="ife-sb-pane active" data-sb-pane="props">
                 <div id="ifeSbEmpty" class="ife-sb-empty">
-                  <i class="bi bi-cursor" style="font-size:2rem;color:#cbd5e1;display:block;margin-bottom:8px;"></i>
+                  <i class="bi bi-cursor" style="font-size:2rem;color: var(--ink-faint);display:block;margin-bottom:8px;"></i>
                   Cliquez sur une section dans l'aperçu pour voir ses propriétés ici.
                 </div>
                 <div id="ifeSbProps" style="display:none;">
@@ -3914,19 +3914,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
               </div>
             </div>
             <div class="d-flex flex-grow-1" style="overflow:hidden;min-height:0;">
-              <div class="d-flex flex-column" style="width:50%;border-right:1px solid #e2e8f0;">
-                <div class="px-3 py-2 d-flex align-items-center justify-content-between" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+              <div class="d-flex flex-column" style="width:50%;border-right:1px solid var(--border);">
+                <div class="px-3 py-2 d-flex align-items-center justify-content-between" style="background:var(--surface-2);border-bottom:1px solid var(--border);">
                   <span class="small fw-semibold text-secondary"><i class="bi bi-code-slash me-1"></i>CODE (HTML / CSS / JS)</span>
                   <span class="small text-muted">Modification appliquée à la preview en temps réel</span>
                 </div>
                 <div id="htmlBlockCode" style="flex:1;min-height:0;overflow:auto;"></div>
               </div>
               <div class="d-flex flex-column" style="width:50%;">
-                <div class="px-3 py-2 d-flex align-items-center justify-content-between" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                <div class="px-3 py-2 d-flex align-items-center justify-content-between" style="background:var(--surface-2);border-bottom:1px solid var(--border);">
                   <span class="small fw-semibold text-secondary"><i class="bi bi-eye me-1"></i>PREVIEW LIVE</span>
                   <button type="button" class="btn btn-sm btn-link p-0" id="htmlBlockReloadPreview" title="Rafraîchir manuellement"><i class="bi bi-arrow-clockwise"></i></button>
                 </div>
-                <iframe id="htmlBlockPreview" style="flex:1;min-height:0;border:0;background:#fff;width:100%;" sandbox="allow-scripts allow-same-origin"></iframe>
+                <iframe id="htmlBlockPreview" style="flex:1;min-height:0;border:0;background: var(--surface);width:100%;" sandbox="allow-scripts allow-same-origin"></iframe>
               </div>
             </div>
           </div>
@@ -3966,8 +3966,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
               .seg2{display:inline-flex;background:#e9ecef;border-radius:10px;padding:3px;gap:2px;margin-bottom:.75rem;}
               .seg2 input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
-              .seg2 label{margin:0;padding:6px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color:#475569;transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
-              .seg2 input:checked + label{background:#fff;color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
+              .seg2 label{margin:0;padding:6px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color: var(--ink-dim);transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
+              .seg2 input:checked + label{background: var(--surface);color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
               .seg2 input:focus-visible + label{outline:2px solid var(--primary,#f42182);outline-offset:1px;}
             </style>
             <div class="tab-content pt-1">
@@ -4260,7 +4260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           <!-- Photos grid -->
           <div id="galerieContainer" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
             <?php foreach ($images as $img): ?>
-              <div class="sortable-image-item" data-filename="<?= htmlspecialchars($img) ?>" style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9;cursor:grab">
+              <div class="sortable-image-item" data-filename="<?= htmlspecialchars($img) ?>" style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:var(--surface-2);cursor:grab">
                 <img src="<?= $galerieDir . rawurlencode($img) ?>" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">
                 <div style="position:absolute;top:6px;right:6px">
                   <button type="button" class="delete-btn btn btn-sm btn-danger" data-filename="<?= htmlspecialchars($img) ?>" title="Supprimer" style="width:28px;height:28px;padding:0;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:0.85"><i class="bi bi-trash3" style="font-size:12px"></i></button>
@@ -4270,12 +4270,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </div>
 
           <?php if (empty($images)): ?>
-          <div id="galEmpty" style="text-align:center;padding:40px;color:#94a3b8">
+          <div id="galEmpty" style="text-align:center;padding:40px;color: var(--ink-faint)">
             <i class="bi bi-image" style="font-size:3rem"></i>
             <p class="mt-2">Aucune photo dans la galerie</p>
           </div>
           <?php else: ?>
-          <div id="galEmpty" style="text-align:center;padding:40px;color:#94a3b8;display:none">
+          <div id="galEmpty" style="text-align:center;padding:40px;color: var(--ink-faint);display:none">
             <i class="bi bi-image" style="font-size:3rem"></i>
             <p class="mt-2">Aucune photo dans la galerie</p>
           </div>
@@ -4773,15 +4773,15 @@ if ($canTab('import_auto') || $canImportXlsManual
       <div class="setting-card">
         <h2>Liaison AssoConnect</h2>
         <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
-          .ac-form .ac-label{font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;display:flex;align-items:center;gap:6px}
-          .ac-form .ac-label .ac-opt{font-weight:500;color:#94a3b8;font-size:11px}
-          .ac-hint{font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.45}
+          .ac-form .ac-label{font-size:12px;font-weight:700;color: var(--ink-dim);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+          .ac-form .ac-label .ac-opt{font-weight:500;color: var(--ink-faint);font-size:11px}
+          .ac-hint{font-size:12px;color: var(--ink-faint);margin-top:6px;line-height:1.45}
           .ac-field{margin-bottom:14px}.ac-field:last-child{margin-bottom:0}
           .ac-form input.ac-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
-          .ac-form input::placeholder{color:#cbd5e1;opacity:1;font-style:italic}
-          .ac-form input::-webkit-input-placeholder{color:#cbd5e1;font-style:italic}
-          .ac-form input:-ms-input-placeholder{color:#cbd5e1;font-style:italic}
-          .ac-divider{border:0;border-top:1px solid #f0e8eb;margin:18px 0}
+          .ac-form input::placeholder{color: var(--ink-faint);opacity:1;font-style:italic}
+          .ac-form input::-webkit-input-placeholder{color: var(--ink-faint);font-style:italic}
+          .ac-form input:-ms-input-placeholder{color: var(--ink-faint);font-style:italic}
+          .ac-divider{border:0;border-top:1px solid var(--border);margin:18px 0}
         </style>
                     <form action="" method="post" enctype="multipart/form-data" class="ac-form">
                         <?= csrf_field() ?>
@@ -5691,7 +5691,7 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
         fpLabel.style.fontFamily = fontMap[val] || "'" + val + "', sans-serif";
         fpDrop.querySelectorAll('.font-picker-item').forEach(function(i) { i.classList.remove('active'); i.style.background = ''; });
         this.classList.add('active');
-        this.style.background = '#fdf2f8';
+        this.style.background = 'var(--accent-soft)';
         fpDrop.style.display = 'none';
         // Charger dynamiquement la Google Font si nécessaire
         if (val !== 'system-ui' && customFontNames.indexOf(val) === -1 && !loadedGoogleFonts[val]) {
@@ -5765,8 +5765,8 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
     var ff = fontMap[font.value] || fontMap['system-ui'];
     var bgColor = isDark ? '#0f172a' : '#f8f7f9';
     var cardBg = isDark ? '#1e293b' : '#ffffff';
-    var borderColor = isDark ? '#334155' : '#e2e8f0';
-    var textColor = isDark ? '#e2e8f0' : '#1e293b';
+    var borderColor = isDark ? '#334155' : 'var(--border)';
+    var textColor = isDark ? 'var(--border)' : '#1e293b';
 
     // Hex labels
     document.getElementById('themePrimaryHex').textContent = primary.value;
@@ -5863,7 +5863,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var card = document.createElement('div');
     card.className = 'sortable-image-item';
     card.dataset.filename = filename;
-    card.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:#f1f5f9;cursor:grab';
+    card.style.cssText = 'position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;background:var(--surface-2);cursor:grab';
     card.innerHTML =
       '<img src="../files/_parcours/' + encodeURIComponent(filename) + '" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">' +
       '<div style="position:absolute;top:6px;right:6px">' +

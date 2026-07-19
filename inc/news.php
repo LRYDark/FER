@@ -432,7 +432,7 @@ if ($migrationDone) {
 }
 .filter-tabs a:hover {
   color: var(--ink);
-  border-bottom-color: var(--border-strong);
+  border-bottom-color: var(--ink-faint);
 }
 .filter-tabs a.active {
   color: var(--ink);
