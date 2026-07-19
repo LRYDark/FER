@@ -92,10 +92,21 @@ body {
   accent-color: var(--accent);
 }
 
-/* Seule la liste de menus scrolle (logo + bloc utilisateur fixes), et la
-   scrollbar est MASQUÉE — le défilement reste fonctionnel (molette / tactile). */
-.jr-nav > nav { overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
-.jr-nav > nav::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* Seule la liste de menus scrolle (logo + bloc utilisateur fixes). La scrollbar
+   est masquée au repos et apparaît, fine et discrète, au survol de la sidebar
+   — pour signaler qu'on peut défiler, sans encombrer visuellement. */
+.jr-nav > nav {
+  overflow-y: auto;
+  scrollbar-width: none;                 /* Firefox : masquée au repos */
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color var(--dur-med) var(--ease-out);
+}
+.jr-nav:hover > nav { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.jr-nav > nav::-webkit-scrollbar { width: 5px; }
+.jr-nav > nav::-webkit-scrollbar-track { background: transparent; }
+.jr-nav > nav::-webkit-scrollbar-thumb { background: transparent; border-radius: var(--radius-pill); transition: background var(--dur-med) var(--ease-out); }
+.jr-nav:hover > nav::-webkit-scrollbar-thumb { background: var(--border-strong); }
+.jr-nav:hover > nav::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
 
 .jr-brand {
   display: flex;
