@@ -563,6 +563,17 @@ function getCreateTableStatements(): array
           `child_age_threshold` INT(10) NOT NULL DEFAULT 12,
           `child_amount` INT(10) NOT NULL DEFAULT 0,
           `registration_closed_message` TEXT DEFAULT NULL,
+          `course_horaires` TEXT DEFAULT NULL,
+          `course_rdv` TEXT DEFAULT NULL,
+          `tshirt_retrait_info` TEXT DEFAULT NULL,
+          `chatbot_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `chatbot_unmatched` (
+          `id` int(11) NOT NULL AUTO_INCREMENT,
+          `question` varchar(500) NOT NULL,
+          `created_at` timestamp NULL DEFAULT current_timestamp(),
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 

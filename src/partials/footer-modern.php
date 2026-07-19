@@ -96,3 +96,7 @@
     </div>
   </div>
 </footer>
+
+<?php /* Assistant virtuel (chatbot) — bulle flottante ; le bouton « Contactez-nous »
+         ci-dessus l'ouvre sur le formulaire de contact (voir js/chatbot.js). */
+include __DIR__ . '/chatbot-widget.php'; ?>
