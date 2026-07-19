@@ -2105,7 +2105,7 @@ document.addEventListener('DOMContentLoaded', function() {
     overflow: hidden; transition: box-shadow .15s, border-color .15s;
   }
   .le-row:hover { border-color: var(--primary, #f42182); }
-  .le-row.le-row-ghost { opacity: 0.4; background: #fce7f3; border-style: dashed; }
+  .le-row.le-row-ghost { opacity: 0.4; background: var(--accent-soft); border-style: dashed; }
   .le-row.le-row-chosen { box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, #f42182) 25%, transparent); }
   .le-row-toolbar {
     display: flex; align-items: center; gap: 8px;
@@ -2120,7 +2120,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-col {
     flex: var(--col-flex, 12) 0 0;
     min-width: 0;
-    background: #fdf8fa; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--accent-soft); border: 1px solid var(--border); border-radius: 8px;
     display: flex; flex-direction: column;
     transition: opacity .15s, border-color .15s;
   }
@@ -2295,7 +2295,7 @@ document.addEventListener('DOMContentLoaded', function() {
     padding: 2px;
   }
   .ife-sb-grid-cell input:focus { outline: 2px solid var(--primary, #f42182); }
-  .ife-sb-grid-cell.is-overflow { border-color: #ef4444; background: #fef2f2; }
+  .ife-sb-grid-cell.is-overflow { border-color: #ef4444; background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
   .ife-sb-grid-cell.is-hidden { opacity: 0.55; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(148,163,184,.08) 6px, rgba(148,163,184,.08) 12px); }
   /* Cellule en cours de drag (Sortable) */
   .ife-sb-grid-cell.is-dragging { opacity: .5; }
@@ -2316,7 +2316,7 @@ document.addEventListener('DOMContentLoaded', function() {
     transition: background .12s, color .12s;
   }
   .ife-sb-grid-cell .cell-btn:hover { background: var(--surface-2); color: var(--ink); }
-  .ife-sb-grid-cell .cell-btn-danger:hover { background: #fef2f2; color: #ef4444; }
+  .ife-sb-grid-cell .cell-btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: #ef4444; }
   .ife-sb-grid-presets {
     display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
   }
@@ -2369,7 +2369,7 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Badge "Modifications non publiées" affiché au-dessus du bouton Publier */
   .ife-draft-badge {
     display: flex; align-items: center; gap: 8px;
-    background: #fef3c7; border: 1px solid #fcd34d; color: #92400e;
+    background: color-mix(in srgb, var(--warn) 15%, var(--surface)); border: 1px solid #fcd34d; color: var(--warn);
     padding: 8px 12px; border-radius: 8px;
     font-size: 12px; font-weight: 600;
     margin-bottom: 10px;
@@ -2383,7 +2383,7 @@ document.addEventListener('DOMContentLoaded', function() {
     50% { opacity: .3; }
   }
   @keyframes ife-draft-pulse {
-    50% { background: #fde68a; }
+    50% { background: color-mix(in srgb, var(--warn) 22%, var(--surface)); }
   }
 
   /* Liste des éléments éditables dans la sidebar (sous les contrôles d'une row) */
@@ -2570,7 +2570,7 @@ document.addEventListener('DOMContentLoaded', function() {
     opacity: .5; cursor: not-allowed;
   }
   /* Bouton "Restaurer hero" : variante warning pour signaler l'action destructive. */
-  .ife-preview-toolbar .ife-restore-btn { color: #b45309; border-color: #fcd34d; background: #fffbeb; }
+  .ife-preview-toolbar .ife-restore-btn { color: #b45309; border-color: #fcd34d; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
   .ife-preview-toolbar .ife-restore-btn:hover { color: #fff; background: #f59e0b; border-color: #f59e0b; }
   /* Les <i> / <span> à l'intérieur des boutons ne doivent pas voler le clic
      (sinon event.target n'est pas le bouton et la délégation rate). */
@@ -2640,7 +2640,7 @@ document.addEventListener('DOMContentLoaded', function() {
     display: flex; align-items: center; justify-content: center;
   }
   .ife-row-actions button:hover { background: var(--surface-2); }
-  .ife-row-actions button.danger:hover { background: #fef2f2; color: #ef4444; }
+  .ife-row-actions button.danger:hover { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: #ef4444; }
   .ife-row-actions .ife-handle { cursor: grab; color: var(--ink-faint); }
   .ife-add-marker {
     position: absolute; pointer-events: auto;
@@ -2681,7 +2681,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   .ife-ctx-item i { color: var(--ink-dim); font-size: 14px; }
   .ife-ctx-item:hover { background: var(--surface-2); }
-  .ife-ctx-item.is-danger:hover { background: #fef2f2; color: #ef4444; }
+  .ife-ctx-item.is-danger:hover { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: #ef4444; }
   .ife-ctx-item.is-danger:hover i { color: #ef4444; }
   .ife-ctx-sep {
     height: 1px; background: var(--border); margin: 4px 6px;
@@ -2830,7 +2830,7 @@ document.addEventListener('DOMContentLoaded', function() {
   .le-row-toolbar button.btn-outline-danger,
   .le-col-toolbar button.btn-outline-danger { color: #ef4444; }
   .le-row-toolbar button.btn-outline-danger:hover,
-  .le-col-toolbar button.btn-outline-danger:hover { background: #fef2f2; }
+  .le-col-toolbar button.btn-outline-danger:hover { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
 
   /* Cache les éléments décoratifs anciens : tag/hint/info */
   .le-section-hint, .le-row-info, .le-section-tag { display: none !important; }
@@ -2991,7 +2991,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <label class="form-label">Logo actuel</label>
             <div>
               <?php if ($navbar_logo && file_exists('../files/_logos/' . $navbar_logo)): ?>
-                <div class="mb-2"><img src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Logo actuel" class="img-thumbnail" style="max-height:60px;background:#f8f8f8;"></div>
+                <div class="mb-2"><img src="../files/_logos/<?= rawurlencode($navbar_logo) ?>" alt="Logo actuel" class="img-thumbnail" style="max-height:60px;background: var(--surface-2);"></div>
                 <small class="text-muted"><?= htmlspecialchars($navbar_logo) ?></small>
               <?php else: ?>
                 <span class="text-muted">Aucun logo</span>
@@ -4233,7 +4233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
         </div>
         <div class="modal-body">
           <!-- Upload zone drag & drop -->
-          <div id="galUploadZone" style="border:2px dashed #93c5fd;border-radius:12px;padding:30px;text-align:center;background:#eff6ff;cursor:pointer;transition:all .2s;margin-bottom:20px">
+          <div id="galUploadZone" style="border:2px dashed #93c5fd;border-radius:12px;padding:30px;text-align:center;background: color-mix(in srgb, var(--info) 12%, var(--surface));cursor:pointer;transition:all .2s;margin-bottom:20px">
             <i class="bi bi-cloud-arrow-up" style="font-size:2.5rem;color:#2563eb"></i>
             <p class="mb-1 fw-semibold" style="color:#2563eb">Glissez vos photos ici ou cliquez pour selectionner</p>
             <p class="text-muted small mb-0">JPG, PNG, GIF, WEBP - Max 5 Mo/image - <span id="remainingCount"><?= $remaining ?></span> place(s) restante(s)</p>

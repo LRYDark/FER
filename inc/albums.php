@@ -666,7 +666,7 @@ try {
   /* Year list item */
   .year-list-item {
     background: var(--surface);
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border);
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
     margin-bottom: 0.75rem;
@@ -706,7 +706,7 @@ try {
   }
   /* Drag-and-drop albums */
   .drag-handle-album:hover { color: var(--primary, #f42182) !important; }
-  .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
+  .sortable-ghost-album { opacity: 0.4; background: color-mix(in srgb, #7c5cf6 12%, var(--surface)) !important; }
 
   /* Sur PC : checkbox "Supprimer" hors flux + alignement vertical des icônes/boutons */
   @media (min-width: 576px) {
@@ -999,7 +999,7 @@ try {
                             }
                           }
                         ?>
-                        <div class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid <?= $isLocalAlbum ? '#c4b5fd' : 'var(--border)' ?>;border-radius:8px;background:<?= $isLocalAlbum ? '#f5f3ff' : '#fdf8f9' ?>">
+                        <div class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid <?= $isLocalAlbum ? 'color-mix(in srgb, #7c5cf6 40%, var(--border))' : 'var(--border)' ?>;border-radius:8px;background:<?= $isLocalAlbum ? 'color-mix(in srgb, #7c5cf6 12%, var(--surface))' : 'color-mix(in srgb, var(--accent) 6%, var(--surface))' ?>">
                         <form method="post" enctype="multipart/form-data">
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">

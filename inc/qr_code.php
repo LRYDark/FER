@@ -74,7 +74,7 @@ $paymentMethods = ['retrait t-shirt', 'sur place', 'espèces', 'CB', 'chèque', 
 
 <style>
 .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-.qr-preview{max-width:200px;max-height:200px;border:2px solid #dee2e6;border-radius:6px;padding:10px;margin:10px 0}
+.qr-preview{max-width:200px;max-height:200px;border:2px solid var(--border);border-radius:6px;padding:10px;margin:10px 0}
 .qr-actions .btn{margin:2px}
 .token-display{font-family:monospace;font-size:0.85rem;background:var(--surface-2);padding:5px 10px;border-radius:4px;word-break:break-all}
 #qrTable { width: 100% !important; }

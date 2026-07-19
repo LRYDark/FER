@@ -68,12 +68,12 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     display:inline-block; font-weight:700; font-size:.78rem; padding:.2rem .6rem;
     border-radius:6px; margin-right:.5rem; font-family:monospace;
   }
-  .m-get  { background:#d1fae5; color:#065f46; }
-  .m-post { background:#dbeafe; color:#1e40af; }
+  .m-get  { background:#d1fae5; color: var(--ok); }
+  .m-post { background: color-mix(in srgb, var(--info) 15%, var(--surface)); color: var(--info); }
   .api-toc a { color:#880e4f; text-decoration:none; }
   .api-toc a:hover { text-decoration:underline; }
   table.api-params td, table.api-params th { font-size:.88rem; vertical-align:top; }
-  .url-pill { background:#fce4ec; color:#880e4f; padding:.15rem .5rem; border-radius:6px; font-family:monospace; font-size:.85rem; }
+  .url-pill { background: var(--accent-soft); color:#880e4f; padding:.15rem .5rem; border-radius:6px; font-family:monospace; font-size:.85rem; }
   /* navbar-admin.php applique « display:flex » à toutes les alertes
      (#oc-content .alert) : ici les alertes contiennent du texte riche
      multi-lignes, on rétablit donc un affichage en flux normal. */

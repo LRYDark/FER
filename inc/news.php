@@ -829,7 +829,7 @@ if ($migrationDone) {
     <style>
         .card-dashboard {
             background: var(--surface-2);
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border);
         }
         .tox-tinymce {
             border-radius: 0.375rem !important;
@@ -848,7 +848,7 @@ if ($migrationDone) {
         .admin-comment-author { font-weight: 700; font-size: 14px; }
         .admin-comment-ip {
             font-size: 12px; color: #6c757d;
-            font-family: monospace; background: #f1f3f5;
+            font-family: monospace; background: var(--surface-2);
             padding: 1px 6px; border-radius: 4px;
         }
         .admin-comment-date { font-size: 12px; color: #adb5bd; }

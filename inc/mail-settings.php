@@ -502,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'type' => 'info',
                 'mailTitle' => 'Inscription groupée confirmée',
                 'description' => '<p>Bonjour,</p><p>Nous confirmons l\'inscription des <strong>3</strong> personne(s) ci-dessous.</p>'
-                    . '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;"><thead><tr style="background:#fdf2f6;">'
+                    . '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;"><thead><tr style="background: var(--accent-soft);">'
                     . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
                     . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
                     . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
@@ -592,7 +592,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Une adresse IP a ete <strong>bannie automatiquement</strong> par le systeme de securite du site.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;">'
+                    . '<tr><td style="padding:14px 18px;background: color-mix(in srgb, var(--danger) 12%, var(--surface));border-radius:8px;border-left:3px solid #ef4444;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Adresse IP :</strong> 192.168.1.42</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Duree du ban :</strong> 24 heures</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Raison :</strong> Trop de tentatives de connexion echouees (10 en 30 minutes)</p>'
@@ -611,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Un utilisateur s\'est connecte <strong>sans verification a deux facteurs</strong> car l\'envoi du code par e-mail a echoue.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:#fffbeb;border-radius:8px;border-left:3px solid #f59e0b;">'
+                    . '<tr><td style="padding:14px 18px;background: color-mix(in srgb, var(--warn) 12%, var(--surface));border-radius:8px;border-left:3px solid #f59e0b;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Compte concerne :</strong> admin@forbachenrose.fr</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
@@ -651,7 +651,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Un compte utilisateur a ete <strong>verrouille automatiquement</strong> apres 3 tentatives de connexion echouees consecutives.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;">'
+                    . '<tr><td style="padding:14px 18px;background: color-mix(in srgb, var(--danger) 12%, var(--surface));border-radius:8px;border-left:3px solid #ef4444;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Compte concerne :</strong> user@exemple.fr</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Adresse IP :</strong> 192.168.1.42</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
@@ -747,7 +747,7 @@ $jsConfig = json_encode([
 #selectedRecipients .btn-close { padding: 0.2rem; font-size: 0.6rem; }
 #selectedRecipients:empty::after { content: "Aucun destinataire sélectionné"; color: #6c757d; font-size: 0.875rem; font-style: italic; }
 .email-search-container { position: relative; }
-.email-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; z-index: 1050; display: none; }
+.email-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; z-index: 1050; display: none; }
 .suggestion-item { padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid #eee; }
 .suggestion-item:hover { background-color: var(--surface-2); }
 .suggestion-item:last-child { border-bottom: none; }
@@ -766,7 +766,7 @@ $jsConfig = json_encode([
 .ed-sidebar #sidebar{padding:16px}
 .ed-preview-area{
   position:absolute;top:0;left:0;right:0;bottom:0;
-  background:#94a3b8;overflow-y:auto;padding:32px 32px 32px 320px;
+  background:var(--bg);overflow-y:auto;padding:32px 32px 32px 320px;
   display:flex;justify-content:center;align-items:flex-start;
   border-radius:12px;
 }
@@ -817,10 +817,10 @@ $jsConfig = json_encode([
 .sb-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background: var(--surface);font-size:12px;cursor:pointer;transition:.15s}
 .sb-btn:hover{border-color:#F42182;color:#F42182}
 .sb-btn-danger{color:#ef4444;border-color:#fca5a5}
-.sb-btn-danger:hover{background:#fef2f2;border-color:#ef4444}
+.sb-btn-danger:hover{background: color-mix(in srgb, var(--danger) 12%, var(--surface));border-color:#ef4444}
 .sb-align{display:flex;gap:4px}
 .sb-align button{flex:1;padding:4px;border:1px solid var(--border);border-radius:6px;background: var(--surface);cursor:pointer;font-size:14px}
-.sb-align button.active{background:#fce7f3;border-color:#F42182;color:#F42182}
+.sb-align button.active{background: var(--accent-soft);border-color:#F42182;color:#F42182}
 
 /* ── Preview ── */
 .prev-email{width:<?= $mtcCardWidth ?>px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
@@ -847,7 +847,7 @@ $jsConfig = json_encode([
   border:0;background:transparent;border-radius:6px;cursor:pointer;font-size:13px;transition:.1s;
 }
 .sec-act:hover{background:var(--surface-2)}
-.sec-act.del:hover{background:#fef2f2;color:#ef4444}
+.sec-act.del:hover{background: color-mix(in srgb, var(--danger) 12%, var(--surface));color:#ef4444}
 
 /* Add section button between sections */
 .prev-add{
@@ -879,7 +879,7 @@ $jsConfig = json_encode([
   transition:.1s;line-height:1;padding:0;
 }
 .el-act:hover{background:var(--surface-2);color: var(--ink)}
-.el-act.del:hover{background:#fef2f2;color:#ef4444}
+.el-act.del:hover{background: color-mix(in srgb, var(--danger) 12%, var(--surface));color:#ef4444}
 [data-ed]:hover>.el-actions,[data-dyn]:hover>.el-actions,.el-reorder:hover>.el-actions{display:flex}
 [data-ed].editing>.el-actions{display:none !important}
 
@@ -1178,7 +1178,7 @@ $jsConfig = json_encode([
 
     </div><!-- /sidebar -->
     <div style="padding:12px 16px;border-top:1px solid var(--border);background: var(--surface);flex-shrink:0;border-radius:0 0 12px 12px;text-align:center">
-      <button type="submit" name="save_mail_template" class="btn btn-primary w-auto" style="padding:8px 32px;font-size:13px;font-weight:600">
+      <button type="submit" name="save_mail_template" class="btn btn-primary w-auto" style="padding:8px 32px;font-size:13px;font-weight:600;white-space:nowrap">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px"><path d="M19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 H16 L21 8 V19 A2 2 0 0 1 19 21 Z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Sauvegarder
       </button>
@@ -1661,15 +1661,15 @@ $jsConfig = json_encode([
         <p class="mt-3 mb-0">Aucun abonné pour le moment.</p>
       </div>
     <?php else: ?>
-      <div class="btn-group mb-3" role="group" id="nlFilter">
-        <button type="button" class="btn btn-outline-secondary active" data-filter="all">
-          Tous <span class="badge bg-secondary ms-1"><?= $nbTotal ?></span>
+      <div class="jr-segbtn mb-3" role="group" id="nlFilter">
+        <button type="button" class="active" data-filter="all">
+          Tous <span class="jr-seg-count"><?= $nbTotal ?></span>
         </button>
-        <button type="button" class="btn btn-outline-success" data-filter="subscribed">
-          Abonnés <span class="badge bg-success ms-1"><?= $nbSub ?></span>
+        <button type="button" data-filter="subscribed">
+          Abonnés <span class="jr-seg-count"><?= $nbSub ?></span>
         </button>
-        <button type="button" class="btn btn-outline-secondary" data-filter="unsubscribed">
-          Désabonnés <span class="badge bg-secondary ms-1"><?= $nbUnsub ?></span>
+        <button type="button" data-filter="unsubscribed">
+          Désabonnés <span class="jr-seg-count"><?= $nbUnsub ?></span>
         </button>
       </div>
       <div class="table-responsive">

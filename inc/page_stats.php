@@ -116,7 +116,7 @@ if (!$hasCurrentMonth) {
     font-weight: 500;
 }
 .period-tabs .nav-link.active {
-    background: #fce4ec;
+    background: var(--accent-soft);
     color: #880e4f;
     border-color: #f8bbd0;
     font-weight: 600;
@@ -126,7 +126,7 @@ if (!$hasCurrentMonth) {
 }
 .month-select {
     font-size: 14px; font-weight: 600; color: #880e4f; border: 1px solid #f8bbd0;
-    border-radius: 8px; padding: 6px 12px; background: #fce4ec; cursor: pointer;
+    border-radius: 8px; padding: 6px 12px; background: var(--accent-soft); cursor: pointer;
 }
 .stats-table {
     font-size: 0.9rem;

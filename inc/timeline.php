@@ -320,7 +320,7 @@ foreach ($items as $item) {
   .tl-amount{font-size:1.15rem;font-weight:800;letter-spacing:-.02em;color: var(--ink);margin:4px 0 8px}
   .tl-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--surface-2);color: var(--ink-dim);font-weight:600;font-size:11px}
   .tl-order{font-size:12px;color: var(--ink-faint);font-weight:600}
-  .tl-card{border:1px solid rgba(0,0,0,.06);border-radius:.75rem;overflow:hidden;transition:box-shadow .2s}
+  .tl-card{background:var(--card);border:1px solid var(--border);border-radius:.75rem;overflow:hidden;transition:box-shadow .2s}
   .tl-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
   .sortable-ghost { opacity: 0.4; }
   .drag-handle:hover { color: var(--primary, #f42182); }
@@ -422,7 +422,7 @@ foreach ($items as $item) {
                 $side = ($idx % 2 === 0) ? 'Gauche' : 'Droite';
             ?>
             <div class="col-md-6 col-lg-4 col-xl-3 sortable-item" data-id="<?= ($item['id'] ?? '') ?>">
-              <div class="tl-card bg-white" style="position:relative">
+              <div class="tl-card" style="position:relative;background:var(--card)">
                 <?php if ($hasStatusCol): ?>
                   <span class="badge <?= ($item['status'] ?? 'draft') === 'published' ? 'bg-success' : 'bg-warning text-dark' ?>" style="position:absolute;top:10px;right:10px;z-index:2;font-size:0.7rem;padding:4px 10px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.15);">
                     <?= ($item['status'] ?? 'draft') === 'published' ? 'Publié' : 'Brouillon' ?>
