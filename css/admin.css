@@ -984,8 +984,18 @@ a:hover { color: var(--accent-strong); }
 /* Éditeurs TinyMCE : coins doux + on neutralise tout arrière-plan/ombre qui
    déborde derrière l'éditeur (l'« ovale » blanc venait de la promo TinyMCE
    affichée sous l'iframe en attendant le chargement / du fond du conteneur). */
-.tox-tinymce { border-radius: var(--radius-m) !important; border-color: var(--border-strong) !important; background: var(--card) !important; }
+/* TinyMCE : conteneur à coins doux + overflow:hidden (l'« ovale » venait de
+   l'iframe de contenu qui débordait avec un grand border-radius hérité).
+   On force un radius nul sur l'iframe/edit-area et on laisse le conteneur
+   couper proprement. */
+.tox-tinymce {
+  border-radius: var(--radius-m) !important;
+  border-color: var(--border-strong) !important;
+  background: var(--card) !important;
+  overflow: hidden !important;
+}
 .tox .tox-editor-container, .tox .tox-edit-area { background: var(--card) !important; }
+.tox .tox-edit-area__iframe { border-radius: 0 !important; }
 .tox:not(.tox-tinymce-inline) .tox-editor-header { background: var(--card) !important; }
 .tox-promotion, .tox-statusbar__branding { display: none !important; }
 
@@ -1347,15 +1357,12 @@ a:hover { color: var(--accent-strong); }
 .pf-font-toggle:hover { border-color: var(--accent); }
 .pf-font-toggle svg { width: 14px; height: 14px; flex: none; stroke: var(--ink-faint); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pf-font-dropdown {
-  display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
-  margin-top: 4px; background: var(--surface); border: 1px solid var(--border);
+  display: none; position: fixed; z-index: calc(var(--z-modal) + 10);
+  background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-m); box-shadow: var(--shadow-modal);
   max-height: 240px; overflow-y: auto;
 }
 .pf-font-dropdown.show { display: block; }
-/* Ouverture vers le HAUT quand le picker est en bas du modal (évite d'être
-   coupé par le bord du modal / de sortir de l'écran) */
-.pf-font-picker.drop-up .pf-font-dropdown { top: auto; bottom: 100%; margin: 0 0 4px; }
 .pf-font-item {
   padding: 9px 14px; cursor: pointer; font-size: 15px; color: var(--ink);
   transition: background var(--dur-fast) var(--ease-out);

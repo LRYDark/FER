@@ -573,18 +573,27 @@ function jrLiveStyle() {
   return el;
 }
 
+/* Palette des presets (hex de référence, comme tokens.css) → dérivée en JS.
+   Mécanisme UNIQUE : on écrit toujours les 6 variables dans le style live,
+   plus de bascule data-accent (source du bug « rose affiche bleu »). */
+var _jrAccentHex = { blue: '#3D63F0', teal: '#0FA894', violet: '#7C5CF6', emerald: '#10B981' };
+
+function jrAccentVars(name) {
+  if (name === 'rose') return _jrRoseVars;
+  if (name === 'custom') return jrDeriveAccent(_jrState.accentCustom) || _jrRoseVars;
+  return jrDeriveAccent(_jrAccentHex[name] || '#3D63F0');
+}
+
 function jrRenderLive() {
+  var vars = jrAccentVars(_jrState.accent);
   var css = '';
-  var vars = null;
-  if (_jrState.accent === 'rose') vars = _jrRoseVars;
-  else if (_jrState.accent === 'custom') vars = jrDeriveAccent(_jrState.accentCustom) || _jrRoseVars;
   if (vars) {
     css += ':root{--accent-l:' + vars[0] + ';--accent-l-strong:' + vars[1] + ';--accent-l-ink:' + vars[2]
         + ';--accent-d:' + vars[3] + ';--accent-d-strong:' + vars[4] + ';--accent-d-ink:' + vars[5] + ';}\n';
   }
   css += jrFontCss();
   jrLiveStyle().textContent = css;
-  // Neutraliser le style serveur (sinon il gagnerait sur un retour aux presets)
+  // Neutraliser le style serveur (sinon il gagnerait sur le style live)
   var srv = document.getElementById('jr-user-vars');
   if (srv) srv.textContent = '';
 }
@@ -629,20 +638,14 @@ function jrMarkAccent(name) {
 function jrApplyAccentChoice(name, customHex) {
   _jrState.accent = name;
   if (name === 'custom' && customHex) _jrState.accentCustom = customHex;
-  var d = document.documentElement;
-  if (name === 'rose' || name === 'custom') {
-    d.removeAttribute('data-accent');
-    jrRenderLive();
-  } else {
-    jrLiveStyle().textContent = jrFontCss();
-    var srv = document.getElementById('jr-user-vars'); if (srv) srv.textContent = '';
-    if (name === 'blue') d.removeAttribute('data-accent'); else d.setAttribute('data-accent', name);
-  }
+  // Mécanisme unique : data-accent retiré, tout passe par le style live.
+  document.documentElement.removeAttribute('data-accent');
+  jrRenderLive();
   jrMarkAccent(name);
+  // Miroir localStorage pour les pages pré-auth (login) : couleur résolue.
   try {
-    if (name === 'rose') { localStorage.setItem('jr-accent', 'custom'); localStorage.setItem('jr-accent-custom', _jrRoseVars[0]); }
-    else if (name === 'custom') { localStorage.setItem('jr-accent', 'custom'); localStorage.setItem('jr-accent-custom', _jrState.accentCustom); }
-    else { localStorage.setItem('jr-accent', name === 'blue' ? '' : name); localStorage.removeItem('jr-accent-custom'); }
+    var v = jrAccentVars(name);
+    if (v) { localStorage.setItem('jr-accent', 'custom'); localStorage.setItem('jr-accent-custom', v[0]); }
   } catch (e) {}
   jrSaveAppearance({ admin_accent: name, admin_accent_custom: _jrState.accentCustom || '' });
 }
@@ -696,15 +699,26 @@ var pfFontDropdown = document.getElementById('pfFontDropdown');
 var pfFontLabel    = document.getElementById('pfFontLabel');
 var _pfFontsPreviewed = false;
 if (pfFontToggle && pfFontDropdown) {
+  function jrPositionFontDropdown() {
+    // position:fixed → on ancre le menu sous (ou sur) le bouton, quel que soit
+    // l'overflow du modal. Recalcule largeur/position à chaque ouverture.
+    var r = pfFontToggle.getBoundingClientRect();
+    var spaceBelow = window.innerHeight - r.bottom;
+    pfFontDropdown.style.left = r.left + 'px';
+    pfFontDropdown.style.width = r.width + 'px';
+    if (spaceBelow < 260 && r.top > 260) {
+      // ouvrir vers le haut
+      pfFontDropdown.style.top = 'auto';
+      pfFontDropdown.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+    } else {
+      pfFontDropdown.style.bottom = 'auto';
+      pfFontDropdown.style.top = (r.bottom + 4) + 'px';
+    }
+  }
   pfFontToggle.addEventListener('click', function(e) {
     e.stopPropagation();
     var opening = !pfFontDropdown.classList.contains('show');
-    // Ouvrir vers le haut s'il n'y a pas assez de place sous le bouton
-    var picker = document.getElementById('pfFontPicker');
-    if (opening && picker) {
-      var r = pfFontToggle.getBoundingClientRect();
-      picker.classList.toggle('drop-up', (window.innerHeight - r.bottom) < 260);
-    }
+    if (opening) jrPositionFontDropdown();
     pfFontDropdown.classList.toggle('show');
     if (opening && !_pfFontsPreviewed) {
       // Charger TOUTES les polices une seule fois pour que chaque ligne
