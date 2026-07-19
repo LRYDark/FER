@@ -1497,7 +1497,7 @@ a:hover { color: var(--accent-strong); }
 #oc-content .fer-table.dataTable thead .sorting_desc:after { right: .5em; font-size: .7em; }
 #oc-content .fer-table.dataTable thead th.sorting:hover:after { opacity: .5 !important; color: var(--border-strong); }
 #oc-content .fer-table.dataTable thead .sorting_asc:before,
-#oc-content .fer-table.dataTable thead .sorting_desc:after { opacity: 1 !important; color: #f472b6; }
+#oc-content .fer-table.dataTable thead .sorting_desc:after { opacity: 1 !important; color: var(--accent); }
 
 /* ── COMPOSANTS INTERACTIFS PARTAGÉS (entonnoir de filtre, popover, poignées de
      redimensionnement, bouton « Colonnes », repère ColReorder). Réutilisés par
@@ -1562,7 +1562,7 @@ a:hover { color: var(--accent-strong); }
 .fer-tbl-wrap.is-loading > .fer-tbl-spinner { display: flex; }
 .fer-tbl-spinner::after {
   content: ""; width: 42px; height: 42px; border-radius: 50%;
-  border: 4px solid #f6d6e6; border-top-color: var(--accent);
+  border: 4px solid color-mix(in srgb, var(--accent) 22%, transparent); border-top-color: var(--accent);
   animation: fer-spin .7s linear infinite;
 }
 @keyframes fer-spin { to { transform: rotate(360deg); } }

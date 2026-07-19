@@ -21,15 +21,15 @@
 }
 
 .status.connected {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
+    background-color: color-mix(in srgb, var(--ok) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--surface));
+    color: var(--ok);
 }
 
 .status.disconnected {
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    color: #721c24;
+    background-color: color-mix(in srgb, var(--danger) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--surface));
+    color: var(--danger);
 }
 
 .btn {
@@ -74,7 +74,7 @@
 
 .btn-warning {
     background-color: #ffc107;
-    color: var(--ink);
+    color: #1e293b;
 }
 
 .btn-warning:hover {
@@ -88,15 +88,15 @@
 }
 
 .message.success {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
+    background-color: color-mix(in srgb, var(--ok) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--surface));
+    color: var(--ok);
 }
 
 .message.error {
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    color: #721c24;
+    background-color: color-mix(in srgb, var(--danger) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--surface));
+    color: var(--danger);
 }
 
 .actions {
@@ -108,9 +108,9 @@
 }
 
 .info {
-    background-color: #e7f3ff;
-    border: 1px solid #b8daff;
-    color: #004085;
+    background-color: color-mix(in srgb, var(--info) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--info) 32%, var(--surface));
+    color: var(--info);
     padding: 15px;
     border-radius: 5px;
     margin-top: 20px;

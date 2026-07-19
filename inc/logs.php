@@ -104,7 +104,7 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
 }
 
 .log-card-header {
-  background: linear-gradient(135deg, var(--surface-2), var(--surface-2));
+  background: var(--surface-2);
   padding: 1rem 1.5rem;
   display: flex;
   align-items: center;
