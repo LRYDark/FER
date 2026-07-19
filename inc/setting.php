@@ -147,7 +147,7 @@ $child_amount          = (int) ($data['child_amount'] ?? 0);
 $theme_primary        = $data['theme_primary_color']        ?? '#db2777';
 $theme_secondary      = $data['theme_secondary_color']      ?? '#0f172a';
 $theme_dark_primary   = $data['theme_dark_primary_color']   ?? '#f472b6';
-$theme_dark_secondary = $data['theme_dark_secondary_color'] ?? 'var(--border)';
+$theme_dark_secondary = $data['theme_dark_secondary_color'] ?? '#e2e8f0';
 $theme_radius         = (int)($data['theme_border_radius']  ?? 12);
 $theme_font           = $data['theme_font_family']          ?? 'Inter';
 $flash_bg_color       = $data['flash_bg_color']             ?? '#db2777';
@@ -1041,7 +1041,7 @@ if (isset($_POST['save_theme'])) {
     $theme_primary        = $_POST['theme_primary_color']        ?? '#db2777';
     $theme_secondary      = $_POST['theme_secondary_color']      ?? '#0f172a';
     $theme_dark_primary   = $_POST['theme_dark_primary_color']   ?? '#f472b6';
-    $theme_dark_secondary = $_POST['theme_dark_secondary_color'] ?? 'var(--border)';
+    $theme_dark_secondary = $_POST['theme_dark_secondary_color'] ?? '#e2e8f0';
     $theme_radius         = max(0, min(32, (int)($_POST['theme_border_radius'] ?? 12)));
     $theme_font           = $_POST['theme_font_family']          ?? 'Inter';
 
@@ -1049,7 +1049,7 @@ if (isset($_POST['save_theme'])) {
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_primary))        $theme_primary = '#db2777';
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_secondary))      $theme_secondary = '#0f172a';
     if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_primary))   $theme_dark_primary = '#f472b6';
-    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_secondary)) $theme_dark_secondary = 'var(--border)';
+    if (!preg_match('/^#[0-9a-fA-F]{6}$/', $theme_dark_secondary)) $theme_dark_secondary = '#e2e8f0';
     if (!in_array($theme_font, $allowedFonts)) $theme_font = 'Inter';
 
     $pdo->prepare(
@@ -1087,7 +1087,7 @@ if (isset($_POST['reset_flash_colors'])) {
 
 if (isset($_POST['reset_theme'])) {
     $theme_primary = '#db2777'; $theme_secondary = '#0f172a';
-    $theme_dark_primary = '#f472b6'; $theme_dark_secondary = 'var(--border)';
+    $theme_dark_primary = '#f472b6'; $theme_dark_secondary = '#e2e8f0';
     $theme_radius = 12; $theme_font = 'Inter';
     $flash_bg_color = '#db2777'; $flash_text_color = '#ffffff';
 
@@ -5763,8 +5763,8 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
     var ff = fontMap[font.value] || fontMap['system-ui'];
     var bgColor = isDark ? '#0f172a' : '#f8f7f9';
     var cardBg = isDark ? '#1e293b' : '#ffffff';
-    var borderColor = isDark ? '#334155' : 'var(--border)';
-    var textColor = isDark ? 'var(--border)' : '#1e293b';
+    var borderColor = isDark ? '#334155' : '#e2e8f0';
+    var textColor = isDark ? '#e2e8f0' : '#1e293b';
 
     // Hex labels
     document.getElementById('themePrimaryHex').textContent = primary.value;

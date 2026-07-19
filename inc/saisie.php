@@ -152,7 +152,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
   font-size: 13px;
   height: 36px;
   padding: 0 10px;
-  color: #1a1a2e;
+  color: var(--ink);
   background: var(--surface);
   transition: border-color .15s, box-shadow .15s;
 }

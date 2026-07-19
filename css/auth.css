@@ -18,7 +18,6 @@
   margin: 0 auto var(--sp-3); /* centrée horizontalement */
 }
 .oc-icon-circle svg { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
-.oc-icon-circle svg { width: 22px; height: 22px; color: var(--accent); stroke: var(--accent); }
 .oc-title { font-size: var(--fs-h1); font-weight: 650; color: var(--ink); margin: 0 0 2px; }
 .oc-subtitle { font-size: var(--fs-small); color: var(--ink-dim); margin: 0; }
 

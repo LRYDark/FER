@@ -99,7 +99,7 @@ if (!$hasCurrentMonth) {
 .stat-card .stat-value {
     font-size: 2rem;
     font-weight: 700;
-    color: #880e4f;
+    color: var(--accent);
 }
 .stat-card .stat-label {
     font-size: 0.85rem;

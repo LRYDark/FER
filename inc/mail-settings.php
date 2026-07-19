@@ -832,11 +832,11 @@ $jsConfig = json_encode([
   position:relative;cursor:pointer;transition:.12s;
   outline:2px solid transparent;outline-offset:2px;border-radius:4px;
 }
-.prev-sec:hover{outline-color:rgba(244,33,130,.35)}
+.prev-sec:hover{outline-color:color-mix(in srgb, var(--accent) 35%, transparent)}
 .prev-sec.selected{outline-color:var(--accent);outline-offset:3px}
 /* Header/Title/Footer: inside card table, outline gets clipped → use inset box-shadow */
 #prevCard>.prev-sec,#prevCard tr>td.prev-sec{outline:none !important}
-#prevCard tr>td.prev-sec:hover{box-shadow:inset 0 0 0 3px rgba(244,33,130,.35)}
+#prevCard tr>td.prev-sec:hover{box-shadow:inset 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent)}
 #prevCard tr>td.prev-sec.selected{box-shadow:inset 0 0 0 3px var(--accent)}
 .prev-sec .sec-actions{
   display:none;position:absolute;top:-14px;right:-8px;z-index:10;
@@ -865,7 +865,7 @@ $jsConfig = json_encode([
 
 /* Editable text */
 [data-ed]{position:relative;transition:.12s;outline:1px dashed transparent;outline-offset:1px;cursor:pointer;min-height:1em}
-[data-ed]:hover{outline-color:rgba(244,33,130,.4)}
+[data-ed]:hover{outline-color:color-mix(in srgb, var(--accent) 40%, transparent)}
 [data-ed].editing{outline-color:var(--accent);outline-style:solid;cursor:text;background:color-mix(in srgb, var(--accent) 8%, transparent)}
 /* Element inline actions (trash + arrows) */
 .el-actions{
@@ -891,8 +891,8 @@ $jsConfig = json_encode([
 /* Inner element dragging */
 [data-ed][draggable="true"],[data-dyn][draggable="true"],.el-reorder[draggable="true"]{cursor:grab}
 .el-dragging{opacity:.3 !important}
-.el-drop-above{border-top:2px solid #F42182 !important}
-.el-drop-below{border-bottom:2px solid #F42182 !important}
+.el-drop-above{border-top:2px solid var(--accent) !important}
+.el-drop-below{border-bottom:2px solid var(--accent) !important}
 
 /* Dynamic text (content non-editable, but style IS editable) */
 [data-dyn]{position:relative;cursor:pointer;transition:.12s;outline:1px dashed transparent;outline-offset:1px}
@@ -910,7 +910,7 @@ $jsConfig = json_encode([
 /* Drag indicator */
 .drag-bar{
   position:absolute;left:50%;top:-12px;transform:translateX(-50%);
-  width:40px;height:5px;background:#F42182;border-radius:3px;opacity:0;transition:.15s;cursor:grab;
+  width:40px;height:5px;background:var(--accent);border-radius:3px;opacity:0;transition:.15s;cursor:grab;
 }
 .prev-sec:hover .drag-bar,.prev-sec.selected .drag-bar{opacity:.5}
 .prev-sec:hover .drag-bar:hover{opacity:1}
@@ -2153,7 +2153,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
     } else if(colorsDef==='direct'){
       // Direct background color for custom sections
       var td=el.querySelector('td');
-      var curBg=td?rgbHex(td.style.backgroundColor||'var(--surface-2)'):'var(--surface-2)';
+      var curBg=td?rgbHex(td.style.backgroundColor||'#f8fafc'):'#f8fafc';
       var row=document.createElement('div'); row.className='sb-row';
       row.innerHTML='<label>Fond</label><input type="color" value="'+curBg+'">';
       cc.appendChild(row);
