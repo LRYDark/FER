@@ -82,9 +82,9 @@ if (($data['mail_provider'] ?? 'google') !== 'smtp') {
 $mtcRaw = $data['mail_template_config'] ?? null;
 $mtc = $mtcRaw ? json_decode($mtcRaw, true) : [];
 $mtcColors = ($mtc['colors'] ?? []) + [
-    'bg'=>'var(--surface-2)','card_bg'=>'#ffffff','header_bg1'=>'#F42182','header_bg2'=>'#db2777',
-    'accent'=>'#F42182','title_bg'=>'var(--accent-soft)','tips_bg'=>'#0f172a',
-    'banner_bg1'=>'var(--accent-soft)','banner_bg2'=>'#fce7f3','banner_border'=>'#fbcfe8','footer_bg'=>'#0f172a'
+    'bg'=>'#f1f5f9','card_bg'=>'#ffffff','header_bg1'=>'#F42182','header_bg2'=>'#db2777',
+    'accent'=>'#F42182','title_bg'=>'#fdf2f8','tips_bg'=>'#0f172a',
+    'banner_bg1'=>'#fdf2f8','banner_bg2'=>'#fce7f3','banner_border'=>'#fbcfe8','footer_bg'=>'#0f172a'
 ];
 $mtcTexts = ($mtc['texts'] ?? []) + [
     'header_title'=>'Forbach en Rose','header_subtitle'=>'Course caritative contre le cancer du sein',
@@ -502,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'type' => 'info',
                 'mailTitle' => 'Inscription groupée confirmée',
                 'description' => '<p>Bonjour,</p><p>Nous confirmons l\'inscription des <strong>3</strong> personne(s) ci-dessous.</p>'
-                    . '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;"><thead><tr style="background: var(--accent-soft);">'
+                    . '<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:14px;"><thead><tr style="background: #fdf2f8;">'
                     . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">N° inscription</th>'
                     . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Nom</th>'
                     . '<th style="text-align:left;padding:8px;border:1px solid #fbcfe8;">Prénom</th>'
@@ -551,15 +551,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'mailTitle' => 'Mention @forbachenrose',
                 'description' => '<p>Bonjour,</p>'
                     . '<p><strong>Marie Martin</strong> vous a mentionné dans un commentaire sur votre site.</p>'
-                    . '<p style="padding:14px 18px;background:var(--surface-2);border-radius:8px;border-left:3px solid #F42182;font-style:italic;color: var(--ink-dim);margin:16px 0;">'
+                    . '<p style="padding:14px 18px;background:#f8fafc;border-radius:8px;border-left:3px solid #F42182;font-style:italic;color: #475569;margin:16px 0;">'
                     . 'Bravo <span style="color:#F42182;font-weight:600;">@forbachenrose</span> pour cette belle initiative ! '
                     . 'Hate d\'y participer cette annee, j\'ai deja convaincu toute mon equipe de venir courir avec nous. '
                     . 'On sera la en force !</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:12px 16px;background:var(--accent-soft);border-radius:8px;">'
-                    . '<p style="margin:0 0 4px;font-size:12px;color: var(--ink-faint);text-transform:uppercase;letter-spacing:.5px;">Article concerne</p>'
-                    . '<p style="margin:0;font-weight:600;color: var(--ink);">Course caritative 2025 — Toutes les infos pratiques</p>'
-                    . '<p style="margin:4px 0 0;font-size:12px;color: var(--ink-faint);">Publie le 06/04/2025 — 3 commentaires</p>'
+                    . '<tr><td style="padding:12px 16px;background:#fdf2f8;border-radius:8px;">'
+                    . '<p style="margin:0 0 4px;font-size:12px;color: #64748b;text-transform:uppercase;letter-spacing:.5px;">Article concerne</p>'
+                    . '<p style="margin:0;font-weight:600;color: #0f172a;">Course caritative 2025 — Toutes les infos pratiques</p>'
+                    . '<p style="margin:4px 0 0;font-size:12px;color: #64748b;">Publie le 06/04/2025 — 3 commentaires</p>'
                     . '</td></tr></table>'
                     . '<p style="text-align:center;margin:20px 0 0;"><a href="' . htmlspecialchars($baseUrl) . '/public/news?id=1" style="display:inline-block;padding:12px 32px;background:#F42182;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Voir le commentaire</a></p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
@@ -573,14 +573,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Une nouvelle demande de partenariat a ete soumise sur le site Forbach en Rose.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:var(--surface-2);border-radius:8px;">'
+                    . '<tr><td style="padding:14px 18px;background:#f8fafc;border-radius:8px;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Email :</strong> contact@pharmacie-forbach.fr</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Domaine :</strong> pharmacie-forbach.fr</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date de la demande :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
                     . '<p>Vous pouvez consulter et gerer les demandes de partenariat depuis l\'espace d\'administration du site.</p>'
-                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
-                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color: #64748b;font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -592,14 +592,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Une adresse IP a ete <strong>bannie automatiquement</strong> par le systeme de securite du site.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background: color-mix(in srgb, var(--danger) 12%, var(--surface));border-radius:8px;border-left:3px solid #ef4444;">'
+                    . '<tr><td style="padding:14px 18px;background: #fef2f2;border-radius:8px;border-left:3px solid #ef4444;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Adresse IP :</strong> 192.168.1.42</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Duree du ban :</strong> 24 heures</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Raison :</strong> Trop de tentatives de connexion echouees (10 en 30 minutes)</p>'
                     . '</td></tr></table>'
                     . '<p>Le ban expirera automatiquement a la fin de la duree indiquee. Si necessaire, vous pouvez lever ce ban manuellement depuis la page d\'administration des utilisateurs.</p>'
-                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
-                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Notification de securite — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color: #64748b;font-size:12px;margin:0;">Notification de securite — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -611,13 +611,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Un utilisateur s\'est connecte <strong>sans verification a deux facteurs</strong> car l\'envoi du code par e-mail a echoue.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background: color-mix(in srgb, var(--warn) 12%, var(--surface));border-radius:8px;border-left:3px solid #f59e0b;">'
+                    . '<tr><td style="padding:14px 18px;background: #fffbeb;border-radius:8px;border-left:3px solid #f59e0b;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Compte concerne :</strong> admin@forbachenrose.fr</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
                     . '<p>Ce probleme peut indiquer un souci avec la configuration de l\'envoi de mails (Gmail ou SMTP). Nous vous recommandons de verifier les parametres dans l\'espace d\'administration, section <strong>Parametres mail</strong>.</p>'
-                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
-                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color: #64748b;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -629,17 +629,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Un nouveau message a ete envoye depuis le <strong>formulaire de contact</strong> du site.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:var(--surface-2);border-radius:8px;border-left:3px solid #F42182;">'
+                    . '<tr><td style="padding:14px 18px;background:#f8fafc;border-radius:8px;border-left:3px solid #F42182;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Nom :</strong> Marie Martin</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Email :</strong> marie.martin@exemple.fr</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Sujet :</strong> Demande d\'informations</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
-                    . '<p style="padding:14px 18px;background:var(--accent-soft);border-radius:8px;color: var(--ink-dim);margin:16px 0;">'
+                    . '<p style="padding:14px 18px;background:#fdf2f8;border-radius:8px;color: #475569;margin:16px 0;">'
                     . 'Bonjour, je souhaiterais obtenir plus d\'informations concernant votre prochaine course caritative. '
                     . 'Est-il possible de s\'inscrire en equipe ? Merci d\'avance pour votre retour.</p>'
-                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
-                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color: #64748b;font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -651,14 +651,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Un compte utilisateur a ete <strong>verrouille automatiquement</strong> apres 3 tentatives de connexion echouees consecutives.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background: color-mix(in srgb, var(--danger) 12%, var(--surface));border-radius:8px;border-left:3px solid #ef4444;">'
+                    . '<tr><td style="padding:14px 18px;background: #fef2f2;border-radius:8px;border-left:3px solid #ef4444;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Compte concerne :</strong> user@exemple.fr</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Adresse IP :</strong> 192.168.1.42</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
                     . '<p>L\'utilisateur devra utiliser la fonctionnalite <strong>"Mot de passe oublie"</strong> pour reactiver son compte. Vous pouvez egalement le debloquer manuellement depuis la gestion des utilisateurs.</p>'
-                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
-                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+                    . '<p style="color: #64748b;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -897,8 +897,8 @@ $jsConfig = json_encode([
 [data-dyn]:hover{outline-color:rgba(100,116,139,.4)}
 [data-dyn]::after{
   content:"🔒 " attr(data-dyn);font-size:9px;background:#64748b;color:#fff;padding:1px 5px;
-  border-radius:3px;position:absolute;top:-10px;right:0;white-space:nowrap;pointer-events:none;
-  opacity:0;transition:.15s;
+  border-radius:3px;position:absolute;top:-10px;left:0;white-space:nowrap;pointer-events:none;
+  opacity:0;transition:.15s;z-index:11;
 }
 [data-dyn]:hover::after{opacity:1}
 
@@ -1208,8 +1208,8 @@ $jsConfig = json_encode([
           <tr><td id="prevTitleBg" class="prev-sec" data-zone="title" data-fixed style="padding:32px 40px 28px;text-align:center">
             <div class="drag-bar"></div>
             <p id="prevBadge" data-dyn="dynamique" data-acc="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:5px 16px;margin:0 0 16px;text-transform:uppercase;letter-spacing:.08em;color:<?= $mtcColors['accent'] ?>;background:<?= $mtcColors['card_bg'] ?>;border-radius:<?= $mtcRadius['badge'] ?>px">Inscription confirmée</p>
-            <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color: var(--ink);margin:0 0 8px">Bienvenue Jean !</h2>
-            <p data-dyn="automatique" style="font-size:15px;color: var(--ink-dim);margin:0;line-height:1.6">Votre inscription a bien été enregistrée.</p>
+            <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color: #0f172a;margin:0 0 8px">Bienvenue Jean !</h2>
+            <p data-dyn="automatique" style="font-size:15px;color: #475569;margin:0;line-height:1.6">Votre inscription a bien été enregistrée.</p>
           </td></tr>
 
           <!-- Sections -->
@@ -1231,11 +1231,11 @@ $jsConfig = json_encode([
                 <table width="100%" cellpadding="0" cellspacing="0" class="sec-r" style="overflow:hidden;margin-bottom:28px">
                   <tr><td data-acc="left" style="padding:18px 24px;background:#f8fafc;border-bottom:1px solid #f1f5f9;border-left:3px solid <?= $mtcColors['accent'] ?>">
                     <div data-acc="txt" data-ed="label_participant" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['label_participant']) ?></div>
-                    <div data-dyn="nom du participant" style="font-size:16px;color: var(--ink);font-weight:600;margin-top:4px">DUPONT Jean</div>
+                    <div data-dyn="nom du participant" style="font-size:16px;color: #0f172a;font-weight:600;margin-top:4px">DUPONT Jean</div>
                   </td></tr>
                   <tr><td data-acc="left" style="padding:18px 24px;background:#f8fafc;border-bottom:1px solid #f1f5f9;border-left:3px solid <?= $mtcColors['accent'] ?>">
                     <div data-acc="txt" data-ed="label_date" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['label_date']) ?></div>
-                    <div data-dyn="date de la course" style="font-size:16px;color: var(--ink);font-weight:600;margin-top:4px">Dimanche 5 octobre 2025</div>
+                    <div data-dyn="date de la course" style="font-size:16px;color: #0f172a;font-weight:600;margin-top:4px">Dimanche 5 octobre 2025</div>
                   </td></tr>
                   <tr><td data-acc="left" style="padding:18px 24px;background:#f8fafc;border-left:3px solid <?= $mtcColors['accent'] ?>">
                     <div data-acc="txt" data-ed="label_lieu" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['label_lieu']) ?></div>
@@ -1254,16 +1254,16 @@ $jsConfig = json_encode([
 <?php elseif($sec==='description'): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
                   <tr><td class="sec-r" data-acc="left" style="padding:24px;background:#f8fafc;border-left:3px solid <?= $mtcColors['accent'] ?>">
-                    <div data-dyn="contenu du mail" style="font-size:15px;line-height:1.7;color: var(--ink-dim)">Votre message personnalisé ici...</div>
+                    <div data-dyn="contenu du mail" style="font-size:15px;line-height:1.7;color: #475569">Votre message personnalisé ici...</div>
                   </td></tr>
                 </table>
 <?php elseif($sec==='qrcode'): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
                   <tr><td class="sec-r" data-acc="border" style="padding:28px;background:#fff;text-align:center;border:2px dashed <?= $mtcColors['accent'] ?>">
                     <p data-acc="txt" data-ed="qrcode_title" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['qrcode_title']) ?></p>
-                    <p style="font-size:13px;color: var(--ink-dim);margin:0 0 4px"><span data-dyn="n° inscription">Billet n° 42</span></p>
+                    <p style="font-size:13px;color: #475569;margin:0 0 4px"><span data-dyn="n° inscription">Billet n° 42</span></p>
                     <p data-ed="qrcode_subtitle" style="font-size:13px;color:#64748b;margin:0 0 16px"><?= htmlspecialchars($mtcTexts['qrcode_subtitle']) ?></p>
-                    <div style="width:120px;height:120px;background:var(--surface-2);border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;color: var(--ink-faint);font-size:11px">QR</div>
+                    <div style="width:120px;height:120px;background:#f1f5f9;border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;color: #64748b;font-size:11px">QR</div>
                   </td></tr>
                 </table>
 <?php elseif($sec==='banner'): ?>
@@ -1275,14 +1275,14 @@ $jsConfig = json_encode([
                 </table>
 <?php elseif($sec==='contact'): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px">
-                  <tr><td style="padding-top:24px;border-top:1px solid var(--border);text-align:center">
+                  <tr><td style="padding-top:24px;border-top:1px solid #e2e8f0;text-align:center">
                     <p data-ed="contact_title" style="font-size:14px;font-weight:700;color:#0f172a;margin:0 0 8px"><?= htmlspecialchars($mtcTexts['contact_title']) ?></p>
-                    <p data-dyn="email de contact" style="font-size:14px;color: var(--ink-dim);margin:0">contact@forbachenrose.fr</p>
+                    <p data-dyn="email de contact" style="font-size:14px;color: #475569;margin:0">contact@forbachenrose.fr</p>
                   </td></tr>
                 </table>
 <?php elseif(strpos($sec,'custom')===0): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
-                  <tr><td class="sec-r" style="padding:24px;background:var(--surface-2);text-align:center">
+                  <tr><td class="sec-r" style="padding:24px;background:#f1f5f9;text-align:center">
 <?php
   // Render all texts for this custom section (key starts with section id)
   $rendered = false;
@@ -2195,7 +2195,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
           var secId=el.dataset.section||'txt';
           var newEl=document.createElement('div');
           newEl.setAttribute('data-ed',secId+'_'+Date.now());
-          newEl.style.cssText='font-size:15px;line-height:1.7;color: var(--ink-dim);margin-top:12px';
+          newEl.style.cssText='font-size:15px;line-height:1.7;color:#475569;margin-top:12px';
           newEl.textContent='Nouveau texte...';
           target.appendChild(newEl);
           bindTextEl(newEl);
