@@ -255,7 +255,7 @@ if ($canBulkCreate) {
   box-shadow: inset 3px 0 0 0 var(--primary, #f42182);   /* liseré rose = éligible */
 }
 /* Non-éligibles (montant dû = 0) : léger fond gris pour les distinguer. */
-#oc-content #tbl tbody tr.row-unpaid td { background-color: #f3f5f9; }
+#oc-content #tbl tbody tr.row-unpaid td { background: var(--surface-2); }
 #oc-content #tbl tbody tr.row-unpaid:hover td { background-color: var(--surface-2); }
 
 /* Légende des couleurs du tableau */
@@ -450,7 +450,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 .bulk-map-chip .bi { color: var(--primary, #f42182); cursor: grab; }
 .bulk-map-chip.dragging { opacity: .4; }
 /* Badge « auto » : colonne pré-reliée automatiquement (par ressemblance de nom). */
-.bulk-map-chip.bulk-chip-auto::after{content:'auto';font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+.bulk-map-chip.bulk-chip-auto::after{content:'auto';font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;background: color-mix(in srgb, var(--info) 15%, var(--surface));color:#1d4ed8;border-radius:6px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 
 /* ── Flux de correspondance : fichier (gauche) → vos champs (droite) ── */
 .bulk-map-flow{display:flex;gap:.9rem;align-items:flex-start}

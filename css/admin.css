@@ -937,8 +937,41 @@ a:hover { color: var(--accent-strong); }
   color: var(--accent) !important;
 }
 
-/* Éditeurs TinyMCE : coins doux (l'ovale venait d'un rayon appliqué au mauvais niveau) */
-.tox-tinymce { border-radius: var(--radius-m) !important; border-color: var(--border-strong) !important; }
+/* Éditeurs TinyMCE : coins doux + on neutralise tout arrière-plan/ombre qui
+   déborde derrière l'éditeur (l'« ovale » blanc venait de la promo TinyMCE
+   affichée sous l'iframe en attendant le chargement / du fond du conteneur). */
+.tox-tinymce { border-radius: var(--radius-m) !important; border-color: var(--border-strong) !important; background: var(--card) !important; }
+.tox .tox-editor-container, .tox .tox-edit-area { background: var(--card) !important; }
+.tox:not(.tox-tinymce-inline) .tox-editor-header { background: var(--card) !important; }
+.tox-promotion, .tox-statusbar__branding { display: none !important; }
+
+/* Groupes de filtres en switch segmenté (newsletter : Tous/Abonnés/Désabonnés) */
+.jr-segbtn {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: var(--radius-m);
+}
+.jr-segbtn button {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 0; background: transparent;
+  padding: 0.42rem 0.95rem;
+  border-radius: var(--radius-s);
+  font-size: var(--fs-small); font-weight: 550;
+  color: var(--ink-dim); cursor: pointer; font-family: inherit;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.jr-segbtn button:hover { color: var(--ink); }
+.jr-segbtn button.active {
+  background: var(--surface); color: var(--accent);
+  box-shadow: var(--jr-pill-shadow);
+}
+.jr-seg-count {
+  min-width: 18px; padding: 0 6px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-size: var(--fs-micro); font-weight: 700;
+}
 
 /* ---- Sections settings (connexions/logs) ---- */
 .settings-section { color: var(--ink); }

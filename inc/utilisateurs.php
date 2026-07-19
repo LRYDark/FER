@@ -70,7 +70,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
     text-decoration: line-through;
   }
   #tblUsers tbody tr { cursor: pointer; }
-  #tblUsers tbody tr:hover { background-color: #f8f0f4; }
+  #tblUsers tbody tr:hover { background: var(--accent-soft); }
 
   /* ═══ Responsive users table ═══ */
   @media (max-width: 767.98px) {
@@ -125,7 +125,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
     background-color: var(--accent-soft);
     transform: scale(1.05);
   }
-  .perm-cell.perm-on  { color: #16a34a; background-color: #f0fdf4; }
+  .perm-cell.perm-on  { color: #16a34a; background: color-mix(in srgb, var(--ok) 12%, var(--surface)); }
   .perm-cell.perm-off { color: var(--ink-faint); background-color: var(--surface-2); }
   .perm-cell.perm-disabled {
     cursor: not-allowed;
@@ -139,7 +139,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
     animation: permFlash .6s ease;
   }
   @keyframes permFlash {
-    0%   { background-color: #fef9c3; }
+    0%   { background: color-mix(in srgb, var(--warn) 15%, var(--surface)); }
     100% { background-color: inherit; }
   }
 </style>

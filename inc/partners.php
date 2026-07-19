@@ -679,7 +679,7 @@ if ($migrationDone) {
   /* Year list item */
   .year-list-item {
     background: var(--surface);
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border);
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
     margin-bottom: 0.75rem;
@@ -719,7 +719,7 @@ if ($migrationDone) {
   }
   /* Drag-and-drop albums */
   .drag-handle-album:hover { color: var(--primary, #f42182) !important; }
-  .sortable-ghost-album { opacity: 0.4; background: #ffe5ff !important; }
+  .sortable-ghost-album { opacity: 0.4; background: color-mix(in srgb, #7c5cf6 12%, var(--surface)) !important; }
 
   /* Sur PC : checkbox "Supprimer" hors flux + alignement vertical des icônes/boutons */
   @media (min-width: 576px) {
@@ -1010,7 +1010,7 @@ if ($migrationDone) {
                     <h5>Albums associes (<?= count($albumsByYear[$year['id']]) ?>)</h5>
                     <div class="mb-3 sortable-albums" data-year-id="<?= $year['id'] ?>">
                         <?php foreach ($albumsByYear[$year['id']] as $album): ?>
-                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid var(--border);border-radius:8px;background:#fdf8f9">
+                        <form method="post" enctype="multipart/form-data" class="p-3 mb-2 sortable-album-item" data-album-id="<?= $album['id'] ?>" style="border:1px solid var(--border);border-radius:8px;background: color-mix(in srgb, var(--accent) 6%, var(--surface))">
                             <?= csrf_field() ?>
                             <input type="hidden" name="album_id" value="<?= $album['id'] ?>">
                             <input type="hidden" name="year_id" value="<?= $year['id'] ?>">
@@ -1110,7 +1110,7 @@ if ($migrationDone) {
     <style>
         .card-dashboard {
             background: var(--surface-2);
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border);
         }
         .tox-tinymce {
             border-radius: 0.375rem !important;
