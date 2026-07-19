@@ -756,7 +756,7 @@ $jsConfig = json_encode([
 .ed-wrap{width:100%;flex:0 0 100%}
 
 /* ── Layout ── */
-.ed-wrap{position:relative;height:calc(100vh - 265px);min-height:540px;margin:8px 0 0;border-radius:12px;overflow:hidden}
+.ed-wrap{position:relative;height:calc(100vh - 265px);min-height:540px;margin:8px 0 0;border-radius:12px;overflow:hidden;background:var(--card)}
 .ed-sidebar{
   position:absolute;top:8px;left:8px;bottom:8px;z-index:20;
   width:300px;background: var(--surface);
@@ -768,7 +768,7 @@ $jsConfig = json_encode([
   position:absolute;top:0;left:0;right:0;bottom:0;
   background:var(--bg);overflow-y:auto;padding:32px 32px 32px 320px;
   display:flex;justify-content:center;align-items:flex-start;
-  border-radius:12px;
+  
 }
 /* Custom scrollbar */
 .ed-preview-area::-webkit-scrollbar{width:8px}
