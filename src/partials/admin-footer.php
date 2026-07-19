@@ -657,29 +657,70 @@ if (pfAccentOptions) {
   }
 }
 
-/* ── Police ── */
-var pfFontSelect = document.getElementById('pfFontSelect');
-if (pfFontSelect) {
-  pfFontSelect.addEventListener('change', function() {
-    var name = pfFontSelect.value;
-    var f = _jrFonts[name];
-    if (!f) return;
-    _jrState.font = name;
-    // Google Font : charger la feuille à la volée pour l'aperçu immédiat
-    var slug = name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-    if (f.google && !document.getElementById('jr-font-' + slug)) {
-      var l = document.createElement('link');
-      l.rel = 'stylesheet'; l.id = 'jr-font-' + slug;
-      l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@400;500;600;700&display=swap';
-      document.head.appendChild(l);
+/* ── Police : picker avec aperçu (comme Réglages → Thème du site) ── */
+function jrEnsureFontLoaded(name) {
+  var f = _jrFonts[name];
+  if (!f) return;
+  var slug = name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  if (f.google && !document.getElementById('jr-font-' + slug)) {
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.id = 'jr-font-' + slug;
+    l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@400;500;600;700&display=swap';
+    document.head.appendChild(l);
+  }
+  if (f.custom && !document.getElementById('jr-fontface-' + slug)) {
+    var ext = f.custom.split('.').pop().toLowerCase();
+    var fmt = { otf: 'opentype', woff2: 'woff2', woff: 'woff', ttf: 'truetype' }[ext] || 'truetype';
+    var s = document.createElement('style');
+    s.id = 'jr-fontface-' + slug;
+    s.textContent = '@font-face{font-family:"' + name.replace(/"/g, '') + '";src:url("../' + f.custom + '") format("' + fmt + '");font-display:swap;}';
+    document.head.appendChild(s);
+  }
+}
+
+function jrSetFont(name) {
+  if (!_jrFonts[name]) return;
+  _jrState.font = name;
+  jrEnsureFontLoaded(name);
+  if (_jrState.accent === 'rose' || _jrState.accent === 'custom') {
+    jrRenderLive();
+  } else {
+    jrLiveStyle().textContent = jrFontCss();
+    var srv = document.getElementById('jr-user-vars'); if (srv) srv.textContent = '';
+  }
+  jrSaveAppearance({ admin_font: name });
+}
+
+var pfFontToggle   = document.getElementById('pfFontToggle');
+var pfFontDropdown = document.getElementById('pfFontDropdown');
+var pfFontLabel    = document.getElementById('pfFontLabel');
+var _pfFontsPreviewed = false;
+if (pfFontToggle && pfFontDropdown) {
+  pfFontToggle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var opening = !pfFontDropdown.classList.contains('show');
+    pfFontDropdown.classList.toggle('show');
+    if (opening && !_pfFontsPreviewed) {
+      // Charger TOUTES les polices une seule fois pour que chaque ligne
+      // s'affiche dans sa propre police (aperçu réel, comme le Thème du site)
+      _pfFontsPreviewed = true;
+      Object.keys(_jrFonts).forEach(jrEnsureFontLoaded);
     }
-    if (_jrState.accent === 'rose' || _jrState.accent === 'custom') {
-      jrRenderLive();
-    } else {
-      jrLiveStyle().textContent = jrFontCss();
-      var srv = document.getElementById('jr-user-vars'); if (srv) srv.textContent = '';
-    }
-    jrSaveAppearance({ admin_font: name });
+  });
+  document.addEventListener('click', function(e) {
+    if (!pfFontDropdown.contains(e.target) && e.target !== pfFontToggle) pfFontDropdown.classList.remove('show');
+  });
+  pfFontDropdown.querySelectorAll('.pf-font-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      var name = item.dataset.value;
+      pfFontDropdown.querySelectorAll('.pf-font-item').forEach(function(i) { i.classList.toggle('active', i === item); });
+      pfFontDropdown.classList.remove('show');
+      if (pfFontLabel) {
+        pfFontLabel.textContent = item.textContent;
+        pfFontLabel.style.fontFamily = item.style.fontFamily;
+      }
+      jrSetFont(name);
+    });
   });
 }
 
