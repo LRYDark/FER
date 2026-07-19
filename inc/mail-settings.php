@@ -82,9 +82,9 @@ if (($data['mail_provider'] ?? 'google') !== 'smtp') {
 $mtcRaw = $data['mail_template_config'] ?? null;
 $mtc = $mtcRaw ? json_decode($mtcRaw, true) : [];
 $mtcColors = ($mtc['colors'] ?? []) + [
-    'bg'=>'#f1f5f9','card_bg'=>'#ffffff','header_bg1'=>'#F42182','header_bg2'=>'#db2777',
-    'accent'=>'#F42182','title_bg'=>'#fdf2f8','tips_bg'=>'#0f172a',
-    'banner_bg1'=>'#fdf2f8','banner_bg2'=>'#fce7f3','banner_border'=>'#fbcfe8','footer_bg'=>'#0f172a'
+    'bg'=>'var(--surface-2)','card_bg'=>'#ffffff','header_bg1'=>'#F42182','header_bg2'=>'#db2777',
+    'accent'=>'#F42182','title_bg'=>'var(--accent-soft)','tips_bg'=>'#0f172a',
+    'banner_bg1'=>'var(--accent-soft)','banner_bg2'=>'#fce7f3','banner_border'=>'#fbcfe8','footer_bg'=>'#0f172a'
 ];
 $mtcTexts = ($mtc['texts'] ?? []) + [
     'header_title'=>'Forbach en Rose','header_subtitle'=>'Course caritative contre le cancer du sein',
@@ -551,15 +551,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'mailTitle' => 'Mention @forbachenrose',
                 'description' => '<p>Bonjour,</p>'
                     . '<p><strong>Marie Martin</strong> vous a mentionné dans un commentaire sur votre site.</p>'
-                    . '<p style="padding:14px 18px;background:#f1f5f9;border-radius:8px;border-left:3px solid #F42182;font-style:italic;color:#475569;margin:16px 0;">'
+                    . '<p style="padding:14px 18px;background:var(--surface-2);border-radius:8px;border-left:3px solid #F42182;font-style:italic;color: var(--ink-dim);margin:16px 0;">'
                     . 'Bravo <span style="color:#F42182;font-weight:600;">@forbachenrose</span> pour cette belle initiative ! '
                     . 'Hate d\'y participer cette annee, j\'ai deja convaincu toute mon equipe de venir courir avec nous. '
                     . 'On sera la en force !</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:12px 16px;background:#fdf2f8;border-radius:8px;">'
-                    . '<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">Article concerne</p>'
-                    . '<p style="margin:0;font-weight:600;color:#0f172a;">Course caritative 2025 — Toutes les infos pratiques</p>'
-                    . '<p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">Publie le 06/04/2025 — 3 commentaires</p>'
+                    . '<tr><td style="padding:12px 16px;background:var(--accent-soft);border-radius:8px;">'
+                    . '<p style="margin:0 0 4px;font-size:12px;color: var(--ink-faint);text-transform:uppercase;letter-spacing:.5px;">Article concerne</p>'
+                    . '<p style="margin:0;font-weight:600;color: var(--ink);">Course caritative 2025 — Toutes les infos pratiques</p>'
+                    . '<p style="margin:4px 0 0;font-size:12px;color: var(--ink-faint);">Publie le 06/04/2025 — 3 commentaires</p>'
                     . '</td></tr></table>'
                     . '<p style="text-align:center;margin:20px 0 0;"><a href="' . htmlspecialchars($baseUrl) . '/public/news?id=1" style="display:inline-block;padding:12px 32px;background:#F42182;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Voir le commentaire</a></p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
@@ -573,14 +573,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Une nouvelle demande de partenariat a ete soumise sur le site Forbach en Rose.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:#f1f5f9;border-radius:8px;">'
+                    . '<tr><td style="padding:14px 18px;background:var(--surface-2);border-radius:8px;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Email :</strong> contact@pharmacie-forbach.fr</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Domaine :</strong> pharmacie-forbach.fr</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date de la demande :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
                     . '<p>Vous pouvez consulter et gerer les demandes de partenariat depuis l\'espace d\'administration du site.</p>'
-                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
-                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
+                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -598,8 +598,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                     . '<p style="margin:0;font-size:13px;"><strong>Raison :</strong> Trop de tentatives de connexion echouees (10 en 30 minutes)</p>'
                     . '</td></tr></table>'
                     . '<p>Le ban expirera automatiquement a la fin de la duree indiquee. Si necessaire, vous pouvez lever ce ban manuellement depuis la page d\'administration des utilisateurs.</p>'
-                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
-                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Notification de securite — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
+                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Notification de securite — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -616,8 +616,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
                     . '<p>Ce probleme peut indiquer un souci avec la configuration de l\'envoi de mails (Gmail ou SMTP). Nous vous recommandons de verifier les parametres dans l\'espace d\'administration, section <strong>Parametres mail</strong>.</p>'
-                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
-                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
+                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -629,17 +629,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                 'description' => '<p>Bonjour,</p>'
                     . '<p>Un nouveau message a ete envoye depuis le <strong>formulaire de contact</strong> du site.</p>'
                     . '<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">'
-                    . '<tr><td style="padding:14px 18px;background:#f1f5f9;border-radius:8px;border-left:3px solid #F42182;">'
+                    . '<tr><td style="padding:14px 18px;background:var(--surface-2);border-radius:8px;border-left:3px solid #F42182;">'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Nom :</strong> Marie Martin</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Email :</strong> marie.martin@exemple.fr</p>'
                     . '<p style="margin:0 0 8px;font-size:13px;"><strong>Sujet :</strong> Demande d\'informations</p>'
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
-                    . '<p style="padding:14px 18px;background:#fdf2f8;border-radius:8px;color:#475569;margin:16px 0;">'
+                    . '<p style="padding:14px 18px;background:var(--accent-soft);border-radius:8px;color: var(--ink-dim);margin:16px 0;">'
                     . 'Bonjour, je souhaiterais obtenir plus d\'informations concernant votre prochaine course caritative. '
                     . 'Est-il possible de s\'inscrire en equipe ? Merci d\'avance pour votre retour.</p>'
-                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
-                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
+                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Notification automatique — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -657,8 +657,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview_type']) && cs
                     . '<p style="margin:0;font-size:13px;"><strong>Date :</strong> ' . date('d/m/Y à H:i') . '</p>'
                     . '</td></tr></table>'
                     . '<p>L\'utilisateur devra utiliser la fonctionnalite <strong>"Mot de passe oublie"</strong> pour reactiver son compte. Vous pouvez egalement le debloquer manuellement depuis la gestion des utilisateurs.</p>'
-                    . '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
-                    . '<p style="color:#94a3b8;font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
+                    . '<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">'
+                    . '<p style="color: var(--ink-faint);font-size:12px;margin:0;">Alerte de securite — Forbach en Rose</p>',
                 'firstname' => null, 'lastname' => null, 'date' => null,
                 'qrcode' => '', 'inscription_no' => null,
             ];
@@ -736,8 +736,8 @@ $jsConfig = json_encode([
 
 <style>
 /* ── Setting card (same as setting.php) ── */
-.setting-card{background:#fff;border:1px solid #f0e8eb;border-radius:12px;padding:24px}
-.setting-card h2{font-size:18px;font-weight:700;color:#1e293b;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0e8eb}
+.setting-card{background: var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px}
+.setting-card h2{font-size:18px;font-weight:700;color: var(--ink);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 
 /* ═══ Mail send styles ═══ */
 .recipients-counter { font-size: 0.875rem; color: #6c757d; margin-top: 0.25rem; }
@@ -747,7 +747,7 @@ $jsConfig = json_encode([
 #selectedRecipients .btn-close { padding: 0.2rem; font-size: 0.6rem; }
 #selectedRecipients:empty::after { content: "Aucun destinataire sélectionné"; color: #6c757d; font-size: 0.875rem; font-style: italic; }
 .email-search-container { position: relative; }
-.email-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; z-index: 1050; display: none; }
+.email-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 0.375rem 0.375rem; max-height: 200px; overflow-y: auto; z-index: 1050; display: none; }
 .suggestion-item { padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid #eee; }
 .suggestion-item:hover { background-color: #f8f9fa; }
 .suggestion-item:last-child { border-bottom: none; }
@@ -759,7 +759,7 @@ $jsConfig = json_encode([
 .ed-wrap{position:relative;height:calc(100vh - 265px);min-height:540px;margin:8px 0 0;border-radius:12px;overflow:hidden}
 .ed-sidebar{
   position:absolute;top:8px;left:8px;bottom:8px;z-index:20;
-  width:300px;background:#fff;
+  width:300px;background: var(--surface);
   font-size:13px;overflow:hidden;
   border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);
 }
@@ -777,49 +777,49 @@ $jsConfig = json_encode([
 .ed-preview-area::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.5)}
 .ed-sidebar #sidebar::-webkit-scrollbar{width:5px}
 .ed-sidebar #sidebar::-webkit-scrollbar-track{background:transparent}
-.ed-sidebar #sidebar::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:3px}
-.ed-sidebar #sidebar::-webkit-scrollbar-thumb:hover{background:#cbd5e1}
+.ed-sidebar #sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.ed-sidebar #sidebar::-webkit-scrollbar-thumb:hover{background:var(--border-strong)}
 /* Settings tabs (sous-onglets) */
-.settings-tabs{border-bottom:2px solid #f0e8eb;margin-bottom:24px;gap:0}
-.settings-tabs .nav-link{color:#1e293b;font-weight:500;font-size:14px;padding:10px 18px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:0;background:transparent;cursor:pointer;transition:.15s}
-.settings-tabs .nav-link:hover{color:#1e293b;border-bottom-color:#d4c4cb}
-.settings-tabs .nav-link.active{color:#1e293b;font-weight:600;border-bottom-color:#F42182;background:transparent}
+.settings-tabs{border-bottom:2px solid var(--border);margin-bottom:24px;gap:0}
+.settings-tabs .nav-link{color: var(--ink);font-weight:500;font-size:14px;padding:10px 18px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:0;background:transparent;cursor:pointer;transition:.15s}
+.settings-tabs .nav-link:hover{color: var(--ink);border-bottom-color: var(--ink-faint)}
+.settings-tabs .nav-link.active{color: var(--ink);font-weight:600;border-bottom-color:#F42182;background:transparent}
 
 /* Sidebar tabs */
-.sb-tabs{display:flex;border-bottom:2px solid #f0e8eb;flex-shrink:0}
+.sb-tabs{display:flex;border-bottom:2px solid var(--border);flex-shrink:0}
 .sb-tab{
-  flex:1;padding:10px 0;font-size:12px;font-weight:600;color:#94a3b8;
+  flex:1;padding:10px 0;font-size:12px;font-weight:600;color: var(--ink-faint);
   background:transparent;border:none;border-bottom:2px solid transparent;
   margin-bottom:-2px;cursor:pointer;transition:.15s;
 }
-.sb-tab:hover{color:#475569}
+.sb-tab:hover{color: var(--ink-dim)}
 .sb-tab.active{color:#F42182;border-bottom-color:#F42182}
 /* Preview buttons */
 .preview-btn{
-  padding:10px 14px;font-size:12px;border:1px solid #e2e8f0;text-align:left;
-  background:#fff;color:#475569;border-radius:8px;cursor:pointer;transition:.15s;display:block;
+  padding:10px 14px;font-size:12px;border:1px solid var(--border);text-align:left;
+  background: var(--surface);color: var(--ink-dim);border-radius:8px;cursor:pointer;transition:.15s;display:block;
 }
-.preview-btn:hover{border-color:#F42182;background:#fdf2f8}
+.preview-btn:hover{border-color:#F42182;background:var(--accent-soft)}
 .preview-btn.loading{opacity:.6;pointer-events:none}
 
 .ed-pane{display:none}.ed-pane.active{display:flex;flex-wrap:wrap}
 #paneEnvoi.active{display:block}
 
 /* ── Sidebar controls ── */
-.sb-title{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;font-weight:700;margin:16px 0 8px;padding-top:8px;border-top:1px solid #f1f5f9}
+.sb-title{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color: var(--ink-faint);font-weight:700;margin:16px 0 8px;padding-top:8px;border-top:1px solid var(--surface-2)}
 .sb-title:first-child{margin-top:0;border:0;padding:0}
 .sb-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.sb-row label{flex:1;color:#475569;font-size:12px;white-space:nowrap}
+.sb-row label{flex:1;color: var(--ink-dim);font-size:12px;white-space:nowrap}
 .sb-row input[type="color"]{width:28px;height:28px;border:1px solid #e2e8f0;border-radius:6px;padding:1px;cursor:pointer;flex-shrink:0}
 .sb-row select,.sb-row input[type="range"]{flex:1}
-.sb-row .v{font-size:11px;color:#94a3b8;min-width:28px;text-align:right}
-.sb-hint{font-size:11px;color:#94a3b8;margin-bottom:8px}
-.sb-btn{padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px;cursor:pointer;transition:.15s}
+.sb-row .v{font-size:11px;color: var(--ink-faint);min-width:28px;text-align:right}
+.sb-hint{font-size:11px;color: var(--ink-faint);margin-bottom:8px}
+.sb-btn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background: var(--surface);font-size:12px;cursor:pointer;transition:.15s}
 .sb-btn:hover{border-color:#F42182;color:#F42182}
 .sb-btn-danger{color:#ef4444;border-color:#fca5a5}
 .sb-btn-danger:hover{background:#fef2f2;border-color:#ef4444}
 .sb-align{display:flex;gap:4px}
-.sb-align button{flex:1;padding:4px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:14px}
+.sb-align button{flex:1;padding:4px;border:1px solid var(--border);border-radius:6px;background: var(--surface);cursor:pointer;font-size:14px}
 .sb-align button.active{background:#fce7f3;border-color:#F42182;color:#F42182}
 
 /* ── Preview ── */
@@ -838,7 +838,7 @@ $jsConfig = json_encode([
 #prevCard tr>td.prev-sec.selected{box-shadow:inset 0 0 0 3px #F42182}
 .prev-sec .sec-actions{
   display:none;position:absolute;top:-14px;right:-8px;z-index:10;
-  background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);
+  background: var(--surface);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);
   padding:2px;gap:2px;
 }
 .prev-sec.selected .sec-actions,.prev-sec:hover .sec-actions{display:flex}
@@ -846,7 +846,7 @@ $jsConfig = json_encode([
   width:26px;height:26px;display:flex;align-items:center;justify-content:center;
   border:0;background:transparent;border-radius:6px;cursor:pointer;font-size:13px;transition:.1s;
 }
-.sec-act:hover{background:#f1f5f9}
+.sec-act:hover{background:var(--surface-2)}
 .sec-act.del:hover{background:#fef2f2;color:#ef4444}
 
 /* Add section button between sections */
@@ -855,8 +855,8 @@ $jsConfig = json_encode([
   height:20px;position:relative;z-index:5;margin:-4px 0;
 }
 .prev-add button{
-  width:28px;height:28px;border-radius:50%;border:2px dashed #cbd5e1;
-  background:#fff;color:#94a3b8;font-size:18px;cursor:pointer;transition:.15s;
+  width:28px;height:28px;border-radius:50%;border:2px dashed var(--border-strong);
+  background: var(--surface);color: var(--ink-faint);font-size:18px;cursor:pointer;transition:.15s;
   display:flex;align-items:center;justify-content:center;opacity:0;
 }
 .prev-add:hover button,.prev-add button:focus{opacity:1;border-color:#F42182;color:#F42182}
@@ -869,16 +869,16 @@ $jsConfig = json_encode([
 .el-actions{
   position:absolute;top:-10px;right:4px;z-index:10;
   display:none;gap:2px;align-items:center;
-  background:#fff;border-radius:10px;padding:1px 3px;
+  background: var(--surface);border-radius:10px;padding:1px 3px;
   box-shadow:0 1px 6px rgba(0,0,0,.15);
 }
 .el-act{
   width:18px;height:18px;border-radius:50%;border:0;
-  background:transparent;color:#94a3b8;font-size:10px;cursor:pointer;
+  background:transparent;color: var(--ink-faint);font-size:10px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   transition:.1s;line-height:1;padding:0;
 }
-.el-act:hover{background:#f1f5f9;color:#0f172a}
+.el-act:hover{background:var(--surface-2);color: var(--ink)}
 .el-act.del:hover{background:#fef2f2;color:#ef4444}
 [data-ed]:hover>.el-actions,[data-dyn]:hover>.el-actions,.el-reorder:hover>.el-actions{display:flex}
 [data-ed].editing>.el-actions{display:none !important}
@@ -919,7 +919,7 @@ $jsConfig = json_encode([
     position:static;
     width:100%;min-width:0;
     max-height:50vh;overflow-y:auto;
-    border-right:0;border-bottom:1px solid #e2e8f0;
+    border-right:0;border-bottom:1px solid var(--border);
     border-radius:12px 12px 0 0;box-shadow:none;
   }
   .ed-preview-area{
@@ -935,8 +935,8 @@ $jsConfig = json_encode([
 
 <?php if (!$canWrite && !$canSend && !$canNewsletter): ?>
   <!-- Accès en lecture seule : aucune section disponible -->
-  <div class="text-center py-5 my-4" style="background:#fff;border-radius:12px;box-shadow:0 0 25px rgba(0,0,0,.05)">
-    <i class="bi bi-shield-lock" style="font-size:4rem;color:#94a3b8"></i>
+  <div class="text-center py-5 my-4" style="background: var(--surface);border-radius:12px;box-shadow:0 0 25px rgba(0,0,0,.05)">
+    <i class="bi bi-shield-lock" style="font-size:4rem;color: var(--ink-faint)"></i>
     <h4 class="mt-3 mb-2 fw-bold">Accès en lecture seule</h4>
     <p class="text-muted mb-0 px-4" style="max-width:560px;margin:0 auto">
       Vous avez accès à cette page en consultation uniquement.<br>
@@ -1087,7 +1087,7 @@ $jsConfig = json_encode([
     </div>
 
     <!-- Contextual: section colors (shown below global when a section is selected) -->
-    <div id="sbSection" style="display:none;margin-top:16px;padding-top:16px;border-top:2px solid #e2e8f0">
+    <div id="sbSection" style="display:none;margin-top:16px;padding-top:16px;border-top:2px solid var(--border)">
       <p class="sb-title" style="border:0;padding:0"><span id="sbSecName"></span></p>
       <div id="sbSecColors"></div>
       <div id="sbSecDeleteWrap" style="margin-top:8px">
@@ -1096,7 +1096,7 @@ $jsConfig = json_encode([
     </div>
 
     <!-- Contextual: text formatting (shown below global when a text is clicked) -->
-    <div id="sbText" style="display:none;margin-top:16px;padding-top:16px;border-top:2px solid #e2e8f0">
+    <div id="sbText" style="display:none;margin-top:16px;padding-top:16px;border-top:2px solid var(--border)">
       <p class="sb-title" style="border:0;padding:0">Texte sélectionné</p>
       <div class="sb-row"><label>Police</label>
         <select id="sbTxtFont" class="form-select form-select-sm">
@@ -1129,55 +1129,55 @@ $jsConfig = json_encode([
 
     <!-- ── Tab: Preview ── -->
     <div id="sbPreview" style="display:none;padding:16px">
-      <p style="font-size:13px;color:#64748b;margin:0 0 16px;line-height:1.5">Prévisualisation réelle du mail tel qu'il sera envoyé, avec tous les paramètres actuels.</p>
+      <p style="font-size:13px;color: var(--ink-dim);margin:0 0 16px;line-height:1.5">Prévisualisation réelle du mail tel qu'il sera envoyé, avec tous les paramètres actuels.</p>
       <button type="button" class="preview-btn" data-preview="inscription" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Inscription</span><br><span style="font-size:11px;color:#94a3b8">Confirmation avec QR code si activé</span>
+        <span style="font-weight:600">Inscription</span><br><span style="font-size:11px;color: var(--ink-faint)">Confirmation avec QR code si activé</span>
       </button>
       <button type="button" class="preview-btn" data-preview="code" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Code de connexion</span><br><span style="font-size:11px;color:#94a3b8">Vérification 2FA</span>
+        <span style="font-weight:600">Code de connexion</span><br><span style="font-size:11px;color: var(--ink-faint)">Vérification 2FA</span>
       </button>
       <button type="button" class="preview-btn" data-preview="new_user" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Nouveau compte</span><br><span style="font-size:11px;color:#94a3b8">Mot de passe temporaire</span>
+        <span style="font-weight:600">Nouveau compte</span><br><span style="font-size:11px;color: var(--ink-faint)">Mot de passe temporaire</span>
       </button>
       <button type="button" class="preview-btn" data-preview="bulk" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Envoi groupé</span><br><span style="font-size:11px;color:#94a3b8">Mail personnalisé (depuis utilisateurs)</span>
+        <span style="font-weight:600">Envoi groupé</span><br><span style="font-size:11px;color: var(--ink-faint)">Mail personnalisé (depuis utilisateurs)</span>
       </button>
       <button type="button" class="preview-btn" data-preview="bulk_recap" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Récap groupé</span><br><span style="font-size:11px;color:#94a3b8">Inscription multiple — avec QR groupé</span>
+        <span style="font-weight:600">Récap groupé</span><br><span style="font-size:11px;color: var(--ink-faint)">Inscription multiple — avec QR groupé</span>
       </button>
       <button type="button" class="preview-btn" data-preview="test" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Mail test</span><br><span style="font-size:11px;color:#94a3b8">Test simple de configuration</span>
+        <span style="font-weight:600">Mail test</span><br><span style="font-size:11px;color: var(--ink-faint)">Test simple de configuration</span>
       </button>
       <button type="button" class="preview-btn" data-preview="new_article" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Nouvel article (newsletter)</span><br><span style="font-size:11px;color:#94a3b8">Mail envoyé aux abonnés à la publication</span>
+        <span style="font-weight:600">Nouvel article (newsletter)</span><br><span style="font-size:11px;color: var(--ink-faint)">Mail envoyé aux abonnés à la publication</span>
       </button>
-      <hr style="margin:16px 0;border-color:#e2e8f0">
-      <p style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px"><i class="bi bi-bell me-1"></i>Notifications admin</p>
+      <hr style="margin:16px 0;border-color:var(--border)">
+      <p style="font-size:12px;font-weight:700;color: var(--ink-dim);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px"><i class="bi bi-bell me-1"></i>Notifications admin</p>
       <button type="button" class="preview-btn" data-preview="notif_mention" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Mention @forbachenrose</span><br><span style="font-size:11px;color:#94a3b8">Identification dans un commentaire</span>
+        <span style="font-weight:600">Mention @forbachenrose</span><br><span style="font-size:11px;color: var(--ink-faint)">Identification dans un commentaire</span>
       </button>
       <button type="button" class="preview-btn" data-preview="notif_partner" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Demande de partenariat</span><br><span style="font-size:11px;color:#94a3b8">Nouvelle demande entreprise</span>
+        <span style="font-weight:600">Demande de partenariat</span><br><span style="font-size:11px;color: var(--ink-faint)">Nouvelle demande entreprise</span>
       </button>
       <button type="button" class="preview-btn" data-preview="notif_ip_ban" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Ban IP automatique</span><br><span style="font-size:11px;color:#94a3b8">IP bannie apres tentatives</span>
+        <span style="font-weight:600">Ban IP automatique</span><br><span style="font-size:11px;color: var(--ink-faint)">IP bannie apres tentatives</span>
       </button>
       <button type="button" class="preview-btn" data-preview="notif_twofa" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Echec 2FA</span><br><span style="font-size:11px;color:#94a3b8">Connexion sans verification</span>
+        <span style="font-weight:600">Echec 2FA</span><br><span style="font-size:11px;color: var(--ink-faint)">Connexion sans verification</span>
       </button>
       <button type="button" class="preview-btn" data-preview="notif_lock" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Verrouillage compte</span><br><span style="font-size:11px;color:#94a3b8">3 tentatives echouees</span>
+        <span style="font-weight:600">Verrouillage compte</span><br><span style="font-size:11px;color: var(--ink-faint)">3 tentatives echouees</span>
       </button>
       <button type="button" class="preview-btn" data-preview="notif_contact" style="width:100%;margin-bottom:8px">
-        <span style="font-weight:600">Demande de contact</span><br><span style="font-size:11px;color:#94a3b8">Message du formulaire contact</span>
+        <span style="font-weight:600">Demande de contact</span><br><span style="font-size:11px;color: var(--ink-faint)">Message du formulaire contact</span>
       </button>
-      <button type="button" class="preview-btn" data-preview="editor" style="width:100%;margin-top:8px;background:#f1f5f9;font-weight:600">
+      <button type="button" class="preview-btn" data-preview="editor" style="width:100%;margin-top:8px;background:var(--surface-2);font-weight:600">
         &#8592; Retour éditeur
       </button>
     </div>
 
     </div><!-- /sidebar -->
-    <div style="padding:12px 16px;border-top:1px solid #e2e8f0;background:#fff;flex-shrink:0;border-radius:0 0 12px 12px;text-align:center">
+    <div style="padding:12px 16px;border-top:1px solid var(--border);background: var(--surface);flex-shrink:0;border-radius:0 0 12px 12px;text-align:center">
       <button type="submit" name="save_mail_template" class="btn btn-primary w-auto" style="padding:8px 32px;font-size:13px;font-weight:600">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px"><path d="M19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 H16 L21 8 V19 A2 2 0 0 1 19 21 Z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Sauvegarder
@@ -1187,7 +1187,7 @@ $jsConfig = json_encode([
 
   <!-- ── Preview ── -->
   <div class="ed-preview-area" id="previewArea">
-    <iframe id="previewIframe" style="display:none;width:100%;height:100%;border:0;background:#fff;border-radius:8px"></iframe>
+    <iframe id="previewIframe" style="display:none;width:100%;height:100%;border:0;background: var(--surface);border-radius:8px"></iframe>
     <div class="prev-email" id="prevEmail">
       <table width="100%" cellpadding="0" cellspacing="0" id="prevOuter" style="padding:24px 12px 40px">
         <tr><td align="center">
@@ -1208,8 +1208,8 @@ $jsConfig = json_encode([
           <tr><td id="prevTitleBg" class="prev-sec" data-zone="title" data-fixed style="padding:32px 40px 28px;text-align:center">
             <div class="drag-bar"></div>
             <p id="prevBadge" data-dyn="dynamique" data-acc="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:5px 16px;margin:0 0 16px;text-transform:uppercase;letter-spacing:.08em;color:<?= $mtcColors['accent'] ?>;background:<?= $mtcColors['card_bg'] ?>;border-radius:<?= $mtcRadius['badge'] ?>px">Inscription confirmée</p>
-            <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color:#0f172a;margin:0 0 8px">Bienvenue Jean !</h2>
-            <p data-dyn="automatique" style="font-size:15px;color:#64748b;margin:0;line-height:1.6">Votre inscription a bien été enregistrée.</p>
+            <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color: var(--ink);margin:0 0 8px">Bienvenue Jean !</h2>
+            <p data-dyn="automatique" style="font-size:15px;color: var(--ink-dim);margin:0;line-height:1.6">Votre inscription a bien été enregistrée.</p>
           </td></tr>
 
           <!-- Sections -->
@@ -1231,11 +1231,11 @@ $jsConfig = json_encode([
                 <table width="100%" cellpadding="0" cellspacing="0" class="sec-r" style="overflow:hidden;margin-bottom:28px">
                   <tr><td data-acc="left" style="padding:18px 24px;background:#f8fafc;border-bottom:1px solid #f1f5f9;border-left:3px solid <?= $mtcColors['accent'] ?>">
                     <div data-acc="txt" data-ed="label_participant" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['label_participant']) ?></div>
-                    <div data-dyn="nom du participant" style="font-size:16px;color:#0f172a;font-weight:600;margin-top:4px">DUPONT Jean</div>
+                    <div data-dyn="nom du participant" style="font-size:16px;color: var(--ink);font-weight:600;margin-top:4px">DUPONT Jean</div>
                   </td></tr>
                   <tr><td data-acc="left" style="padding:18px 24px;background:#f8fafc;border-bottom:1px solid #f1f5f9;border-left:3px solid <?= $mtcColors['accent'] ?>">
                     <div data-acc="txt" data-ed="label_date" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['label_date']) ?></div>
-                    <div data-dyn="date de la course" style="font-size:16px;color:#0f172a;font-weight:600;margin-top:4px">Dimanche 5 octobre 2025</div>
+                    <div data-dyn="date de la course" style="font-size:16px;color: var(--ink);font-weight:600;margin-top:4px">Dimanche 5 octobre 2025</div>
                   </td></tr>
                   <tr><td data-acc="left" style="padding:18px 24px;background:#f8fafc;border-left:3px solid <?= $mtcColors['accent'] ?>">
                     <div data-acc="txt" data-ed="label_lieu" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['label_lieu']) ?></div>
@@ -1254,16 +1254,16 @@ $jsConfig = json_encode([
 <?php elseif($sec==='description'): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
                   <tr><td class="sec-r" data-acc="left" style="padding:24px;background:#f8fafc;border-left:3px solid <?= $mtcColors['accent'] ?>">
-                    <div data-dyn="contenu du mail" style="font-size:15px;line-height:1.7;color:#334155">Votre message personnalisé ici...</div>
+                    <div data-dyn="contenu du mail" style="font-size:15px;line-height:1.7;color: var(--ink-dim)">Votre message personnalisé ici...</div>
                   </td></tr>
                 </table>
 <?php elseif($sec==='qrcode'): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
                   <tr><td class="sec-r" data-acc="border" style="padding:28px;background:#fff;text-align:center;border:2px dashed <?= $mtcColors['accent'] ?>">
                     <p data-acc="txt" data-ed="qrcode_title" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;color:<?= $mtcColors['accent'] ?>"><?= htmlspecialchars($mtcTexts['qrcode_title']) ?></p>
-                    <p style="font-size:13px;color:#64748b;margin:0 0 4px"><span data-dyn="n° inscription">Billet n° 42</span></p>
+                    <p style="font-size:13px;color: var(--ink-dim);margin:0 0 4px"><span data-dyn="n° inscription">Billet n° 42</span></p>
                     <p data-ed="qrcode_subtitle" style="font-size:13px;color:#64748b;margin:0 0 16px"><?= htmlspecialchars($mtcTexts['qrcode_subtitle']) ?></p>
-                    <div style="width:120px;height:120px;background:#f1f5f9;border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">QR</div>
+                    <div style="width:120px;height:120px;background:var(--surface-2);border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;color: var(--ink-faint);font-size:11px">QR</div>
                   </td></tr>
                 </table>
 <?php elseif($sec==='banner'): ?>
@@ -1275,14 +1275,14 @@ $jsConfig = json_encode([
                 </table>
 <?php elseif($sec==='contact'): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px">
-                  <tr><td style="padding-top:24px;border-top:1px solid #e2e8f0;text-align:center">
+                  <tr><td style="padding-top:24px;border-top:1px solid var(--border);text-align:center">
                     <p data-ed="contact_title" style="font-size:14px;font-weight:700;color:#0f172a;margin:0 0 8px"><?= htmlspecialchars($mtcTexts['contact_title']) ?></p>
-                    <p data-dyn="email de contact" style="font-size:14px;color:#64748b;margin:0">contact@forbachenrose.fr</p>
+                    <p data-dyn="email de contact" style="font-size:14px;color: var(--ink-dim);margin:0">contact@forbachenrose.fr</p>
                   </td></tr>
                 </table>
 <?php elseif(strpos($sec,'custom')===0): ?>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
-                  <tr><td class="sec-r" style="padding:24px;background:#f8fafc;text-align:center">
+                  <tr><td class="sec-r" style="padding:24px;background:var(--surface-2);text-align:center">
 <?php
   // Render all texts for this custom section (key starts with section id)
   $rendered = false;
@@ -1626,8 +1626,8 @@ $jsConfig = json_encode([
             <button type="submit" name="save_turnstile" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
           <div class="col-12">
-            <div id="turnstileTestPanel" style="display:none;margin-top:.5rem;padding:1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.55rem;">
-              <div style="font-size:.85rem;color:#475569;margin-bottom:.6rem;">Complétez le widget ci-dessous pour vérifier que la <strong>Site Key</strong> et la <strong>Secret Key</strong> fonctionnent bien ensemble :</div>
+            <div id="turnstileTestPanel" style="display:none;margin-top:.5rem;padding:1rem;background:var(--surface-2);border:1px solid var(--border);border-radius:.55rem;">
+              <div style="font-size:.85rem;color: var(--ink-dim);margin-bottom:.6rem;">Complétez le widget ci-dessous pour vérifier que la <strong>Site Key</strong> et la <strong>Secret Key</strong> fonctionnent bien ensemble :</div>
               <div id="turnstileTestWidget" style="display:flex;justify-content:center;min-height:70px;"></div>
               <div id="turnstileTestResult" style="margin-top:.6rem;text-align:center;font-size:.9rem;"></div>
             </div>
@@ -1822,7 +1822,7 @@ $jsConfig = json_encode([
           else                                hint = 'Site Key invalide ou domaine non autorisé.';
 
           var html = '<i class="bi bi-exclamation-triangle-fill"></i> Erreur Turnstile <code>' + c + '</code> — ' + hint;
-          html += '<div style="margin-top:.5rem;font-size:.8rem;color:#64748b;line-height:1.5;">';
+          html += '<div style="margin-top:.5rem;font-size:.8rem;color: var(--ink-dim);line-height:1.5;">';
           html += '<strong>À vérifier :</strong><br>';
           html += '1. La Site Key copiée est bien identique à celle du dashboard Cloudflare<br>';
           html += '2. Le domaine actuel (<code>' + location.hostname + '</code>) figure dans <em>Hostname management</em> du widget<br>';
@@ -2149,7 +2149,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
     } else if(colorsDef==='direct'){
       // Direct background color for custom sections
       var td=el.querySelector('td');
-      var curBg=td?rgbHex(td.style.backgroundColor||'#f8fafc'):'#f8fafc';
+      var curBg=td?rgbHex(td.style.backgroundColor||'var(--surface-2)'):'var(--surface-2)';
       var row=document.createElement('div'); row.className='sb-row';
       row.innerHTML='<label>Fond</label><input type="color" value="'+curBg+'">';
       cc.appendChild(row);
@@ -2193,7 +2193,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
           var secId=el.dataset.section||'txt';
           var newEl=document.createElement('div');
           newEl.setAttribute('data-ed',secId+'_'+Date.now());
-          newEl.style.cssText='font-size:15px;line-height:1.7;color:#334155;margin-top:12px';
+          newEl.style.cssText='font-size:15px;line-height:1.7;color: var(--ink-dim);margin-top:12px';
           newEl.textContent='Nouveau texte...';
           target.appendChild(newEl);
           bindTextEl(newEl);
@@ -2215,7 +2215,7 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       if(!CFG.visibility[secKey]){ CFG.visibility[secKey]=[]; }
       mailTypes.forEach(function(mt){
         var lbl=document.createElement('label');
-        lbl.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;margin-bottom:4px;cursor:pointer';
+        lbl.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color: var(--ink-dim);margin-bottom:4px;cursor:pointer';
         var cb=document.createElement('input');
         cb.type='checkbox'; cb.checked=curVis.indexOf(mt[0])!==-1;
         cb.style.cssText='accent-color:#F42182';

@@ -297,8 +297,8 @@ if ($hasDeletedAt) {
 $elementsByItem = [];
 foreach ($items as $item) {
     $stmt = $pdo->prepare("SELECT * FROM timeline_elements WHERE item_id = ? ORDER BY sort_order ASC");
-    $stmt->execute([$item['id']]);
-    $elementsByItem[$item['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute([($item['id'] ?? '')]);
+    $elementsByItem[($item['id'] ?? '')] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
 
@@ -337,7 +337,7 @@ foreach ($items as $item) {
   /* Filter tabs */
   .filter-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:2px solid var(--border); margin-bottom:1rem; }
   .filter-tabs a { padding:0.5rem 1.25rem; text-decoration:none; color: var(--ink); font-weight:500; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s, border-color .15s; }
-  .filter-tabs a:hover { color: var(--ink); border-bottom-color:var(--border-strong); }
+  .filter-tabs a:hover { color: var(--ink); border-bottom-color: var(--ink-faint); }
   .filter-tabs a.active { color: var(--ink); border-bottom-color:var(--primary, #f42182); font-weight:600; }
 </style>
 </head>
@@ -417,11 +417,11 @@ foreach ($items as $item) {
         <?php else: ?>
           <div class="row g-3" id="sortableTimeline">
             <?php foreach ($items as $idx => $item):
-                $elLabels = array_map(function($e){ return $e['label']; }, $elementsByItem[$item['id']] ?? []);
+                $elLabels = array_map(function($e){ return $e['label']; }, $elementsByItem[($item['id'] ?? '')] ?? []);
                 $elString = implode(', ', $elLabels);
                 $side = ($idx % 2 === 0) ? 'Gauche' : 'Droite';
             ?>
-            <div class="col-md-6 col-lg-4 col-xl-3 sortable-item" data-id="<?= $item['id'] ?>">
+            <div class="col-md-6 col-lg-4 col-xl-3 sortable-item" data-id="<?= ($item['id'] ?? '') ?>">
               <div class="tl-card bg-white" style="position:relative">
                 <?php if ($hasStatusCol): ?>
                   <span class="badge <?= ($item['status'] ?? 'draft') === 'published' ? 'bg-success' : 'bg-warning text-dark' ?>" style="position:absolute;top:10px;right:10px;z-index:2;font-size:0.7rem;padding:4px 10px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.15);">
@@ -462,13 +462,13 @@ foreach ($items as $item) {
                   </div>
 
                   <div class="d-flex justify-content-between align-items-center">
-                    <span class="tl-order">#<?= $item['sort_order'] ?> · <?= $side ?></span>
+                    <span class="tl-order">#<?= ($item['sort_order'] ?? 0) ?> · <?= $side ?></span>
                     <div class="d-flex gap-1">
                       <a href="../public/accueil.php?preview_timeline=1" target="_blank" class="btn btn-sm btn-outline-secondary" title="Aperçu timeline">
                         <i class="bi bi-eye"></i>
                       </a>
                       <?php if ($canEdit): ?>
-                      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= $item['id'] ?>">
+                      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalEditItem<?= ($item['id'] ?? '') ?>">
                         <i class="bi bi-pencil"></i>
                       </button>
                       <?php endif; ?>
@@ -476,7 +476,7 @@ foreach ($items as $item) {
                         <?php if ($canEdit): ?>
                         <form method="post" class="d-inline">
                           <?= csrf_field() ?>
-                          <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                          <input type="hidden" name="item_id" value="<?= ($item['id'] ?? '') ?>">
                           <button type="submit" name="restore_item" class="btn btn-sm btn-success" title="Restaurer">
                             <i class="bi bi-arrow-counterclockwise"></i>
                           </button>
@@ -485,7 +485,7 @@ foreach ($items as $item) {
                         <?php if ($canDelete): ?>
                         <form method="post" class="d-inline" data-confirm="Supprimer définitivement cet item ?">
                           <?= csrf_field() ?>
-                          <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                          <input type="hidden" name="item_id" value="<?= ($item['id'] ?? '') ?>">
                           <button type="submit" name="permanent_delete_item" class="btn btn-sm btn-danger" title="Supprimer définitivement">
                             <i class="bi bi-x-lg"></i>
                           </button>
@@ -495,7 +495,7 @@ foreach ($items as $item) {
                         <?php if ($hasDeletedAt ? $canTrash : $canDelete): ?>
                         <form method="post" class="d-inline" data-confirm="<?= $hasDeletedAt ? 'Mettre cet item en corbeille ?' : 'Supprimer cet item et ses tags ?' ?>">
                           <?= csrf_field() ?>
-                          <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                          <input type="hidden" name="item_id" value="<?= ($item['id'] ?? '') ?>">
                           <button type="submit" name="delete_item" class="btn btn-sm btn-danger">
                             <i class="bi bi-trash"></i>
                           </button>
@@ -508,13 +508,13 @@ foreach ($items as $item) {
               </div>
             </div>
 
-            <!-- Edit Modal for item <?= $item['id'] ?> -->
-            <div class="modal fade" id="modalEditItem<?= $item['id'] ?>" tabindex="-1">
+            <!-- Edit Modal for item <?= ($item['id'] ?? '') ?> -->
+            <div class="modal fade" id="modalEditItem<?= ($item['id'] ?? '') ?>" tabindex="-1">
               <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
                 <div class="modal-content">
                   <form method="post" enctype="multipart/form-data">
                     <?= csrf_field() ?>
-                    <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                    <input type="hidden" name="item_id" value="<?= ($item['id'] ?? '') ?>">
                     <div class="modal-header">
                       <h5 class="modal-title">Modifier : <?= htmlspecialchars($item['title'] ?? '') ?></h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -533,8 +533,8 @@ foreach ($items as $item) {
                         <input type="file" name="image" class="form-control" accept="image/*">
                         <?php if (!empty($item['image'])): ?>
                         <div class="form-check mt-1">
-                          <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImg<?= $item['id'] ?>">
-                          <label class="form-check-label text-danger" style="font-size:12px" for="delImg<?= $item['id'] ?>">Supprimer l'image</label>
+                          <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="delImg<?= ($item['id'] ?? '') ?>">
+                          <label class="form-check-label text-danger" style="font-size:12px" for="delImg<?= ($item['id'] ?? '') ?>">Supprimer l'image</label>
                         </div>
                         <?php endif; ?>
                       </div>
@@ -554,16 +554,16 @@ foreach ($items as $item) {
                       <?php if (!empty($item['image'])): ?>
                       <div class="col-12">
                         <label class="form-label">Position de l'image <small class="text-muted">(glissez + zoom)</small></label>
-                        <div class="img-positioner" data-field="imgpos_<?= $item['id'] ?>">
+                        <div class="img-positioner" data-field="imgpos_<?= ($item['id'] ?? '') ?>">
                           <img src="../files/_TimeLine/<?= htmlspecialchars($item['image']) ?>" alt="">
                           <span class="pos-hint"><i class="bi bi-arrows-move me-1"></i>Glissez l'image</span>
                         </div>
                         <div class="img-pos-controls">
                           <label><i class="bi bi-zoom-in me-1"></i>Zoom</label>
-                          <input type="range" class="zoom-slider" data-field="imgpos_<?= $item['id'] ?>" min="100" max="300" value="100" step="5">
+                          <input type="range" class="zoom-slider" data-field="imgpos_<?= ($item['id'] ?? '') ?>" min="100" max="300" value="100" step="5">
                           <span class="zoom-val" style="font-size:12px;color: var(--ink-dim);min-width:36px">100%</span>
                         </div>
-                        <input type="hidden" name="image_position" id="imgpos_<?= $item['id'] ?>" value="<?= htmlspecialchars($item['image_position'] ?? '50% 50% 1') ?>">
+                        <input type="hidden" name="image_position" id="imgpos_<?= ($item['id'] ?? '') ?>" value="<?= htmlspecialchars($item['image_position'] ?? '50% 50% 1') ?>">
                       </div>
                       <?php endif; ?>
                     </div>

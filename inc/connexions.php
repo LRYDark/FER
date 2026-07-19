@@ -117,7 +117,7 @@ if (!in_array($activeTab, ['connexions', 'bans', 'devices'])) $activeTab = 'conn
     padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
     margin-bottom: -2px; border-radius: 0; background: transparent;
   }
-  .settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--border-strong); }
+  .settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--ink-faint); }
   .settings-tabs .nav-link.active {
     color: var(--ink); font-weight: 600;
     border-bottom-color: var(--primary, #f42182); background: transparent;

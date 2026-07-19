@@ -748,6 +748,48 @@ body {
 table.dataTable > tbody > tr { background: transparent; }
 table.dataTable > tbody > tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 
+/* Thème SOMBRE : encres éclaircies (le gris était illisible — texte principal
+   quasi blanc, secondaire bien plus clair). S'applique au choix explicite et
+   au mode « système » quand l'OS est sombre. */
+:root[data-theme="dark"] {
+  --ink: #F4F7FC;
+  --ink-dim: #C9D1DD;
+  --ink-faint: #8E99A9;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --ink: #F4F7FC;
+    --ink-dim: #C9D1DD;
+    --ink-faint: #8E99A9;
+  }
+}
+
+/* Les utilitaires .mb-0 doivent pouvoir annuler la marge basse des barres
+   d'onglets verrouillées (ex : pilules de période alignées avec le sélecteur
+   de mois dans une rangée flex). */
+.settings-tabs.mb-0, .nav-tabs.mb-0, .period-tabs.mb-0, .filter-tabs.mb-0 { margin-bottom: 0 !important; }
+
+/* Pagination DataTables « simple » (boutons ‹ › hors .pagination Bootstrap) */
+#oc-content .dataTables_paginate .paginate_button {
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-s) !important;
+  color: var(--ink-dim) !important;
+  padding: 0.3rem 0.7rem;
+  margin-left: 4px;
+}
+#oc-content .dataTables_paginate .paginate_button.current,
+#oc-content .dataTables_paginate .paginate_button:not(.disabled):hover {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-ink) !important;
+}
+#oc-content .dataTables_paginate .paginate_button.disabled {
+  opacity: 0.45;
+  color: var(--ink-faint) !important;
+  background: var(--surface) !important;
+}
+
 /* Contrôles DataTables : couleurs FORCÉES en tokens (les CSS de pages posent
    des gris codés en dur, invisibles en thème sombre). */
 #oc-content .dataTables_wrapper .dataTables_length label,

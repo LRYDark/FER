@@ -157,7 +157,7 @@ if ($canBulkCreate) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
   .card-dashboard{margin-top:1rem;border-radius:1.25rem;box-shadow:0 0 25px rgba(0,0,0,.1)}
-  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:1030}
+  .quick-search{max-width:450px;width:50%;margin:0 auto .75rem;position:sticky;top:0;z-index:40}
   .statCard{min-width:180px}
   /* Harmonisation des cartes de stats : même hauteur, même style de libellé/valeur. */
   .statCard .card-body{display:flex;flex-direction:column;justify-content:center;min-height:104px;padding:1rem .75rem}
@@ -380,7 +380,7 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
   cursor: pointer;
 }
 #bulkSharedSummary:hover { background: var(--surface-2); }
-#bulkSharedSummary .bss-sep { color: var(--border-strong); }
+#bulkSharedSummary .bss-sep { color: var(--ink-faint); }
 #bulkSharedSummary .bss-edit { margin-left: auto; font-size: 12px; color: var(--primary, #f42182); }
 
 /* ═══ Ajout multiple : correspondance colonnes Excel ↔ champs ═══ */
