@@ -101,11 +101,13 @@ body {
      droit du .jr-nav) tout en gardant les items espacés du bord */
   margin-right: calc(-1 * var(--sp-4));
   padding-right: var(--sp-4);
-  scrollbar-width: none;                 /* Firefox : masquée au repos */
+  /* La GOUTTIÈRE est réservée en permanence (largeur constante) : la barre est
+     seulement transparente au repos → aucun décalage du contenu à l'apparition. */
+  scrollbar-width: thin;
   scrollbar-color: transparent transparent;
   transition: scrollbar-color var(--dur-med) var(--ease-out);
 }
-.jr-nav:hover > nav { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.jr-nav:hover > nav { scrollbar-color: var(--border-strong) transparent; }
 .jr-nav > nav::-webkit-scrollbar { width: 4px; }
 .jr-nav > nav::-webkit-scrollbar-track { background: transparent; }
 .jr-nav > nav::-webkit-scrollbar-thumb { background: transparent; border-radius: var(--radius-pill); transition: background var(--dur-med) var(--ease-out); }
