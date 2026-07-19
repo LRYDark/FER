@@ -708,6 +708,22 @@ body {
 .alert-success { background: var(--ok-soft);     border-color: color-mix(in srgb, var(--ok) 30%, transparent);     color: var(--ink); }
 .alert-light, .alert-secondary { background: var(--surface-2) !important; border-color: var(--border) !important; color: var(--ink) !important; }
 
+/* Utilitaires « subtle » de Bootstrap 5.3 (bg-*-subtle) : fonds teintés doux +
+   texte de la même famille bien lisible dans les deux thèmes (statuts SMTP/
+   Google, encarts colorés). Sans ça, fond clair figé + texte blanc en sombre. */
+#oc-content .bg-success-subtle { background-color: var(--ok-soft) !important; color: var(--ok) !important; }
+#oc-content .bg-danger-subtle  { background-color: var(--danger-soft) !important; color: var(--danger) !important; }
+#oc-content .bg-warning-subtle { background-color: var(--warn-soft) !important; color: var(--warn) !important; }
+#oc-content .bg-info-subtle    { background-color: var(--info-soft) !important; color: var(--info) !important; }
+#oc-content .bg-primary-subtle { background-color: var(--accent-soft) !important; color: var(--accent) !important; }
+#oc-content .bg-secondary-subtle, #oc-content .bg-light-subtle { background-color: var(--surface-2) !important; color: var(--ink) !important; }
+/* Le <strong> « Statut : » à l'intérieur reste lisible (même teinte) */
+#oc-content [class*="-subtle"] strong { color: inherit; }
+#oc-content .text-success-emphasis { color: var(--ok) !important; }
+#oc-content .text-danger-emphasis  { color: var(--danger) !important; }
+#oc-content .text-warning-emphasis { color: var(--warn) !important; }
+#oc-content .text-info-emphasis    { color: var(--info) !important; }
+
 /* ---- Tables & DataTables ---- */
 .table {
   --bs-table-bg: transparent;
