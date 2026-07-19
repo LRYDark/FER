@@ -885,6 +885,61 @@ a:hover { color: var(--accent-strong); }
 .accordion-button { background: var(--card); color: var(--ink); }
 .accordion-button:not(.collapsed) { background: var(--accent-soft); color: var(--accent); }
 
+/* ---- Utilitaires Bootstrap clairs : re-mappés en tokens (sinon zones
+   blanches en thème sombre : matrice des droits, statut AssoConnect,
+   lignes verrouillées du Formulaire, miniatures, champs fichiers…) ---- */
+#oc-content .bg-light { background-color: var(--surface-2) !important; }
+#oc-content .bg-white { background-color: var(--surface) !important; }
+#oc-content .text-dark { color: var(--ink) !important; }
+#oc-content .table-light,
+#oc-content tr.table-light > *,
+#oc-content .table > thead.table-light > tr > th {
+  background-color: var(--surface-2) !important;
+  color: var(--ink) !important;
+  --bs-table-bg: var(--surface-2);
+}
+#oc-content .img-thumbnail { background-color: var(--surface); border-color: var(--border-strong); }
+.form-control::file-selector-button {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 0;
+  border-right: 1px solid var(--border-strong);
+}
+.form-control:hover:not(:disabled):not([readonly])::file-selector-button { background: var(--surface-2); }
+
+/* select2 (Destinataires des notifications…) : tokens forcés */
+.select2-container .select2-selection--single,
+.select2-container .select2-selection--multiple,
+.select2-dropdown {
+  background-color: var(--surface) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--ink) !important;
+}
+.select2-container .select2-search__field { background: transparent !important; color: var(--ink) !important; }
+.select2-container .select2-selection--multiple .select2-selection__choice {
+  background: var(--surface-2) !important;
+  color: var(--ink) !important;
+  border-color: var(--border-strong) !important;
+}
+.select2-results__option { color: var(--ink) !important; }
+.select2-results__option--highlighted,
+.select2-container .select2-results__option--highlighted[aria-selected] {
+  background: var(--accent) !important;
+  color: var(--accent-ink) !important;
+}
+
+/* Switches segmentés : verrouillés contre les copies locales des pages
+   (setting.php redéfinit .seg2 en gris clair Bootstrap → blanc en sombre) */
+.seg2, .seg3 { background: var(--surface-2) !important; }
+.seg2 label, .seg3 label { background: transparent !important; color: var(--ink-dim) !important; }
+.seg2 input:checked + label, .seg3 input:checked + label {
+  background: var(--surface) !important;
+  color: var(--accent) !important;
+}
+
+/* Éditeurs TinyMCE : coins doux (l'ovale venait d'un rayon appliqué au mauvais niveau) */
+.tox-tinymce { border-radius: var(--radius-m) !important; border-color: var(--border-strong) !important; }
+
 /* ---- Sections settings (connexions/logs) ---- */
 .settings-section { color: var(--ink); }
 

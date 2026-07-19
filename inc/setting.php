@@ -2534,7 +2534,7 @@ document.addEventListener('DOMContentLoaded', function() {
     margin: -15px 0 6px 12px;
     display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
     z-index: 1000; pointer-events: auto;
-    background: rgba(255,255,255,.96);
+    background: color-mix(in srgb, var(--canvas) 96%, transparent);
     border: 1px solid var(--border); border-radius: 8px;
     padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
   }
@@ -3280,7 +3280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
               <input type="radio" name="flash_info_mode" id="flashModeAuto" value="auto" <?= $flash_info_mode === 'auto' ? 'checked' : '' ?>><label for="flashModeAuto">Auto</label>
             </div>
             <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
-              .seg3{display:inline-flex;background:#e9ecef;border-radius:10px;padding:3px;gap:2px;}
+              .seg3{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px;}
               .seg3 input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
               .seg3 label{margin:0;padding:6px 18px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color: var(--ink-dim);transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
               .seg3 input:checked + label{background: var(--surface);color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
@@ -3964,7 +3964,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
               <input type="radio" name="header_seg" id="headerSegMobile" value="headerMobile" <?= $headerSubTab === 'headerMobile' ? 'checked' : '' ?>><label for="headerSegMobile">Mobile</label>
             </div>
             <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
-              .seg2{display:inline-flex;background:#e9ecef;border-radius:10px;padding:3px;gap:2px;margin-bottom:.75rem;}
+              .seg2{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px;margin-bottom:.75rem;}
               .seg2 input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;}
               .seg2 label{margin:0;padding:6px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;color: var(--ink-dim);transition:background .15s,color .15s,box-shadow .15s;user-select:none;}
               .seg2 input:checked + label{background: var(--surface);color:var(--primary,#f42182);box-shadow:0 1px 3px rgba(0,0,0,.18);}
@@ -4291,7 +4291,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 <?php if ($canTab('reglementation')): ?>
 <div class="settings-section <?= $activeTab === 'reglementation' ? 'active' : '' ?>" id="tab-reglementation">
   <style>
-    .tox-tinymce { border-radius: 0.375rem !important; }
   </style>
   <div class="row g-4">
     <div class="col-12">
@@ -4924,7 +4923,7 @@ if ($canTab('import_auto') || $canImportXlsManual
       <div id="importPreviewResult" style="display:none"></div>
     </div>
     <div id="importProgress" class="mt-3" style="display:none">
-      <div id="importProgressLog" style="max-height:300px;overflow-y:auto;font-size:13px;background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;"></div>
+      <div id="importProgressLog" style="max-height:300px;overflow-y:auto;font-size:13px;background:var(--surface-2);border-radius:8px;padding:12px;font-family:monospace;"></div>
       <div id="importRecap" class="mt-3" style="display:none"></div>
     </div>
   </div><div class="modal-footer">

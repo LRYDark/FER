@@ -1109,7 +1109,7 @@ if ($migrationDone) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .card-dashboard {
-            background: #f8f9fa;
+            background: var(--surface-2);
             border: 1px solid #dee2e6;
         }
         .tox-tinymce {
