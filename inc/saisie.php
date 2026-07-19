@@ -907,7 +907,7 @@ $activeTab = (($_GET['tab'] ?? '') === 'inscriptions' && $canViewTable) ? 'inscr
         cb.type = 'checkbox';
         var ci = colIdxByKey(c.key);
         cb.checked = ci === -1 ? true : tblSaisie.column(ci).visible();
-        cb.style.accentColor = 'var(--primary, #f42182)';
+        cb.style.accentColor = 'var(--accent)';
         cb.addEventListener('change', function(){
           // Index résolu à chaque clic via la clé stable → robuste au déplacement.
           var idxNow = colIdxByKey(c.key);

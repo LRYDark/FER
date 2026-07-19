@@ -3251,7 +3251,7 @@ $('#fEdit').on('submit',e=>{
       cb.type = 'checkbox';
       var ci = colIdxByKey(c.key);
       cb.checked = ci === -1 ? true : tbl.column(ci).visible();
-      cb.style.accentColor = 'var(--primary, #f42182)';
+      cb.style.accentColor = 'var(--accent)';
       cb.addEventListener('change', function() {
         // Index résolu À CHAQUE clic via la clé stable → robuste au déplacement.
         var idxNow = colIdxByKey(c.key);
