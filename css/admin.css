@@ -79,7 +79,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-panel);
-  overflow-y: auto;
+  overflow: hidden;              /* le scroll est sur la liste interne (nav) */
 }
 
 /* Cases à cocher / radios / sliders natifs de l'admin : couleur = accent choisi
@@ -92,12 +92,14 @@ body {
   accent-color: var(--accent);
 }
 
-/* Scrollbar fine et discrète, intégrée à la carte de la sidebar */
-.jr-nav { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
-.jr-nav::-webkit-scrollbar { width: 5px; }
-.jr-nav::-webkit-scrollbar-track { background: transparent; margin: var(--sp-3) 0; }
-.jr-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-pill); }
-.jr-nav::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+/* Seule la liste de menus scrolle : le logo (haut) et le bloc utilisateur (bas)
+   restent fixes, et la scrollbar reste à l'intérieur — plus de débordement
+   sur les coins arrondis de la carte. */
+.jr-nav > nav { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.jr-nav > nav::-webkit-scrollbar { width: 5px; }
+.jr-nav > nav::-webkit-scrollbar-track { background: transparent; }
+.jr-nav > nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-pill); }
+.jr-nav > nav::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
 
 .jr-brand {
   display: flex;
