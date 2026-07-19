@@ -95,7 +95,8 @@ $mtcTexts = ($mtc['texts'] ?? []) + [
     'value_lieu'=>'Piscine de Forbach, Moselle','qrcode_title'=>'Votre QR Code','qrcode_subtitle'=>'Présentez-le le jour J',
     'tips_title'=>'Conseils pour le jour J','tips_1'=>'Arrivez 30 min avant',
     'tips_2'=>'Portez du rose','tips_3'=>'Chaussures confortables',
-    'contact_title'=>'Une question ?'
+    'contact_title'=>'Une question ?',
+    'title_subtitle'=>'Votre inscription a bien été enregistrée. Merci de rejoindre cette belle cause.'
 ];
 $mtcFont      = $mtc['font'] ?? 'system';
 $mtcOrder     = $mtc['section_order'] ?? ['details','tips','description','qrcode','banner','contact'];
@@ -1209,7 +1210,7 @@ $jsConfig = json_encode([
             <div class="drag-bar"></div>
             <p id="prevBadge" data-dyn="dynamique" data-acc="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:5px 16px;margin:0 0 16px;text-transform:uppercase;letter-spacing:.08em;color:<?= $mtcColors['accent'] ?>;background:<?= $mtcColors['card_bg'] ?>;border-radius:<?= $mtcRadius['badge'] ?>px">Inscription confirmée</p>
             <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color: #0f172a;margin:0 0 8px">Bienvenue Jean !</h2>
-            <p data-dyn="automatique" style="font-size:15px;color: #475569;margin:0;line-height:1.6">Votre inscription a bien été enregistrée.</p>
+            <p data-ed="title_subtitle" style="font-size:15px;color: #475569;margin:0;line-height:1.6"><?= htmlspecialchars($mtcTexts['title_subtitle']) ?></p>
           </td></tr>
 
           <!-- Sections -->
