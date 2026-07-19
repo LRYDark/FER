@@ -699,6 +699,12 @@ if (pfFontToggle && pfFontDropdown) {
   pfFontToggle.addEventListener('click', function(e) {
     e.stopPropagation();
     var opening = !pfFontDropdown.classList.contains('show');
+    // Ouvrir vers le haut s'il n'y a pas assez de place sous le bouton
+    var picker = document.getElementById('pfFontPicker');
+    if (opening && picker) {
+      var r = pfFontToggle.getBoundingClientRect();
+      picker.classList.toggle('drop-up', (window.innerHeight - r.bottom) < 260);
+    }
     pfFontDropdown.classList.toggle('show');
     if (opening && !_pfFontsPreviewed) {
       // Charger TOUTES les polices une seule fois pour que chaque ligne

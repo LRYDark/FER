@@ -1350,9 +1350,12 @@ a:hover { color: var(--accent-strong); }
   display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
   margin-top: 4px; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-m); box-shadow: var(--shadow-modal);
-  max-height: 300px; overflow-y: auto;
+  max-height: 240px; overflow-y: auto;
 }
 .pf-font-dropdown.show { display: block; }
+/* Ouverture vers le HAUT quand le picker est en bas du modal (évite d'être
+   coupé par le bord du modal / de sortir de l'écran) */
+.pf-font-picker.drop-up .pf-font-dropdown { top: auto; bottom: 100%; margin: 0 0 4px; }
 .pf-font-item {
   padding: 9px 14px; cursor: pointer; font-size: 15px; color: var(--ink);
   transition: background var(--dur-fast) var(--ease-out);
@@ -1389,8 +1392,8 @@ a:hover { color: var(--accent-strong); }
      secondaire + texte auto, lignes aérées, survol rose léger. ── */
 #oc-content .fer-table { border-collapse: separate; border-spacing: 0; }
 #oc-content .fer-table > thead > tr > th {
-  background: var(--ink));
-  color: var(--canvas));
+  background: var(--ink);
+  color: var(--canvas);
   font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
   border-bottom: none; border-top: none; padding: 13px 8px; white-space: nowrap;
 }
