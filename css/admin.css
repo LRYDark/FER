@@ -23,6 +23,23 @@ body {
   min-height: 100vh;
 }
 
+/* base.css (kit) met TOUS les svg en display:block — ce qui fait passer les
+   icônes des boutons/liens/badges AU-DESSUS du texte (boutons « sur 2 lignes »).
+   On rétablit inline-block pour les icônes en ligne avec du texte. */
+#oc-content .btn svg,
+#oc-content a svg,
+#oc-content button svg,
+#oc-content label svg,
+#oc-content .badge svg,
+#oc-content .nav-link svg,
+.pf-modal .btn svg,
+.modal .btn svg,
+.jr-nav .item svg,
+.jr-usermenu a svg {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+
 /* ============================================================
    SHELL — sidebar + contenu (cartes flottantes)
    ============================================================ */
@@ -689,6 +706,7 @@ body {
 .alert-warning { background: var(--warn-soft);   border-color: color-mix(in srgb, var(--warn) 30%, transparent);   color: var(--ink); }
 .alert-danger  { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--ink); }
 .alert-success { background: var(--ok-soft);     border-color: color-mix(in srgb, var(--ok) 30%, transparent);     color: var(--ink); }
+.alert-light, .alert-secondary { background: var(--surface-2) !important; border-color: var(--border) !important; color: var(--ink) !important; }
 
 /* ---- Tables & DataTables ---- */
 .table {
@@ -944,6 +962,10 @@ a:hover { color: var(--accent-strong); }
 .tox .tox-editor-container, .tox .tox-edit-area { background: var(--card) !important; }
 .tox:not(.tox-tinymce-inline) .tox-editor-header { background: var(--card) !important; }
 .tox-promotion, .tox-statusbar__branding { display: none !important; }
+
+/* Zone d'aperçu du template mail : fond sombre autour du rendu (via admin.css
+   versionné → garanti sans cache ; le mail .prev-email lui-même reste intact) */
+.ed-preview-area { background: var(--bg) !important; }
 
 /* Groupes de filtres en switch segmenté (newsletter : Tous/Abonnés/Désabonnés) */
 .jr-segbtn {
