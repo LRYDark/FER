@@ -1405,11 +1405,24 @@ a:hover { color: var(--accent-strong); }
      Placé APRÈS le global pour gagner à spécificité égale. En-tête = couleur
      secondaire + texte auto, lignes aérées, survol rose léger. ── */
 #oc-content .fer-table { border-collapse: separate; border-spacing: 0; }
+/* En-tête foncé contrasté — clair : bleu-ardoise + texte blanc (comme avant) ;
+   sombre : gris-bleu foncé du thème + texte clair. (var(--ink) ne convient plus
+   comme fond car il est quasi blanc en mode sombre.) */
 #oc-content .fer-table > thead > tr > th {
-  background: var(--ink);
-  color: var(--canvas);
+  background: #1e293b;
+  color: #ffffff;
   font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
   border-bottom: none; border-top: none; padding: 13px 8px; white-space: nowrap;
+}
+:root[data-theme="dark"] #oc-content .fer-table > thead > tr > th {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] #oc-content .fer-table > thead > tr > th {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
 }
 #oc-content .fer-table > thead > tr > th:first-child { border-top-left-radius: 12px; }
 #oc-content .fer-table > thead > tr > th:last-child  { border-top-right-radius: 12px; }
