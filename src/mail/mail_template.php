@@ -22,7 +22,8 @@ $t = ($mtc['texts'] ?? []) + [
     'tips_title'=>'Conseils pour le jour J','tips_1'=>'Arrivez 30 minutes avant le départ',
     'tips_2'=>'Portez des vêtements roses pour soutenir la cause','tips_3'=>'Prenez des chaussures confortables',
     'contact_title'=>'Une question ?',
-    'title_subtitle'=>'Votre inscription a bien été enregistrée. Merci de rejoindre cette belle cause.'
+    'title_subtitle'=>"Votre inscription a bien été enregistrée.
+Merci de rejoindre cette belle cause."
 ];
 $font = $mtc['font'] ?? 'system';
 $sectionOrder = $mtc['section_order'] ?? ['details','tips','description','qrcode','banner','contact'];
@@ -243,7 +244,8 @@ foreach ($sectionOrder as $_secKey) {
                             <h2 style="font-size:22px;font-weight:700;color:#0f172a;margin:0 0 8px;">
                                 Bienvenue <?= htmlspecialchars(mb_convert_case($firstname ?? '', MB_CASE_TITLE, 'UTF-8')) ?> !
                             </h2>
-                            <p style="font-size:15px;color:#64748b;margin:0;line-height:1.6;"><?= htmlspecialchars($t['title_subtitle'] ?? 'Votre inscription a bien été enregistrée. Merci de rejoindre cette belle cause.') ?></p>
+                            <p style="font-size:15px;color:#64748b;margin:0;line-height:1.6;"><?= nl2br(htmlspecialchars($t['title_subtitle'] ?? "Votre inscription a bien été enregistrée.
+Merci de rejoindre cette belle cause.")) ?></p>
                         <?php elseif (!empty($mailTitle)): ?>
                             <h2 style="font-size:22px;font-weight:700;color:#0f172a;margin:0;"><?= htmlspecialchars($mailTitle) ?></h2>
                         <?php endif; ?>

@@ -96,7 +96,8 @@ $mtcTexts = ($mtc['texts'] ?? []) + [
     'tips_title'=>'Conseils pour le jour J','tips_1'=>'Arrivez 30 min avant',
     'tips_2'=>'Portez du rose','tips_3'=>'Chaussures confortables',
     'contact_title'=>'Une question ?',
-    'title_subtitle'=>'Votre inscription a bien été enregistrée. Merci de rejoindre cette belle cause.'
+    'title_subtitle'=>"Votre inscription a bien été enregistrée.
+Merci de rejoindre cette belle cause."
 ];
 $mtcFont      = $mtc['font'] ?? 'system';
 $mtcOrder     = $mtc['section_order'] ?? ['details','tips','description','qrcode','banner','contact'];
@@ -1210,7 +1211,7 @@ $jsConfig = json_encode([
             <div class="drag-bar"></div>
             <p id="prevBadge" data-dyn="dynamique" data-acc="badge" style="display:inline-block;font-size:12px;font-weight:700;padding:5px 16px;margin:0 0 16px;text-transform:uppercase;letter-spacing:.08em;color:<?= $mtcColors['accent'] ?>;background:<?= $mtcColors['card_bg'] ?>;border-radius:<?= $mtcRadius['badge'] ?>px">Inscription confirmée</p>
             <h2 data-dyn="prénom" style="font-size:22px;font-weight:700;color: #0f172a;margin:0 0 8px">Bienvenue Jean !</h2>
-            <p data-ed="title_subtitle" style="font-size:15px;color: #475569;margin:0;line-height:1.6"><?= htmlspecialchars($mtcTexts['title_subtitle']) ?></p>
+            <p data-ed="title_subtitle" style="font-size:15px;color: #475569;margin:0;line-height:1.6"><?= nl2br(htmlspecialchars($mtcTexts['title_subtitle'])) ?></p>
           </td></tr>
 
           <!-- Sections -->
@@ -2327,7 +2328,8 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
 
   document.addEventListener('keydown', function(e){
     if(!editingText) return;
-    if(e.key==='Escape'||e.key==='Enter'){ e.preventDefault(); editingText.contentEditable='false'; editingText.classList.remove('editing'); editingText=null; }
+    if(e.key==='Escape'){ e.preventDefault(); editingText.contentEditable='false'; editingText.classList.remove('editing'); editingText=null; }
+    else if(e.key==='Enter'){ e.preventDefault(); document.execCommand('insertLineBreak'); } // saut de ligne (validation : Échap ou clic ailleurs)
   });
 
   function showTextPanel(el){
@@ -2462,7 +2464,9 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
     $$('[data-ed]').forEach(function(el){
       var clone=el.cloneNode(true);
       clone.querySelectorAll('.el-actions').forEach(function(a){a.remove();});
-      add('mtc_'+el.dataset.ed,clone.textContent.trim());
+      // Préserve les sauts de ligne (<br> ou <div> issus de contenteditable) sous forme de \n
+      clone.innerHTML=clone.innerHTML.replace(/<div>/gi,'\n').replace(/<br\s*\/?>/gi,'\n');
+      add('mtc_'+el.dataset.ed,clone.textContent.replace(/\n{3,}/g,'\n\n').replace(/^\n+|\n+$/g,''));
       if(el.style.fontFamily) add('mtc_font_'+el.dataset.ed,el.style.fontFamily);
       if(el.style.fontSize) add('mtc_size_'+el.dataset.ed,el.style.fontSize);
       if(el.style.textAlign) add('mtc_align_'+el.dataset.ed,el.style.textAlign);
