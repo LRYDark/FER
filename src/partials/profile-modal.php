@@ -205,8 +205,8 @@
 
         <div class="pf-section-header">
           <div>
-            <div class="pf-section-title">Apparence de l'administration</div>
-            <p class="pf-hint">Ces préférences ne concernent que votre compte et l'espace d'administration — le site public garde son propre thème (Réglages → Personnalisation).</p>
+            <div class="pf-section-title">Apparence de l'administration et de la connexion</div>
+            <p class="pf-hint">Ces préférences ne concernent que votre compte : elles s'appliquent à l'espace d'administration <strong>et</strong> à votre page de connexion. Le site public garde son propre thème (Réglages → Personnalisation).</p>
           </div>
         </div>
 
