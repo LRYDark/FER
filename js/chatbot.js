@@ -5,8 +5,10 @@
  * - Conversation avec le moteur à règles (public/chatbot-api.php)
  * - Vérification d'inscription / d'éligibilité t-shirt par e-mail
  * - Formulaire de contact intégré (captcha Turnstile ou maths, pièces jointes)
- * - Le bouton « Contactez-nous » du footer ouvre le chat
- * - Ouverture auto via ?chat=1 (accueil du bot) ou ?chat=contact (formulaire)
+ * - Le bouton « Contactez-nous » du footer ouvre le chat (accueil + questions)
+ * - Ouverture auto via ?chat=1 ou ?chat=contact (accueil du bot)
+ * - Bulle déplaçable (appui long sur mobile, glisser à la souris), position mémorisée
+ * - Teaser d'accroche : apparaît 2 s après le chargement, disparaît après 10 s
  *
  * Aucune dépendance. Configuration lue sur #ferChatbot (data-attributes).
  */
@@ -27,8 +29,10 @@
   var inputEl = root.querySelector('.fcb-input');
   var sendBtn = root.querySelector('.fcb-send');
   var closeBtn= root.querySelector('.fcb-close');
+  var homeBtn = root.querySelector('.fcb-home');
 
-  var emailContext = null;   // 'registration' | 'tshirt' quand le bot attend un e-mail
+  var emailContext = null;      // 'registration' | 'tshirt' | 'qrcode' quand le bot attend un e-mail
+  var lastEmailContext = null;  // dernier contexte utilisé (pour « Réessayer »)
   var isOpen = false;
   var started = false;
   var busy = false;
@@ -100,10 +104,11 @@
     addMsg(reply.text, 'bot');
     if (reply.action === 'ask_email_registration') emailContext = 'registration';
     else if (reply.action === 'ask_email_tshirt')  emailContext = 'tshirt';
+    else if (reply.action === 'ask_email_qrcode')  emailContext = 'qrcode';
     else if (reply.action === 'contact_form')      { emailContext = null; renderContactForm(); }
     else if (reply.action === 'suggest_contact')   { emailContext = null; }
     else emailContext = null;
-    if (reply.action === 'ask_email_registration' || reply.action === 'ask_email_tshirt') {
+    if (reply.action === 'ask_email_registration' || reply.action === 'ask_email_tshirt' || reply.action === 'ask_email_qrcode') {
       inputEl.setAttribute('placeholder', 'votre@email.fr');
       inputEl.setAttribute('type', 'email');
     } else {
@@ -126,7 +131,7 @@
     // base64 : les champs POST accentués sont altérés par le WAF/serveur
     // (même contournement que le formulaire de contact historique)
     var fields = { action: 'ask', message: btoa(unescape(encodeURIComponent(msg))) };
-    if (emailContext) fields.email_context = emailContext;
+    if (emailContext) { lastEmailContext = emailContext; fields.email_context = emailContext; }
 
     post(fields).then(function (j) {
       typing.remove();
@@ -153,7 +158,7 @@
       addMsg(esc(label), 'user');
       addMsg('Pas de souci — indiquez-moi l\'adresse e-mail à vérifier :', 'bot');
       // Conserver le contexte précédent (registration par défaut)
-      emailContext = emailContext || 'registration';
+      emailContext = emailContext || lastEmailContext || 'registration';
       inputEl.setAttribute('placeholder', 'votre@email.fr');
       return;
     }
@@ -299,7 +304,7 @@
               captchaState.tsWidgetId = window.turnstile.render(tsBox, {
                 sitekey: j.sitekey,
                 theme: document.body.classList.contains('dark-theme') ? 'dark' : 'light',
-                size: 'compact',
+                size: 'flexible',
                 callback: function (t) { turnstileToken = t; setValid(true); setError(''); },
                 'error-callback':   function () { turnstileToken = ''; setValid(false); switchToMathFallback('Échec du captcha Cloudflare.'); },
                 'expired-callback': function () { turnstileToken = ''; setValid(false); setError('Captcha expiré. Réessayez.'); }
@@ -364,11 +369,10 @@
   }
 
   /* ══════════ Ouverture / fermeture ══════════ */
-  function greet(withContactForm) {
-    if (started) {
-      if (withContactForm) renderContactForm();
-      return;
-    }
+  /* Toujours accueillir avec les questions rapides — le formulaire de contact
+     n'apparaît que sur demande (chip « Nous écrire » ou intention détectée). */
+  function greet() {
+    if (started) return;
     started = true;
     busy = true;
     var typing = addTyping();
@@ -377,33 +381,68 @@
       busy = false;
       if (j && j.ok && j.reply) handleReply(j.reply);
       else addMsg('Bonjour ! 👋 Comment puis-je vous aider ?', 'bot');
-      if (withContactForm) renderContactForm();
     }).catch(function () {
       typing.remove();
       busy = false;
       addMsg('Bonjour ! 👋 Comment puis-je vous aider ?', 'bot');
-      if (withContactForm) renderContactForm();
     });
   }
 
-  function openChat(withContactForm) {
+  /* Verrou du défilement de l'arrière-plan (mobile plein écran uniquement).
+     Body en position:fixed avec compensation du scroll → l'iOS/Android ne
+     défile plus la page derrière, et on restaure la position à la fermeture. */
+  var savedScrollY = 0;
+  function lockBody() {
+    if (window.innerWidth > 480 || document.body.classList.contains('fcb-body-lock')) return;
+    savedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.top = -savedScrollY + 'px';
+    document.body.classList.add('fcb-body-lock');
+  }
+  function unlockBody() {
+    if (!document.body.classList.contains('fcb-body-lock')) return;
+    document.body.classList.remove('fcb-body-lock');
+    document.body.style.top = '';
+    window.scrollTo(0, savedScrollY);
+  }
+
+  function openChat() {
+    hideTeaser();
     if (!isOpen) {
       isOpen = true;
+      updateWindowSide();
       root.classList.add('fcb-open');
       bubble.setAttribute('aria-expanded', 'true');
+      lockBody();
       setTimeout(function () { inputEl.focus(); }, 250);
     }
-    greet(!!withContactForm);
+    greet();
   }
 
   function closeChat() {
     isOpen = false;
     root.classList.remove('fcb-open');
     bubble.setAttribute('aria-expanded', 'false');
+    unlockBody();
   }
 
-  bubble.addEventListener('click', function () { isOpen ? closeChat() : openChat(); });
+  bubble.addEventListener('click', function () {
+    if (wasDragged) return; // fin de glisser-déposer, pas un clic
+    isOpen ? closeChat() : openChat();
+  });
   closeBtn.addEventListener('click', closeChat);
+
+  /* Bouton accueil de l'en-tête : revient au menu principal à tout moment
+     (mêmes questions rapides que l'accueil du moteur) */
+  var MENU_QUICK = ['✅ Mon inscription', '🎽 T-shirt', '💶 Tarifs', '📩 QR code non reçu', '📍 Lieu & horaires', '❓ Voir la FAQ', '✉️ Nous écrire'];
+  if (homeBtn) homeBtn.addEventListener('click', function () {
+    if (busy) return;
+    clearQuickReplies();
+    emailContext = null;
+    inputEl.setAttribute('placeholder', 'Écrivez votre question…');
+    inputEl.setAttribute('type', 'text');
+    addMsg('On reprend depuis le début ! Que souhaitez-vous savoir ? 😊', 'bot');
+    addQuickReplies(MENU_QUICK);
+  });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && isOpen) closeChat();
   });
@@ -413,19 +452,155 @@
     if (e.key === 'Enter') { e.preventDefault(); send(inputEl.value); }
   });
 
-  /* Bouton « Contactez-nous » du footer → ouvre le chat sur le formulaire */
+  /* ══════════ Bulle déplaçable (appui long puis glisser) ══════════ */
+  var POS_KEY = 'fer_chatbot_pos';
+  var drag = null, wasDragged = false, holdTimer = null;
+
+  function clampPos(x, y) {
+    var m = 8, w = bubble.offsetWidth || 60, h = bubble.offsetHeight || 60;
+    return {
+      x: Math.min(Math.max(x, m), window.innerWidth  - w - m),
+      y: Math.min(Math.max(y, m), window.innerHeight - h - m)
+    };
+  }
+  /* La fenêtre s'ancre du bon côté selon la position de la bulle */
+  function updateWindowSide() {
+    var r = bubble.getBoundingClientRect();
+    root.classList.toggle('fcb-win-left',  r.left + r.width / 2 < window.innerWidth / 2);
+    root.classList.toggle('fcb-win-below', r.top  + r.height / 2 < window.innerHeight / 2);
+  }
+  function applyPos(x, y) {
+    var p = clampPos(x, y);
+    root.style.left = p.x + 'px';
+    root.style.top = p.y + 'px';
+    root.style.right = 'auto';
+    root.style.bottom = 'auto';
+    updateWindowSide();
+  }
+  /* Position mémorisée en fractions de l'écran (s'adapte à toutes les tailles) */
+  function savePos() {
+    var r = bubble.getBoundingClientRect();
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify({
+        xf: r.left / Math.max(1, window.innerWidth  - r.width),
+        yf: r.top  / Math.max(1, window.innerHeight - r.height)
+      }));
+    } catch (e) {}
+  }
+  function restorePos() {
+    var p = null;
+    try { p = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); } catch (e) {}
+    if (!p || typeof p.xf !== 'number' || typeof p.yf !== 'number') return;
+    var r = bubble.getBoundingClientRect();
+    applyPos(p.xf * (window.innerWidth - r.width), p.yf * (window.innerHeight - r.height));
+  }
+
+  function activateDrag() {
+    if (!drag) return;
+    drag.active = true;
+    root.classList.add('fcb-dragging');
+    try { bubble.setPointerCapture(drag.id); } catch (e) {}
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+    hideTeaser();
+  }
+  bubble.addEventListener('pointerdown', function (e) {
+    if (e.button && e.button !== 0) return;
+    var br = bubble.getBoundingClientRect();
+    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: br.left, oy: br.top,
+             active: false, touch: e.pointerType !== 'mouse' };
+    // Tactile : appui long (300 ms sans bouger) pour saisir la bulle
+    if (drag.touch) holdTimer = setTimeout(activateDrag, 300);
+  });
+  bubble.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.active) {
+      var dist = Math.hypot(dx, dy);
+      if (drag.touch) {
+        if (dist > 10) { clearTimeout(holdTimer); drag = null; } // bougé avant l'appui long
+      } else if (dist > 6) {
+        activateDrag(); // souris : le glisser suffit
+      }
+      return;
+    }
+    e.preventDefault();
+    applyPos(drag.ox + dx, drag.oy + dy);
+  });
+  function endDrag() {
+    clearTimeout(holdTimer);
+    if (drag && drag.active) {
+      savePos();
+      wasDragged = true;
+      setTimeout(function () { wasDragged = false; }, 0); // absorbe le click qui suit
+    }
+    drag = null;
+    root.classList.remove('fcb-dragging');
+  }
+  bubble.addEventListener('pointerup', endDrag);
+  bubble.addEventListener('pointercancel', endDrag);
+  bubble.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  window.addEventListener('resize', function () {
+    if (root.style.left) restorePos(); else updateWindowSide();
+  });
+  restorePos();
+
+  /* ══════════ Teaser d'accroche ══════════
+     S'affiche à CHAQUE chargement de page (~2 s après) et disparaît tout seul
+     au bout de 10 s (il reviendra à la page suivante). SEULE la fermeture
+     volontaire via la croix (✕) le masque pendant 1 semaine. */
+  var TEASER_KEY = 'fer_chatbot_teaser_dismissed_until';
+  var teaser = root.querySelector('.fcb-teaser');
+  var teaserTimers = [];
+
+  function hideTeaser(dismissWeek) {
+    if (!teaser) return;
+    teaserTimers.forEach(clearTimeout);
+    teaserTimers = [];
+    if (!teaser.hidden) {
+      teaser.classList.remove('fcb-teaser-in');
+      teaserTimers.push(setTimeout(function () { teaser.hidden = true; }, 250));
+    }
+    // Fermeture volontaire (✕) → on ne remontre plus le teaser pendant 7 jours
+    if (dismissWeek) { try { localStorage.setItem(TEASER_KEY, String(Date.now() + 7 * 24 * 3600 * 1000)); } catch (e) {} }
+  }
+  if (teaser) {
+    var dismissedUntil = 0;
+    try { dismissedUntil = parseInt(localStorage.getItem(TEASER_KEY) || '0', 10) || 0; } catch (e) {}
+    if (Date.now() > dismissedUntil) {
+      teaserTimers.push(setTimeout(function () {
+        if (isOpen || (drag && drag.active)) return;
+        updateWindowSide();       // oriente la queue (au-dessus / en dessous du bouton)
+        teaser.hidden = false;
+        requestAnimationFrame(function () { teaser.classList.add('fcb-teaser-in'); });
+        teaserTimers.push(setTimeout(function () { hideTeaser(false); }, 10000));
+      }, 2000));
+    }
+    teaser.addEventListener('click', function (e) {
+      var isClose = !!e.target.closest('.fcb-teaser-close');
+      hideTeaser(isClose);        // ✕ → masqué 1 semaine ; clic sur le corps → ouvre le chat
+      if (!isClose) openChat();
+    });
+  }
+
+  /* Bouton « Contactez-nous » du footer → ouvre le chat (accueil + questions,
+     le formulaire vient via « ✉️ Nous écrire ») */
   document.querySelectorAll('a[href="contact"], a[href="contact.php"], .footer-contact-btn').forEach(function (a) {
     a.addEventListener('click', function (e) {
       e.preventDefault();
-      openChat(true);
+      openChat();
     });
   });
 
-  /* Ouverture auto via URL : ?chat=1 (accueil) / ?chat=contact (formulaire) */
+  /* Ouverture via URL : ?chat=1 ou ?chat=contact (lien profond volontaire).
+     Le paramètre est retiré de l'URL aussitôt — un rechargement de la page
+     ne rouvre donc JAMAIS le chat tout seul. */
   try {
     var p = new URLSearchParams(window.location.search);
-    var chat = p.get('chat');
-    if (chat === 'contact') openChat(true);
-    else if (chat) openChat(false);
+    if (p.get('chat')) {
+      openChat();
+      p.delete('chat');
+      var qs = p.toString();
+      history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : '') + window.location.hash);
+    }
   } catch (e) {}
 })();

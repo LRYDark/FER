@@ -87,6 +87,8 @@
         © 2026 Forbach en Rose. Tous droits réservés. | Association loi 1901
       </p>
       <div class="footer-links">
+        <a href="faq">FAQ</a>
+        |
         <a href="../login.php">Administration</a>
         <span class="footer-separator">•</span>
         <a href="mentions-legales">Mentions légales</a>

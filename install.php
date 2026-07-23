@@ -566,6 +566,9 @@ function getCreateTableStatements(): array
           `course_horaires` TEXT DEFAULT NULL,
           `course_rdv` TEXT DEFAULT NULL,
           `tshirt_retrait_info` TEXT DEFAULT NULL,
+          `registration_onsite_info` TEXT DEFAULT NULL,
+          `legal_mentions` LONGTEXT DEFAULT NULL,
+          `legal_privacy` LONGTEXT DEFAULT NULL,
           `chatbot_enabled` TINYINT(1) NOT NULL DEFAULT 1,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
@@ -574,6 +577,18 @@ function getCreateTableStatements(): array
           `id` int(11) NOT NULL AUTO_INCREMENT,
           `question` varchar(500) NOT NULL,
           `created_at` timestamp NULL DEFAULT current_timestamp(),
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        "CREATE TABLE IF NOT EXISTS `chatbot_faq` (
+          `id` int(11) NOT NULL AUTO_INCREMENT,
+          `question` varchar(255) NOT NULL,
+          `answer` text NOT NULL,
+          `keywords` varchar(500) DEFAULT NULL,
+          `position` int(11) NOT NULL DEFAULT 0,
+          `active` tinyint(1) NOT NULL DEFAULT 1,
+          `created_at` timestamp NULL DEFAULT current_timestamp(),
+          `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -696,7 +711,7 @@ function getCreateTableStatements(): array
           `naissance` varchar(255) DEFAULT NULL,
           `sexe` enum('H','F','Autre') DEFAULT 'H',
           `tshirt_size` enum('-','XS','S','M','L','XL','XXL') DEFAULT '-',
-          `ville` varchar(255) NOT NULL,
+          `ville` varchar(255) NOT NULL DEFAULT '',
           `entreprise` varchar(255) DEFAULT NULL,
           `commentaire` text DEFAULT NULL,
           `origine` varchar(40) DEFAULT 'en ligne',

@@ -83,22 +83,26 @@ if ($action === 'ask') {
 
     // Si le message EST une adresse e-mail seule, on aiguille selon le contexte fourni par le widget
     $emailCtx = $_POST['email_context'] ?? '';
-    if (filter_var($norm, FILTER_VALIDATE_EMAIL) && in_array($emailCtx, ['registration', 'tshirt'], true)) {
+    if (filter_var($norm, FILTER_VALIDATE_EMAIL) && in_array($emailCtx, ['registration', 'tshirt', 'qrcode'], true)) {
         $_POST['email'] = $norm;
         $_POST['context'] = $emailCtx;
         $action = 'check_email'; // tombe dans le bloc suivant
     } else {
         [$intent] = chatbot_match_intent($norm);
-        $answer = chatbot_answer($intent, $set);
 
-        // Question incomprise → journalisée (anonyme) pour enrichir le bot depuis l'admin
+        // Intentions intégrées d'abord ; sinon la FAQ gérée depuis l'admin
         if ($intent === 'fallback') {
+            $faq = chatbot_faq_match($pdo, $norm);
+            if ($faq !== null) {
+                chatbot_json(['ok' => true, 'reply' => chatbot_faq_reply($faq)]);
+            }
+            // Vraiment incompris → journalisé (anonyme) pour enrichir le bot depuis l'admin
             try {
                 $pdo->prepare('INSERT INTO chatbot_unmatched (question) VALUES (?)')
                     ->execute([mb_substr($message, 0, 500)]);
             } catch (\Throwable $e) { /* table absente avant migration : non bloquant */ }
         }
-        chatbot_json(['ok' => true, 'reply' => $answer]);
+        chatbot_json(['ok' => true, 'reply' => chatbot_answer($intent, $set)]);
     }
 }
 
@@ -112,13 +116,84 @@ if ($action === 'check_email') {
         ]]);
     }
     $email = trim((string)($_POST['email'] ?? ''));
-    $context = ($_POST['context'] ?? '') === 'tshirt' ? 'tshirt' : 'registration';
+    $context = in_array($_POST['context'] ?? '', ['tshirt', 'qrcode'], true) ? $_POST['context'] : 'registration';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         chatbot_json(['ok' => true, 'reply' => [
             'text' => 'Hmm, cette adresse e-mail ne semble pas valide. 🤔 Pouvez-vous la vérifier ?',
             'quick' => [], 'action' => 'ask_email_' . $context,
         ]]);
     }
+
+    /* ── Renvoi du mail de confirmation / QR code ─────────────────────────
+       Sécurité : le QR n'est jamais affiché dans le chat — il repart par
+       mail à l'adresse de l'inscrit uniquement (un tiers qui connaît un
+       e-mail ne peut donc rien récupérer). Limite stricte anti-abus. */
+    if ($context === 'qrcode') {
+        if (!chatbot_rate_limit('chatbot_qr_resend', 3, 3600)) {
+            chatbot_json(['ok' => true, 'reply' => [
+                'text' => 'Le renvoi de confirmation est limité à quelques essais par heure. ⏳<br>Si le mail n\'arrive toujours pas, laissez-nous un message !',
+                'quick' => ['✉️ Nous écrire'], 'action' => null,
+            ]]);
+        }
+        try {
+            $matches = chatbot_qr_lookup($pdo, $email);
+        } catch (\Throwable $e) {
+            chatbot_json(['ok' => true, 'reply' => [
+                'text' => 'Petit souci technique pendant la vérification — réessayez dans un instant.',
+                'quick' => [], 'action' => null,
+            ]]);
+        }
+        if (!$matches) {
+            chatbot_json(['ok' => true, 'reply' => [
+                'text' => 'Je ne trouve pas d\'inscription avec cette adresse. 😔<br>'
+                    . 'Vérifiez l\'orthographe de l\'e-mail, ou <a href="register">inscrivez-vous en 5 minutes</a> !<br>'
+                    . 'Si vous pensez qu\'il s\'agit d\'une erreur, laissez-nous un message.',
+                'quick' => ['🔁 Réessayer avec un autre e-mail', '✉️ Nous écrire'], 'action' => null,
+            ]]);
+        }
+
+        // Récapitulatif : numéro d'inscrit + t-shirt (selon la config quota)
+        $lines = [];
+        foreach ($matches as $m) {
+            $lines[] = '• Inscription <strong>n° ' . htmlspecialchars($m['no']) . '</strong> — t-shirt : ' . ($m['eligible'] ? 'oui 🎽' : 'non');
+        }
+
+        // Renvoi du mail de confirmation (QR inclus automatiquement selon la
+        // config, via shouldIncludeQrCode) — max 3 mails pour un même e-mail.
+        $sent = 0;
+        try {
+            require_once __DIR__ . '/../src/mail/googleMail.php';
+            if (isMailConfigured()) {
+                foreach (array_slice($matches, 0, 3) as $m) {
+                    $ok = sendMail(
+                        $email,
+                        'Votre confirmation d\'inscription - Forbach en Rose',
+                        null, null,
+                        $m['nom'], $m['prenom'],
+                        'inscription', $m['no']
+                    );
+                    if ($ok) $sent++;
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[CHATBOT][QR-RESEND] ' . $e->getMessage());
+        }
+
+        $text = 'Bonne nouvelle, je vous ai retrouvé ! ✅<br>' . implode('<br>', $lines) . '<br><br>';
+        if ($sent > 0) {
+            $text .= '📩 <strong>' . ($sent === 1 ? 'Le mail de confirmation vient d\'être renvoyé' : $sent . ' mails de confirmation viennent d\'être renvoyés')
+                . '</strong> à votre adresse' . ($matches[0]['eligible'] || $sent > 1 ? ' (avec le QR code si votre inscription y donne droit)' : '') . '.<br>'
+                . '<small>Pensez à vérifier vos indésirables — le mail peut mettre quelques minutes à arriver.</small>';
+        } else {
+            $text .= 'En revanche, le renvoi automatique du mail n\'a pas fonctionné. 😔 Laissez-nous un message et on vous le renvoie à la main !';
+        }
+        chatbot_json(['ok' => true, 'reply' => [
+            'text' => $text,
+            'quick' => $sent > 0 ? ['📍 Lieu & horaires'] : ['✉️ Nous écrire'],
+            'action' => null,
+        ]]);
+    }
+
     try {
         $lookup = chatbot_email_lookup($pdo, $email);
     } catch (\Throwable $e) {
