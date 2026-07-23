@@ -153,8 +153,8 @@ include __DIR__ . '/../content/theme.php';
 <?php // ?v=mtime : anti-cache — toute modification des CSS est rechargée immédiatement
 $jrV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $rel . '?v=' . (@filemtime($p) ?: '1'); };
 ?>
-<link rel="stylesheet" href="../<?= $jrV('jr-theme/css/tokens.css') ?>">
-<link rel="stylesheet" href="../<?= $jrV('jr-theme/css/base.css') ?>">
+<link rel="stylesheet" href="../<?= $jrV('css/tokens.css') ?>">
+<link rel="stylesheet" href="../<?= $jrV('css/base.css') ?>">
 <link rel="stylesheet" href="../<?= $jrV('css/admin.css') ?>">
 <?php if ($jrFonts[$jrFont][1]): // Google Font ?>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= str_replace(' ', '+', $jrFont) ?>:wght@400;500;600;700&display=swap">

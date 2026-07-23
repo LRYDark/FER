@@ -45,8 +45,9 @@ ErrorDocument 404 /errors/404.php
 ErrorDocument 500 /errors/500.php
 ErrorDocument 503 /errors/503.php
 
-# Favicon
-RewriteRule ^favicon\.ico$ files/_logos/logo_fer_rose.png [L,R=302]
+# Favicon — chemin URL absolu obligatoire : avec R=302, un chemin relatif fait
+# fuiter le chemin disque du serveur dans l'URL de redirection (…/public_html/…) → 404.
+RewriteRule ^favicon\.ico$ /files/_logos/logo_fer_rose.png [L,R=302]
 
 # URLs propres : permet d'accéder sans .php
 RewriteEngine On
