@@ -129,6 +129,7 @@ try {
 </style>
 </head>
 <body>
+  <?php include __DIR__ . '/../src/partials/preloader.php'; ?>
 <div class="ns-card">
   <div class="ns-head">
     <i class="bi bi-envelope-<?= $done ? 'check' : 'slash' ?>"></i>

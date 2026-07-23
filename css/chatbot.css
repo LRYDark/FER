@@ -16,6 +16,7 @@
 
 /* ── Bulle flottante (même langage que le CTA « Inscription ») ── */
 .fcb-bubble {
+  position: relative;
   width: 60px;
   height: 60px;
   border-radius: 50%;
@@ -28,12 +29,138 @@
   color: #fff;
   box-shadow: 0 10px 26px rgba(2, 6, 23, .18);
   transition: transform .2s ease, box-shadow .2s ease;
+  /* Déplaçable : pas de scroll ni de sélection/menu contextuel pendant le glisser */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .fcb-bubble:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 14px 34px rgba(2, 6, 23, .22); }
 .fcb-bubble svg { width: 26px; height: 26px; }
+.fcb-bubble .fcb-ico-chat { width: 34px; height: 34px; }
+/* Le robot cligne des yeux toutes les ~4 s */
+.fcb-bubble .fcb-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fcbBlink 4.2s infinite;
+}
+@keyframes fcbBlink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  93%, 95%      { transform: scaleY(.12); }
+}
 .fcb-bubble .fcb-ico-close { display: none; }
 .fcb-open .fcb-bubble .fcb-ico-chat { display: none; }
 .fcb-open .fcb-bubble .fcb-ico-close { display: block; }
+
+/* Pastille « assistant en ligne » sur le coin du bouton */
+.fcb-status-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2.5px solid #fff;
+  animation: fcbOnline 2.4s ease-in-out infinite;
+}
+.fcb-open .fcb-status-dot { display: none; }
+@keyframes fcbOnline {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .45); }
+  55%      { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+}
+
+/* Glisser en cours (appui long) : la bulle « se soulève » */
+.fcb-dragging .fcb-bubble {
+  transform: scale(1.12);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, .3);
+  cursor: grabbing;
+}
+.fcb-dragging .fcb-teaser { display: none; }
+
+/* ── Teaser : vraie bulle de BD, AU-DESSUS du bouton, queue pointée vers lui ── */
+.fcb-teaser {
+  position: absolute;
+  bottom: 78px;          /* au-dessus de la bulle (60px + espace pour la queue) */
+  right: 2px;
+  width: max-content;
+  max-width: min(230px, calc(100vw - 60px));
+  text-align: center;
+  background: #fff;
+  color: var(--page-text, #0f172a);
+  border-radius: 26px;   /* forme bien arrondie, style bulle de dialogue */
+  padding: 13px 30px 13px 18px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, .18);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px) scale(.9);
+  transform-origin: right bottom;
+  transition: opacity .25s ease, transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.fcb-teaser strong { color: var(--pink, #db2777); }
+.fcb-teaser-short { display: none; } /* version courte : mobile uniquement */
+/* Queue de la bulle : triangle blanc plein, sans contour */
+.fcb-teaser::after {
+  content: '';
+  position: absolute;
+  right: 20px;
+  bottom: -10px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 11px solid #fff;
+}
+.fcb-teaser-in {
+  opacity: 1;
+  transform: none;
+  /* Flottement fluide : composé sur le GPU (translate3d + will-change) pour
+     éviter le recalcul de l'ombre à chaque image (qui saccadait). */
+  animation: fcbTeaserFloat 3s ease-in-out .5s infinite;
+  will-change: transform;
+}
+@keyframes fcbTeaserFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -5px, 0); }
+}
+.fcb-teaser-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: rgba(15, 23, 42, .4);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.fcb-teaser-close svg { width: 11px; height: 11px; display: block; }
+.fcb-teaser-close:hover { background: rgba(2, 6, 23, .06); color: var(--page-text, #0f172a); }
+.fcb-open .fcb-teaser { display: none; }
+
+/* ── Bulle déplacée : fenêtre et teaser basculent du bon côté ── */
+.fcb-win-left .fcb-window { right: auto; left: 0; }
+.fcb-win-below .fcb-window { bottom: auto; top: 76px; }
+/* Bulle à gauche → le teaser reste au-dessus, queue alignée à gauche */
+.fcb-win-left .fcb-teaser {
+  right: auto;
+  left: 2px;
+  transform-origin: left bottom;
+}
+.fcb-win-left .fcb-teaser::before,
+.fcb-win-left .fcb-teaser::after { right: auto; left: 20px; }
+/* Bulle en haut de l'écran → teaser en dessous, queue vers le haut */
+.fcb-win-below .fcb-teaser { bottom: auto; top: 78px; transform-origin: right top; }
+.fcb-win-below .fcb-teaser::before { top: -14px; bottom: auto; border-top: 0; border-bottom: 14px solid rgba(15, 23, 42, .16); }
+.fcb-win-below .fcb-teaser::after  { top: -11px; bottom: auto; border-top: 0; border-bottom: 12px solid #fff; }
+.fcb-win-left.fcb-win-below .fcb-teaser { transform-origin: left top; }
 
 /* ── Fenêtre : carte blanche du site (bord fin + grande ombre douce) ── */
 .fcb-window {
@@ -77,14 +204,19 @@
   background: color-mix(in srgb, var(--pink, #db2777) 12%, transparent);
   color: var(--pink, #db2777);
   display: flex; align-items: center; justify-content: center;
-  font-size: 19px;
   flex-shrink: 0;
+}
+.fcb-avatar svg {
+  width: 20px; height: 20px;
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
 .fcb-head-txt { flex: 1; min-width: 0; }
 .fcb-head-txt strong { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 .fcb-head-txt small { font-size: 12px; color: var(--page-muted, rgba(15,23,42,.65)); display: flex; align-items: center; gap: 5px; }
 .fcb-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; }
-.fcb-close {
+.fcb-close,
+.fcb-home {
   border: none;
   background: transparent;
   color: var(--page-muted, rgba(15,23,42,.65));
@@ -93,8 +225,11 @@
   font-size: 16px; line-height: 1; cursor: pointer;
   transition: background .15s, color .15s;
   flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
 }
-.fcb-close:hover { background: var(--hover, rgba(2,6,23,.06)); color: var(--page-text, #0f172a); }
+.fcb-home svg { width: 17px; height: 17px; }
+.fcb-close:hover,
+.fcb-home:hover { background: var(--hover, rgba(2,6,23,.06)); color: var(--page-text, #0f172a); }
 
 /* ── Zone de messages : dégradé rose pâle du haut de page ── */
 .fcb-messages {
@@ -106,6 +241,9 @@
   gap: 10px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--pink, #db2777) 6%, #fff) 0%, #fff 140px);
   scrollbar-width: thin;
+  /* Empêche le scroll de « déborder » sur la page derrière quand on atteint
+     le haut/bas de la liste (surtout en plein écran mobile) */
+  overscroll-behavior: contain;
 }
 .fcb-msg {
   max-width: 86%;
@@ -143,7 +281,7 @@
 .fcb-typing span:nth-child(3) { animation-delay: .3s; }
 @keyframes fcbBounce { 0%, 60%, 100% { transform: none; } 30% { transform: translateY(-5px); } }
 
-/* ── Réponses rapides : pilules blanches du site (ombre douce) ── */
+/* ── Réponses rapides : puces blanches, rayon piloté par le thème ── */
 .fcb-quick { display: flex; flex-wrap: wrap; gap: 7px; align-self: flex-start; max-width: 95%; }
 .fcb-chip {
   border: 1px solid rgba(15, 23, 42, .10);
@@ -152,7 +290,7 @@
   font-size: 13px;
   font-weight: 600;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm, 10px);
   cursor: pointer;
   box-shadow: 0 2px 10px rgba(2, 6, 23, .06);
   transition: background .15s, color .15s, border-color .15s, transform .12s;
@@ -164,7 +302,7 @@
   transform: translateY(-1px);
 }
 
-/* ── Saisie : pilule blanche + bouton CTA ── */
+/* ── Saisie : champ + bouton CTA, rayons pilotés par le thème ── */
 .fcb-inputbar {
   display: flex;
   gap: 8px;
@@ -176,7 +314,7 @@
 .fcb-input {
   flex: 1;
   border: 1px solid rgba(15, 23, 42, .12);
-  border-radius: 999px;
+  border-radius: var(--radius-sm, 10px);
   padding: 10px 16px;
   font-size: 14px;
   font-family: inherit;
@@ -191,7 +329,7 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--pink, #db2777) 14%, transparent);
 }
 .fcb-send {
-  width: 42px; height: 42px; border-radius: 50%;
+  width: 42px; height: 42px; border-radius: var(--radius, 14px);
   border: none;
   background: linear-gradient(135deg, var(--pink, #db2777), var(--pink-dark, #be185d));
   color: #fff;
@@ -246,6 +384,9 @@
   flex-shrink: 0;
 }
 .fcb-captcha { margin-top: 2px; }
+/* Turnstile en mode « flexible » : occupe toute la largeur du formulaire */
+.fcb-ts-box { width: 100%; }
+.fcb-ts-box iframe { width: 100% !important; }
 .fcb-math-q { font-size: 14px; font-weight: 700; color: var(--page-text, #0f172a); margin-bottom: 5px; }
 .fcb-math-row { display: flex; gap: 6px; }
 .fcb-math-a {
@@ -266,7 +407,7 @@
   color: #fff;
   font-size: 14px; font-weight: 700;
   padding: 11px;
-  border-radius: 999px;
+  border-radius: var(--radius, 14px);
   cursor: pointer;
   box-shadow: 0 6px 18px color-mix(in srgb, var(--pink, #db2777) 30%, transparent);
   transition: opacity .15s, transform .15s, box-shadow .15s;
@@ -274,10 +415,86 @@
 .fcb-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--pink, #db2777) 38%, transparent); }
 .fcb-submit:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
-/* ── Mobile : fenêtre plein écran ── */
+/* ── ≤1040px : présentation « mobile » (header + barre de nav du site).
+   Le bas de l'écran est occupé par la barre de nav mobile → la bulle passe
+   EN HAUT À DROITE, face au logo du header. Le teaser descend sous les encarts
+   du hero et prend sa version courte. ── */
+@media (max-width: 1040px) {
+  #ferChatbot { top: 6px; right: 12px; bottom: auto; }
+
+  /* Teaser : version courte, placée dans l'espace blanc du header À GAUCHE du
+     bouton, aligné avec lui ; la queue pointe vers la droite (vers le bouton). */
+  .fcb-teaser,
+  .fcb-win-below .fcb-teaser {
+    top: 16px;
+    bottom: auto;
+    right: 82px;          /* à gauche de la bulle (60px + marge) */
+    left: auto;
+    max-width: max-content;
+    font-size: 12.5px;
+    padding: 10px 38px 10px 16px;   /* place à droite pour la croix */
+    white-space: nowrap;
+    transform-origin: right center;
+  }
+  .fcb-teaser-full { display: none; }
+  .fcb-teaser-short { display: inline; }
+  /* Croix (masque le teaser 1 semaine) — centrée verticalement à droite ;
+     icône SVG → centrage parfait */
+  .fcb-teaser .fcb-teaser-close {
+    top: 50%;
+    right: 6px;
+    bottom: auto;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+  }
+  .fcb-teaser .fcb-teaser-close svg { width: 14px; height: 14px; }
+
+  /* Queue horizontale pointée vers la droite (vers le bouton) — remplace les
+     queues verticales du desktop */
+  .fcb-teaser::before,
+  .fcb-teaser::after,
+  .fcb-win-below .fcb-teaser::before,
+  .fcb-win-below .fcb-teaser::after {
+    top: 50%;
+    bottom: auto;
+    left: auto;
+    transform: translateY(-50%);
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-right: 0;
+    border-left: 12px solid #fff;
+  }
+  .fcb-teaser::before,
+  .fcb-win-below .fcb-teaser::before {
+    right: -13px;
+    border-top-width: 9px;
+    border-bottom-width: 9px;
+    border-left: 13px solid rgba(15, 23, 42, .16);
+  }
+  .fcb-teaser::after,
+  .fcb-win-below .fcb-teaser::after {
+    right: -10px;
+  }
+  body.dark-theme .fcb-teaser::after,
+  body.dark-theme .fcb-win-below .fcb-teaser::after { border-left-color: #1e1f28; }
+  body.dark-theme .fcb-teaser::before,
+  body.dark-theme .fcb-win-below .fcb-teaser::before { border-left-color: rgba(255, 255, 255, .14); }
+
+  /* 16 px mini : empêche le zoom automatique d'iOS au focus (qui décalait la
+     page et la rendait scrollable horizontalement) */
+  .fcb-input,
+  .fcb-form input[type="text"],
+  .fcb-form input[type="email"],
+  .fcb-form textarea,
+  .fcb-math-a { font-size: 16px; }
+}
+
+/* ── ≤480px (téléphone) : la fenêtre du chat passe en plein écran ── */
 @media (max-width: 480px) {
-  #ferChatbot { right: 14px; bottom: 14px; }
-  .fcb-window {
+  .fcb-window,
+  .fcb-win-left .fcb-window,
+  .fcb-win-below .fcb-window {
     position: fixed;
     inset: 0;
     width: 100%;
@@ -286,17 +503,29 @@
     max-height: none;
     border-radius: 0;
     border: none;
-    bottom: 0;
   }
   .fcb-open .fcb-bubble { display: none; }
+  .fcb-form-card { width: 100%; max-width: 100%; }
+}
+
+/* Verrou du défilement de l'arrière-plan quand le chat plein écran est ouvert
+   (classe posée par le JS uniquement sur mobile) */
+body.fcb-body-lock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* ── Thème sombre public (body.dark-theme — surfaces #1e1f28 du site) ── */
 body.dark-theme .fcb-window { background: #15161d; border-color: rgba(255, 255, 255, .08); }
 body.dark-theme .fcb-header { background: #1e1f28; color: #f1f5f9; border-bottom-color: rgba(255, 255, 255, .08); }
 body.dark-theme .fcb-head-txt small { color: rgba(241, 245, 249, .6); }
-body.dark-theme .fcb-close { color: rgba(241, 245, 249, .6); }
-body.dark-theme .fcb-close:hover { background: rgba(255, 255, 255, .08); color: #f1f5f9; }
+body.dark-theme .fcb-close,
+body.dark-theme .fcb-home { color: rgba(241, 245, 249, .6); }
+body.dark-theme .fcb-close:hover,
+body.dark-theme .fcb-home:hover { background: rgba(255, 255, 255, .08); color: #f1f5f9; }
 body.dark-theme .fcb-messages { background: linear-gradient(180deg, color-mix(in srgb, var(--pink, #db2777) 10%, #15161d) 0%, #15161d 140px); }
 body.dark-theme .fcb-bot { background: #1e1f28; color: #e2e8f0; border-color: rgba(255, 255, 255, .08); }
 body.dark-theme .fcb-inputbar { background: #1e1f28; border-top-color: rgba(255, 255, 255, .08); }
@@ -314,3 +543,10 @@ body.dark-theme .fcb-math-q { color: #e2e8f0; }
 body.dark-theme .fcb-math-a { background: #15161d; border-color: rgba(255, 255, 255, .12); color: #e2e8f0; }
 body.dark-theme .fcb-math-reload { background: #1e1f28; border-color: rgba(255, 255, 255, .12); color: #e2e8f0; box-shadow: none; }
 body.dark-theme .fcb-form-card.fcb-bot { background: #1e1f28; }
+body.dark-theme .fcb-teaser { background: #1e1f28; color: #e2e8f0; border-color: rgba(255, 255, 255, .14); }
+body.dark-theme .fcb-teaser::before { border-top-color: rgba(255, 255, 255, .14); }
+body.dark-theme .fcb-teaser::after  { border-top-color: #1e1f28; }
+body.dark-theme .fcb-win-below .fcb-teaser::before { border-top-color: transparent; border-bottom-color: rgba(255, 255, 255, .14); }
+body.dark-theme .fcb-win-below .fcb-teaser::after  { border-top-color: transparent; border-bottom-color: #1e1f28; }
+body.dark-theme .fcb-teaser-close { color: rgba(241, 245, 249, .5); }
+body.dark-theme .fcb-teaser-close:hover { background: rgba(255, 255, 255, .08); color: #f1f5f9; }

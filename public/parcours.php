@@ -41,6 +41,7 @@ $picture_gradient = $data['picture_gradient'] ?? '';
 <?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
+  <?php include __DIR__ . '/../src/partials/preloader.php'; ?>
 
   <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 

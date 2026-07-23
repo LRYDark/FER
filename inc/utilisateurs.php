@@ -207,6 +207,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'connexions'    => 'Connexions',
             'logs'          => 'Logs',
             'page_stats'    => 'Visites',
+            'assistant'     => 'Assistant virtuel / FAQ',
           ];
           foreach ($allPages as $k => $label): ?>
           <tr>
@@ -292,6 +293,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'qrcode.write'      => 'Créer / supprimer des QR Codes',
             'connexions.write'  => 'Bannir / débannir IP, révoquer appareils (Connexions)',
             'logs.write'        => 'Vider les fichiers de logs',
+            'assistant.write'   => 'Modifier l\'Assistant virtuel / FAQ',
           ];
           foreach ($adminActions as $k => $label): ?>
           <tr>
@@ -344,6 +346,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'settings.tab.inscription'      => 'Inscription',
             'settings.tab.parcours'         => 'Parcours',
             'settings.tab.reglementation'   => 'Reglementation',
+            'settings.tab.legal'            => 'Pages légales',
             'settings.tab.formulaire'       => 'Formulaire',
             'settings.tab.import'           => 'Import Excel',
             'settings.tab.import_auto'      => 'Import AssoConnect (onglet + automatisation)',
@@ -704,6 +707,7 @@ const ALL_PAGES = [
   { key: 'connexions',    label: 'Connexions' },
   { key: 'logs',          label: 'Logs' },
   { key: 'page_stats',    label: 'Visites' },
+  { key: 'assistant',     label: 'Assistant virtuel / FAQ' },
 ];
 const ALL_ACTIONS = [
   { key: 'dashboard.create_registration', label: 'Cr\u00e9er un inscrit',     group: 'dashboard' },
@@ -739,6 +743,7 @@ const ALL_ACTIONS = [
   { key: 'qrcode.write',                  label: 'Cr\u00e9er/supprimer QR',        group: 'admin' },
   { key: 'connexions.write',              label: 'G\u00e9rer connexions',          group: 'admin' },
   { key: 'logs.write',                    label: 'Vider les logs',                 group: 'admin' },
+  { key: 'assistant.write',               label: 'Modifier l'Assistant / FAQ',    group: 'admin' },
   // Acc\u00e8s b\u00e9n\u00e9voles (Remise T-shirts)
   { key: 'tshirt_access.manage',          label: 'B\u00e9n\u00e9voles : g\u00e9rer acc\u00e8s (ON/OFF, token, expiration)', group: 'tshirt' },
   { key: 'tshirt_access.approve',         label: 'B\u00e9n\u00e9voles : valider / refuser les demandes',     group: 'tshirt' },
@@ -750,6 +755,7 @@ const ALL_ACTIONS = [
   { key: 'settings.tab.inscription',      label: 'Réglages : Inscription',       group: 'settings' },
   { key: 'settings.tab.parcours',         label: 'Réglages : Parcours',          group: 'settings' },
   { key: 'settings.tab.reglementation',   label: 'Réglages : Reglementation',    group: 'settings' },
+  { key: 'settings.tab.legal',            label: 'Réglages : Pages légales',     group: 'settings' },
   { key: 'settings.tab.formulaire',       label: 'Réglages : Formulaire',        group: 'settings' },
   { key: 'settings.tab.import',           label: 'Réglages : Import Excel',      group: 'settings' },
   { key: 'settings.tab.import_auto',      label: 'Réglages : Import AssoConnect (onglet + auto)', group: 'settings' },

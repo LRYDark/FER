@@ -46,6 +46,9 @@ $postCardMap = [
     'delete_picture_gradient'  => ['parcours', null],
     // Reglementation
     'reglementation'           => ['reglementation', null],
+    // Pages légales (mentions légales + politique de confidentialité)
+    'save_legal_mentions'      => ['legal', null],
+    'save_legal_privacy'       => ['legal', null],
     // Formulaire
     'save_fields'              => ['formulaire', null],
     'add_custom_field'         => ['formulaire', null],
@@ -90,7 +93,7 @@ require __DIR__ . '/../src/partials/navbar-data.php';
 /* ── Onglet actif (calculé TÔT pour que la sidebar/topbar le reflète) ──────
  * Déterminé par le bouton soumis (POST), sinon par ?tab=, sinon défaut.
  * v2 : la navigation d'onglets se fait depuis la sidebar (navbar-admin). */
-$allTabs   = ['personnalisation','accueil','inscription','parcours','reglementation','formulaire','import','import_auto','maintenance','api'];
+$allTabs   = ['personnalisation','accueil','inscription','parcours','reglementation','legal','formulaire','import','import_auto','maintenance','api'];
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance']) || isset($_POST['save_session'])) $activeTab = 'maintenance';
@@ -99,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (isset($_POST['save_header']) || isset($_POST['save_inscription_params']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
+    elseif (isset($_POST['save_legal_mentions']) || isset($_POST['save_legal_privacy'])) $activeTab = 'legal';
     elseif (isset($_POST['save_fields']) || isset($_POST['add_custom_field']) || isset($_POST['delete_field_id'])) $activeTab = 'formulaire';
     // v2 : liaison AssoConnect, domaines CSP et mapping d'import vivent dans l'onglet AssoConnect
     elseif (isset($_POST['importExcel']) || isset($_POST['LinkAssoConnect']) || isset($_POST['save_csp_domains'])) $activeTab = 'import_auto';
@@ -205,7 +209,10 @@ $picture_parcours= $data['picture_parcours'] ?? '';
 $picture_gradient= $data['picture_gradient'] ?? ''; 
 
 // reglementation
-$div_reglementation = $data['div_reglementation'] ?? ''; 
+$div_reglementation = $data['div_reglementation'] ?? '';
+// pages légales
+$legal_mentions = $data['legal_mentions'] ?? '';
+$legal_privacy  = $data['legal_privacy'] ?? '';
 
 // google
 $client_id = decrypt($data['client_id'] ?? '');
@@ -1145,38 +1152,9 @@ if (isset($_POST['save_inscription_params'])) {
 }
 
 /* --------------------------------------------------------------------------
-   Assistant virtuel (chatbot) : activation + infos pratiques servies au bot
-   (horaires, point de rendez-vous, retrait des t-shirts). Texte libre stocké
-   tel quel, échappé à l'affichage (public comme admin).
+   Assistant virtuel (chatbot) : réglages déplacés dans la page dédiée
+   Contenu → Assistant / FAQ (inc/assistant.php).
 -------------------------------------------------------------------------- */
-if (isset($_POST['save_chatbot_infos'])) {
-    $chatbot_enabled     = !empty($_POST['chatbot_enabled']) ? 1 : 0;
-    $course_horaires     = trim($_POST['course_horaires'] ?? '');
-    $course_rdv          = trim($_POST['course_rdv'] ?? '');
-    $tshirt_retrait_info = trim($_POST['tshirt_retrait_info'] ?? '');
-
-    $pdo->prepare(
-        'UPDATE setting SET chatbot_enabled = :en, course_horaires = :hor,
-         course_rdv = :rdv, tshirt_retrait_info = :ret WHERE id = 1'
-    )->execute([
-        'en'  => $chatbot_enabled,
-        'hor' => $course_horaires !== '' ? $course_horaires : null,
-        'rdv' => $course_rdv !== '' ? $course_rdv : null,
-        'ret' => $tshirt_retrait_info !== '' ? $tshirt_retrait_info : null,
-    ]);
-    $data['chatbot_enabled'] = $chatbot_enabled;
-    $data['course_horaires'] = $course_horaires;
-    $data['course_rdv'] = $course_rdv;
-    $data['tshirt_retrait_info'] = $tshirt_retrait_info;
-
-    addToast('success', 'Réglages de l\'assistant enregistrés !');
-}
-
-// Vider le journal des questions incomprises par le chatbot
-if (isset($_POST['clear_chatbot_unmatched'])) {
-    try { $pdo->exec('DELETE FROM chatbot_unmatched'); } catch (\Throwable $e) {}
-    addToast('success', 'Journal des questions vidé.');
-}
 
 /* --------------------------------------------------------------------------
    Message affiché quand les inscriptions sont fermées (TinyMCE)
@@ -1697,6 +1675,29 @@ if (isset($_POST['reglementation'])) {
         $msg  = $upd->errorInfo()[2] ?? 'Erreur inconnue';
         addToast('danger', 'Erreur SQL&nbsp;: ' . htmlspecialchars($msg) , 10000);
     }
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Pages légales : mentions légales + politique de confidentialité (TinyMCE,
+   même mécanisme que la réglementation — base64 anti-WAF + sanitizeHtml)
+-------------------------------------------------------------------------- */
+foreach ([
+    'save_legal_mentions' => ['field' => 'legal_mentions', 'post' => 'legal_mentions', 'label' => 'Mentions légales'],
+    'save_legal_privacy'  => ['field' => 'legal_privacy',  'post' => 'legal_privacy',  'label' => 'Politique de confidentialité'],
+] as $__legalBtn => $__legal) {
+    if (!isset($_POST[$__legalBtn])) continue;
+    $rawLegal = $_POST[$__legal['post']] ?? '';
+    $cleanLegal = sanitizeHtml(trim($isAjax ? decodeHtmlField($rawLegal) : $rawLegal));
+    $ok = $pdo->prepare('UPDATE setting SET ' . $__legal['field'] . ' = :v WHERE id = 1')
+        ->execute(['v' => $cleanLegal !== '' ? $cleanLegal : null]);
+    ${$__legal['field']} = $cleanLegal;
+    if ($ok) addToast('success', $__legal['label'] . ' enregistrée(s) !');
+    else addToast('danger', 'Erreur lors de l\'enregistrement.', 10000);
     if ($isAjax) {
         header('Content-Type: application/json');
         echo json_encode(['ok' => true]);
@@ -2995,6 +2996,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
   <?php if ($canTab('inscription')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'inscription' ? 'active' : '' ?>" href="#" data-tab="inscription">Inscription</a></li><?php endif; ?>
   <?php if ($canTab('parcours')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li><?php endif; ?>
   <?php if ($canTab('reglementation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li><?php endif; ?>
+  <?php if ($canTab('legal')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'legal' ? 'active' : '' ?>" href="#" data-tab="legal">Pages légales</a></li><?php endif; ?>
   <?php if ($canTab('formulaire')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'formulaire' ? 'active' : '' ?>" href="#" data-tab="formulaire">Formulaire</a></li><?php endif; ?>
   <?php if ($canTab('import')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import' ? 'active' : '' ?>" href="#" data-tab="import">Import Excel</a></li><?php endif; ?>
   <?php if ($canTab('import_auto') || canDoAction('dashboard.import_excel')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'import_auto' ? 'active' : '' ?>" href="#" data-tab="import_auto">Import AssoConnect</a></li><?php endif; ?>
@@ -3278,76 +3280,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
   <div class="row g-4">
 
-    <!-- Carte : Assistant virtuel (chatbot) + infos pratiques -->
-    <?php if ($canCard('accueil', 'params')): ?>
+    <!-- Assistant virtuel (chatbot) : déplacé dans la page dédiée Contenu → Assistant / FAQ -->
+    <?php if (canAccessPage('assistant')): ?>
     <div class="col-12">
-      <div class="setting-card">
-        <h2><i class="bi bi-chat-heart me-2"></i>Assistant virtuel (chatbot)</h2>
-        <p class="text-muted" style="font-size:13px;margin-top:-6px">
-          Bulle de chat sur le site public : répond aux questions des visiteurs (inscription,
-          t-shirt, lieu, horaires…) à partir des informations ci-dessous, et remplace la page
-          Contact (le formulaire s'ouvre dans le chat). Si l'assistant est désactivé, la page
-          Contact classique est de nouveau servie.
-        </p>
-        <form action="" method="post" class="row g-3">
-          <?= csrf_field() ?>
-          <input type="hidden" name="save_chatbot_infos" value="1">
-          <div class="col-12">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="chatbotEnabled"
-                     name="chatbot_enabled" value="1" <?= !empty($data['chatbot_enabled']) ? 'checked' : '' ?>>
-              <label class="form-check-label" for="chatbotEnabled">Activer l'assistant sur le site public</label>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="courseHoraires">Horaires de la course</label>
-            <textarea class="form-control" id="courseHoraires" name="course_horaires" rows="3"
-                      placeholder="Ex. : Ouverture du village à 8h — Échauffement à 9h15 — Départ à 9h30"><?= htmlspecialchars($data['course_horaires'] ?? '') ?></textarea>
-            <small class="text-muted">Répond aux questions « quand ? », « à quelle heure ? »…</small>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="courseRdv">Point de rendez-vous</label>
-            <textarea class="form-control" id="courseRdv" name="course_rdv" rows="3"
-                      placeholder="Ex. : Rendez-vous devant la piscine de Forbach — parking gratuit rue X"><?= htmlspecialchars($data['course_rdv'] ?? '') ?></textarea>
-            <small class="text-muted">Complète le lieu de départ (« Retrouver le départ ») pour « où ? », « rendez-vous ? »…</small>
-          </div>
-          <div class="col-12">
-            <label class="form-label" for="tshirtRetrait">Retrait des t-shirts</label>
-            <textarea class="form-control" id="tshirtRetrait" name="tshirt_retrait_info" rows="3"
-                      placeholder="Ex. : Les t-shirts sont à retirer le jour J au stand Accueil, de 8h à 9h15, sur présentation du QR code reçu par mail"><?= htmlspecialchars($data['tshirt_retrait_info'] ?? '') ?></textarea>
-            <small class="text-muted">Répond à « comment récupérer mon t-shirt ? » et complète la vérification d'éligibilité par e-mail.</small>
-          </div>
-          <div class="col-12 d-flex justify-content-end">
-            <button type="submit" class="btn btn-rose">Enregistrer</button>
-          </div>
-        </form>
-
-        <?php
-        // Journal des questions incomprises (pour enrichir les réponses du bot)
-        $chatbotUnmatched = [];
-        try {
-            $chatbotUnmatched = $pdo->query('SELECT question, created_at FROM chatbot_unmatched ORDER BY id DESC LIMIT 15')->fetchAll(PDO::FETCH_ASSOC);
-        } catch (\Throwable $e) {}
-        ?>
-        <?php if ($chatbotUnmatched): ?>
-        <hr>
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="mb-0"><i class="bi bi-question-circle me-1"></i>Dernières questions incomprises par l'assistant</h6>
-          <form method="post" class="mb-0">
-            <?= csrf_field() ?>
-            <input type="hidden" name="clear_chatbot_unmatched" value="1">
-            <button type="submit" class="btn btn-sm btn-outline-secondary">Vider le journal</button>
-          </form>
-        </div>
-        <ul class="list-unstyled mb-0" style="font-size:13px;max-height:220px;overflow-y:auto">
-          <?php foreach ($chatbotUnmatched as $q): ?>
-          <li class="py-1 border-bottom d-flex justify-content-between gap-3">
-            <span>« <?= htmlspecialchars($q['question']) ?> »</span>
-            <span class="text-muted flex-shrink-0"><?= htmlspecialchars(date('d/m H:i', strtotime($q['created_at']))) ?></span>
-          </li>
-          <?php endforeach; ?>
-        </ul>
-        <?php endif; ?>
+      <div class="alert alert-light border d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
+        <span><i class="bi bi-chat-heart me-2"></i>Les réglages de l'<strong>assistant virtuel</strong> et la <strong>FAQ</strong> ont déménagé dans leur propre page.</span>
+        <a href="assistant.php" class="btn btn-sm btn-outline-secondary">Ouvrir Assistant / FAQ</a>
       </div>
     </div>
     <?php endif; ?>
@@ -4428,6 +4366,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
   </script>
 </div><!-- /tab-reglementation -->
 <?php endif; // canTab('reglementation') ?>
+
+<!-- ═══ TAB: Pages légales ═══ -->
+<?php if ($canTab('legal')): ?>
+<div class="settings-section <?= $activeTab === 'legal' ? 'active' : '' ?>" id="tab-legal">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="setting-card">
+        <h2><i class="bi bi-shield-check me-2"></i>Mentions légales</h2>
+        <p class="text-muted" style="font-size:13px;margin-top:-6px">
+          Affichées sur la page publique <strong>/mentions-legales</strong> (lien du footer).
+        </p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <div>
+            <textarea class="form-control" id="legalMentions" name="legal_mentions" rows="10"><?= htmlspecialchars($legal_mentions) ?></textarea>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_legal_mentions" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="setting-card">
+        <h2><i class="bi bi-lock me-2"></i>Politique de confidentialité</h2>
+        <p class="text-muted" style="font-size:13px;margin-top:-6px">
+          Affichée sur la page publique <strong>/politique-confidentialite</strong> (lien du footer).
+          Pensez à la tenir à jour si vous ajoutez un service tiers ou un nouveau formulaire.
+        </p>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <div>
+            <textarea class="form-control" id="legalPrivacy" name="legal_privacy" rows="10"><?= htmlspecialchars($legal_privacy) ?></textarea>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_legal_privacy" class="btn btn-primary w-auto">Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+  (function () {
+    function initLegalEditors() {
+      tinymce.init({
+          selector: '#legalMentions, #legalPrivacy',
+          <?= getTinyMceConfig($pdo, ['height' => 460]) ?>
+      });
+    }
+    if (typeof tinymce !== 'undefined') {
+      initLegalEditors();
+    } else {
+      var s = document.createElement('script');
+      s.src = '../js/tinymce/tinymce.min.js';
+      s.onload = initLegalEditors;
+      document.head.appendChild(s);
+    }
+  })();
+  </script>
+</div><!-- /tab-legal -->
+<?php endif; // canTab('legal') ?>
 
 <!-- ═══ TAB: Formulaire ═══ -->
 <?php if ($canTab('formulaire')): ?>
@@ -6229,6 +6229,16 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function (e) {
         var btn = e.target.closest('button[name="reglementation"]');
         if (btn) { e.preventDefault(); ajaxSubmit(btn, ['div_reglementation'], 'reglementation'); }
+    });
+
+    /* Pages légales (TinyMCE) */
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="save_legal_mentions"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['legal_mentions'], 'legal'); }
+    });
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[name="save_legal_privacy"]');
+        if (btn) { e.preventDefault(); ajaxSubmit(btn, ['legal_privacy'], 'legal'); }
     });
 
     /* Message « inscriptions fermées » (TinyMCE) */

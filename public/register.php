@@ -321,6 +321,7 @@ try {
 </head>
 
 <body>
+  <?php include __DIR__ . '/../src/partials/preloader.php'; ?>
 
 <div class="register-title-bar">
   <a href="accueil" title="Retour" class="back-btn">

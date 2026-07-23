@@ -240,6 +240,7 @@ if (!empty($textsRaw)) {
 </head>
 
 <body<?php if ($flash_info_active && !empty($flash_info_text)): ?> class="has-flash-banner"<?php endif; ?>>
+  <?php include __DIR__ . '/../src/partials/preloader.php'; ?>
 
   <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 
@@ -341,10 +342,15 @@ if (!empty($textsRaw)) {
           // translateY(-50%)) on ne peut PAS émettre de default sans casser le centrage
           // vertical → on retire le default et laisse le CSS pur prendre la main.
           $heroDefaults = [
-            'video_toggle' => [
-              'desktop' => ['anchorX'=>'right', 'anchorY'=>'bottom', 'offsetX'=>16, 'offsetY'=>16],
-              'mobile'  => ['anchorX'=>'right', 'anchorY'=>'top',    'offsetX'=>12, 'offsetY'=>12],
-            ],
+            // video_toggle : PAS de default ici. Le CSS place déjà le bouton play/pause
+            // bas-droite (desktop : .video-toggle { bottom:1rem; right:1rem }) et haut-droite
+            // (mobile : .video-toggle:not([data-anchor-x-mobile]) { top:.75rem; right:.75rem }),
+            // aux MÊMES coordonnées (16px / 12px). Émettre un default PHP forçait l'anti-flash
+            // opacity:0 + un placement par JS → le bouton apparaissait puis « sautait ». Sans
+            // default, aucun data-attr n'est émis quand rien n'est sauvé : le CSS place le
+            // bouton dès le 1er rendu, sans JS ni saut. Une position sauvée par l'éditeur
+            // (dans $accueilGeometry) reste évidemment prioritaire et pilotée par le JS.
+
             // video_social_card : pas de default — le CSS d'origine (top:50%; right:1.5rem;
             // transform:translateY(-50%)) suffit pour centrer la card à droite en desktop.
             // En mobile, le CSS @media (avec :not([data-anchor-x-mobile])) gère la position.
@@ -408,7 +414,7 @@ if (!empty($textsRaw)) {
         ?>
         <div class="demo-badges">
           <?php if (!empty($course_km)): ?>
-          <a href="parcours" class="demo-badge demo-badge--km" style="text-decoration:none;cursor:pointer;<?= $cssBadgeKm ?>"<?= $attrsBadgeKm ?> <?= $isEditorMode ? 'data-edit-field="badge_km" data-edit-kind="size-only" data-edit-section="hero" data-edit-size="badge_km_size" data-edit-size-current="' . $sizeBadgeKm . '"' . ($sizeBadgeKmMobile !== null ? ' data-edit-size-current-mobile="' . $sizeBadgeKmMobile . '"' : '') : '' ?><?= $sizeBadgeKmMobile !== null ? ' data-size-mobile="' . $sizeBadgeKmMobile . '"' : '' ?>>
+          <a href="parcours" class="demo-badge demo-badge--km" id="badgeKm" style="text-decoration:none;cursor:pointer;<?= $cssBadgeKm ?>"<?= $attrsBadgeKm ?> <?= $isEditorMode ? 'data-edit-field="badge_km" data-edit-kind="size-only" data-edit-section="hero" data-edit-size="badge_km_size" data-edit-size-current="' . $sizeBadgeKm . '"' . ($sizeBadgeKmMobile !== null ? ' data-edit-size-current-mobile="' . $sizeBadgeKmMobile . '"' : '') : '' ?><?= $sizeBadgeKmMobile !== null ? ' data-size-mobile="' . $sizeBadgeKmMobile . '"' : '' ?>>
             <span class="demo-badge-value"><?= (int)$course_km ?> km</span>
             <span class="demo-badge-label">Parcours</span>
           </a>
@@ -457,7 +463,61 @@ if (!empty($textsRaw)) {
           };
           [$cssVideoToggle, $attrsVideoToggle] = $buildPositionCss('video_toggle');
           [$cssVideoSocial, $attrsVideoSocial] = $buildPositionCss('video_social_card');
+
+          /* ── Pré-rendu CSS des positions sauvegardées (perf 1er affichage) ──
+             Le modèle ancré (anchorX/Y + offset px) et le legacy % s'expriment en
+             CSS pur : on émet ici un <style> par device (media queries) pour que
+             ces éléments soient placés DÈS le premier rendu, sans attendre le JS
+             (applyHeroPositionPct tourne ensuite et aboutit au même visuel — il
+             reste maître pour le resize et l'éditeur). L'`opacity:1` neutralise
+             l'anti-flash pour ces éléments déjà bien placés (l'ID gagne en
+             spécificité sur le sélecteur d'attributs).
+             Restreint aux 4 champs dont le conteneur = repère de calcul du JS
+             (.demo-card ou .demo-badges en inset:0). hero_timer / hero.cta_register
+             sont exclus : ils doivent être re-parentés par le JS (transform parent).
+             Désactivé en mode éditeur (le reset "Restaurer" doit retomber sur le
+             CSS d'origine, pas sur ce pré-rendu). */
+          $heroPreposCss = '';
+          if (!$isEditorMode) {
+            $preposMap = [
+              'video_toggle'      => '#videoToggle',
+              'video_social_card' => '#videoSocialCard',
+              'badge_fee'         => '#badgeFee',
+              'badge_km'          => '#badgeKm',
+            ];
+            $preposRules = ['desktop' => [], 'mobile' => []];
+            foreach ($preposMap as $preField => $preSel) {
+              foreach (['desktop' => '', 'mobile' => '_mobile'] as $preDevice => $preSuffix) {
+                $g = $accueilGeometry[$preField . $preSuffix] ?? null;
+                if (!is_array($g)) continue;
+                $axisMode = (string)($g['axisMode'] ?? 'free');
+                if ($axisMode !== '' && $axisMode !== 'free') continue; // centrage → dimensions requises → JS seul
+                $css = '';
+                if (isset($g['anchorX'], $g['anchorY'], $g['offsetX'], $g['offsetY'])) {
+                  $ox = round((float)$g['offsetX'], 2);
+                  $oy = round((float)$g['offsetY'], 2);
+                  $css .= ($g['anchorX'] === 'right') ? "right:{$ox}px;left:auto;" : "left:{$ox}px;right:auto;";
+                  $css .= ($g['anchorY'] === 'bottom') ? "bottom:{$oy}px;top:auto;" : "top:{$oy}px;bottom:auto;";
+                } elseif (isset($g['topPct'], $g['leftPct'])) {
+                  $css .= 'left:' . round((float)$g['leftPct'], 4) . '%;right:auto;'
+                        . 'top:'  . round((float)$g['topPct'], 4)  . '%;bottom:auto;';
+                } else {
+                  continue;
+                }
+                $css .= 'position:absolute;margin:0;opacity:1;';
+                // La card sociale a un translateY(-50%) par défaut que le JS efface
+                // quand une position est sauvée → même chose au pré-rendu.
+                if ($preField === 'video_social_card') $css .= 'transform:none;';
+                $preposRules[$preDevice][] = $preSel . '{' . $css . '}';
+              }
+            }
+            if ($preposRules['desktop']) $heroPreposCss .= '@media (min-width:1041px){' . implode('', $preposRules['desktop']) . '}';
+            if ($preposRules['mobile'])  $heroPreposCss .= '@media (max-width:1040px){' . implode('', $preposRules['mobile']) . '}';
+          }
         ?>
+        <?php if ($heroPreposCss !== ''): ?>
+        <style nonce="<?= $GLOBALS['csp_nonce'] ?>"><?= $heroPreposCss ?></style>
+        <?php endif; ?>
 
         <!-- Bouton Play/Pause -->
         <?php if ($hasHeroVideo): ?>
@@ -636,7 +696,7 @@ if (!empty($textsRaw)) {
             </div>
           </div>
         </div>
-        <div class="video-social-card" aria-label="Réseaux sociaux" style="<?= $cssVideoSocial ?>"<?= $attrsVideoSocial ?> <?= $isEditorMode ? 'data-edit-field="video_social_card" data-edit-kind="size-only" data-edit-section="hero"' : '' ?>>
+        <div class="video-social-card" id="videoSocialCard" aria-label="Réseaux sociaux" style="<?= $cssVideoSocial ?>"<?= $attrsVideoSocial ?> <?= $isEditorMode ? 'data-edit-field="video_social_card" data-edit-kind="size-only" data-edit-section="hero"' : '' ?>>
           <?php if (!empty($link_instagram)): ?>
           <a class="social-btn" href="<?= htmlspecialchars($link_instagram) ?>" target="_blank" rel="noopener" aria-label="Instagram">
             <img src="../files/_logos/instagram.png" alt="Instagram">

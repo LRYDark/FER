@@ -237,6 +237,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 <?php include __DIR__ . '/../src/content/theme.php'; ?>
 </head>
 <body>
+  <?php include __DIR__ . '/../src/partials/preloader.php'; ?>
 
 <?php include __DIR__ . '/../src/partials/navbar-modern.php'; ?>
 

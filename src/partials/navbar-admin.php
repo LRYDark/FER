@@ -32,6 +32,7 @@ $pageTitles = [
     'logs.php'          => 'Logs',
     'page_stats.php'    => 'Visites',
     'api-doc.php'       => "Documentation de l'API",
+    'assistant.php'     => 'Assistance',
 ];
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
 
@@ -44,6 +45,7 @@ $tabTitles = [
         'import_auto'      => 'AssoConnect',
         'parcours'         => 'Parcours',
         'reglementation'   => 'Réglementation',
+        'legal'            => 'Pages légales',
         'formulaire'       => 'Formulaire',
         'api'              => 'API',
         'maintenance'      => 'Maintenance',
@@ -207,6 +209,7 @@ $ico = [
     'logs'      => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
     'wrench'    => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
     'download'  => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+    'chat'      => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 ];
 
 $navSections = [
@@ -225,6 +228,7 @@ $navSections = [
         ['partners.php', 'Partenaires',   $ico['partners'], ['page' => 'partners']],
         ['timeline.php', 'Timeline',      $ico['timeline'], ['page' => 'timeline']],
         ['setting.php?tab=accueil', "Page d'accueil", $ico['home'], ['page' => 'setting', 'action' => 'settings.tab.accueil']],
+        ['assistant.php', 'Assistant / FAQ', $ico['chat'], ['page' => 'assistant']],
     ],
     'Emails' => [
         ['mail-settings.php?pane=envoi',         'Envoi de mail',      $ico['send'],     ['page' => 'mail-settings', 'action' => 'mail.send']],
@@ -239,6 +243,7 @@ $navSections = [
         ['setting.php?tab=import_auto',      'AssoConnect',      $ico['sync'],    ['page' => 'setting', 'action' => 'settings.tab.import_auto']],
         ['setting.php?tab=parcours',         'Parcours',         $ico['map'],     ['page' => 'setting', 'action' => 'settings.tab.parcours']],
         ['setting.php?tab=reglementation',   'Réglementation',   $ico['gavel'],   ['page' => 'setting', 'action' => 'settings.tab.reglementation']],
+        ['setting.php?tab=legal',            'Pages légales',    $ico['logs'],    ['page' => 'setting', 'action' => 'settings.tab.legal']],
         ['setting.php?tab=formulaire',       'Formulaire',       $ico['form'],    ['page' => 'setting', 'action' => 'settings.tab.formulaire']],
         ['setting.php?tab=api',              'API',              $ico['plug'],    ['page' => 'setting', 'action' => 'settings.tab.api']],
     ],

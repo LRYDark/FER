@@ -61,6 +61,43 @@ function chatbot_match_intent(string $norm): array
             ['/\b(recuperer?|recuper|retirer?|chercher|obtenir|donne|distribution|remise|retrait)\b.*\btshirt\b/', 6],
             ['/\btshirt\b.*\b(recuperer?|retirer?|chercher|remise|retrait|distribution|ou|quand|comment)\b/', 6],
         ],
+        // Mail de confirmation / QR code non reçu → renvoi par e-mail (vérif préalable)
+        'qrcode_resend' => [
+            ['/\b(pas|jamais|non|rien)\b.*\brecu\b.*\b(mail|email|confirmation|qr|billet|code)\b/', 7],
+            ['/\b(mail|email|confirmation|qr|billet|code)\b.*\b(pas|jamais|non|rien)\b.*\brecu/', 7],
+            ['/\b(renvoyer?|renvoi|renvoie|retrouver|perdu|efface|supprime)\b.*\b(mail|email|confirmation|qr|billet|code)\b/', 6],
+            ['/\bqr ?codes?\b/', 4],
+            ['/\b(mail|email)\b.*\bconfirmation\b|\bconfirmation\b.*\b(mail|email)\b/', 4],
+            ['/\bbillet\b/', 2],
+        ],
+        // Problème / erreur pendant l'inscription en ligne (prime sur les autres
+        // intentions "inscription" quand un mot de souci est présent)
+        'registration_problem' => [
+            // mot de souci … puis mot d'inscription/paiement (et inversement)
+            ['/\b(probleme|soucis?|erreurs?|bugs?|beug|impossible|bloque|bloquee?|plante|echec|echoue|marche pas|fonctionne pas|ne marche|ne fonctionne|passe pas|refusee?|rejetee?)\b.*\b(inscri|inscription|paiement|payer|formulaire)/', 7],
+            ['/\b(inscri\w*|inscription|paiement|payer|formulaire)\b.*\b(probleme|soucis?|erreurs?|bugs?|beug|impossible|bloque|plante|marche pas|fonctionne pas|ne marche|ne fonctionne|passe pas|refusee?|rejetee?|echoue)\b/', 7],
+            // « je n'arrive / peux / réussis / parviens pas à … m'inscrire »
+            ['/\b(arrive|arrives|peux|peut|reussis?|parviens?) pas\b.*\binscri/', 7],
+            ['/\binscri\w*\b.*\b(arrive|peux|peut|reussis?|parviens?) pas\b/', 7],
+            // ordre inversé : « je n'ai pas réussi / pas pu … m'inscrire »
+            ['/\bpas (reussi|pu|arrive) a?\b.*\binscri/', 7],
+        ],
+        // Problème technique sur le site (photos, pages, vidéos, liens…) —
+        // prime sur l'intention « photos » quand un mot de souci est présent
+        'site_problem' => [
+            ['/\b(probleme|soucis?|erreurs?|bugs?|beug|impossible|bloque|plante|marche pas|fonctionne pas|ne marche|ne fonctionne|affiche pas|charge pas|ouvre pas|lance pas|demarre pas|inaccessible|indisponible|rame|hors ligne)\b.*\b(photos?|albums?|images?|galerie|pages?|site|videos?|liens?|acces)\b/', 5],
+            ['/\b(photos?|albums?|images?|galerie|pages?|site|videos?|liens?)\b.*\b(probleme|soucis?|erreurs?|bugs?|beug|impossible|bloque|plante|marche pas|fonctionne pas|ne marche|ne fonctionne|affiche pas|charge pas|ouvre pas|lance pas|demarre pas|inaccessible|indisponible|rame|hors ligne)\b/', 5],
+            // Négation (« je n'arrive pas à… ») + média/page — verbes en radical
+            // (accède/accéder/accédez, ouvre/ouvrir…) et fautes tolérées
+            ['/\b(arrive|peux|peut|reussis?) pas\b.*\b(photos?|albums?|images?|galerie|pages?|site|videos?|acces)\b/', 6],
+        ],
+        // Modifier / corriger / annuler son inscription (prime sur la vérif
+        // « mon inscription » quand un mot d'action est présent)
+        'registration_modify' => [
+            ['/\b(modifier|changer|corriger|annuler|desinscrire|rembours\w*)\b.*\binscri/', 5],
+            ['/\binscri\w*\b.*\b(modifier|changer|corriger|annuler|desinscrire|rembours\w*)\b/', 5],
+            ['/\b(trompee?|faute de frappe|erreur de saisie)\b.*\binscri|\binscri\w*\b.*\btrompee?\b/', 5],
+        ],
         // Suis-je bien inscrit(e) ? (vérif par e-mail)
         'registration_check' => [
             ['/\b(suis|je suis|etre|bien)\b.*\binscrit/', 4],
@@ -82,6 +119,74 @@ function chatbot_match_intent(string $norm): array
             ['/\b(prix|tarifs?|couts?|coute|payant|gratuit|montant|frais)\b/', 3],
             ['/\bcombien\b.*\b(coute|payer|euros?|inscription|ca coute)\b/', 4],
         ],
+        // Modes de paiement (carte, espèces, chèque, en ligne, sur place…)
+        'payment_method' => [
+            ['/\b(payer|paiement|regler)\b.*\b(carte|cb|especes|liquide|cheques?|paypal|virement|en ligne|sur place)\b/', 6],
+            ['/\b(carte|cb|especes|liquide|cheques?|paypal|virement)\b.*\b(payer|paiement|accepte)/', 6],
+            ['/\baccepte\w*\b.*\b(carte|cb|especes|liquide|cheques?|paypal|virement)\b/', 6],
+            ['/\bcomment (payer|regler)\b/', 5],
+            ['/\bmoyens? de paiement\b|\bmodes? de paiement\b/', 6],
+        ],
+        // Date limite / inscriptions encore ouvertes ?
+        'deadline' => [
+            ['/\b(jusqu a quand|date limite|avant quand|avant quelle date)\b.*\binscri|\binscri\w*\b.*\b(jusqu a quand|date limite|encore possible|toujours possible|encore ouvertes?|toujours ouvertes?|encore temps)\b/', 6],
+            ['/\b(jusqu a quand|date limite|dernier (jour|moment|delai))\b/', 4],
+            ['/\b(encore|toujours) (possible|temps) de\b.*\binscri/', 6],
+        ],
+        // Inscription de groupe / entreprise / équipe
+        'group_registration' => [
+            ['/\b(groupes?|equipes?|entreprises?|associations?|collegues|amis|famille|plusieurs)\b.*\binscri/', 6],
+            ['/\binscri\w*\b.*\b(groupes?|equipes?|entreprises?|associations?|collegues|plusieurs|a plusieurs)\b/', 6],
+        ],
+        // Dossard / billet : le QR code fait office de billet
+        'dossard' => [
+            ['/\bdossards?\b/', 5],
+            ['/\bbillets?\b.*\b(ou|recuperer|retirer|imprimer|montrer)\b|\b(imprimer|montrer|presenter)\b.*\b(billets?|qr ?codes?)\b/', 5],
+        ],
+        // Chrono / classement / résultats
+        'ranking' => [
+            ['/\b(classements?|chrono|chronometr\w*|meilleur temps|record)\b/', 4],
+            ['/\bresultats?\b.*\b(course|marche|classement)\b|\b(course|marche)\b.*\bresultats?\b/', 4],
+        ],
+        // Tenue / dress code rose (attention : ne jamais matcher « Forbach en Rose »)
+        'dresscode' => [
+            ['/\b(habille|habiller|habilles|vetements?|tenue|dress ?code|deguise\w*)\b/', 4],
+            ['/\b(venir|vetue?|porter|mettre) (en|du) rose\b/', 5],
+            ['/\brose obligatoire\b/', 5],
+        ],
+        // Courir ou marcher ? (allure libre)
+        'run_or_walk' => [
+            ['/\b(courir|jogging|footing|trottiner)\b/', 4],
+            ['/\ballure\b|\brythme\b/', 3],
+        ],
+        // Céder / transférer sa place
+        'transfer' => [
+            ['/\b(ceder|donner|transferer|revendre|vendre|laisser)\b.*\bplace\b/', 6],
+            ['/\btransferts?\b.*\b(place|inscription|dossard)\b/', 6],
+            ['/\bceder\b.*\binscription/', 6],
+            ['/\b(peux|peut|pourrai) plus venir\b|\bne viendrai (pas|plus)\b|\bempeche\w*\b.*\bvenir\b/', 5],
+        ],
+        // Accompagner / regarder sans participer
+        'spectator' => [
+            ['/\b(accompagnants?|spectateurs?|encourager|assister a)\b/', 4],
+            ['/\bvenir (voir|regarder)\b/', 4],
+            ['/\bsans (participer|m inscrire|inscription|etre inscrite?)\b/', 6],
+        ],
+        // Données personnelles / RGPD
+        'privacy' => [
+            ['/\bdonnees (personnelles|perso)\b|\bmes donnees\b|\brgpd\b|\bconfidentialite\b|\bvie privee\b/', 5],
+            ['/\b(supprimer|effacer)\b.*\b(donnees|compte|informations)\b/', 5],
+        ],
+        // Sécurité / secours sur le parcours
+        'safety' => [
+            ['/\b(secours|secouristes?|premiers soins|ambulance|malaise|blessures?|urgence)\b/', 4],
+            ['/\bsecurite\b.*\b(parcours|course|marche|evenement|jour j)\b|\b(parcours|course|marche|evenement)\b.*\bsecurite\b/', 4],
+        ],
+        // Objets perdus / trouvés
+        'lost_found' => [
+            ['/\b(perdu|egare|oublie)\b.*\b(objets?|sacs?|veste|manteau|telephone|portable|cles?|clefs?|affaires|doudou|lunettes|gourde|bijou\w*)\b/', 5],
+            ['/\bobjets? trouves?\b/', 5],
+        ],
         // Lieu de départ / point de rendez-vous
         'location' => [
             ['/\b(ou|lieu|endroit|adresse|localisation)\b.*\b(depart|course|rdv|rendez|rendezvous|retrouve|passe|deroule|situe)\b/', 4],
@@ -94,6 +199,7 @@ function chatbot_match_intent(string $norm): array
         'schedule' => [
             ['/\bquand\b.*\b(a lieu|aura lieu|se deroule|se passe|commence|course|evenement|depart)\b/', 5],
             ['/\b(quand|quelle? (heure|date)|horaires?|a quelle heure)\b/', 4],
+            ['/\b(la|quelle) date\b/', 3],
             ['/\b(heure|horaires?)\b.*\b(depart|course|debut|commence)\b/', 4],
             ['/\b(date|jour)\b.*\b(course|evenement|depart)\b/', 3],
             ['/\b(commence|debute|demarre)\b/', 2],
@@ -102,12 +208,23 @@ function chatbot_match_intent(string $norm): array
         // Parcours / distance ("combien de km" prime sur le "combien" du prix)
         'parcours' => [
             ['/\b(combien|quelle)\b.*\b(km|kilometres?|distance|longue?)\b/', 5],
-            ['/\b(parcours|trajet|itineraire|circuit|boucle|trace)\b/', 3],
+            // « la course/marche fait combien ? » (et inversé)
+            ['/\b(course|marche)\b.*\b(fait|mesure)\b.*\bcombien\b|\bcombien\b.*\b(fait|mesure)\b.*\b(course|marche)\b/', 5],
+            // « la carte / le plan de la course » — carte SEULEMENT avec un mot du
+            // domaine (sinon « payer par carte » partirait ici)
+            ['/\bcarte\b.*\b(parcours|course|marche|trajet)\b|\b(parcours|course|marche|trajet)\b.*\bcarte\b/', 4],
+            // « par où passe la course/marche ? » (le tracé, pas le lieu de départ)
+            ['/\bpasse par\b|\bpar ou\b.*\bpasse\b/', 5],
+            ['/\b(parcours|trajet|itineraire|circuit|boucle|trace|plan|chemin|denivele|kilometrage)\b/', 3],
+            // « combien de temps ça dure ? » → allure libre, réponse parcours
+            ['/\bcombien de temps\b|\bca dure\b|\bduree\b/', 4],
             ['/\bdistance\b|\bkm\b|\bkilometres?\b/', 2],
         ],
-        // Parler à un humain / laisser un message
+        // Parler à un humain / laisser un message — « quelqu'un » seul est trop
+        // large (« quelqu'un peut me rembourser » ≠ contact) : contexte exigé.
         'contact_human' => [
-            ['/\b(contacter?|ecrire|joindre|parler|appeler|telephoner?|humain|quelqu un|un mail|un message|reclamation)\b/', 3],
+            ['/\b(contacter?|ecrire|joindre|parler|appeler|telephoner?|humain|un mail|un message|reclamation)\b/', 3],
+            ['/\bparler a quelqu un\b|\bquelqu un\b.*\b(joindre|contacter|repond)/', 4],
             ['/\b(mail|email|telephone|tel|numero)\b.*\b(association|organisateurs?|vous)\b/', 3],
             ['/\bcontact\b/', 2],
         ],
@@ -115,13 +232,32 @@ function chatbot_match_intent(string $norm): array
         'newsletter' => [
             ['/\b(newsletters?|rester informee?|tenir au courant|actualites?|nouveautes?|abonner)\b/', 3],
         ],
+        // Renvoi vers la page FAQ (chip « Voir la FAQ » du menu)
+        'faq_page' => [
+            ['/\bfaq\b|\bquestions? frequentes?\b|\bfoire aux questions\b/', 5],
+        ],
+        // Réseaux sociaux
+        'social' => [
+            ['/\b(facebook|instagram|insta|tiktok|twitter|youtube|reseaux sociaux)\b/', 4],
+            ['/\b(nous|vous) suivre\b/', 3],
+        ],
         // Photos
         'photos' => [
             ['/\b(photos?|albums?|images?|galerie)\b/', 3],
         ],
-        // Don / soutien à la cause
+        // Partenaires / sponsors (voir la liste OU devenir partenaire)
+        'partners' => [
+            ['/\b(voir|liste|decouvrir|qui sont|devenir|rejoindre)\b.*\b(partenaires?|sponsors?)\b/', 4],
+            ['/\bpartenaires?\b|\bsponsors?\b|\bsponsoring\b/', 2],
+        ],
+        // Don / soutien à la cause — « donner » et « aider » seuls sont trop
+        // larges (coup de main → bénévole via la FAQ) : contexte exigé.
         'donation' => [
-            ['/\b(dons?|donner|soutenir|soutien|aider|cagnotte|reverse|argent recolte|benefices?)\b/', 3],
+            ['/\b(dons?|cagnotte|reverse|argent recolte|benefices?)\b/', 3],
+            ['/\b(soutenir|soutien)\b/', 3],
+            ['/\bfaire un don\b/', 7], // prime sur « sans participer » (spectateurs)
+            ['/\bdonner\b.*\b(argent|somme|cause|association|ligue)\b/', 4],
+            ['/\brecu fiscal\b|\bdefiscali|\bdeduction\b/', 5],
             ['/\b(cancer|ligue|depistage)\b/', 2],
         ],
         // Politesse
@@ -170,13 +306,48 @@ function chatbot_esc_nl(string $s): string
 }
 
 /**
+ * Échappe le texte libre PUIS rend les URLs cliquables avec un affichage
+ * « propre » :
+ *   - https://www.exemple.fr/page/  →  lien affiché « exemple.fr/page »
+ *     (sans schéma ni www, tronqué au-delà de 40 caractères)
+ *   - /register, /parcours…         →  lien interne relatif affiché « register »
+ * Utilisé pour les réponses FAQ (chatbot + page publique /faq).
+ */
+function chatbot_linkify(string $s): string
+{
+    $esc = str_replace("\n", '<br>', htmlspecialchars(trim($s)));
+
+    // URLs absolues http(s)
+    $esc = preg_replace_callback('~https?://[^\s<>"«»]+~u', function ($m) {
+        $url = $m[0];
+        $trail = '';
+        // La ponctuation finale (fin de phrase, parenthèse) n'appartient pas au lien
+        while ($url !== '' && mb_strpos('.,;:!?)»', mb_substr($url, -1)) !== false) {
+            $trail = mb_substr($url, -1) . $trail;
+            $url = mb_substr($url, 0, -1);
+        }
+        $label = rtrim(preg_replace('~^https?://(www\.)?~', '', $url), '/');
+        if (mb_strlen($label) > 40) $label = mb_substr($label, 0, 37) . '…';
+        return '<a href="' . $url . '" target="_blank" rel="noopener">' . $label . '</a>' . $trail;
+    }, $esc);
+
+    // Pages internes du site notées « /register », « /parcours »…
+    // (lien relatif : fonctionne quel que soit le domaine / sous-dossier)
+    $esc = preg_replace_callback('~(^|[\s>(])/([a-z0-9_-]{2,})~u', function ($m) {
+        return $m[1] . '<a href="' . $m[2] . '">' . $m[2] . '</a>';
+    }, $esc);
+
+    return $esc;
+}
+
+/**
  * Construit la réponse à une intention.
  * @param array $set  ligne complète de `setting`
  * @return array {text: html, quick: string[], action: ?string}
  */
 function chatbot_answer(string $intent, array $set): array
 {
-    $quickDefault = ['✅ Mon inscription', '🎽 T-shirt', '📍 Lieu & horaires', '✉️ Nous écrire'];
+    $quickDefault = ['✅ Mon inscription', '🎽 T-shirt', '💶 Tarifs', '📩 QR code non reçu', '📍 Lieu & horaires', '❓ Voir la FAQ', '✉️ Nous écrire'];
     $r = ['text' => '', 'quick' => [], 'action' => null];
 
     switch ($intent) {
@@ -199,6 +370,32 @@ function chatbot_answer(string $intent, array $set): array
             $r['text'] = 'À bientôt, et merci de soutenir la lutte contre le cancer du sein ! 🎀';
             break;
 
+        case 'registration_problem': {
+            $txt = '😕 Désolé pour ce désagrément ! Le plus souvent, il s\'agit d\'un souci passager :<br>'
+                 . '1️⃣ Réessayez dans quelques minutes, idéalement depuis un autre navigateur ou un autre appareil.<br>'
+                 . '2️⃣ Si ça ne passe toujours pas, écrivez-nous en décrivant le problème (message d\'erreur, étape bloquée…) — nous vous aiderons rapidement.';
+            $onsite = trim((string)($set['registration_onsite_info'] ?? ''));
+            if ($onsite !== '') {
+                $txt .= '<br><br>🏢 <strong>Vous pouvez aussi vous inscrire sur place :</strong><br>' . chatbot_esc_nl($onsite);
+            }
+            $r['text'] = $txt;
+            $r['quick'] = ['✉️ Nous écrire', '📝 Comment s\'inscrire ?'];
+            break;
+        }
+
+        case 'site_problem':
+            $r['text'] = '😕 Oups, on dirait un souci technique ! Essayez d\'abord de recharger la page '
+                . '(Ctrl+F5) ou d\'ouvrir le site depuis un autre navigateur ou appareil.<br>'
+                . 'Si le problème persiste, écrivez-nous en décrivant ce qui ne s\'affiche pas — nous corrigerons au plus vite. 🛠️';
+            $r['quick'] = ['✉️ Nous écrire'];
+            break;
+
+        case 'registration_modify':
+            $r['text'] = '✏️ Pour modifier, corriger ou annuler votre inscription : écrivez-nous via le formulaire '
+                . '(bouton « Nous écrire ») en précisant l\'adresse e-mail utilisée lors de l\'inscription — nous nous en occupons rapidement.';
+            $r['quick'] = ['✉️ Nous écrire', '✅ Mon inscription'];
+            break;
+
         case 'registration_check':
             $r['text'] = 'Je peux vérifier cela tout de suite ! 🔎<br>Indiquez-moi l\'adresse e-mail utilisée lors de votre inscription :';
             $r['action'] = 'ask_email_registration';
@@ -207,6 +404,14 @@ function chatbot_answer(string $intent, array $set): array
         case 'tshirt_check':
             $r['text'] = 'Je vérifie si un t-shirt est prévu pour vous ! 🎽<br>Indiquez-moi l\'adresse e-mail utilisée lors de votre inscription :';
             $r['action'] = 'ask_email_tshirt';
+            break;
+
+        case 'qrcode_resend':
+            $r['text'] = 'Pas de panique, je peux vous renvoyer votre confirmation ! 📩<br>'
+                . 'Indiquez-moi l\'adresse e-mail utilisée lors de votre inscription — '
+                . 'je vous y renverrai le mail (avec le QR code si votre inscription y donne droit).<br>'
+                . '<small>Pensez aussi à vérifier votre dossier spam / indésirables.</small>';
+            $r['action'] = 'ask_email_qrcode';
             break;
 
         case 'tshirt_retrait': {
@@ -223,13 +428,13 @@ function chatbot_answer(string $intent, array $set): array
 
         case 'registration_howto': {
             $fee = (int)($set['registration_fee'] ?? 0);
-            $txt = '🏃‍♀️ Pour vous inscrire, c\'est très simple : rendez-vous sur <a href="register">la page d\'inscription</a> — cela prend 1 minute !';
+            $txt = '🏃‍♀️ Pour vous inscrire, c\'est très simple : rendez-vous sur <a href="register">la page d\'inscription</a> — cela prend 5 minutes !';
             if ($fee > 0) {
                 $txt .= '<br>Tarif : <strong>' . $fee . ' €</strong>';
                 if (!empty($set['child_pricing_enabled'])) {
                     $txt .= ' (' . (int)$set['child_amount'] . ' € pour les moins de ' . (int)$set['child_age_threshold'] . ' ans)';
                 }
-                $txt .= ', intégralement reversé à la lutte contre le cancer du sein. 🎀';
+                $txt .= ', intégralement reversé à la lutte contre le cancer. 🎀';
             }
             $r['text'] = $txt;
             $r['quick'] = ['📍 Lieu & horaires', '🗺️ Le parcours'];
@@ -243,12 +448,120 @@ function chatbot_answer(string $intent, array $set): array
                 if (!empty($set['child_pricing_enabled'])) {
                     $txt .= ' (' . (int)$set['child_amount'] . ' € pour les moins de ' . (int)$set['child_age_threshold'] . ' ans)';
                 }
-                $txt .= '.<br>L\'intégralité est reversée à la lutte contre le cancer du sein. 🎀';
+                $txt .= '.<br>L\'intégralité est reversée à la lutte contre le cancer. 🎀';
             } else {
                 $txt = 'Les informations de tarif seront bientôt disponibles. Vous pouvez nous écrire pour en savoir plus !';
             }
             $r['text'] = $txt;
             $r['quick'] = ['📝 Comment s\'inscrire ?'];
+            break;
+        }
+
+        case 'payment_method': {
+            $txt = '💳 Le paiement de l\'inscription se fait <strong>en ligne, de façon sécurisée</strong>, à la fin du '
+                 . '<a href="register">formulaire d\'inscription</a>.';
+            $onsite = trim((string)($set['registration_onsite_info'] ?? ''));
+            if ($onsite !== '') {
+                $txt .= '<br><br>🏢 <strong>Inscription (et paiement) sur place également possible :</strong><br>' . chatbot_esc_nl($onsite);
+            }
+            $txt .= '<br>Pour toute autre modalité (chèque, espèces…), écrivez-nous !';
+            $r['text'] = $txt;
+            $r['quick'] = ['✉️ Nous écrire', '💶 Tarifs'];
+            break;
+        }
+
+        case 'deadline': {
+            $txt = '🗓️ Les inscriptions en ligne sont ouvertes tant que <a href="register">la page d\'inscription</a> est active — ne tardez pas !';
+            $dateStr = chatbot_format_date($set['date_course'] ?? null);
+            if ($dateStr !== '') $txt .= '<br>📅 Pour rappel, la course a lieu le <strong>' . $dateStr . '</strong>.';
+            $onsite = trim((string)($set['registration_onsite_info'] ?? ''));
+            if ($onsite !== '') {
+                $txt .= '<br><br>🏢 <strong>Inscription sur place également possible :</strong><br>' . chatbot_esc_nl($onsite);
+            }
+            $r['text'] = $txt;
+            $r['quick'] = ['📝 Comment s\'inscrire ?'];
+            break;
+        }
+
+        case 'group_registration':
+            $r['text'] = '👥 Bonne nouvelle : le formulaire permet d\'inscrire <strong>plusieurs personnes en une seule fois</strong> '
+                . 'sur <a href="register">la page d\'inscription</a>.<br>'
+                . 'Pour un grand groupe, une entreprise ou une association, écrivez-nous — nous vous faciliterons les choses !';
+            $r['quick'] = ['✉️ Nous écrire', '💶 Tarifs'];
+            break;
+
+        case 'dossard':
+            $r['text'] = '🎫 Pas de dossard papier ici : votre <strong>QR code reçu par e-mail</strong> après l\'inscription fait office de billet le jour J.<br>'
+                . 'Gardez-le sur votre téléphone (ou imprimé). Vous ne l\'avez pas reçu ? Dites-moi « je n\'ai pas reçu mon QR code » et je vous le renvoie !';
+            $r['quick'] = ['📩 Je n\'ai pas reçu mon QR code', '📍 Lieu & horaires'];
+            break;
+
+        case 'ranking':
+            $r['text'] = '🚶‍♀️ L\'événement est avant tout <strong>solidaire et à allure libre</strong> — l\'essentiel est de participer et de soutenir la cause. 🎀<br>'
+                . 'Pour toute précision sur le chronométrage ou les résultats, consultez <a href="parcours">la page Parcours</a> ou écrivez-nous !';
+            $r['quick'] = ['🗺️ Le parcours', '✉️ Nous écrire'];
+            break;
+
+        case 'dresscode':
+            $r['text'] = '🎀 Le rose est à l\'honneur et <strong>fortement encouragé</strong> — mais rien d\'obligatoire : venez comme vous êtes !<br>'
+                . 'Et selon les modalités d\'inscription, un t-shirt de l\'événement est prévu.';
+            $r['quick'] = ['🎽 T-shirt', '📍 Lieu & horaires'];
+            break;
+
+        case 'run_or_walk':
+            $r['text'] = '🏃‍♀️ Allure totalement <strong>libre</strong> : marche tranquille, marche rapide ou course — chacun avance à son rythme, l\'essentiel est de participer !<br>'
+                . 'Le tracé complet est sur <a href="parcours">la page Parcours</a>.';
+            $r['quick'] = ['🗺️ Le parcours', '🕘 Les horaires'];
+            break;
+
+        case 'transfer':
+            $r['text'] = '🔄 Vous ne pouvez plus venir ? Écrivez-nous avec l\'e-mail utilisé lors de l\'inscription '
+                . '(et les coordonnées de la personne si vous souhaitez céder votre place) : nous verrons ensemble ce qui est possible.';
+            $r['quick'] = ['✉️ Nous écrire'];
+            break;
+
+        case 'spectator':
+            $r['text'] = '👏 Bien sûr ! Le village, les animations et l\'ambiance sont ouverts à toutes et à tous — '
+                . 'seule la participation à la marche nécessite une inscription.<br>Venez encourager les participants !';
+            $r['quick'] = ['📍 Lieu & horaires', '📝 Comment s\'inscrire ?'];
+            break;
+
+        case 'privacy':
+            $r['text'] = '🔒 Vos données servent uniquement à la gestion de votre inscription et de l\'événement — elles ne sont jamais revendues.<br>'
+                . 'Tous les détails sont dans notre <a href="politique-confidentialite">politique de confidentialité</a>. '
+                . 'Pour une demande d\'accès ou de suppression, écrivez-nous.';
+            $r['quick'] = ['✉️ Nous écrire'];
+            break;
+
+        case 'safety':
+            $r['text'] = '⛑️ Un dispositif de sécurité et de premiers secours est prévu le jour de l\'événement. '
+                . 'Sur place, signalez-vous aux bénévoles ou à l\'accueil du village.<br>'
+                . 'Une situation particulière (condition médicale…) ? Écrivez-nous, nous prendrons les dispositions nécessaires.';
+            $r['quick'] = ['✉️ Nous écrire'];
+            break;
+
+        case 'lost_found':
+            $r['text'] = '🧢 Objet perdu ? Écrivez-nous en décrivant l\'objet et l\'endroit où vous pensez l\'avoir laissé : '
+                . 'nous vérifions les objets retrouvés et revenons vers vous.';
+            $r['quick'] = ['✉️ Nous écrire'];
+            break;
+
+        case 'faq_page':
+            $r['text'] = '❓ Toutes les réponses aux questions fréquentes sont réunies sur <a href="faq">notre page FAQ</a> '
+                . '(avec une recherche intégrée).<br>Et vous pouvez aussi me poser votre question directement ici ! 😊';
+            break;
+
+        case 'social': {
+            $links = [];
+            if (!empty($set['link_facebook']))  $links[] = '<a href="' . htmlspecialchars($set['link_facebook'])  . '" target="_blank" rel="noopener">Facebook</a>';
+            if (!empty($set['link_instagram'])) $links[] = '<a href="' . htmlspecialchars($set['link_instagram']) . '" target="_blank" rel="noopener">Instagram</a>';
+            if (!empty($set['link_twitter']))   $links[] = '<a href="' . htmlspecialchars($set['link_twitter'])   . '" target="_blank" rel="noopener">Twitter/X</a>';
+            if (!empty($set['link_youtube']))   $links[] = '<a href="' . htmlspecialchars($set['link_youtube'])   . '" target="_blank" rel="noopener">YouTube</a>';
+            if ($links) {
+                $r['text'] = '📱 Suivez-nous sur ' . implode(' · ', $links) . ' — et abonnez-vous à la <a href="newsletter">newsletter</a> pour ne rien manquer !';
+            } else {
+                $r['text'] = '📱 Retrouvez tous nos liens en bas de page, et abonnez-vous à la <a href="newsletter">newsletter</a> pour ne rien manquer !';
+            }
             break;
         }
 
@@ -299,11 +612,17 @@ function chatbot_answer(string $intent, array $set): array
             break;
 
         case 'photos':
-            $r['text'] = '📸 Retrouvez toutes les photos des éditions précédentes sur <a href="photos">la page Photos</a> !';
+            $r['text'] = '📸 Retrouvez toutes les photos et albums des éditions précédentes sur <a href="photos">la page Photos</a> (classés par année) !';
+            break;
+
+        case 'partners':
+            $r['text'] = '🤝 Découvrez tous nos partenaires sur <a href="partenaires">la page Partenaires</a>.<br>'
+                . 'Vous souhaitez rejoindre l\'aventure (sponsoring, mécénat, lot) ? Écrivez-nous, nous vous enverrons les modalités !';
+            $r['quick'] = ['✉️ Nous écrire'];
             break;
 
         case 'donation': {
-            $txt = '🎀 Merci de vouloir soutenir la cause ! Les bénéfices de la course sont reversés à la lutte contre le cancer du sein.';
+            $txt = '🎀 Merci de vouloir soutenir la cause ! Les bénéfices de la course sont reversés à la lutte contre le cancer.';
             $link = trim((string)($set['link_cancer'] ?? ''));
             if ($link !== '') $txt .= '<br>Plus d\'infos : <a href="' . htmlspecialchars($link) . '" target="_blank" rel="noopener">en savoir plus</a>.';
             $txt .= '<br>Pour toute question précise, écrivez-nous !';
@@ -324,7 +643,9 @@ function chatbot_answer(string $intent, array $set): array
         }
 
         default: // fallback
-            $r['text'] = 'Hmm, je ne suis pas sûr d\'avoir compris. 🤔<br>Voici ce que je sais faire — ou laissez-nous directement un message :';
+            $r['text'] = 'Hmm, je ne suis pas sûr d\'avoir compris. 🤔<br>'
+                . 'Jetez un œil à notre <a href="faq">FAQ</a>, choisissez un sujet ci-dessous, '
+                . 'ou laissez-nous directement un message :';
             $r['quick'] = $quickDefault;
             $r['action'] = 'suggest_contact';
             break;
@@ -379,7 +700,7 @@ function chatbot_email_answer(array $lookup, string $context, array $set): array
 
     if ($n === 0) {
         $r['text'] = 'Je ne trouve pas d\'inscription avec cette adresse. 😔<br>'
-            . 'Vérifiez l\'orthographe de l\'e-mail, ou <a href="register">inscrivez-vous en 1 minute</a> !<br>'
+            . 'Vérifiez l\'orthographe de l\'e-mail, ou <a href="register">inscrivez-vous en 5 minutes</a> !<br>'
             . 'Si vous pensez qu\'il s\'agit d\'une erreur, laissez-nous un message.';
         $r['quick'] = ['🔁 Réessayer avec un autre e-mail', '✉️ Nous écrire'];
         return $r;
@@ -416,4 +737,99 @@ function chatbot_email_answer(array $lookup, string $context, array $set): array
         $r['quick'] = ['✉️ Nous écrire'];
     }
     return $r;
+}
+
+/* ═══════════════════════ FAQ gérée depuis l'admin ═══════════════════════ */
+
+/**
+ * Cherche la meilleure entrée FAQ pour un message normalisé.
+ * Score : mots-clés admin (poids 2, séparés par virgules) + mots significatifs
+ * de la question (poids 1). Seuil : au moins un mot-clé, ou deux mots de la
+ * question — sinon null (le fallback classique s'applique).
+ */
+function chatbot_faq_match(PDO $pdo, string $norm): ?array
+{
+    try {
+        $faqs = $pdo->query('SELECT id, question, answer, keywords FROM chatbot_faq WHERE active = 1 ORDER BY position, id')
+            ->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        return null; // table absente avant migration
+    }
+    if (!$faqs) return null;
+
+    $stop = ['les','des','une','pour','avec','dans','est','sont','que','qui','quoi','comment',
+             'pourquoi','quand','peut','peux','vous','nous','mon','mes','votre','vos','sur',
+             'pas','par','aux','ces','cette','ils','elle','elles','moi','ont','avoir','etre',
+             'faire','faut','fait','bien','tout','tous','plus'];
+    $msgWords = array_diff(array_filter(explode(' ', $norm), fn($w) => mb_strlen($w) >= 3), $stop);
+    if (!$msgWords) return null;
+
+    $best = null; $bestScore = 0;
+    foreach ($faqs as $faq) {
+        $score = 0; $kwHit = 0; $qHit = 0;
+        foreach (array_filter(array_map('chatbot_normalize', explode(',', (string)$faq['keywords']))) as $kw) {
+            // Mot-clé = expression complète (peut contenir plusieurs mots).
+            // Tolérance de 2 caractères en fin de mot : « toutou » matche
+            // « toutous », « rembourse » matche « remboursez/rembourser »…
+            if ($kw !== '' && preg_match('/\b' . preg_quote($kw, '/') . '\w{0,2}\b/u', $norm)) { $kwHit++; $score += 2; }
+        }
+        $qWords = array_diff(array_filter(explode(' ', chatbot_normalize($faq['question'])), fn($w) => mb_strlen($w) >= 4), $stop);
+        foreach ($qWords as $w) {
+            if (in_array($w, $msgWords, true)) { $qHit++; $score += 1; }
+        }
+        if (($kwHit >= 1 || $qHit >= 2) && $score > $bestScore) { $bestScore = $score; $best = $faq; }
+    }
+    return $best;
+}
+
+/** Construit la réponse chatbot d'une entrée FAQ (texte libre → échappé). */
+function chatbot_faq_reply(array $faq): array
+{
+    return [
+        'text' => '💡 <strong>' . htmlspecialchars($faq['question']) . '</strong><br>' . chatbot_linkify($faq['answer'])
+            . '<br><small>D\'autres réponses dans notre <a href="faq">FAQ</a>.</small>',
+        'quick' => ['✉️ Nous écrire'],
+        'action' => null,
+    ];
+}
+
+/* ═══════════ Renvoi du mail de confirmation / QR code ═══════════ */
+
+/**
+ * Retrouve les inscriptions liées à un e-mail avec leur numéro et l'éligibilité
+ * t-shirt (mêmes règles de quota que chatbot_email_lookup). Le QR n'est JAMAIS
+ * montré dans le chat : il est renvoyé par mail à l'adresse de l'inscrit.
+ */
+function chatbot_qr_lookup(PDO $pdo, string $email): array
+{
+    $set = $pdo->query('SELECT qrcode_mail_mode, qrcode_mail_limit FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+    $limit = (($set['qrcode_mail_mode'] ?? '') === 'first_x' && (int)($set['qrcode_mail_limit'] ?? 0) > 0)
+        ? (int)$set['qrcode_mail_limit'] : 0;
+
+    $rows = $pdo->query('SELECT id, inscription_no, nom, prenom, email, montant_du, created_at FROM registrations')->fetchAll(PDO::FETCH_ASSOC);
+    usort($rows, function ($a, $b) {
+        $c = strcmp((string)$a['created_at'], (string)$b['created_at']);
+        return $c !== 0 ? $c : ($a['id'] <=> $b['id']);
+    });
+
+    $needle = mb_strtolower(trim($email), 'UTF-8');
+    $matches = []; $paidRank = 0;
+    foreach ($rows as $row) {
+        $isPaid = (float)$row['montant_du'] > 0;
+        if ($isPaid) $paidRank++;
+        $dec = mb_strtolower((string)@decrypt($row['email']), 'UTF-8');
+        $raw = mb_strtolower((string)$row['email'], 'UTF-8');
+        if ($dec === $needle || $raw === $needle) {
+            $nom    = (string)(@decrypt($row['nom'])    ?: $row['nom']);
+            $prenom = (string)(@decrypt($row['prenom']) ?: $row['prenom']);
+            $matches[] = [
+                'no'       => (string)$row['inscription_no'],
+                'nom'      => $nom,
+                'prenom'   => $prenom,
+                'paid'     => $isPaid,
+                'eligible' => $isPaid && ($limit === 0 || $paidRank <= $limit),
+            ];
+        }
+    }
+    return $matches;
 }
