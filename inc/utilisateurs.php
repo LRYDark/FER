@@ -720,18 +720,22 @@ const ALL_ACTIONS = [
   // Timeline
   { key: 'timeline.create',               label: 'Timeline : cr\u00e9er',     group: 'timeline' },
   { key: 'timeline.edit',                 label: 'Timeline : modifier',       group: 'timeline' },
+  { key: 'timeline.trash',                label: 'Timeline : corbeille',      group: 'timeline' },
   { key: 'timeline.delete',               label: 'Timeline : supprimer',      group: 'timeline' },
   // Actualités
   { key: 'news.create',                   label: 'Actualit\u00e9s : cr\u00e9er',  group: 'news' },
   { key: 'news.edit',                     label: 'Actualit\u00e9s : modifier',    group: 'news' },
+  { key: 'news.trash',                    label: 'Actualit\u00e9s : corbeille',   group: 'news' },
   { key: 'news.delete',                   label: 'Actualit\u00e9s : supprimer',   group: 'news' },
   // Partenaires
   { key: 'partners.create',               label: 'Partenaires : cr\u00e9er',  group: 'partners' },
   { key: 'partners.edit',                 label: 'Partenaires : modifier',    group: 'partners' },
+  { key: 'partners.trash',                label: 'Partenaires : corbeille',   group: 'partners' },
   { key: 'partners.delete',               label: 'Partenaires : supprimer',   group: 'partners' },
   // Albums
   { key: 'albums.create',                 label: 'Albums : cr\u00e9er',       group: 'albums' },
   { key: 'albums.edit',                   label: 'Albums : modifier',         group: 'albums' },
+  { key: 'albums.trash',                  label: 'Albums : corbeille',        group: 'albums' },
   { key: 'albums.delete',                 label: 'Albums : supprimer',        group: 'albums' },
   // Journal d'activité des contenus
   { key: 'content.logs.view',             label: 'Voir les logs des contenus', group: 'content' },
@@ -743,7 +747,7 @@ const ALL_ACTIONS = [
   { key: 'qrcode.write',                  label: 'Cr\u00e9er/supprimer QR',        group: 'admin' },
   { key: 'connexions.write',              label: 'G\u00e9rer connexions',          group: 'admin' },
   { key: 'logs.write',                    label: 'Vider les logs',                 group: 'admin' },
-  { key: 'assistant.write',               label: 'Modifier l'Assistant / FAQ',    group: 'admin' },
+  { key: 'assistant.write',               label: 'Modifier l\'Assistant / FAQ',   group: 'admin' },
   // Acc\u00e8s b\u00e9n\u00e9voles (Remise T-shirts)
   { key: 'tshirt_access.manage',          label: 'B\u00e9n\u00e9voles : g\u00e9rer acc\u00e8s (ON/OFF, token, expiration)', group: 'tshirt' },
   { key: 'tshirt_access.approve',         label: 'B\u00e9n\u00e9voles : valider / refuser les demandes',     group: 'tshirt' },
