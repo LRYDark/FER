@@ -58,8 +58,8 @@ try {
 } catch (\Throwable $e) {}
 $tsAccent = jr_accent_vars_from_hex($tsPrimary);
 ?>
-<link rel="stylesheet" href="<?= $tsV('jr-theme/css/tokens.css') ?>">
-<link rel="stylesheet" href="<?= $tsV('jr-theme/css/base.css') ?>">
+<link rel="stylesheet" href="<?= $tsV('css/tokens.css') ?>">
+<link rel="stylesheet" href="<?= $tsV('css/base.css') ?>">
 <link rel="stylesheet" href="<?= $tsV('css/admin.css') ?>">
 <style nonce="<?= $GLOBALS['csp_nonce'] ?>">
   <?php if ($tsAccent): ?>

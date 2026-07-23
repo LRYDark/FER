@@ -42,7 +42,7 @@ try {
 <?php // ?v=mtime : anti-cache
 $authV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $rel . '?v=' . (@filemtime($p) ?: '1'); };
 ?>
-<script src="jr-theme/js/theme.js"></script>
+<script src="js/theme.js"></script>
 <script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
 /* Applique le thème des pages de connexion (indépendant de l'admin), APRÈS
    theme.js qui aurait posé le thème admin. Anti-flash : fond immédiat. */
@@ -56,10 +56,10 @@ $authV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return 
   d.style.backgroundColor = dark ? '#05070D' : '#E9EDF4';
 })();
 </script>
-<link rel="stylesheet" href="<?= $authV('jr-theme/css/tokens.css') ?>">
-<link rel="stylesheet" href="<?= $authV('jr-theme/css/base.css') ?>">
-<link rel="stylesheet" href="<?= $authV('jr-theme/css/components.css') ?>">
-<link rel="stylesheet" href="<?= $authV('jr-theme/css/app.css') ?>">
+<link rel="stylesheet" href="<?= $authV('css/tokens.css') ?>">
+<link rel="stylesheet" href="<?= $authV('css/base.css') ?>">
+<link rel="stylesheet" href="<?= $authV('css/components.css') ?>">
+<link rel="stylesheet" href="<?= $authV('css/app.css') ?>">
 <link rel="stylesheet" href="<?= $authV('css/auth.css') ?>">
 <?php if ($authAccent): ?>
 <style>

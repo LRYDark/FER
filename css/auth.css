@@ -1,7 +1,7 @@
 /* ============================================================
    FER — Pages d'authentification (login, reset, change-password,
    install, update) : habillage jr-theme du vocabulaire oc-* existant.
-   Chargé APRÈS jr-theme/css/{tokens,base,components,app}.css.
+   Chargé APRÈS css/{tokens,base,components,app}.css.
    Le JavaScript des pages reste inchangé (mêmes ids/classes).
    ============================================================ */
 

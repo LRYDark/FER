@@ -2,7 +2,7 @@
    FER — Administration, habillage jr-theme (v2.0.0)
    ------------------------------------------------------------
    Chargé APRÈS Bootstrap 5 + DataTables par src/partials/navbar-admin.php,
-   avec jr-theme/css/tokens.css et base.css. Ce fichier applique le design
+   avec css/tokens.css et css/base.css. Ce fichier applique le design
    jr-theme (MERIDIAN) au vocabulaire Bootstrap existant des pages admin,
    sans charger components.css/app.css (collisions .nav/.btn/.modal/.card).
    Tout est exprimé en tokens : le mode sombre et l'accent par utilisateur

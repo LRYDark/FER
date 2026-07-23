@@ -1024,6 +1024,38 @@ foreach ($migrations as $sql) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// jr-theme : le dossier n'existe plus, ses fichiers vivent dans css/, js/ et
+// fonts/ (chemins standard du site). Si une ancienne copie jr-theme/ traîne
+// encore sur le serveur, on déplace ce qui manque puis on supprime le dossier.
+// ─────────────────────────────────────────────────────────────────────────
+$jrMoveSql = 'Déplacer jr-theme/ vers css/, js/ et fonts/ puis supprimer le dossier';
+$jrDir = __DIR__ . '/jr-theme';
+if (is_dir($jrDir)) {
+    $jrMoved = 0; $jrErrs = [];
+    $jrFiles = [
+        'css/tokens.css', 'css/base.css', 'css/components.css', 'css/app.css',
+        'js/theme.js', 'js/ui.js',
+        'fonts/Inter-var.woff2', 'fonts/JetBrainsMono-var.woff2',
+    ];
+    foreach ($jrFiles as $rel) {
+        $src = $jrDir . '/' . $rel;
+        $dst = __DIR__ . '/' . $rel;
+        if (!file_exists($src)) continue;
+        if (!is_dir(dirname($dst))) @mkdir(dirname($dst), 0755, true);
+        if (file_exists($dst)) { @unlink($src); continue; } // nouvelle version déjà déployée : on garde
+        if (@rename($src, $dst)) $jrMoved++; else $jrErrs[] = $rel;
+    }
+    // rmdir ne supprime que des dossiers vides : un fichier inattendu est préservé
+    foreach (['css', 'js', 'fonts'] as $sub) { @rmdir($jrDir . '/' . $sub); }
+    @rmdir($jrDir);
+    $results[] = $jrErrs
+        ? ['status' => 'error', 'sql' => $jrMoveSql, 'msg' => 'Échec sur : ' . implode(', ', $jrErrs) . ' (droits d\'écriture ?)']
+        : ['status' => 'success', 'sql' => $jrMoveSql, 'msg' => $jrMoved . ' fichier(s) déplacé(s), dossier jr-theme/ supprimé'];
+} else {
+    $results[] = ['status' => 'skip', 'sql' => $jrMoveSql, 'msg' => 'Dossier jr-theme/ absent (déjà migré)'];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Colonne `required_admin` : caractère obligatoire SPÉCIFIQUE au formulaire
 // « Nouvel inscrit » (admin), indépendant de `required` (public / saisie / QR)
 // — même principe que `required_saisie_multiple` pour l'« Ajout multiple ».
