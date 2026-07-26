@@ -71,5 +71,23 @@ echo (!str_contains($brut, 'localhost') && !str_contains($brut, 'p@ss') && str_s
     ? "OK  : le fichier est bien chiffré (aucun secret en clair)\n"
     : "KO  : des données apparaissent en clair\n";
 
+/* ── Nettoyage ──────────────────────────────────────────────────────────────
+ * Le bac à sable contient un `master.key` et un `config.enc` — de test, mais
+ * portant les mêmes noms que les vrais. Les laisser sur le disque, c'est risquer
+ * qu'ils soient commités, déployés, ou pris pour les vrais un jour de fatigue.
+ * On efface. */
+function cfgtestNettoie(string $chemin): void
+{
+    if (!is_dir($chemin)) return;
+    foreach (array_diff(scandir($chemin), ['.', '..']) as $e) {
+        $p = $chemin . '/' . $e;
+        is_dir($p) ? cfgtestNettoie($p) : @unlink($p);
+    }
+    @rmdir($chemin);
+}
+cfgtestNettoie($base);
+echo (is_dir($base) ? "KO  : bac à sable non supprimé\n" : "OK  : bac à sable effacé (aucune clé laissée sur le disque)\n");
+if (is_dir($base)) $ko++;
+
 printf("\n%s\n", $ko === 0 ? "AUCUNE ANOMALIE" : "$ko ANOMALIE(S)");
 exit($ko > 0 ? 1 : 0);

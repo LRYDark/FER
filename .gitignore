@@ -1,6 +1,13 @@
 # Fichiers sensibles
 config/config.enc
 config/master.key
+# ⚠️ Ces deux règles visent N'IMPORTE QUEL dossier, pas seulement config/.
+# Les bancs de test de docs/ fabriquent des bacs à sable contenant un
+# `master.key` et un `config.enc` — de test, mais portant les mêmes noms que les
+# vrais. Ils se nettoient désormais tout seuls ; ceci est la seconde barrière,
+# pour qu'un fichier de ce nom ne puisse jamais être commité par mégarde.
+**/master.key
+**/config.enc
 config/.env
 config/.env.test
 config/.install.lock
@@ -17,6 +24,10 @@ import_errors.log
 storage/logs/*
 !storage/logs/.gitkeep
 storage/sessions/
+# Bacs à sable des bancs de test (docs/README.md). Ils s'effacent d'eux-mêmes ;
+# ces règles couvrent le cas d'un test interrompu en cours de route.
+docs/cfgtest/
+docs/storage/
 
 # Fichiers de migration (one-shot)
 migrate_*.php
