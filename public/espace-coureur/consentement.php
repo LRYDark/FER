@@ -46,7 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$authBase = '../../';
+$authBase       = '../../';
+$authForceTheme = 'light';   // espace public : jamais le thème sombre de l'admin
+$authArtKicker  = 'Forbach en Rose · Espace coureur';
+$authArtTitre   = 'Vos données.<br>Vos droits.';
+
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>

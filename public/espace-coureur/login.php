@@ -162,6 +162,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Le captcha n'est nécessaire qu'à l'étape « email ».
 $captcha  = $etape === 'email' ? issuePublicCaptcha($pdo) : ['mode' => 'none'];
 $authBase = '../../';   // lu par auth-head.php pour retrouver css/ et js/
+
+/* L'espace coureur est un espace PUBLIC. Il reste en clair quoi qu'ait choisi
+   l'administrateur pour lui-même : la préférence de thème vit dans le
+   localStorage du domaine et ne distingue pas les deux espaces — sans cela, un
+   visiteur qui n'a jamais rien réglé se verrait servir le goût de l'admin. */
+$authForceTheme = 'light';
+$authArtKicker  = 'Forbach en Rose · Espace coureur';
+$authArtTitre   = 'Votre course.<br>Votre espace.';
+
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>

@@ -53,7 +53,13 @@ $authV = function (string $rel) use ($authBase) { $p = dirname(__DIR__, 2) . '/'
    theme.js qui aurait posé le thème admin. Anti-flash : fond immédiat. */
 (function () {
   var d = document.documentElement;
-  var t = <?= $authLoginTheme !== null ? json_encode($authLoginTheme) : 'null' ?>;
+  /* $authForceTheme : thème imposé, qui ignore la préférence mémorisée.
+     L'espace coureur l'utilise. Sans lui, un administrateur ayant choisi le
+     thème sombre le retrouverait côté coureur : la préférence vit dans le
+     localStorage du domaine, elle ne distingue pas les deux espaces — et un
+     visiteur qui n'a jamais rien réglé se verrait servir le goût de l'admin. */
+  var force = <?= isset($authForceTheme) ? json_encode($authForceTheme) : 'null' ?>;
+  var t = force !== null ? force : <?= $authLoginTheme !== null ? json_encode($authLoginTheme) : 'null' ?>;
   if (t === null) { try { t = localStorage.getItem('jr-login-theme'); } catch (e) {} }
   if (t !== 'dark' && t !== 'system') t = 'light';
   d.setAttribute('data-theme', t);
