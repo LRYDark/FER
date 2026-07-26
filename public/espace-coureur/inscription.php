@@ -15,6 +15,7 @@ checkMaintenance();
 require_once '../../src/security/csrf.php';
 require_once '../../src/auth/participant_auth.php';
 require_once '../../src/core/qrcode.php';
+require_once '../../src/content/transfers.php';
 
 pauth_require($pdo, 'index.php');
 
@@ -30,6 +31,45 @@ if ($annee <= 0 || $no === '' || !pauth_owns($pdo, pauth_id(), $annee, $no)) {
     $r = regres_find($pdo, $annee, $no);
     if ($r === null) http_response_code(404);
 }
+
+/* ── Transferts ──────────────────────────────────────────────────────────── */
+$xfErreur = '';
+$xfSucces = '';
+
+if (!$interdit && $r !== null) {
+    xfer_purge($pdo);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!csrf_verify()) {
+            $xfErreur = "Session expirée. Rechargez la page et réessayez.";
+        }
+        elseif (isset($_POST['transferer'])) {
+            $res = xfer_creer($pdo, pauth_id(), $annee, $no, (string) ($_POST['email_cible'] ?? ''));
+            if ($res['ok']) {
+                $t = xfer_parToken($pdo, $res['token']);
+                // Les deux mails : la demande à la cible, l'information au titulaire.
+                xfer_mailCible($pdo, $t, $res['token'], xfer_lienBase());
+                xfer_mailSource($pdo, $t);
+                $xfSucces = "Demande envoyée. La personne doit confirmer depuis son mail ; "
+                          . "vous pouvez annuler tant qu'elle ne l'a pas fait.";
+            } else {
+                $xfErreur = $res['erreur'];
+            }
+        }
+        elseif (isset($_POST['annuler_transfert'])) {
+            $res = xfer_annuler($pdo, (int) $_POST['annuler_transfert'], pauth_id());
+            if ($res['ok']) $xfSucces = "Demande de transfert annulée.";
+            else            $xfErreur = $res['erreur'];
+        }
+    }
+}
+
+$xfEnAttente = (!$interdit && $r !== null) ? xfer_enAttente($pdo, $annee, $no) : null;
+if ($xfEnAttente !== null) $xfEnAttente['email_cible'] = decrypt($xfEnAttente['email_cible']);
+
+$xfEditionActive  = !$interdit && $annee === regres_activeYear($pdo);
+$xfDeadline       = $xfEditionActive ? xfer_deadline($pdo, $annee) : null;
+$xfDeadlinePassee = $xfEditionActive && xfer_deadlinePassee($pdo, $annee);
 
 /* Titre de la barre supérieure : le nom du coureur quand la fiche est
    accessible, un intitulé neutre sinon — inutile de révéler quoi que ce soit
@@ -153,17 +193,89 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <header>
         <div class="iconwell"><i class="bi bi-arrow-left-right"></i></div>
         <h2>Transférer cette inscription</h2>
+        <?php if ($xfEnAttente !== null): ?>
+          <span class="pill is-warn">transfert en attente</span>
+        <?php endif; ?>
       </header>
-      <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
-        Si cette inscription concerne quelqu'un d'autre — un membre de votre famille
-        inscrit sous votre adresse — vous pourrez la basculer sur sa propre adresse
-        email, pour qu'il ait son espace et son chronométrage.
-      </p>
-      <div class="row-actions">
-        <button class="btn" type="button" disabled>
-          <i class="bi bi-hourglass-split"></i> Bientôt disponible
-        </button>
-      </div>
+
+      <?php if ($xfErreur !== ''): ?>
+        <div class="alert is-danger"><i class="bi bi-exclamation-triangle"></i> <?= $h($xfErreur) ?></div>
+      <?php endif; ?>
+      <?php if ($xfSucces !== ''): ?>
+        <div class="alert is-ok"><i class="bi bi-check-circle"></i> <?= $h($xfSucces) ?></div>
+      <?php endif; ?>
+
+      <?php if ($xfEnAttente !== null): ?>
+        <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
+          En attente de confirmation par
+          <strong><?= $h($xfEnAttente['email_cible']) ?></strong>.
+          Sans réponse de sa part, la demande expire le
+          <?= $h(date('d/m/Y', strtotime((string) $xfEnAttente['expires_at']))) ?>
+          et l'inscription reste la vôtre.
+        </p>
+        <form method="post"
+              onsubmit="return confirm('Annuler cette demande de transfert ?');">
+          <?= csrf_field() ?>
+          <div class="row-actions">
+            <button class="btn btn-danger" type="submit"
+                    name="annuler_transfert" value="<?= (int) $xfEnAttente['id'] ?>">
+              <i class="bi bi-x-circle"></i> Annuler la demande
+            </button>
+          </div>
+        </form>
+
+      <?php elseif (!$xfEditionActive): ?>
+        <div class="alert">
+          <i class="bi bi-info-circle"></i>
+          Cette édition est terminée&nbsp;: une inscription passée ne se transfère plus.
+        </div>
+
+      <?php elseif ($xfDeadlinePassee): ?>
+        <div class="alert is-warn">
+          <i class="bi bi-hourglass-bottom"></i>
+          La date limite de transfert est dépassée
+          (<?= $h(date('d/m/Y à H:i', strtotime((string) $xfDeadline))) ?>).
+          Contactez l'organisation si c'est un cas particulier.
+        </div>
+
+      <?php else: ?>
+        <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
+          Si cette inscription concerne quelqu'un d'autre — un membre de votre famille
+          inscrit sous votre adresse — basculez-la sur sa propre adresse email, pour
+          qu'il ait son espace et son chronométrage.
+        </p>
+
+        <?php /* La conséquence est annoncée AVANT la demande, pas après : c'est le
+                 moment où elle peut encore changer la décision. */ ?>
+        <div class="alert is-warn">
+          <i class="bi bi-exclamation-triangle"></i>
+          <strong>Vous perdrez l'accès à cette inscription.</strong>
+          Une fois le transfert accepté, elle n'apparaîtra plus dans votre espace :
+          c'est la personne destinataire qui en aura la charge.
+        </div>
+
+        <form method="post"
+              onsubmit="return confirm('Envoyer la demande de transfert ? Vous pourrez l\'annuler tant qu\'elle n\'est pas acceptée.');">
+          <?= csrf_field() ?>
+          <div class="field" style="max-width:340px">
+            <label for="ecCible">Adresse email du destinataire</label>
+            <input class="input" id="ecCible" name="email_cible" type="email" required
+                   autocomplete="off" placeholder="personne@exemple.fr">
+          </div>
+          <div class="row-actions" style="margin-top:var(--sp-4)">
+            <button class="btn btn-primary" type="submit" name="transferer" value="1">
+              <i class="bi bi-send"></i> Envoyer la demande
+            </button>
+          </div>
+        </form>
+
+        <?php if ($xfDeadline !== null): ?>
+          <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
+            Les transferts sont possibles jusqu'au
+            <?= $h(date('d/m/Y à H:i', strtotime($xfDeadline))) ?>.
+          </p>
+        <?php endif; ?>
+      <?php endif; ?>
     </section>
 
     <div class="row-actions">

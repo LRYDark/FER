@@ -15,8 +15,12 @@ try {
         if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $authPrimary = $c;
     }
 } catch (\Throwable $e) {}
-$authAccent = function_exists('jr_accent_vars_from_hex') ? jr_accent_vars_from_hex($authPrimary) : null;
-if (!$authAccent) {
+/* $authAccentVars / $authAccentData : accent imposé par la page, avant include.
+   L'espace coureur s'en sert pour appliquer la couleur choisie par le coureur
+   plutôt que celle du site. Absents ailleurs : rien ne change. */
+$authAccent = $authAccentVars
+    ?? (function_exists('jr_accent_vars_from_hex') ? jr_accent_vars_from_hex($authPrimary) : null);
+if (!$authAccent && !isset($authAccentData)) {
     // Repli (install.php : config.php pas encore chargé) — rose FER pré-dérivé
     $authAccent = ['#db2777', '#bc2266', '#ffffff', '#e668a0', '#ea82b0', '#ffffff'];
 }
@@ -76,6 +80,19 @@ $authV = function (string $rel) use ($authBase) { $p = dirname(__DIR__, 2) . '/'
   var cle = <?= json_encode($authThemeKey ?? 'jr-theme') ?>;
   if (t === null) {
     try { t = localStorage.getItem(cle) || (cle === 'jr-theme' ? localStorage.getItem('jr-login-theme') : null); } catch (e) {}
+  }
+
+  /* theme.js vient d'appliquer la COULEUR D'ACCENT de l'administrateur, lue dans
+     le localStorage du domaine. Hors administration — espace coureur — elle n'a
+     rien à faire là : le violet choisi par l'admin pour son tableau de bord se
+     retrouvait sur les pages publiques des coureurs. On la neutralise, l'accent
+     propre à l'espace étant posé côté serveur juste après. */
+  if (cle !== 'jr-theme') {
+    d.removeAttribute('data-accent');
+    if (typeof window.jrClearAccent === 'function') window.jrClearAccent();
+<?php if (!empty($authAccentData)): ?>
+    d.setAttribute('data-accent', <?= json_encode($authAccentData) ?>);
+<?php endif; ?>
   }
   if (t !== 'dark' && t !== 'system') t = 'light';
   d.setAttribute('data-theme', t);

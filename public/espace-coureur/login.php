@@ -144,7 +144,12 @@ $authBase = '../../';   // lu par auth-head.php pour retrouver css/ et js/
    l'administrateur pour lui-même : la préférence de thème vit dans le
    localStorage du domaine et ne distingue pas les deux espaces — sans cela, un
    visiteur qui n'a jamais rien réglé se verrait servir le goût de l'admin. */
-$authThemeKey   = PAUTH_THEME_KEY;   // préférence propre au coureur, jamais celle de l'admin
+$authThemeKey   = PAUTH_THEME_KEY;
+/* Accent propre au coureur, résolu par la même fonction que les pages
+   internes. theme.js aurait sinon appliqué celui de l'administrateur. */
+$authAccentRes  = pauth_accentVars($pdo);
+$authAccentVars = $authAccentRes['vars'];
+$authAccentData = $authAccentRes['data'];   // préférence propre au coureur, jamais celle de l'admin
 $authArtKicker  = 'Forbach en Rose · Espace coureur';
 $authArtTitre   = 'Votre course.<br>Votre espace.';
 

@@ -18,7 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
 }
 
 $authBase       = '../../';
-$authThemeKey   = PAUTH_THEME_KEY;   // préférence propre au coureur, jamais celle de l'admin
+$authThemeKey   = PAUTH_THEME_KEY;
+/* Accent propre au coureur, résolu par la même fonction que les pages
+   internes. theme.js aurait sinon appliqué celui de l'administrateur. */
+$authAccentRes  = pauth_accentVars($pdo);
+$authAccentVars = $authAccentRes['vars'];
+$authAccentData = $authAccentRes['data'];   // préférence propre au coureur, jamais celle de l'admin
 $authArtKicker  = 'Forbach en Rose · Espace coureur';
 $authArtTitre   = 'À bientôt.<br>Sur la ligne de départ.';
 ?>

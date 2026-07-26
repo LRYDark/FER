@@ -249,31 +249,41 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
              « Rose » suit la couleur primaire du site — c'est le défaut. */ ?>
     <div class="field">
       <label>Couleur d'accent</label>
-      <form method="post" class="ec-accents">
-        <?= csrf_field() ?>
-        <?php foreach ([
-              'rose'    => ['Rose (site)', '#db2777'],
-              'blue'    => ['Bleu',        '#3D63F0'],
-              'teal'    => ['Teal',        '#0FA894'],
-              'violet'  => ['Violet',      '#7C5CF6'],
-              'emerald' => ['Émeraude',    '#10B981'],
-            ] as $val => [$lib, $apercu]): ?>
-          <button type="submit" name="accent" value="<?= $val ?>"
-                  class="ec-accent <?= $accentActuel === $val ? 'is-active' : '' ?>">
-            <span class="dot" style="background:<?= $apercu ?>"></span><?= $lib ?>
-          </button>
-        <?php endforeach; ?>
+      <?php /* DEUX formulaires, et c'est nécessaire : un champ caché
+               « accent=custom » placé dans le même formulaire que les boutons
+               serait posté EN PLUS de celui du bouton cliqué. PHP retient la
+               dernière occurrence — tout choix de palette aurait donc été
+               enregistré comme « personnalisée ». */ ?>
+      <div class="ec-accents">
+        <form method="post" class="ec-accents" style="display:contents">
+          <?= csrf_field() ?>
+          <?php foreach ([
+                'rose'    => ['Rose (site)', '#db2777'],
+                'blue'    => ['Bleu',        '#3D63F0'],
+                'teal'    => ['Teal',        '#0FA894'],
+                'violet'  => ['Violet',      '#7C5CF6'],
+                'emerald' => ['Émeraude',    '#10B981'],
+              ] as $val => [$lib, $apercu]): ?>
+            <button type="submit" name="accent" value="<?= $val ?>"
+                    class="ec-accent <?= $accentActuel === $val ? 'is-active' : '' ?>">
+              <span class="dot" style="background:<?= $apercu ?>"></span><?= $lib ?>
+            </button>
+          <?php endforeach; ?>
+        </form>
 
-        <label class="ec-accent <?= $accentActuel === 'custom' ? 'is-active' : '' ?>">
-          <span class="dot" style="background:<?= htmlspecialchars($accentCustom) ?>"></span>
-          Personnalisée
-          <?php /* La soumission part au choix de la couleur : pas de bouton
-                   « valider » supplémentaire pour un réglage d'affichage. */ ?>
-          <input type="color" name="accent_custom" value="<?= htmlspecialchars($accentCustom) ?>"
-                 onchange="this.form.querySelector('[name=accent][type=hidden]').value='custom';this.form.submit();">
+        <form method="post" style="display:contents">
+          <?= csrf_field() ?>
           <input type="hidden" name="accent" value="custom">
-        </label>
-      </form>
+          <label class="ec-accent <?= $accentActuel === 'custom' ? 'is-active' : '' ?>">
+            <span class="dot" style="background:<?= htmlspecialchars($accentCustom) ?>"></span>
+            Personnalisée
+            <?php /* La soumission part au choix de la couleur : pas de bouton
+                     « valider » de plus pour un simple réglage d'affichage. */ ?>
+            <input type="color" name="accent_custom" value="<?= htmlspecialchars($accentCustom) ?>"
+                   onchange="this.form.submit();">
+          </label>
+        </form>
+      </div>
     </div>
   </section>
 

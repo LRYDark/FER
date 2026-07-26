@@ -18,31 +18,11 @@
 $ecTheme = $_SESSION[PAUTH_SESSION_KEY]['theme'] ?? null;
 if (!in_array($ecTheme, PAUTH_THEMES, true)) $ecTheme = null;
 
-/* Accent : mêmes palettes que le profil d'administration.
-   - « rose » suit la couleur primaire du site, réglée dans l'administration ;
-   - teal / violet / emerald sont des palettes toutes faites de tokens.css,
-     appliquées par l'attribut data-accent ;
-   - « blue » est la valeur par défaut de tokens.css : rien à poser ;
-   - « custom » dérive ses six variantes d'une couleur choisie, exactement comme
-     jrApplyAccent() côté administration — mais en PHP, donc sans clignotement. */
-$ecAccent  = $_SESSION[PAUTH_SESSION_KEY]['accent'] ?? 'rose';
-$ecCustom  = $_SESSION[PAUTH_SESSION_KEY]['accent_custom'] ?? null;
-$ecVars    = null;
-$ecDataAcc = null;
-
-if ($ecAccent === 'rose') {
-    // Couleur primaire du site, celle du bouton d'inscription.
-    $primaire = '#db2777';
-    try {
-        $c = $pdo->query('SELECT theme_primary_color FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
-        if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $primaire = $c;
-    } catch (\Throwable $e) {}
-    $ecVars = jr_accent_vars_from_hex($primaire);
-} elseif ($ecAccent === 'custom' && $ecCustom !== null) {
-    $ecVars = jr_accent_vars_from_hex($ecCustom);
-} elseif (in_array($ecAccent, ['teal', 'violet', 'emerald'], true)) {
-    $ecDataAcc = $ecAccent;
-}
+/* Accent : résolu par pauth_accentVars(), la même fonction que celle utilisée
+   par les pages d'authentification — une seule définition pour tout l'espace. */
+$ecAccentRes = pauth_accentVars($pdo);
+$ecVars      = $ecAccentRes['vars'];
+$ecDataAcc   = $ecAccentRes['data'];
 
 $ecV = function (string $rel): string {
     $p = dirname(__DIR__, 2) . '/' . $rel;
