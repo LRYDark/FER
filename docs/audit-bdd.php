@@ -80,6 +80,34 @@ function peuplerEditions(PDO $pdo, string $src, bool $tableVientDetreCreee): voi
     eval($m[1]);
 }
 
+/**
+ * Rejoue les migrations du LOT 6, qui sont du PHP et non du SQL : elles
+ * manipulent un JSON existant (gabarit d'email) et extraient un INSERT depuis
+ * install.php. sqlUpdate() ne les voit donc pas, exactement comme pour le
+ * peuplement des éditions ci-dessus.
+ *
+ * On extrait les deux blocs de update.php et on les évalue tels quels : c'est
+ * le VRAI code de migration qui s'exécute, pas une réécriture qui ne prouverait
+ * rien.
+ */
+function jouerLot6(PDO $pdo, string $src): void {
+    $results = [];   // les blocs y écrivent leur compte rendu
+    // ⚠️ L'ancrage de fin est le DERNIER catch du bloc, pas la première
+    // accolade fermante : celle-ci ferme un `if` interne et couperait le `try`
+    // de son `catch` — le code extrait ne compilerait même pas.
+    foreach ([
+        '/\$descMtc = "Ajouter la section.*?\$descMtc, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
+        '/\$descFaq = \'Ajouter les questions.*?\$descFaq, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
+    ] as $motif) {
+        if (!preg_match($motif, $src, $m)) {
+            throw new RuntimeException('Bloc de migration du lot 6 introuvable');
+        }
+        // __DIR__ vaut docs/ sous eval() : le bloc FAQ lit install.php par ce
+        // chemin, on le corrige pour qu'il pointe sur la racine du projet.
+        eval(str_replace("__DIR__ . '/install.php'", "'W:/FER/install.php'", $m[0]));
+    }
+}
+
 /** Exécute une liste d'instructions, en tolérant celles qui échouent (comme update.php). */
 function jouer(PDO $pdo, array $sqls, string $label, bool $verbose = false): array {
     $ok = $ko = 0; $erreurs = [];
@@ -159,6 +187,23 @@ $avant = [
 $schemaRegAvant = schema($B, 'registrations');
 printf("   %d inscription(s) en cours + %d archivée(s) créées\n", $avant['registrations'], $avant['registrations_2024']);
 
+/* Un gabarit d'email PERSONNALISÉ, comme en a forcément un site en service :
+   ordre des sections remanié, une section supprimée, un texte réécrit. C'est le
+   cas qui compte — la migration du lot 6 doit y insérer « app » SANS toucher au
+   reste. Un site de test au gabarit par défaut ne prouverait rien. */
+$gabaritAvant = [
+    'section_order' => ['qrcode', 'details', 'contact'],   // ordre remanié, 'tips' et 'banner' retirés
+    'texts'         => ['banner_title' => 'Texte choisi par l\'association'],
+    'colors'        => ['accent' => '#123456'],
+];
+$B->prepare('UPDATE setting SET mail_template_config = ? WHERE id = 1')
+  ->execute([json_encode($gabaritAvant, JSON_UNESCAPED_UNICODE)]);
+
+/* Une question de FAQ créée par l'administration, numérotée 1 : la migration du
+   lot 6 ne doit ni l'écraser, ni entrer en conflit avec elle. */
+$B->exec("INSERT INTO chatbot_faq (id, question, answer, position, active)
+          VALUES (1, 'Question de l''association', 'Réponse maison.', 1, 1)");
+
 /* ─────────────────────────────────────────────────────────────────────────
  * MIGRATION — les instructions de update.php
  * ───────────────────────────────────────────────────────────────────────── */
@@ -166,6 +211,7 @@ $SQL_UPDATE = sqlUpdate($srcUpdate);
 echo "\n=== MIGRATION de la base B (" . count($SQL_UPDATE) . " instructions) ===\n";
 $errM = jouer($B, $SQL_UPDATE, 'update.php', true);
 peuplerEditions($B, $srcUpdate, true);   // 1er passage : la table vient d'être créée
+jouerLot6($B, $srcUpdate);               // migrations PHP du lot 6 (gabarit d'email, FAQ)
 if ($errM) { echo "❌ Erreurs de migration :\n   - " . implode("\n   - ", $errM) . "\n"; $ko += count($errM); }
 else echo "✅ Migration sans erreur\n";
 
@@ -275,6 +321,59 @@ try {
 } catch (\Throwable $e) {
     echo "❌ Jointure impossible : " . $e->getMessage() . "\n"; $ko++;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 8. LOT 6 — gabarit d'email et FAQ
+ * Les deux migrations les plus délicates : elles ne créent pas des colonnes,
+ * elles MODIFIENT du contenu déjà saisi par l'administration.
+ * ───────────────────────────────────────────────────────────────────────── */
+echo "\n=== 8. Lot 6 : gabarit d'email et FAQ ===\n";
+
+$gabaritApres = json_decode((string) $B->query('SELECT mail_template_config FROM setting WHERE id = 1')
+                                        ->fetchColumn(), true);
+$ordre = $gabaritApres['section_order'] ?? [];
+
+if (in_array('app', $ordre, true)) echo "✅ Section « app » ajoutée au gabarit\n";
+else { echo "❌ Section « app » absente du gabarit : " . implode(',', $ordre) . "\n"; $ko++; }
+
+$posQr  = array_search('qrcode', $ordre, true);
+$posApp = array_search('app', $ordre, true);
+if ($posQr !== false && $posApp === $posQr + 1) echo "✅ Placée juste après le QR code\n";
+else { echo "❌ Mal placée (qrcode=$posQr, app=$posApp)\n"; $ko++; }
+
+// Le point qui compte vraiment : on n'a pas écrasé le travail de l'admin.
+$sansApp = array_values(array_diff($ordre, ['app']));
+if ($sansApp === $gabaritAvant['section_order']) echo "✅ L'ordre choisi par l'administration est intact\n";
+else { echo "❌ Ordre modifié : " . implode(',', $sansApp) . " au lieu de "
+          . implode(',', $gabaritAvant['section_order']) . "\n"; $ko++; }
+
+if (($gabaritApres['texts']['banner_title'] ?? '') === 'Texte choisi par l\'association'
+    && ($gabaritApres['colors']['accent'] ?? '') === '#123456') {
+    echo "✅ Textes et couleurs personnalisés préservés\n";
+} else { echo "❌ Personnalisation perdue\n"; $ko++; }
+
+if (!empty($gabaritApres['texts']['app_title'])) echo "✅ Textes par défaut de la section ajoutés\n";
+else { echo "❌ Textes de la section « app » manquants\n"; $ko++; }
+
+$nbFaq = (int) $B->query('SELECT COUNT(*) FROM chatbot_faq WHERE id BETWEEN 901 AND 999')->fetchColumn();
+if ($nbFaq === 9) echo "✅ 9 questions de FAQ ajoutées\n";
+else { echo "❌ $nbFaq question(s) de FAQ, attendu 9\n"; $ko++; }
+
+$maison = $B->query("SELECT question FROM chatbot_faq WHERE id = 1")->fetchColumn();
+if ($maison === 'Question de l\'association') echo "✅ La question créée par l'administration est intacte\n";
+else { echo "❌ Question de l'administration altérée\n"; $ko++; }
+
+/* Rejeu : c'est là que se voient les doublons et les écrasements. */
+jouer($B, sqlUpdate($srcUpdate), 'update.php', true);
+jouerLot6($B, $srcUpdate);
+$nbFaq2 = (int) $B->query('SELECT COUNT(*) FROM chatbot_faq WHERE id BETWEEN 901 AND 999')->fetchColumn();
+$ordre2 = json_decode((string) $B->query('SELECT mail_template_config FROM setting WHERE id = 1')
+                                 ->fetchColumn(), true)['section_order'] ?? [];
+if ($nbFaq2 === 9) echo "✅ Rejeu : aucun doublon de FAQ\n";
+else { echo "❌ Rejeu : $nbFaq2 questions (doublons créés)\n"; $ko++; }
+
+if (count(array_keys($ordre2, 'app', true)) === 1) echo "✅ Rejeu : la section « app » n'est pas ajoutée deux fois\n";
+else { echo "❌ Rejeu : section « app » en double\n"; $ko++; }
 
 printf("\n%s\n", $ko === 0 ? "✅ AUDIT PRODUCTION : AUCUNE ANOMALIE" : "❌ AUDIT : $ko ANOMALIE(S)");
 exit($ko > 0 ? 1 : 0);
