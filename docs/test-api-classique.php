@@ -158,6 +158,19 @@ echo "\n=== Isolation vis-à-vis de l'API mobile ===\n";
 $r = api('GET', 'registrations', '', null, ['FER_TEST_APITOKEN' => 'jeton_de_coureur_quelconque']);
 verifie('un jeton de coureur n\'ouvre pas l\'API partenaire', $r['http'] === 401, $r['brut']);
 
+echo "\n=== Journal ===\n";
+/* api.php journalise dans dirname(__FILE__) . '/storage/logs/api.log'. Sous
+   eval(), __DIR__ vaut le dossier du pilote : le journal atterrit donc dans
+   docs/storage/. On vérifie qu'il est bien écrit, puis on efface — un banc de
+   test ne laisse pas de traces dans le projet. */
+$logTest = __DIR__ . '/storage/logs/api.log';
+verifie('appels journalisés par api.php',
+    is_file($logTest) && str_contains((string) file_get_contents($logTest), 'ping'));
+
+@unlink($logTest);
+@rmdir(__DIR__ . '/storage/logs');
+@rmdir(__DIR__ . '/storage');
+
 echo "\n" . str_repeat('─', 60) . "\n";
 echo ($ko === 0 ? "TOUT EST VERT" : "$ko ÉCHEC(S)") . " — $ok test(s) réussi(s), $ko en échec.\n";
 exit($ko === 0 ? 0 : 1);
