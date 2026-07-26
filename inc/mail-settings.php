@@ -1421,8 +1421,12 @@ $jsConfig = json_encode([
                     data-confirm="Modifier le garde-fou des mails ? Décoché, les mails partiront aux vrais inscrits.">Enregistrer</button>
           <?php endif; ?>
 
-          <a class="small text-muted text-decoration-none ms-auto" href="logs.php?log=mail_catchall"
-             title="Journal des redirections"><i class="bi bi-journal-text"></i></a>
+          <?php /* Onglet « logs_mail_catchall » : la clé est dérivée du NOM DU
+                   FICHIER (logs_mail_catchall.log), pas du libellé affiché. */ ?>
+          <a class="btn btn-sm btn-outline-secondary w-auto ms-auto" href="logs.php?log=logs_mail_catchall"
+             title="Voir les redirections de mails enregistrées">
+            <i class="bi bi-journal-text me-1"></i>Journal
+          </a>
         </form>
 
         <?php if ($catchall['bloquant']): ?>
