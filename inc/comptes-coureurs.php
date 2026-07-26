@@ -48,6 +48,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logContentAction($pdo, 'compte_coureur', 'update', $id,
                 $etat === 1 ? 'Compte réactivé' : 'Compte désactivé', 'participant');
         }
+        /* ── Compte de démonstration (lot 7) ─────────────────────────────────
+         * Montrer l'espace coureur à un bénévole, à un partenaire ou lors d'une
+         * réunion suppose aujourd'hui d'ouvrir le compte de QUELQU'UN — donc
+         * d'exposer son nom, son adresse et son inscription à des gens qui n'ont
+         * rien à y voir. Ce compte existe pour que ce ne soit jamais nécessaire.
+         *
+         * Il est rattaché à une adresse que VOUS contrôlez : vous vous y
+         * connectez normalement, avec un code reçu par mail. Aucun mécanisme
+         * d'usurpation n'est introduit — pouvoir « se connecter en tant que »
+         * serait une porte dérobée permanente dans l'espace coureur. */
+        elseif (isset($_POST['creer_demo'])) {
+            $mailDemo = fer_normalizeEmail((string) ($_POST['email_demo'] ?? ''));
+            if ($mailDemo === '' || !filter_var($mailDemo, FILTER_VALIDATE_EMAIL)) {
+                $erreur = 'Indiquez une adresse email valide, que vous pouvez consulter.';
+            } else {
+                try {
+                    $pdo->beginTransaction();
+                    $annee = regres_activeYear($pdo);
+                    $no    = 'DEMO-' . $annee;
+
+                    // Numéro FIXE : relancer la création ne crée pas dix fausses
+                    // inscriptions. Nom en capitales et sans ambiguïté : personne
+                    // ne doit prendre cette ligne pour un vrai participant.
+                    $pdo->prepare(
+                        'INSERT INTO registrations (inscription_no, nom, prenom, email, naissance,
+                                                    sexe, ville, tshirt_size, paiement_mode, montant_du)
+                         VALUES (?,?,?,?,?,?,?,?,?,0)
+                         ON DUPLICATE KEY UPDATE email = VALUES(email)'
+                    )->execute([
+                        $no, encrypt('DÉMONSTRATION'), encrypt('Compte'), encrypt($mailDemo),
+                        encrypt('35'), 'Autre', encrypt('Forbach'), 'M', 'gratuit',
+                    ]);
+
+                    $participant = pauth_findByEmail($pdo, $mailDemo)
+                                ?? pauth_createFromRegistrations($pdo, $mailDemo);
+                    if ($participant === null) throw new RuntimeException('Compte non créé');
+                    pauth_syncRegistrations($pdo, (int) $participant['id'], $mailDemo);
+
+                    $pdo->commit();
+                    $succes = 'Compte de démonstration prêt. Connectez-vous sur l\'espace coureur '
+                            . 'avec ' . $mailDemo . ' : vous recevrez un code par mail.';
+                    logContentAction($pdo, 'compte_coureur', 'create', (int) $participant['id'],
+                        'Compte de démonstration créé', 'participant');
+                } catch (\Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    error_log('[DEMO] ' . $e->getMessage());
+                    $erreur = 'Création impossible : ' . $e->getMessage();
+                }
+            }
+        }
+        elseif (isset($_POST['supprimer_demo'])) {
+            try {
+                $annee = regres_activeYear($pdo);
+                $no    = 'DEMO-' . $annee;
+                // Le rattachement d'abord, l'inscription ensuite : l'inverse
+                // laisserait un lien pointant dans le vide.
+                $pdo->prepare('DELETE FROM participant_registrations WHERE annee = ? AND inscription_no = ?')
+                    ->execute([$annee, $no]);
+                $st = $pdo->prepare('DELETE FROM registrations WHERE inscription_no = ?');
+                $st->execute([$no]);
+                $succes = $st->rowCount() > 0
+                    ? 'Inscription de démonstration supprimée. Le compte coureur, lui, reste : '
+                    . 'supprimez-le depuis la liste si vous ne vous en servez plus.'
+                    : 'Aucune inscription de démonstration à supprimer.';
+                logContentAction($pdo, 'compte_coureur', 'delete', null,
+                    'Inscription de démonstration supprimée', 'participant');
+            } catch (\Throwable $e) {
+                $erreur = 'Suppression impossible : ' . $e->getMessage();
+            }
+        }
         elseif (isset($_POST['envoyer_code'])) {
             $st = $pdo->prepare('SELECT email_chiffre FROM participants WHERE id = ?');
             $st->execute([$id]);
@@ -217,6 +287,73 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
     Désactiver un compte coupe la connexion et la reconnexion automatique, mais ne
     touche pas à l'inscription à la course : la personne reste attendue au départ.
   </p>
+</div>
+
+<?php
+  /* Le compte de démonstration est-il déjà en place ? */
+  $noDemo = 'DEMO-' . regres_activeYear($pdo);
+  try {
+      $st = $pdo->prepare('SELECT email FROM registrations WHERE inscription_no = ? LIMIT 1');
+      $st->execute([$noDemo]);
+      $ligneDemo = $st->fetchColumn();
+      $mailDemoActuel = $ligneDemo === false ? null : decrypt((string) $ligneDemo);
+  } catch (\Throwable $e) { $mailDemoActuel = null; }
+?>
+<div class="card">
+  <header>
+    <div class="iconwell"><i class="bi bi-easel"></i></div>
+    <h2>Compte de démonstration</h2>
+    <?php if ($mailDemoActuel !== null): ?>
+      <span class="pill is-ok">en place</span>
+    <?php endif; ?>
+  </header>
+
+  <p class="text-muted small mb-0">
+    Pour montrer l'espace coureur — à un bénévole, à un partenaire, en réunion —
+    sans ouvrir le compte d'un vrai participant et exposer son nom, son adresse et
+    son inscription à des gens qui n'ont rien à y voir.
+  </p>
+
+  <?php if ($mailDemoActuel !== null): ?>
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i>
+      Rattaché à <strong><?= $h($mailDemoActuel) ?></strong>.
+      Connectez-vous sur l'espace coureur avec cette adresse : vous recevrez un code
+      par mail, comme n'importe quel participant.
+    </div>
+    <div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      <strong>Cette inscription factice apparaît dans le tableau de bord et compte
+      dans les totaux</strong> (numéro <code><?= $h($noDemo) ?></code>, nom
+      « DÉMONSTRATION »). Supprimez-la avant de communiquer des chiffres.
+    </div>
+    <form method="post" onsubmit="return confirm('Supprimer l\'inscription de démonstration ?');">
+      <?= csrf_field() ?>
+      <div class="row-actions">
+        <button class="btn btn-sm btn-outline-danger" name="supprimer_demo" value="1">
+          <i class="bi bi-trash3"></i> Supprimer l'inscription de démonstration
+        </button>
+      </div>
+    </form>
+  <?php else: ?>
+    <form method="post" class="d-flex gap-2 flex-wrap align-items-end">
+      <?= csrf_field() ?>
+      <div class="field" style="max-width:320px">
+        <label for="mailDemo">Adresse email que <strong>vous</strong> pouvez consulter</label>
+        <input class="form-control form-control-sm" id="mailDemo" name="email_demo" type="email"
+               required autocomplete="off" placeholder="vous@exemple.fr">
+      </div>
+      <button class="btn btn-sm btn-primary" name="creer_demo" value="1">
+        <i class="bi bi-plus-lg"></i> Créer le compte de démonstration
+      </button>
+    </form>
+    <p class="text-muted small mb-0">
+      <i class="bi bi-shield-check me-1"></i>
+      Aucun mécanisme de « connexion en tant que » n'est ajouté : ce serait une porte
+      dérobée permanente dans l'espace coureur. Vous vous connectez normalement, avec
+      un code reçu sur cette adresse.
+    </p>
+  <?php endif; ?>
 </div>
 
 <?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>

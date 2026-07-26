@@ -618,6 +618,11 @@ function getCreateTableStatements(): array
            * chiffre doit figurer dans la politique de confidentialité. */
           `traces_gps_conservation_jours` SMALLINT NOT NULL DEFAULT 400,
           `auth_codes_conservation_jours` SMALLINT NOT NULL DEFAULT 30,
+          /* Un appareil révoqué n'a plus de jeton valide, mais sa ligne garde
+           * le modèle du téléphone et l'IP de création. Les transferts EN
+           * ATTENTE ne sont jamais purgés, quel que soit ce délai. */
+          `devices_revoques_jours` SMALLINT NOT NULL DEFAULT 90,
+          `transferts_clos_jours` SMALLINT NOT NULL DEFAULT 365,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
