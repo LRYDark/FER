@@ -76,6 +76,9 @@ $st = $pdo->prepare(
 $st->execute([$moiId]);
 $appareils = $st->fetchAll(PDO::FETCH_ASSOC);
 
+$ecTitre    = 'Mes appareils de confiance';
+$ecSurtitre = 'Accès à votre espace sans nouveau code';
+
 $h    = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
 ?>
@@ -91,11 +94,6 @@ $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
-
-  <div class="ec-head">
-    <h1>Mes appareils de confiance</h1>
-    <p>Les appareils qui accèdent à votre espace sans redemander de code.</p>
-  </div>
 
   <?php if ($erreur !== ''): ?>
     <div class="alert is-danger"><i class="bi bi-exclamation-triangle"></i> <?= $h($erreur) ?></div>

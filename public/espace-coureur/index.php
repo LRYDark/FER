@@ -27,6 +27,10 @@ foreach ($lignes as $r) {
 }
 krsort($parEdition);
 
+/* Titre et surtitre de la barre supérieure de la coquille (cf. _layout-haut.php). */
+$ecTitre    = 'Mes inscriptions';
+$ecSurtitre = trim(($moi['prenom'] ?? '') . ' ' . ($moi['nom'] ?? '')) ?: ($moi['email'] ?? '');
+
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
 /** Pastille de paiement, à partir du montant et du mode. */
@@ -53,11 +57,6 @@ function ec_pillPaiement(array $r): string
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
-
-  <div class="ec-head">
-    <h1>Bonjour <?= $h(trim(($moi['prenom'] ?? '') . ' ' . ($moi['nom'] ?? ''))) ?: 'et bienvenue' ?></h1>
-    <p><?= $h($moi['email'] ?? '') ?></p>
-  </div>
 
   <?php if (!$parEdition): ?>
     <div class="card">
