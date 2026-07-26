@@ -94,6 +94,46 @@ function pauth_settings(PDO $pdo): array
     return $cache = $defauts;
 }
 
+/**
+ * Résout la couleur d'accent de l'espace coureur.
+ *
+ * Une seule définition, partagée par les pages internes (_styles.php) et les
+ * pages d'authentification (auth-head.php) : sans cela, les deux familles de
+ * pages auraient dérivé l'une de l'autre au premier ajustement.
+ *
+ *   - « rose »  → la couleur primaire du site, réglée dans l'administration ;
+ *   - « custom » → six variantes dérivées de la couleur choisie ;
+ *   - teal / violet / emerald → palettes toutes faites de tokens.css, posées
+ *     par l'attribut data-accent ;
+ *   - « blue » → le défaut de tokens.css, rien à poser.
+ *
+ * @return array{vars: ?array, data: ?string} variables CSS, ou nom de palette
+ */
+function pauth_accentVars(PDO $pdo): array
+{
+    $accent = $_SESSION[PAUTH_SESSION_KEY]['accent'] ?? 'rose';
+    $custom = $_SESSION[PAUTH_SESSION_KEY]['accent_custom'] ?? null;
+
+    if ($accent === 'custom' && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $custom)) {
+        return ['vars' => jr_accent_vars_from_hex((string) $custom), 'data' => null];
+    }
+    if (in_array($accent, ['teal', 'violet', 'emerald'], true)) {
+        return ['vars' => null, 'data' => $accent];
+    }
+    if ($accent === 'blue') {
+        return ['vars' => null, 'data' => null];   // défaut de tokens.css
+    }
+
+    // « rose », et repli de toute valeur inattendue : la couleur du site.
+    $primaire = '#db2777';
+    try {
+        $c = $pdo->query('SELECT theme_primary_color FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
+        if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $primaire = $c;
+    } catch (\Throwable $e) { /* colonne absente : rose par défaut */ }
+
+    return ['vars' => jr_accent_vars_from_hex($primaire), 'data' => null];
+}
+
 /* ═══════════════════════ Comptes participants ═══════════════════════════ */
 
 /**

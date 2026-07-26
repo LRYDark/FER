@@ -221,6 +221,11 @@ $navSections = [
         ['saisie.php',        'Saisie',          $ico['plus'],   ['roles' => ['saisie']]],
         ['qr_code.php',       'QR Codes',        $ico['qr'],     ['page' => 'qr_code']],
         ['tshirt-access.php', 'Accès bénévoles', $ico['tshirt'], ['roles' => ['admin']]],
+        // Espace coureur (lot 4) : ces deux écrans exposent les adresses et les
+        // appareils des coureurs — d'où une permission dédiée, décochée par
+        // défaut pour les rôles de consultation.
+        ['comptes-coureurs.php', 'Comptes coureurs', $ico['users2'], ['page' => 'dashboard', 'action' => 'dashboard.participants']],
+        ['transferts.php',       'Transferts',       $ico['send'],   ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
     ],
     'Contenu' => [
         ['news.php',     'Actualités',    $ico['news'],     ['page' => 'news']],
