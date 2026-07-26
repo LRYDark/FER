@@ -307,6 +307,7 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
     $sansNo     = [];   // inscriptions sans inscription_no : ni revendicables ni chronométrables
     $derive     = [];   // dérive de schéma entre tables d'inscriptions
     $tables     = [];
+    $ancienSchemaDetecte = false;   // tables restées à la structure de l'ancien lot 1
 
     // Tables du lot 1 portant une clé métier, et libellé lisible.
     $aControler = [
@@ -348,18 +349,41 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
             }
         }
 
+        // Colonnes réelles d'une table du lot 1 (les tables d'inscriptions passent,
+        // elles, par regres_tableColumns qui n'accepte que leurs noms).
+        $colonnesDe = function (string $t) use ($pdo): array {
+            $st = $pdo->prepare(
+                'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            $st->execute([$t]);
+            return $st->fetchAll(PDO::FETCH_COLUMN);
+        };
+
         foreach ($aControler as $table => $libelle) {
             if (!updTableExists($pdo, $table)) {
-                $orphelines[$table] = ['libelle' => $libelle, 'total' => null, 'lignes' => []];
+                $orphelines[$table] = ['libelle' => $libelle, 'total' => null, 'lignes' => [], 'ancienne' => false];
                 continue;
             }
+
+            // ⚠️ Une table de l'ANCIEN lot 1 porte `registration_id`/`edition_id` et
+            // n'a pas de colonne `annee` : l'interroger lèverait une erreur SQL brute
+            // (« Unknown column 'annee' ») au lieu d'expliquer ce qui se passe.
+            // On le détecte et on le rapporte, plutôt que de planter.
+            $cols = $colonnesDe($table);
+            if (!in_array('annee', $cols, true) || !in_array('inscription_no', $cols, true)) {
+                $orphelines[$table] = ['libelle' => $libelle, 'total' => null, 'lignes' => [], 'ancienne' => true];
+                $ancienSchemaDetecte = true;
+                continue;
+            }
+
             $rows = $pdo->query("SELECT id, annee, inscription_no FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
             $ko = [];
             foreach ($rows as $r) {
                 $cle = (int) $r['annee'] . '|' . trim((string) $r['inscription_no']);
                 if (!isset($connus[$cle])) $ko[] = $r;
             }
-            $orphelines[$table] = ['libelle' => $libelle, 'total' => count($rows), 'lignes' => $ko];
+            $orphelines[$table] = ['libelle' => $libelle, 'total' => count($rows), 'lignes' => $ko, 'ancienne' => false];
         }
     } catch (\Throwable $e) {
         $errorMsg = 'Contrôle interrompu : ' . $e->getMessage();
@@ -380,7 +404,29 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
       <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= htmlspecialchars($errorMsg) ?></div>
     <?php else: ?>
 
-      <?php if ($nbOrphelines === 0 && $nbSansNo === 0): ?>
+      <?php if ($ancienSchemaDetecte): ?>
+        <!-- Cas rencontré en vrai : les tables de l'ANCIEN lot 1 sont encore là.
+             Elles portent registration_id/edition_id et pas de colonne `annee` :
+             les interroger levait « Unknown column 'annee' ». On l'explique
+             au lieu de laisser remonter l'erreur SQL brute. -->
+        <div class="oc-alert oc-alert-danger">
+          <i class="bi bi-exclamation-octagon me-1"></i>
+          <strong>Schéma de l'ancien lot 1 encore en place.</strong>
+          <p style="margin:8px 0 0">
+            Une ou plusieurs tables portent encore <code>registration_id</code> / <code>edition_id</code>
+            au lieu du couple <code>(annee, inscription_no)</code>. Le contrôle d'intégrité ne peut pas
+            s'appliquer à cette structure, et <code>update.php</code> refuse de créer les nouvelles
+            tables tant qu'elle est présente — elles portent les mêmes noms, <code>CREATE TABLE IF NOT
+            EXISTS</code> les ignorerait en silence et laisserait un schéma faux.
+          </p>
+          <p style="margin:8px 0 0">
+            <strong>Marche à suivre :</strong> sauvegardez la base, exécutez
+            <code>rollback_lot1.sql</code> (phpMyAdmin → onglet SQL), puis relancez
+            <code>update.php</code>. Vos tables d'archive <code>registrations_AAAA</code> ne sont
+            jamais touchées.
+          </p>
+        </div>
+      <?php elseif ($nbOrphelines === 0 && $nbSansNo === 0): ?>
         <div class="oc-alert oc-alert-success"><i class="bi bi-check-circle me-1"></i>
           <strong>Aucune anomalie.</strong> Toutes les références pointent vers une inscription existante.</div>
       <?php else: ?>
@@ -425,11 +471,13 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
               <td class="mono"><?= htmlspecialchars($table) ?></td>
               <td><?= htmlspecialchars($o['libelle']) ?></td>
               <td class="num"><?= $o['total'] === null ? '—' : (int) $o['total'] ?></td>
-              <td class="num"><?= $o['total'] === null
-                    ? '<span class="tool-tag">table absente</span>'
-                    : (count($o['lignes']) > 0
-                        ? '<span class="tool-tag tool-tag-inconnu">' . count($o['lignes']) . '</span>'
-                        : '<span class="tool-tag tool-tag-date">0</span>') ?></td>
+              <td class="num"><?= !empty($o['ancienne'])
+                    ? '<span class="tool-tag tool-tag-inconnu">ancienne structure</span>'
+                    : ($o['total'] === null
+                        ? '<span class="tool-tag">table absente</span>'
+                        : (count($o['lignes']) > 0
+                            ? '<span class="tool-tag tool-tag-inconnu">' . count($o['lignes']) . '</span>'
+                            : '<span class="tool-tag tool-tag-date">0</span>')) ?></td>
               <td class="mono"><?php
                 $ex = array_slice($o['lignes'], 0, 5);
                 $lbl = array_map(fn($r) => '#' . (int) $r['id'] . ' → ' . (int) $r['annee'] . '/' . htmlspecialchars((string) $r['inscription_no']), $ex);
