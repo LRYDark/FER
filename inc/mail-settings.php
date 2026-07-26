@@ -1423,7 +1423,10 @@ $jsConfig = json_encode([
 
           <?php /* Onglet « logs_mail_catchall » : la clé est dérivée du NOM DU
                    FICHIER (logs_mail_catchall.log), pas du libellé affiché. */ ?>
-          <a class="btn btn-sm btn-outline-secondary w-auto ms-auto" href="logs.php?log=logs_mail_catchall"
+          <?php /* Fond gris clair permanent (et non au seul survol) : le bouton
+                   doit se voir sans avoir à le chercher. */ ?>
+          <a class="btn btn-sm w-auto ms-auto" href="logs.php?log=logs_mail_catchall"
+             style="background:#e9ecef;border:0;color:#495057"
              title="Voir les redirections de mails enregistrées">
             <i class="bi bi-journal-text me-1"></i>Journal
           </a>
