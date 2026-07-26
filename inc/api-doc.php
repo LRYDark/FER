@@ -145,7 +145,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
       <li><a href="#list">Phase 3 — Lister les inscrits — <code>registrations</code></a></li>
       <li><a href="#stats">Phase 3 — Statistiques — <code>stats</code> &amp; <code>years</code></a></li>
       <li><a href="#errors">Codes d'erreur</a></li>
-      <li><a href="#modele">Modèle de données — éditions, fuseaux horaires, traces GPS</a></li>
+      <li><a href="#modele">Modèle de données — clé métier, fuseaux horaires, traces GPS</a></li>
     </ol>
   </div>
 
@@ -390,74 +390,92 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
        depuis la page <a href="logs.php?log=api">Journaux système</a> (onglet « API »).</p>
   </div>
 
-  <!-- ═══ 9. Modèle de données (lot 1 — espace coureur / application mobile) ═══ -->
+  <!-- ═══ 9. Modèle de données (espace coureur / application mobile) ═══ -->
   <div class="api-card" id="modele">
-    <h2 class="mt-0">9. Modèle de données — éditions, fuseaux horaires, traces GPS</h2>
+    <h2 class="mt-0">9. Modèle de données — clé métier, fuseaux horaires, traces GPS</h2>
 
     <div class="alert alert-info">
       <i class="bi bi-info-circle me-2"></i>
       <strong>Cette section documente le schéma, pas de nouveaux endpoints.</strong>
-      L'API décrite ci-dessus (<code>api.php</code>) est <strong>inchangée</strong> : mêmes URL,
-      mêmes paramètres, mêmes réponses. Les éléments décrits ici sont utilisés par l'espace
-      coureur et par la future API mobile <code>/api/v1</code>.
+      L'API décrite ci-dessus (<code>api.php</code>) est <strong>inchangée</strong>, et la table
+      <code>registrations</code> <strong>n'a pas été modifiée</strong> : ni colonne, ni index, ni
+      contrainte. L'archivage annuel fonctionne exactement comme avant.
     </div>
 
-    <h3><code>editions</code> et <code>registrations_stats</code></h3>
-    <p>Deux tables portent désormais l'information « année » :</p>
+    <h3>La clé métier <code>(annee, inscription_no)</code></h3>
+    <p>Le site archive chaque année : la routine d'archivage crée
+       <code>registrations_&lt;année&gt;</code>, y recopie les lignes, puis vide
+       <code>registrations</code>. Les identifiants techniques <code>id</code> changent donc de
+       table tous les ans — <strong>une clé étrangère vers <code>registrations.id</code> casserait
+       à chaque archivage</strong>.</p>
+    <p>Les tables de l'espace coureur désignent donc un coureur par le couple
+       <strong><code>(annee, inscription_no)</code></strong> : « l'inscrit n°142 de l'édition 2026 »
+       désigne la même personne, que sa ligne vive dans <code>registrations</code> ou dans
+       <code>registrations_2026</code>.</p>
     <table class="table table-sm api-params">
-      <thead><tr><th>Table</th><th>Rôle</th><th>Utilisée par</th></tr></thead>
+      <thead><tr><th>Table</th><th>Rôle</th><th>Clé</th></tr></thead>
       <tbody>
-        <tr>
-          <td><code>editions</code></td>
-          <td><strong>Source de vérité</strong> d'une édition de la course : année, libellé, date,
-              distance, heure de départ, coordonnées de départ/arrivée, date limite des transferts.</td>
-          <td>Espace coureur, application mobile, chronométrage</td>
-        </tr>
-        <tr>
-          <td><code>registrations_stats</code></td>
-          <td>Statistiques agrégées par année (totaux, tailles de T-shirt, âge moyen…).
-              <strong>Inchangée</strong>.</td>
-          <td>Endpoints <code>stats</code> et <code>years</code> ci-dessus</td>
-        </tr>
+        <tr><td><code>editions</code></td><td>Configuration d'une édition : date, distance, heure et coordonnées de départ/arrivée, date limite des transferts</td><td><code>annee</code> (unique)</td></tr>
+        <tr><td><code>participants</code></td><td>Comptes coureurs. <strong>Aucune colonne de mot de passe</strong> : connexion par code à 6 chiffres. Table strictement distincte de <code>users</code></td><td><code>email_normalise</code> (unique)</td></tr>
+        <tr><td><code>participant_registrations</code></td><td>Le lien compte ↔ inscription. Son index unique garantit qu'<strong>une inscription appartient à un compte au maximum</strong></td><td><code>(annee, inscription_no)</code></td></tr>
+        <tr><td><code>participant_auth_codes</code></td><td>Codes de connexion à 6 chiffres, hachés</td><td><code>email_normalise</code></td></tr>
+        <tr><td><code>participant_devices</code></td><td>Appareils de confiance (navigateur / application)</td><td><code>token_hash</code> (unique)</td></tr>
+        <tr><td><code>registration_transfers</code></td><td>Transferts d'inscription en double opt-in, limités à l'édition active</td><td><code>(annee, inscription_no)</code></td></tr>
+        <tr><td><code>resultats</code></td><td>Chronométrage</td><td><code>(annee, inscription_no)</code></td></tr>
+        <tr><td><code>traces_gps</code></td><td>Traces enregistrées par l'application</td><td><code>(annee, inscription_no)</code></td></tr>
+        <tr><td><code>detections</code></td><td>Détections brutes (beacon, geofence, GPS)</td><td><code>(annee, inscription_no)</code></td></tr>
       </tbody>
     </table>
-    <p>Une synchronisation lancée par <code>update.php</code> garantit qu'<strong>une édition existe
-       pour chaque année présente dans <code>registrations_stats</code></strong>. L'endpoint
-       <code>years</code> continue de lire <code>registrations_stats.year</code> : son comportement
-       et sa réponse ne changent pas.</p>
-    <p>Chaque ligne de <code>registrations</code> porte une colonne <code>edition_id</code>.
-       L'unicité du numéro d'inscription est désormais <strong>par édition</strong>
-       (<code>UNIQUE (edition_id, inscription_no)</code>) : un même numéro peut être réutilisé
-       d'une année sur l'autre.</p>
+
+    <div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      <strong>Contrepartie assumée.</strong> MySQL ne peut pas garantir qu'un résultat pointe vers
+      une inscription existante : il n'y a aucune clé étrangère vers <code>registrations</code>.
+      C'est le rôle de <code>update.php?tool=check-integrity</code>, qui liste en lecture seule les
+      références orphelines, les inscriptions sans numéro et la dérive de schéma entre archives.
+    </div>
+
+    <p>Toute résolution passe par <code>src/core/registrations_resolver.php</code> (fonctions
+       <code>regres_*</code>), seule couche qui sait dans quelle table chercher. Les tables
+       d'archive y sont en <strong>lecture seule</strong> : toute écriture d'inscription se fait
+       exclusivement dans <code>registrations</code>.</p>
+    <p>Deux précautions y sont prises. D'abord, jamais de <code>SELECT *</code> sur une archive :
+       elles ont été créées par <code>CREATE TABLE … LIKE registrations</code> à des dates
+       différentes et leurs colonnes divergent — l'aiguilleur renvoie <code>null</code> pour les
+       colonnes absentes. Ensuite, la recherche par email <strong>déchiffre en PHP</strong> :
+       <code>registrations.email</code> étant chiffré avec un vecteur d'initialisation aléatoire, un
+       <code>WHERE LOWER(TRIM(email)) = …</code> comparerait le paramètre à du chiffré et ne
+       renverrait jamais rien. Le coût reste négligeable, l'archivage gardant chaque table à une
+       seule année.</p>
 
     <h3>Contrat de fuseau horaire</h3>
     <div class="alert alert-warning">
       <i class="bi bi-exclamation-triangle me-2"></i>
       <strong>Une erreur ici coûte deux heures de chrono.</strong> Le schéma historique est mixte et
       ne change pas : <code>registrations.created_at</code> est un <code>TIMESTAMP</code> (converti
-      par MySQL), <code>registrations.date_inscription</code> un <code>DATETIME</code> (heure serveur,
-      stockée telle quelle).
+      par MySQL), <code>registrations.date_inscription</code> un <code>DATETIME</code> (heure
+      serveur, stockée telle quelle).
     </div>
-    <p>Pour <strong>tout ce qui a été ajouté</strong> (chronométrage, traces, détections), le contrat
-       est le suivant :</p>
+    <p>Pour <strong>tout ce qui a été ajouté</strong>, le contrat est le suivant :</p>
     <ul>
-      <li>les colonnes <code>DATETIME(3)</code> — <code>resultats.depart_at</code>,
-          <code>resultats.arrivee_at</code>, <code>detections.detecte_at</code>,
-          <code>detections.recu_at</code>, <code>traces_gps.debut_at</code>,
-          <code>traces_gps.fin_at</code> — sont stockées <strong>en UTC</strong>, sans exception ;</li>
-      <li><code>editions.heure_depart</code> est également stockée <strong>en UTC</strong> : c'est
-          l'heure du coup de feu, donc la référence de tous les temps calculés. Renseignée en heure
-          locale face à des arrivées en UTC, <strong>tous les chronos seraient faux de deux heures</strong> ;</li>
+      <li>les colonnes <code>DATETIME(3)</code> — <code>resultats.depart_at</code> et
+          <code>arrivee_at</code>, <code>detections.detecte_at</code> et <code>recu_at</code>,
+          <code>traces_gps.debut_at</code> et <code>fin_at</code> — sont stockées
+          <strong>en UTC</strong>, sans exception ;</li>
+      <li><code>editions.heure_depart</code> est également <strong>en UTC</strong> : c'est l'heure
+          du coup de feu, donc la référence de tous les temps calculés. Renseignée en heure locale
+          face à des arrivées en UTC, <strong>tous les chronos seraient faux de deux heures</strong>,
+          silencieusement ;</li>
       <li>l'API n'accepte et ne renvoie que de l'<strong>ISO-8601 avec décalage explicite</strong>
           (<code>2027-07-04T09:32:15.123+02:00</code>), jamais une date nue ;</li>
       <li>la conversion vers <code>Europe/Paris</code> se fait <strong>uniquement à l'affichage</strong>.</li>
     </ul>
 
     <h3>Format de <code>traces_gps.points</code></h3>
-    <p>Le JSON des points est stocké <strong>compressé</strong> : <code>gzencode()</code> puis
-       <code>base64_encode()</code>. À 1000 coureurs et ~3600 points chacun, le non-compressé
-       représenterait plusieurs centaines de Mo et rendrait les sauvegardes pénibles.</p>
-    <?php codeBlock("// Écriture\n\$points = [\n  ['t' => '2027-07-04T09:32:15.123+02:00', 'lat' => 49.1889, 'lon' => 6.9004, 'alt' => 218, 'acc' => 5],\n  // …\n];\n\$blob = base64_encode(gzencode(json_encode(\$points), 9));\n\n// Lecture\n\$points = json_decode(gzdecode(base64_decode(\$blob)), true);"); ?>
+    <p>Colonne <code>LONGBLOB</code> : le JSON des points est stocké <strong>compressé</strong> par
+       <code>gzencode()</code>. À 1000 coureurs et ~3600 points chacun, le non-compressé
+       représenterait plusieurs centaines de Mo et alourdirait les sauvegardes.</p>
+    <?php codeBlock("// Écriture\n\$points = [\n  ['t' => '2027-07-04T09:32:15.123+02:00', 'lat' => 49.1889, 'lon' => 6.9004, 'alt' => 218, 'acc' => 5],\n  // …\n];\n\$blob = gzencode(json_encode(\$points), 9);\n\n// Lecture\n\$points = json_decode(gzdecode(\$blob), true);"); ?>
     <p><code>nb_points</code> conserve le nombre de points sans avoir à décompresser, et
        <code>purge_at</code> porte la date de suppression automatique (RGPD).</p>
 
@@ -468,25 +486,17 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
        secondes. Un temps issu d'une extrapolation GPS ne doit <strong>jamais</strong> être présenté
        comme équivalent à un temps beacon.</p>
     <p>La table <code>detections</code> conserve <strong>toutes</strong> les détections brutes ;
-       la colonne <code>retenue</code> marque celle qui a produit le résultat. On ne jette jamais
-       une détection.</p>
+       la colonne <code>retenue</code> marque celle qui a produit le résultat. On n'en supprime
+       jamais.</p>
+    <p><code>resultats.valide_par</code> référence <code>users.id</code> : l'<strong>administrateur</strong>
+       qui a validé ou corrigé un temps. C'est la seule référence vers <code>users</code> de tout ce
+       modèle, et elle ne désigne jamais un coureur.</p>
 
-    <h3>Comptes coureurs — tables séparées</h3>
-    <p><code>participants</code> (comptes coureurs) est <strong>strictement distincte</strong> de
-       <code>users</code> (comptes d'administration) : deux tables, deux sessions, deux systèmes de
-       jetons. <code>participants</code> ne comporte <strong>aucune colonne de mot de passe</strong> :
-       la connexion se fait uniquement par code à 6 chiffres reçu par mail.</p>
-    <p>La colonne <code>email_normalise</code> (présente sur <code>registrations</code>,
-       <code>participants</code> et <code>participant_auth_codes</code>) ne contient
-       <strong>pas l'adresse en clair</strong> mais une <strong>empreinte HMAC-SHA256</strong> de
-       l'adresse en minuscules, dérivée de la clé de chiffrement du site
-       (<code>fer_emailHash()</code>). La colonne <code>email</code> étant chiffrée avec un vecteur
-       d'initialisation aléatoire, elle n'est ni comparable ni indexable ; recopier l'adresse en clair
-       à côté aurait annulé cette protection. L'empreinte est déterministe : elle permet l'index,
-       la jointure et l'égalité — mais pas la recherche partielle.</p>
-    <p>La seule référence vers <code>users</code> dans tout ce modèle est
-       <code>resultats.valide_par</code> : elle désigne l'<strong>administrateur</strong> qui a validé
-       ou corrigé un temps, jamais un coureur.</p>
+    <h3>Âge et catégorie</h3>
+    <p>Aucune migration de la colonne <code>naissance</code> n'a été faite : l'âge est calculé
+       <strong>à la lecture</strong> par <code>regcore_ageFromNaissance()</code>, qui rapporte la
+       valeur à l'année de l'édition de la ligne — l'âge d'une archive 2023 se calcule sur 2023 et
+       non sur l'année courante.</p>
   </div>
 
 </div>
