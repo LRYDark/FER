@@ -98,6 +98,7 @@ function jouerLot6(PDO $pdo, string $src): void {
     foreach ([
         '/\$descMtc = "Ajouter la section.*?\$descMtc, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
         '/\$descFaq = \'Ajouter les questions.*?\$descFaq, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
+        '/\$descRgpd = \'Proposer un texte.*?\$descRgpd, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
     ] as $motif) {
         if (!preg_match($motif, $src, $m)) {
             throw new RuntimeException('Bloc de migration du lot 6 introuvable');
@@ -374,6 +375,33 @@ else { echo "❌ Rejeu : $nbFaq2 questions (doublons créés)\n"; $ko++; }
 
 if (count(array_keys($ordre2, 'app', true)) === 1) echo "✅ Rejeu : la section « app » n'est pas ajoutée deux fois\n";
 else { echo "❌ Rejeu : section « app » en double\n"; $ko++; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 9. LOT 7 — politique de confidentialité et durées de conservation
+ * ───────────────────────────────────────────────────────────────────────── */
+echo "\n=== 9. Lot 7 : politique de confidentialité et conservation ===\n";
+
+$privacy = (string) $B->query("SELECT COALESCE(legal_privacy,'') FROM setting WHERE id = 1")->fetchColumn();
+if (str_contains($privacy, 'Vos droits')) echo "✅ Texte de politique de confidentialité proposé\n";
+else { echo "❌ Politique de confidentialité vide après migration\n"; $ko++; }
+
+// Le point qui compte : un texte déjà rédigé ne doit JAMAIS être écrasé.
+$B->exec("UPDATE setting SET legal_privacy = '<p>Texte rédigé par notre juriste.</p>'");
+jouerLot6($B, $srcUpdate);
+$apres = (string) $B->query("SELECT legal_privacy FROM setting WHERE id = 1")->fetchColumn();
+if ($apres === '<p>Texte rédigé par notre juriste.</p>') {
+    echo "✅ Un texte déjà rédigé n'est pas écrasé au rejeu\n";
+} else { echo "❌ Le texte de l'association a été écrasé !\n"; $ko++; }
+
+$dur = $B->query('SELECT auth_codes_conservation_jours, traces_gps_conservation_jours,
+                         devices_revoques_jours, transferts_clos_jours
+                    FROM setting WHERE id = 1')->fetch();
+$attenduDur = ['auth_codes_conservation_jours' => 30, 'traces_gps_conservation_jours' => 400,
+               'devices_revoques_jours' => 90, 'transferts_clos_jours' => 365];
+foreach ($attenduDur as $k => $v) {
+    if ((int) ($dur[$k] ?? 0) === $v) echo "✅ $k = $v jours\n";
+    else { echo "❌ $k = " . var_export($dur[$k] ?? null, true) . " (attendu $v)\n"; $ko++; }
+}
 
 printf("\n%s\n", $ko === 0 ? "✅ AUDIT PRODUCTION : AUCUNE ANOMALIE" : "❌ AUDIT : $ko ANOMALIE(S)");
 exit($ko > 0 ? 1 : 0);

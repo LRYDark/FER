@@ -2333,6 +2333,13 @@ $lot1Settings = [
     // confidentialité.
     'traces_gps_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 400",
     'auth_codes_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 30",
+    // Un appareil révoqué n'a plus de jeton valide, mais sa ligne garde le
+    // modèle du téléphone et l'IP de création — des données personnelles.
+    'devices_revoques_jours'               => "SMALLINT NOT NULL DEFAULT 90",
+    // Les transferts EN ATTENTE ne sont jamais purgés, quel que soit ce délai :
+    // effacer une demande en cours la ferait disparaître sous le nez des deux
+    // personnes concernées.
+    'transferts_clos_jours'                => "SMALLINT NOT NULL DEFAULT 365",
 ];
 
 foreach ($lot1Settings as $col => $ddl) {
@@ -2438,6 +2445,115 @@ try {
     }
 } catch (\Throwable $e) {
     $results[] = ['status' => 'error', 'sql' => $descFaq, 'msg' => $e->getMessage()];
+}
+
+/* ═══════════════════ LOT 7 — politique de confidentialité ═══════════════
+ *
+ * ⚠️ N'ÉCRASE JAMAIS UN TEXTE EXISTANT. Si l'association a déjà rédigé sa
+ * politique — peut-être avec un juriste — la remplacer par un texte générique
+ * serait une perte sèche, et personne ne s'en apercevrait avant qu'un visiteur
+ * le signale. On ne remplit QUE si le champ est vide.
+ *
+ * Le texte proposé décrit les traitements RÉELLEMENT effectués par le code de
+ * ce site, durées comprises. Il reste à faire relire : ce n'est pas un avis
+ * juridique, c'est une description technique honnête, à compléter par
+ * l'association (identité du responsable, adresse de contact, DPO éventuel).
+ * ───────────────────────────────────────────────────────────────────────── */
+$descRgpd = 'Proposer un texte de politique de confidentialité (si vide)';
+try {
+    $actuel = (string) $pdo->query("SELECT COALESCE(legal_privacy, '') FROM setting WHERE id = 1")->fetchColumn();
+
+    if (trim(strip_tags($actuel)) !== '') {
+        $results[] = ['status' => 'skip', 'sql' => $descRgpd,
+                      'msg' => 'Un texte existe déjà — il n\'a pas été touché'];
+    } else {
+        $texte = <<<'HTML'
+<h2>Qui traite vos données</h2>
+<p>Les données collectées sur ce site le sont par l'association organisatrice de
+Forbach en Rose, pour l'organisation de la course et le suivi de votre inscription.
+<em>À compléter : identité complète de l'association et adresse de contact.</em></p>
+
+<h2>Quelles données, et pourquoi</h2>
+<table>
+  <tr><th>Données</th><th>Pourquoi</th><th>Conservation</th></tr>
+  <tr>
+    <td>Nom, prénom, âge, sexe, ville, adresse email, téléphone, équipe</td>
+    <td>Votre inscription à la course, la remise de votre t-shirt, et la
+        communication liée à l'événement.</td>
+    <td>Conservées avec les archives de l'association (obligations comptables).</td>
+  </tr>
+  <tr>
+    <td>Compte de l'espace coureur (adresse email chiffrée, préférences d'affichage)</td>
+    <td>Vous permettre de consulter et corriger votre inscription vous-même.</td>
+    <td>Tant que vous conservez le compte. Vous pouvez le supprimer à tout moment.</td>
+  </tr>
+  <tr>
+    <td>Codes de connexion à 6 chiffres</td>
+    <td>Vous identifier sans mot de passe. Seule une empreinte est stockée,
+        jamais votre adresse en clair.</td>
+    <td>30 jours.</td>
+  </tr>
+  <tr>
+    <td>Appareils de confiance (modèle, plateforme, adresse IP de connexion)</td>
+    <td>Vous éviter de ressaisir un code à chaque visite, et vous permettre de
+        déconnecter un appareil perdu.</td>
+    <td>Jusqu'à révocation, puis 90 jours.</td>
+  </tr>
+  <tr>
+    <td>Traces GPS et résultats de course</td>
+    <td>Établir votre temps, si vous utilisez l'application mobile et que vous
+        y consentez explicitement.</td>
+    <td>400 jours.</td>
+  </tr>
+</table>
+
+<h2>Comment vos données sont protégées</h2>
+<ul>
+  <li>Vos données personnelles sont <strong>chiffrées en base</strong> : une copie
+      de la base sans la clé de chiffrement ne révèle rien.</li>
+  <li>Les échanges avec le site se font uniquement en <strong>HTTPS</strong>.</li>
+  <li>L'espace coureur et l'espace d'administration sont <strong>strictement
+      séparés</strong> : un accès à l'un ne donne aucun droit sur l'autre.</li>
+  <li>Aucun mot de passe n'est stocké pour l'espace coureur : la connexion se fait
+      par un code temporaire envoyé à votre adresse.</li>
+</ul>
+
+<h2>Vos droits</h2>
+<p>Vous pouvez à tout moment, depuis votre espace coureur :</p>
+<ul>
+  <li><strong>Consulter</strong> vos données et les <strong>exporter</strong>
+      dans un fichier lisible ;</li>
+  <li><strong>Corriger</strong> votre nom, votre prénom, votre âge, votre sexe et
+      votre adresse email ;</li>
+  <li><strong>Supprimer</strong> votre compte en ligne. Votre inscription à la
+      course reste alors valable : c'est l'accès en ligne qui disparaît, pas
+      votre participation.</li>
+</ul>
+<p>Pour toute autre demande, écrivez-nous. Vous pouvez également introduire une
+réclamation auprès de la CNIL.</p>
+
+<h2>Participants mineurs</h2>
+<p>L'inscription d'un mineur est effectuée par un parent ou un représentant légal,
+qui fournit son autorisation. L'espace coureur est alors rattaché à l'adresse
+email du parent, qui garde le contrôle des données de l'enfant. Si l'inscription
+doit être rattachée à une autre adresse, la fonction de transfert le permet.</p>
+
+<h2>Sous-traitants</h2>
+<p>Les emails sont expédiés via un fournisseur d'envoi. Le site est hébergé chez
+un prestataire d'hébergement. <em>À compléter : noms des prestataires.</em></p>
+
+<h2>Cookies</h2>
+<p>Ce site n'utilise que des cookies nécessaires à son fonctionnement : maintien
+de votre session, et mémorisation de votre appareil si vous demandez à rester
+connecté. Aucun cookie publicitaire, aucun traceur tiers.</p>
+HTML;
+        $pdo->prepare('UPDATE setting SET legal_privacy = ? WHERE id = 1')->execute([$texte]);
+        $results[] = ['status' => 'success', 'sql' => $descRgpd,
+                      'msg' => 'Texte proposé — À RELIRE et compléter dans Réglages → Pages légales '
+                             . '(identité de l\'association, prestataires)'];
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => $descRgpd, 'msg' => $e->getMessage()];
 }
 
 /* ═══════════════════ fin LOT 1 ══════════════════════════════════════════ */

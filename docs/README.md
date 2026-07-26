@@ -42,6 +42,7 @@ code de sortie 0 si tout est vert.
 | **`test-api-classique.php`** | Non-régression de **`api.php`** (l'API partenaire) : ping, authentification, HTTPS, interrupteur, ajout d'inscrit, recherche, liste et filtres, statistiques, codes d'erreur. 25 tests. | oui |
 | **`test-api-v1.php`** | L'**API mobile** de bout en bout : les trois barrières d'entrée, la connexion par code, la signature des jetons, la révocation immédiate, les modifications en libre-service, les transferts, les archives en lecture seule. 71 tests. | oui |
 | **`test-lot6.php`** | Les intentions du chatbot (nouvelles ET anciennes, pour détecter les détournements), la section « app » du gabarit d'email, la page publique et les questions de FAQ. 61 tests. | non |
+| **`test-lot7.php`** | Les purges de conservation — et surtout ce quelles ne doivent JAMAIS effacer (inscriptions, archives, comptes actifs, transferts en attente) — plus la revue de sécurité : isolation des sessions, `api.php` inchangé, fichiers interdits intacts. 33 tests. | oui |
 | **`test-transferts.php`** | Le transfert d'une inscription d'un coureur à un autre, dans le scénario du terrain : une mère inscrit son fils sous sa propre adresse, le fils veut son espace. | oui |
 | **`test-auth-coureur.php`** | La connexion des coureurs : code à 6 chiffres, expiration, tentatives, limitation de débit, cookie « se souvenir de moi ». | oui |
 | **`test-espace-coureur.php`** | Les pages de l'espace coureur : contrôle d'accès, rattachement des inscriptions. | oui |

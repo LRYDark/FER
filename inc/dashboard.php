@@ -20,6 +20,21 @@ $canTshirtMode = $canScanQr || $canEditReg;
 // Charger les données pour la navbar
 require __DIR__ . '/../src/partials/navbar-data.php';
 
+/* ── Purge quotidienne des données périmées (lot 7) ──────────────────────────
+ * Déclenchée par la première ouverture du tableau de bord de la journée, et au
+ * plus une fois par jour (verrou atomique par fichier).
+ *
+ * POURQUOI ICI PLUTÔT QU'UN CRON : le site tourne chez un hébergeur mutualisé.
+ * Exiger la configuration d'une tâche planifiée, c'est garantir qu'elle sera
+ * oubliée, ou perdue au prochain déménagement — et une politique de
+ * confidentialité qui promet un effacement jamais exécuté est une fausse
+ * déclaration. Le jour où un cron existe, il peut appeler purge_run()
+ * directement : les deux mécanismes cohabitent sans se gêner.
+ *
+ * Coût en temps normal : un file_exists(). Rien de plus. */
+require_once __DIR__ . '/../src/content/purges.php';
+purge_quotidienne($pdo);
+
 $stmt = $pdo->prepare(
     'SELECT *
        FROM setting

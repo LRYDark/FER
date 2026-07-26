@@ -33,6 +33,7 @@ $pageTitles = [
     'page_stats.php'    => 'Visites',
     'api-doc.php'        => "Documentation de l'API",
     'api-doc-mobile.php' => "Documentation de l'API mobile",
+    'rgpd.php'           => 'Données personnelles',
     'assistant.php'     => 'Assistance',
 ];
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
@@ -257,6 +258,10 @@ $navSections = [
         ['utilisateurs.php', 'Utilisateurs & Droits', $ico['users2'], ['roles' => ['admin']]],
         ['connexions.php',   'Connexions',            $ico['login'],  ['page' => 'connexions']],
         ['logs.php',         'Logs',                  $ico['logs'],   ['page' => 'logs']],
+        // Conservation et effacement (lot 7) : réservé aux super-administrateurs.
+        // Effacer définitivement des données n'est pas une opération courante,
+        // et il faut pouvoir dire qui l'a déclenchée.
+        ['rgpd.php',         'Données personnelles',  $ico['shield'] ?? $ico['logs'], ['roles' => ['admin']]],
         ['setting.php?tab=maintenance', 'Maintenance', $ico['wrench'], ['page' => 'setting', 'action' => 'settings.tab.maintenance']],
     ],
 ];
