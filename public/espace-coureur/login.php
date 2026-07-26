@@ -1,9 +1,13 @@
 <?php
 /**
- * login.php — Connexion à l'espace coureur (lot 2).
+ * login.php — Connexion à l'espace coureur (lot 2, restylé lot 3).
  *
  * Deux étapes : saisie de l'adresse, puis saisie du code à 6 chiffres reçu par
  * mail. Le lien cliquable du mail arrive ici aussi, avec ?email=&token=.
+ *
+ * La page reprend EXACTEMENT la charte des pages d'authentification du site
+ * (src/partials/auth-head.php + auth-art.php, classes .oc-*) : c'est la même
+ * nature de page que la connexion administrateur, elle doit s'y ressembler.
  *
  * ⚠️ FER_SESSION_COUREUR doit être défini AVANT d'inclure config.php : c'est ce
  * qui donne à cette page une session au cookie distinct de l'administration.
@@ -16,7 +20,6 @@ checkMaintenance();
 require_once '../../src/security/csrf.php';
 require_once '../../src/security/captcha.php';
 require_once '../../src/auth/participant_auth.php';
-require __DIR__ . '/../../src/partials/navbar-data.php';
 
 // Déjà connecté : rien à faire ici.
 if (!pauth_isLogged()) pauth_loginFromCookie($pdo);
@@ -32,6 +35,10 @@ $info     = '';
 $email    = trim((string) ($_GET['email'] ?? $_SESSION['pauth_email_encours'] ?? ''));
 $retour   = (string) ($_GET['retour'] ?? '');
 $settings = pauth_settings($pdo);
+
+if (isset($_GET['supprime'])) {
+    $info = "Votre compte en ligne a été supprimé. Votre inscription à la course reste valable.";
+}
 
 /* Le message est le MÊME que l'adresse existe ou non — c'est toute la défense
    anti-énumération. Ne jamais le faire varier, même « pour aider l'utilisateur ». */
@@ -63,6 +70,15 @@ if ($tokenLien !== '' && $email !== '') {
 
 /* ── Traitements POST ────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    /* Turnstile en rendu implicite poste son jeton sous le nom
+       « cf-turnstile-response » ; verifyPublicCaptcha() attend
+       « turnstile_token ». On fait la correspondance ICI, côté serveur : la
+       faire en JavaScript au moment du submit dépendait du moment où le widget
+       avait fini de se rendre, et échouait alors que la case était bien cochée. */
+    if (empty($_POST['turnstile_token']) && !empty($_POST['cf-turnstile-response'])) {
+        $_POST['turnstile_token'] = $_POST['cf-turnstile-response'];
+    }
+
     if (!csrf_verify()) {
         $erreur = "Session expirée. Rechargez la page et réessayez.";
     }
@@ -74,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $erreur = "Merci de saisir une adresse email valide.";
         } elseif (!verifyPublicCaptcha($_POST, $pdo)) {
-            $erreur = "Vérification anti-robot échouée. Réessayez.";
+            $erreur = "Vérification anti-robot échouée. Rechargez la page et réessayez.";
         } else {
             pauth_purgeCodes($pdo);
 
@@ -144,7 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Le captcha n'est nécessaire qu'à l'étape « email ».
-$captcha = $etape === 'email' ? issuePublicCaptcha($pdo) : ['mode' => 'none'];
+$captcha  = $etape === 'email' ? issuePublicCaptcha($pdo) : ['mode' => 'none'];
+$authBase = '../../';   // lu par auth-head.php pour retrouver css/ et js/
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -154,126 +171,123 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Espace coureur — Connexion</title>
-<link rel="stylesheet" href="../../css/tokens.css">
-<link rel="stylesheet" href="../../css/fer-modern.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  .ec-wrap { min-height:70vh; display:flex; align-items:center; justify-content:center; padding:32px 16px; }
-  .ec-card { background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,.08); width:100%; max-width:440px; overflow:hidden; }
-  .ec-hd { background:linear-gradient(135deg,#F42182,#db2777); color:#fff; padding:26px 28px; }
-  .ec-hd h1 { font-size:1.25rem; font-weight:700; margin:0 0 4px; }
-  .ec-hd p  { font-size:.85rem; opacity:.92; margin:0; }
-  .ec-bd { padding:24px 28px 28px; }
-  .ec-lbl { display:block; font-size:.85rem; font-weight:600; color:#1e293b; margin-bottom:6px; }
-  .ec-input { width:100%; padding:.7rem .85rem; border:1px solid #cbd5e1; border-radius:.6rem; font-size:1rem; background:#fff; }
-  .ec-input:focus { outline:none; border-color:#F42182; box-shadow:0 0 0 3px rgba(244,33,130,.15); }
-  .ec-code { letter-spacing:.6em; text-align:center; font-size:1.6rem; font-weight:700; font-family:monospace; }
-  .ec-btn { width:100%; border:0; border-radius:.6rem; padding:.8rem 1rem; font-size:1rem; font-weight:700;
-            background:linear-gradient(135deg,#F42182,#db2777); color:#fff; cursor:pointer; margin-top:16px; }
-  .ec-btn:hover { opacity:.93; }
-  .ec-alert { border-radius:.6rem; padding:.8rem .9rem; font-size:.88rem; margin-bottom:16px; line-height:1.5; }
-  .ec-err  { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
-  .ec-info { background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; }
-  .ec-help { font-size:.8rem; color:#64748b; margin-top:14px; line-height:1.6; }
-  .ec-help a { color:#F42182; }
-  .ec-check { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:.88rem; color:#334155; }
-  .ec-cap-q { font-size:1rem; font-weight:700; color:#1e293b; margin-bottom:.5rem; }
-</style>
+<?php include __DIR__ . '/../../src/partials/auth-head.php'; ?>
 </head>
 <body>
-<?php include __DIR__ . '/_layout-haut.php'; ?>
+<div class="auth">
+  <div class="auth-frame">
+    <div class="auth-pane">
+      <a class="brand" href="../accueil.php">
+        <?php if (file_exists(dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png')): ?>
+          <img src="../../files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+        <?php endif; ?>
+        <span class="name">Forbach en Rose</span>
+      </a>
 
-<div class="ec-wrap">
-  <div class="ec-card">
-    <div class="ec-hd">
-      <h1><i class="bi bi-person-badge me-2"></i>Espace coureur</h1>
-      <p><?= $etape === 'email'
-            ? "Connectez-vous avec l'adresse utilisée lors de votre inscription."
-            : "Saisissez le code reçu par mail." ?></p>
-    </div>
-    <div class="ec-bd">
+      <div class="inner">
+        <div class="oc-icon-area">
+          <div class="oc-icon-circle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </div>
+          <h1 class="oc-title">Espace coureur</h1>
+          <p class="oc-subtitle">
+            <?= $etape === 'email'
+                  ? "Connectez-vous avec l'adresse utilisée lors de votre inscription."
+                  : "Saisissez le code reçu par mail." ?>
+          </p>
+        </div>
 
-      <?php if ($erreur !== ''): ?>
-        <div class="ec-alert ec-err"><i class="bi bi-exclamation-triangle me-1"></i><?= $h($erreur) ?></div>
-      <?php endif; ?>
-      <?php if ($info !== ''): ?>
-        <div class="ec-alert ec-info"><i class="bi bi-envelope-check me-1"></i><?= $h($info) ?></div>
-      <?php endif; ?>
+        <?php if ($erreur !== ''): ?>
+          <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= $h($erreur) ?></div>
+        <?php endif; ?>
+        <?php if ($info !== ''): ?>
+          <div class="oc-alert oc-alert-info"><i class="bi bi-envelope-check me-1"></i><?= $h($info) ?></div>
+        <?php endif; ?>
 
-      <?php if ($etape === 'email'): ?>
-        <form method="post" autocomplete="on">
-          <?= csrf_field() ?>
-          <label class="ec-lbl" for="ecEmail">Votre adresse email</label>
-          <input class="ec-input" type="email" id="ecEmail" name="email" required
-                 autocomplete="email" inputmode="email" placeholder="vous@exemple.fr"
-                 value="<?= $h($email) ?>">
-
-          <?php if (($captcha['mode'] ?? '') === 'turnstile'): ?>
-            <div style="margin-top:16px">
-              <div class="cf-turnstile" data-sitekey="<?= $h($captcha['sitekey']) ?>" data-theme="light"></div>
-              <input type="hidden" name="turnstile_token" id="ecTsToken">
+        <?php if ($etape === 'email'): ?>
+          <form method="post" autocomplete="on">
+            <?= csrf_field() ?>
+            <div class="oc-form-group">
+              <label class="oc-label" for="ecEmail">Votre adresse email</label>
+              <input class="oc-input" type="email" id="ecEmail" name="email" required
+                     autocomplete="email" inputmode="email" placeholder="vous@exemple.fr"
+                     value="<?= $h($email) ?>">
             </div>
-            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-            <script>
-              /* Turnstile renseigne un champ nommé cf-turnstile-response ; on le
-                 recopie dans le nom attendu par verifyPublicCaptcha(). */
-              document.addEventListener('submit', function (e) {
-                var r = document.querySelector('[name="cf-turnstile-response"]');
-                if (r) document.getElementById('ecTsToken').value = r.value;
-              }, true);
-            </script>
-          <?php elseif (($captcha['mode'] ?? '') === 'math'): ?>
-            <div style="margin-top:16px">
-              <div class="ec-cap-q"><?= $h($captcha['question']) ?></div>
-              <input class="ec-input" type="text" name="captcha_answer" inputmode="numeric"
-                     autocomplete="off" required placeholder="Votre réponse">
-              <input type="hidden" name="captcha_token" value="<?= $h($captcha['token']) ?>">
+
+            <?php if (($captcha['mode'] ?? '') === 'turnstile'): ?>
+              <div class="oc-form-group">
+                <?php /* Rendu implicite : Turnstile crée lui-même le champ
+                         « cf-turnstile-response », que le serveur sait lire. */ ?>
+                <div class="cf-turnstile" data-sitekey="<?= $h($captcha['sitekey']) ?>"></div>
+              </div>
+              <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+            <?php elseif (($captcha['mode'] ?? '') === 'math'): ?>
+              <div class="oc-form-group">
+                <label class="oc-label" for="ecCap"><?= $h($captcha['question']) ?></label>
+                <input class="oc-input" type="text" id="ecCap" name="captcha_answer"
+                       inputmode="numeric" autocomplete="off" required placeholder="Votre réponse">
+                <input type="hidden" name="captcha_token" value="<?= $h($captcha['token']) ?>">
+              </div>
+            <?php endif; ?>
+
+            <button class="oc-btn" type="submit" name="demander_code" value="1">
+              <i class="bi bi-envelope"></i> Recevoir mon code
+            </button>
+          </form>
+
+          <p class="oc-form-hint" style="margin-top:var(--sp-3);line-height:1.6">
+            Pas de mot de passe&nbsp;: vous recevez un code à 6 chiffres, valable
+            <?= (int) $settings['participant_code_ttl_min'] ?> minutes.<br>
+            Vous ne retrouvez pas votre inscription&nbsp;?
+            <a href="../faq.php">Questions fréquentes</a>.
+          </p>
+
+        <?php else: ?>
+          <form method="post" autocomplete="off">
+            <?= csrf_field() ?>
+            <input type="hidden" name="email" value="<?= $h($email) ?>">
+            <div class="oc-form-group">
+              <label class="oc-label" for="ecCode">Code à 6 chiffres</label>
+              <input class="oc-input" type="text" id="ecCode" name="code" required
+                     inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code"
+                     autofocus placeholder="••••••"
+                     style="letter-spacing:.6em;text-align:center;font-size:1.5rem;font-weight:700;font-family:var(--font-mono,monospace)">
             </div>
-          <?php endif; ?>
 
-          <button class="ec-btn" type="submit" name="demander_code" value="1">
-            <i class="bi bi-envelope me-1"></i>Recevoir mon code
-          </button>
-        </form>
+            <div class="oc-checkbox-group">
+              <input type="checkbox" id="ecSouvenir" name="se_souvenir" value="1">
+              <label for="ecSouvenir">Se souvenir de moi sur cet appareil
+                (<?= (int) $settings['participant_web_remember_jours'] ?> jours)</label>
+            </div>
 
-        <p class="ec-help">
-          Pas de mot de passe&nbsp;: vous recevez un code à 6 chiffres, valable
-          <?= (int) $settings['participant_code_ttl_min'] ?> minutes.<br>
-          Vous ne retrouvez pas votre inscription&nbsp;? Consultez la
-          <a href="../faq.php">foire aux questions</a>.
+            <button class="oc-btn" type="submit" name="valider_code" value="1">
+              <i class="bi bi-box-arrow-in-right"></i> Me connecter
+            </button>
+          </form>
+
+          <p class="oc-form-hint" style="margin-top:var(--sp-3);line-height:1.6">
+            Le mail contient aussi un lien direct&nbsp;: un clic suffit.<br>
+            Rien reçu&nbsp;? Vérifiez vos indésirables, puis
+            <a href="login.php">demandez un nouveau code</a>.
+          </p>
+        <?php endif; ?>
+
+        <p style="margin-top:var(--sp-4)">
+          <a href="../accueil.php" class="oc-back">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:15px;height:15px">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Retour au site
+          </a>
         </p>
-
-      <?php else: ?>
-        <form method="post" autocomplete="off">
-          <?= csrf_field() ?>
-          <input type="hidden" name="email" value="<?= $h($email) ?>">
-          <label class="ec-lbl" for="ecCode">Code à 6 chiffres</label>
-          <input class="ec-input ec-code" type="text" id="ecCode" name="code" required
-                 inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code"
-                 autofocus placeholder="••••••">
-
-          <label class="ec-check">
-            <input type="checkbox" name="se_souvenir" value="1">
-            <span>Se souvenir de moi sur cet appareil
-              (<?= (int) $settings['participant_web_remember_jours'] ?> jours)</span>
-          </label>
-
-          <button class="ec-btn" type="submit" name="valider_code" value="1">
-            <i class="bi bi-box-arrow-in-right me-1"></i>Me connecter
-          </button>
-        </form>
-
-        <p class="ec-help">
-          Le mail contient aussi un lien direct&nbsp;: un clic suffit.<br>
-          Rien reçu&nbsp;? Vérifiez vos indésirables, puis
-          <a href="login.php">demandez un nouveau code</a>.
-        </p>
-      <?php endif; ?>
-
-    </div>
-  </div>
-</div>
-
-<?php include __DIR__ . '/_layout-bas.php'; ?>
+      </div><!-- /inner -->
+    </div><!-- /auth-pane -->
+    <?php include __DIR__ . '/../../src/partials/auth-art.php'; ?>
+  </div><!-- /auth-frame -->
+</div><!-- /auth -->
 </body>
 </html>

@@ -40,9 +40,14 @@ try {
 } catch (\Throwable $e) {}
 ?>
 <?php // ?v=mtime : anti-cache
-$authV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $rel . '?v=' . (@filemtime($p) ?: '1'); };
+/* Préfixe des ressources. Vide par défaut : les pages qui incluent ce fichier
+   sont à la racine (login.php, install.php, update.php…) et rien ne change pour
+   elles. Une page plus profonde — l'espace coureur, dans public/espace-coureur/ —
+   pose $authBase = '../../' AVANT l'include pour que css/ et js/ soient trouvés. */
+$authBase = $authBase ?? '';
+$authV = function (string $rel) use ($authBase) { $p = dirname(__DIR__, 2) . '/' . $rel; return $authBase . $rel . '?v=' . (@filemtime($p) ?: '1'); };
 ?>
-<script src="js/theme.js"></script>
+<script src="<?= $authBase ?>js/theme.js"></script>
 <script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
 /* Applique le thème des pages de connexion (indépendant de l'admin), APRÈS
    theme.js qui aurait posé le thème admin. Anti-flash : fond immédiat. */

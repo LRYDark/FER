@@ -2390,80 +2390,58 @@ body.dark-theme .news-spinner::after{
 
 /* SVG icônes statiques — pas d'animation au hover (cohérence sobre) */
 
+
 /* ============================================================
-   ESPACE COUREUR — bouton d'accès dans la navbar
+   ESPACE COUREUR — bouton « Connexion » de la navbar
    ------------------------------------------------------------
-   Icône seule, volontairement discrète : « Inscription » reste
-   l'action mise en avant (c'est elle qui remplit la course), la
-   connexion ne concerne que les personnes déjà inscrites, qui la
-   cherchent volontairement.
+   Même forme et même hauteur que « Inscription », mais en gris
+   ardoise : deux boutons roses côte à côte se concurrenceraient,
+   et c'est l'inscription qui doit gagner — c'est elle qui remplit
+   la course. Le gris se marie avec le rose sans lui disputer
+   l'attention, et reste lisible en thème sombre.
+
+   Sur mobile, ce bouton disparaît : la barre du bas porte déjà
+   son entrée « Connexion », et deux points d'entrée dans la même
+   zone faisaient doublon.
+
    Copies d'origine avant cet ajout :
      docs/navbar-modern.avant-bouton-espace-coureur.php
      docs/fer-modern.avant-bouton-espace-coureur.css
    ============================================================ */
-
-/* ---- Desktop : pastille ronde, à gauche du bouton Inscription ---- */
-.nav-espace-coureur{
+.btn.nav-connexion{
   display: inline-flex;
+  flex-direction: column;      /* icône au-dessus, libellé en dessous */
   align-items: center;
   justify-content: center;
-  /* 56px : même hauteur que .nav-card et .btn.pink.nav-cta, pour que les trois
-     éléments de la barre restent alignés au pixel. */
-  width: 3.5rem;
-  height: 3.5rem;
+  gap: 2px;
   flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(15,23,42,.05);
-  color: var(--ink, #0f172a);
+  /* Mêmes arrondis que .btn.pink.nav-cta, et 56px de haut comme .nav-card :
+     les trois éléments de la barre restent alignés au pixel. */
+  height: 3.5rem;
+  padding: 0 1.1rem;
+  background: #e2e8f0;
+  color: #334155;
+  border: 0;
   text-decoration: none;
+  line-height: 1.1;
   transition: background .2s ease, color .2s ease, transform .2s ease;
 }
-.nav-espace-coureur svg{ width: 1.375rem; height: 1.375rem; }
-.nav-espace-coureur:hover{
-  background: var(--pink);
-  color: var(--primary-text, #fff);
+.btn.nav-connexion svg{ width: 1.15rem; height: 1.15rem; }
+.btn.nav-connexion span{
+  font-size: .6875rem;         /* « en petit », sous l'icône */
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.btn.nav-connexion:hover{
+  background: #cbd5e1;
+  color: #0f172a;
   transform: translateY(-1px);
 }
-.dark-theme .nav-espace-coureur{ background: rgba(255,255,255,.08); color: #e2e8f0; }
-.dark-theme .nav-espace-coureur:hover{ background: var(--pink); color: #fff; }
+.dark-theme .btn.nav-connexion{ background: rgba(255,255,255,.10); color: #e2e8f0; }
+.dark-theme .btn.nav-connexion:hover{ background: rgba(255,255,255,.18); color: #fff; }
 
-/* ---- Mobile : pastille séparée, à gauche du CTA de la barre du bas ----
-   Elle suit exactement le même repli que le CTA « Inscription » à l'ouverture
-   du menu : sans ça, elle resterait seule et flottante au-dessus du panneau. */
-.mobile-bottom-espace{
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 3.25rem;
-  flex-shrink: 0;
-  background: #ffffff;
-  color: var(--ink, #0f172a);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 18px rgba(0,0,0,.16);
-  text-decoration: none;
-  pointer-events: auto;
-  overflow: hidden;
-  opacity: 1;
-  transition: max-width .35s cubic-bezier(.4,0,.2,1),
-              opacity .2s ease,
-              width .35s cubic-bezier(.4,0,.2,1),
-              box-shadow .3s ease;
-}
-.mobile-bottom-espace svg{ width: 1.25rem; height: 1.25rem; }
-.mobile-bottom-espace:hover{ background: var(--pink); color: #fff; }
-
-.mobile-bottom-bar.menu-open .mobile-bottom-espace,
-.mobile-bottom-bar.menu-closing .mobile-bottom-espace{
-  width: 0;
-  opacity: 0;
-  box-shadow: none;
-  pointer-events: none;
-}
-
-/* La barre du bas n'existe qu'en mobile : on n'affiche la pastille que là.
-   ⚠️ 1040px et non 1024 — c'est le point de bascule réel de .mobile-bottom-bar.
-   Se tromper laisserait une bande de 16px de large où la pastille serait posée
-   sur une barre invisible. */
+/* La barre du bas prend le relais sous 1040px (point de bascule réel de
+   .mobile-bottom-bar) : au-delà, ce bouton ferait doublon. */
 @media (max-width: 1040px){
-  .mobile-bottom-espace{ display: flex; }
+  .btn.nav-connexion{ display: none; }
 }

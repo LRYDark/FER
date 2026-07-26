@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
     exit;
 }
 
-$h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+$authBase = '../../';
 ?>
 <!doctype html>
 <html lang="fr">
@@ -26,33 +26,45 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Espace coureur — Déconnexion</title>
-<link rel="stylesheet" href="../../css/tokens.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  .ec-wrap { min-height:60vh; display:flex; align-items:center; justify-content:center; padding:32px 16px; }
-  .ec-card { background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,.08);
-             width:100%; max-width:420px; padding:28px; text-align:center; }
-  .ec-card h1 { font-size:1.1rem; font-weight:700; color:#0f172a; margin:0 0 8px; }
-  .ec-card p { font-size:.9rem; color:#475569; margin:0 0 20px; line-height:1.6; }
-  .ec-btn { border:0; border-radius:.6rem; padding:.75rem 1.3rem; font-size:.95rem; font-weight:700;
-            background:linear-gradient(135deg,#F42182,#db2777); color:#fff; cursor:pointer; }
-  .ec-lien { display:inline-block; margin-top:14px; color:#64748b; font-size:.85rem; }
-</style>
+<?php include __DIR__ . '/../../src/partials/auth-head.php'; ?>
 </head>
 <body>
-<?php include __DIR__ . '/_layout-haut.php'; ?>
-<div class="ec-wrap">
-  <div class="ec-card">
-    <h1>Se déconnecter</h1>
-    <p>Cet appareil ne sera plus reconnu&nbsp;: il faudra un nouveau code
-       pour revenir sur votre espace.</p>
-    <form method="post">
-      <?= csrf_field() ?>
-      <button class="ec-btn" type="submit"><i class="bi bi-box-arrow-right me-1"></i>Confirmer</button>
-    </form>
-    <a class="ec-lien" href="index.php">Annuler</a>
-  </div>
-</div>
-<?php include __DIR__ . '/_layout-bas.php'; ?>
+<div class="auth">
+  <div class="auth-frame">
+    <div class="auth-pane">
+      <a class="brand" href="../accueil.php">
+        <?php if (file_exists(dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png')): ?>
+          <img src="../../files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+        <?php endif; ?>
+        <span class="name">Forbach en Rose</span>
+      </a>
+
+      <div class="inner">
+        <div class="oc-icon-area">
+          <div class="oc-icon-circle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </div>
+          <h1 class="oc-title">Se déconnecter</h1>
+          <p class="oc-subtitle">Cet appareil ne sera plus reconnu&nbsp;: il faudra un nouveau
+             code pour revenir sur votre espace.</p>
+        </div>
+
+        <form method="post">
+          <?= csrf_field() ?>
+          <button class="oc-btn" type="submit"><i class="bi bi-box-arrow-right"></i> Confirmer</button>
+        </form>
+
+        <p style="margin-top:var(--sp-3);text-align:center">
+          <a class="oc-back" href="index.php">Annuler</a>
+        </p>
+      </div><!-- /inner -->
+    </div><!-- /auth-pane -->
+    <?php include __DIR__ . '/../../src/partials/auth-art.php'; ?>
+  </div><!-- /auth-frame -->
+</div><!-- /auth -->
 </body>
 </html>
