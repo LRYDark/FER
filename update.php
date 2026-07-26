@@ -280,10 +280,28 @@ function lot1ToolFoot(string $backHref = 'update.php', string $backLabel = 'Reto
  *
  * ⚠️ Les tables d'archive sont CONSERVÉES INTACTES : on lit, on n'efface rien.
  * Rejouable sans créer de doublon (test d'existence sur (edition_id, inscription_no)).
+ *
+ * ⛔ PRÉREQUIS NON SATISFAIT AUJOURD'HUI — DOUBLE CONFIRMATION EXIGÉE.
+ * Tout le back-office lit `registrations` comme s'il ne contenait QUE l'édition
+ * en cours ; il n'existe encore aucun filtre par édition :
+ *   - admin-api.php:1783  liste du dashboard  → SELECT * FROM registrations
+ *   - admin-api.php:2322  compteurs           → COUNT(*) FROM registrations
+ *   - admin-api.php:1858  numéro d'inscription suivant (repli) → MAX(...)
+ *   - googleMail.php:275  classement « X premiers payants » du QR Code
+ *   - admin-api.php:3088  archivage annuel : INSERT INTO registrations_AAAA
+ *                         SELECT * FROM registrations, puis TRUNCATE
+ * Après consolidation, ces requêtes voient TOUTES les éditions à la fois : le
+ * dashboard affiche tout l'historique, les compteurs sont faux, et le prochain
+ * archivage annuel recopierait toutes les années dans l'archive de l'année.
+ * Rendre le back-office multi-édition est un préalable à cet outil.
  * ════════════════════════════════════════════════════════════════════════════ */
 if (($_GET['tool'] ?? '') === 'consolidate-archives') {
 
-    $apply    = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['apply']);
+    // Double verrou : « Appliquer » NE SUFFIT PAS, il faut aussi reconnaître
+    // explicitement la conséquence sur le back-office (cf. en-tête).
+    $confirme = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['je_confirme']);
+    $apply    = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['apply']) && $confirme;
+    $refuse   = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['apply']) && !$confirme;
     $errorMsg = null;
     $rapport  = [];
 
@@ -427,6 +445,56 @@ if (($_GET['tool'] ?? '') === 'consolidate-archives') {
       <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= htmlspecialchars($errorMsg) ?></div>
     <?php endif; ?>
 
+    <?php if ($refuse): ?>
+      <div class="oc-alert oc-alert-danger"><i class="bi bi-shield-exclamation me-1"></i>
+        <strong>Consolidation refusée.</strong> « Appliquer » était coché, mais pas la confirmation
+        des conséquences sur le back-office. Rien n'a été écrit.</div>
+    <?php endif; ?>
+
+    <!-- Prérequis : tant que le back-office n'est pas multi-édition, appliquer cet
+         outil rend le dashboard et les compteurs incohérents. Bloc toujours visible. -->
+    <div class="oc-alert oc-alert-danger">
+      <i class="bi bi-exclamation-octagon me-1"></i>
+      <strong>À ne pas appliquer tant que le back-office n'est pas multi-édition.</strong>
+      <p style="margin:8px 0 0">
+        Aujourd'hui, tout l'administration lit <code>registrations</code> comme si la table ne
+        contenait que <strong>l'édition en cours</strong> — il n'existe aucun filtre par édition.
+        Une fois les archives consolidées :
+      </p>
+      <ul style="margin:8px 0 0;padding-left:1.1rem">
+        <li>le <strong>dashboard affiche toutes les années à la fois</strong> ;</li>
+        <li>les <strong>compteurs et statistiques</strong> comptent tout l'historique ;</li>
+        <li>le classement <strong>« X premiers payants » du QR Code</strong> est faussé ;</li>
+        <li>le prochain <strong>archivage annuel</strong> recopierait toutes les années dans
+            l'archive de l'année, avant de vider <code>registrations</code>.</li>
+      </ul>
+      <p style="margin:8px 0 0">
+        Les tables <code>registrations_AAAA</code> restent intactes : tant que le back-office n'est
+        pas adapté, <strong>laissez les archives où elles sont</strong> et utilisez cette page en
+        aperçu seulement.
+      </p>
+    </div>
+
+    <details style="margin-bottom:var(--sp-3)">
+      <summary style="cursor:pointer;font-size:var(--fs-small);font-weight:600">
+        Marche arrière — annuler une consolidation déjà appliquée
+      </summary>
+      <p class="tool-intro" style="margin-top:8px">
+        Les archives n'ayant jamais été modifiées, il suffit de retirer de
+        <code>registrations</code> les lignes rattachées à une édition non active.
+        Vérifiez d'abord ce que vous allez supprimer :
+      </p>
+      <pre style="background:var(--surface-2);padding:10px;border-radius:var(--radius-m);font-size:var(--fs-micro);overflow:auto">SELECT e.annee, e.is_active, COUNT(r.id) AS lignes
+  FROM editions e
+  LEFT JOIN registrations r ON r.edition_id = e.id
+ GROUP BY e.id ORDER BY e.annee;
+
+-- puis, après sauvegarde :
+DELETE r FROM registrations r
+  JOIN editions e ON e.id = r.edition_id
+ WHERE e.is_active = 0;</pre>
+    </details>
+
     <?php if ($schemaOk && empty($rapport)): ?>
       <div class="oc-alert oc-alert-info"><i class="bi bi-info-circle me-1"></i>
         Aucune table d'archive <code>registrations_AAAA</code> détectée. Rien à consolider.</div>
@@ -493,6 +561,12 @@ if (($_GET['tool'] ?? '') === 'consolidate-archives') {
       <label class="tool-check tool-check-apply">
         <input type="checkbox" name="apply" value="1">
         <span><strong>Appliquer réellement</strong> la consolidation (sinon : aperçu seulement)</span>
+      </label>
+      <label class="tool-check tool-check-apply">
+        <input type="checkbox" name="je_confirme" value="1">
+        <span>Je comprends que le <strong>dashboard, les compteurs, le classement du QR Code et
+          l'archivage annuel</strong> afficheront alors toutes les éditions confondues, et que
+          j'ai <strong>sauvegardé la base</strong>. Sans cette case, « Appliquer » est ignoré.</span>
       </label>
       <div class="tool-actions">
         <button type="submit" class="oc-btn"><i class="bi bi-play-fill"></i> Analyser / Consolider</button>
