@@ -121,6 +121,20 @@ ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_secure', 1);
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.use_strict_mode', 1);
+
+/* ───── Session de l'espace coureur : SÉPARÉE de celle de l'administration ───
+ * Une page de public/espace-coureur/ définit FER_SESSION_COUREUR avant
+ * d'inclure ce fichier. Le cookie de session porte alors un autre nom, ce qui
+ * crée deux sessions réellement distinctes :
+ *   - un coureur connecté n'a AUCUN $_SESSION['uid'] : même en cas de faille
+ *     dans l'espace coureur, il ne peut pas hériter de droits d'administration ;
+ *   - inversement, une session d'administration ne vaut pas connexion coureur.
+ * L'isolation est structurelle, pas conventionnelle : elle ne repose pas sur la
+ * discipline d'un test dans chaque page.
+ * ───────────────────────────────────────────────────────────────────────── */
+if (defined('FER_SESSION_COUREUR') && FER_SESSION_COUREUR) {
+    session_name('FERCOUREUR');
+}
 session_start();
 
 /* ───── IP cliente fiable (anti-spoofing) ──────────────────────────────────
