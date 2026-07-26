@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     $deleted = $csrfOk ? @unlink(__FILE__) : false;
 
     // Même coquille que le rapport de migration et que les sous-outils ?tool=…
-    lot1ToolHead(
+    updToolHead(
         $deleted ? 'update.php supprimé' : (!$csrfOk ? 'Session expirée' : 'Suppression impossible'),
         $deleted ? 'Le fichier de migration n\'est plus présent sur le serveur.' : 'L\'opération n\'a pas pu aboutir.',
         $deleted
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
         Supprimez-le manuellement via FTP ou votre gestionnaire de fichiers.</div>
     <?php endif; ?>
     <?php
-    lot1ToolFoot('inc/dashboard.php', 'Retour au tableau de bord');
+    updToolFoot('inc/dashboard.php', 'Retour au tableau de bord');
     exit;
 }
 
@@ -110,7 +110,7 @@ if (($_GET['tool'] ?? '') === 'repair-dates') {
         return count($p) === 3 ? "{$p[2]}/{$p[1]}/{$p[0]}" : htmlspecialchars((string) $ymdhms);
     };
     // Même coquille que le rapport de migration (thème, accent, clair/sombre).
-    lot1ToolHead(
+    updToolHead(
         '<i class="bi bi-calendar-check me-2"></i>Réparer les dates d\'inscription',
         "Recorrige les « dates d'ajout » inversées (jour/mois) à partir du fichier d'export AssoConnect d'origine.",
         'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
@@ -199,7 +199,7 @@ if (($_GET['tool'] ?? '') === 'repair-dates') {
       </div>
     </form>
     <?php
-    lot1ToolFoot();
+    updToolFoot();
     exit;
 }
 
@@ -211,7 +211,26 @@ if (($_GET['tool'] ?? '') === 'repair-dates') {
  * même thème (jetons css/tokens.css), même accent, même bascule clair/sombre,
  * mêmes classes .oc-*. Une seule mise en page à maintenir pour les quatre pages.
  * ════════════════════════════════════════════════════════════════════════════ */
-function lot1ToolHead(string $title, string $subtitle, string $iconPath): void
+/**
+ * Une table existe-t-elle ?
+ *
+ * Doublon apparent de la closure `$tableExists` définie plus bas, mais
+ * INDISPENSABLE : une closure affectée à une variable n'est pas remontée à la
+ * compilation, elle n'existe qu'à partir de sa ligne d'affectation. Les
+ * sous-outils ?tool=… s'exécutent AVANT — ils ne peuvent donc pas l'utiliser.
+ * Une déclaration de fonction, elle, est disponible dans tout le fichier.
+ */
+function updTableExists(PDO $pdo, string $name): bool
+{
+    $st = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+    );
+    $st->execute([$name]);
+    return (int) $st->fetchColumn() > 0;
+}
+
+function updToolHead(string $title, string $subtitle, string $iconPath): void
 {
     global $pdo;   // auth-head.php lit la couleur d'accent et le thème dans la BDD
     ?>
@@ -246,7 +265,7 @@ function lot1ToolHead(string $title, string $subtitle, string $iconPath): void
     <?php
 }
 
-function lot1ToolFoot(string $backHref = 'update.php', string $backLabel = 'Retour aux migrations'): void
+function updToolFoot(string $backHref = 'update.php', string $backLabel = 'Retour aux migrations'): void
 {
     ?>
         </div><!-- /update-body -->
@@ -269,532 +288,191 @@ function lot1ToolFoot(string $backHref = 'update.php', string $backLabel = 'Reto
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * OUTIL : Consolidation des archives (update.php?tool=consolidate-archives)
+ * OUTIL : Contrôle d'intégrité (update.php?tool=check-integrity)
  * ----------------------------------------------------------------------------
- * Reverse les tables d'archive `registrations_AAAA` dans `registrations`, en
- * rattachant chaque ligne à l'édition de son année.
+ * Les tables du lot 1 désignent un coureur par sa clé métier (annee,
+ * inscription_no) et non par `registrations.id` : MySQL ne peut donc PAS
+ * garantir qu'un résultat pointe vers une inscription existante. C'est le prix
+ * à payer pour survivre à l'archivage annuel — cet outil est la contrepartie.
  *
- * ⚠️ OPÉRATION MASSIVE ET À SENS UNIQUE — jamais dans la séquence automatique
- * des migrations. Aperçu par défaut, écriture uniquement si « Appliquer » est
- * coché. La branche se termine par exit : elle ne déclenche JAMAIS les migrations.
- *
- * ⚠️ Les tables d'archive sont CONSERVÉES INTACTES : on lit, on n'efface rien.
- * Rejouable sans créer de doublon (test d'existence sur (edition_id, inscription_no)).
- *
- * ⛔ PRÉREQUIS NON SATISFAIT AUJOURD'HUI — DOUBLE CONFIRMATION EXIGÉE.
- * Tout le back-office lit `registrations` comme s'il ne contenait QUE l'édition
- * en cours ; il n'existe encore aucun filtre par édition :
- *   - admin-api.php:1783  liste du dashboard  → SELECT * FROM registrations
- *   - admin-api.php:2322  compteurs           → COUNT(*) FROM registrations
- *   - admin-api.php:1858  numéro d'inscription suivant (repli) → MAX(...)
- *   - googleMail.php:275  classement « X premiers payants » du QR Code
- *   - admin-api.php:3088  archivage annuel : INSERT INTO registrations_AAAA
- *                         SELECT * FROM registrations, puis TRUNCATE
- * Après consolidation, ces requêtes voient TOUTES les éditions à la fois : le
- * dashboard affiche tout l'historique, les compteurs sont faux, et le prochain
- * archivage annuel recopierait toutes les années dans l'archive de l'année.
- * Rendre le back-office multi-édition est un préalable à cet outil.
+ * 100 % LECTURE SEULE : aucune écriture, aucune case « Appliquer ».
+ * La branche se termine par exit : elle ne déclenche JAMAIS les migrations.
  * ════════════════════════════════════════════════════════════════════════════ */
-if (($_GET['tool'] ?? '') === 'consolidate-archives') {
+if (($_GET['tool'] ?? '') === 'check-integrity') {
 
-    // Double verrou : « Appliquer » NE SUFFIT PAS, il faut aussi reconnaître
-    // explicitement la conséquence sur le back-office (cf. en-tête).
-    $confirme = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['je_confirme']);
-    $apply    = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['apply']) && $confirme;
-    $refuse   = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['apply']) && !$confirme;
-    $errorMsg = null;
-    $rapport  = [];
+    require_once __DIR__ . '/src/core/registrations_resolver.php';
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
-        $errorMsg = 'Jeton de sécurité invalide. Rechargez la page et réessayez.';
-        $apply    = false;
-    }
-
-    // Prérequis : le schéma du lot 1 doit être en place.
-    $schemaOk = true;
-    foreach (['editions'] as $t) {
-        $c = (int) $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-                                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = " . $pdo->quote($t))->fetchColumn();
-        if ($c === 0) $schemaOk = false;
-    }
-    $colEdition = (int) $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-                                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations'
-                                        AND COLUMN_NAME = 'edition_id'")->fetchColumn();
-    if ($colEdition === 0) $schemaOk = false;
-
-    if (!$schemaOk) {
-        $errorMsg = "Le schéma du lot 1 n'est pas en place (table `editions` ou colonne `registrations.edition_id` manquante). Lancez d'abord update.php.";
-    }
-
-    if ($schemaOk) {
-        // Détection des tables d'archive : registrations_AAAA uniquement.
-        // `registrations_stats` correspond au motif LIKE mais pas au format d'année.
-        $archives = [];
-        foreach ($pdo->query("SHOW TABLES LIKE 'registrations\\_%'")->fetchAll(PDO::FETCH_COLUMN) as $t) {
-            if (preg_match('/^registrations_(\d{4})$/', $t, $m)) {
-                $annee = (int) $m[1];
-                if ($annee >= 1900 && $annee <= 2200) $archives[$t] = $annee;
-            }
-        }
-        ksort($archives);
-
-        // Colonnes cibles réellement présentes des deux côtés (hors `id` et hors
-        // colonnes calculées par l'outil lui-même).
-        $colsCible = $pdo->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-                                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations'")
-                          ->fetchAll(PDO::FETCH_COLUMN);
-        $exclues = ['id', 'edition_id', 'email_normalise', 'participant_id',
-                    'annee_naissance', 'date_naissance', 'naissance_source'];
-
-        foreach ($archives as $table => $annee) {
-            $ligne = ['table' => $table, 'annee' => $annee, 'total' => 0, 'edition' => null,
-                      'edition_creee' => false, 'sans_no' => 0, 'collisions' => 0,
-                      'importees' => 0, 'ignorees' => 0, 'erreurs_lignes' => 0, 'erreur' => null];
-            try {
-                $ligne['total'] = (int) $pdo->query("SELECT COUNT(*) FROM `$table`")->fetchColumn();
-
-                // Édition cible
-                $st = $pdo->prepare('SELECT id FROM editions WHERE annee = ?');
-                $st->execute([$annee]);
-                $editionId = $st->fetchColumn();
-                if ($editionId === false) {
-                    $ligne['edition_creee'] = true;
-                    if ($apply) {
-                        $pdo->prepare('INSERT INTO editions (annee, libelle, is_active) VALUES (?, ?, 0)')
-                            ->execute([$annee, 'Forbach en Rose ' . $annee]);
-                        $editionId = (int) $pdo->lastInsertId();
-                    }
-                }
-                $ligne['edition'] = $editionId === false ? null : (int) $editionId;
-
-                // Colonnes communes archive ↔ registrations
-                $colsArch = $pdo->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-                                          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = " . $pdo->quote($table))
-                                 ->fetchAll(PDO::FETCH_COLUMN);
-                $communes = array_values(array_diff(array_intersect($colsArch, $colsCible), $exclues));
-                if (!in_array('inscription_no', $communes, true)) {
-                    $ligne['erreur'] = "La table d'archive n'a pas de colonne `inscription_no`.";
-                    $rapport[] = $ligne;
-                    continue;
-                }
-
-                $rows = $pdo->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
-
-                $chkStmt = $ligne['edition'] !== null
-                    ? $pdo->prepare('SELECT COUNT(*) FROM registrations WHERE edition_id = ? AND inscription_no = ?')
-                    : null;
-
-                // `email_normalise` n'est renseignée que si la colonne existe déjà
-                // (migration jouée). L'outil reste utilisable sinon.
-                $avecEmailNorm = in_array('email_normalise', $colsCible, true)
-                              && in_array('email', $colsArch, true);
-
-                $insStmt = null;
-                if ($apply && $ligne['edition'] !== null) {
-                    $colsIns = array_merge($communes, ['edition_id']);
-                    if ($avecEmailNorm) $colsIns[] = 'email_normalise';
-                    $insStmt = $pdo->prepare(
-                        'INSERT INTO `registrations` (`' . implode('`,`', $colsIns) . '`) VALUES ('
-                        . implode(',', array_fill(0, count($colsIns), '?')) . ')'
-                    );
-                }
-
-                foreach ($rows as $r) {
-                    $no = trim((string) ($r['inscription_no'] ?? ''));
-                    if ($no === '') { $ligne['sans_no']++; continue; }
-
-                    if ($chkStmt !== null) {
-                        $chkStmt->execute([$ligne['edition'], $no]);
-                        if ((int) $chkStmt->fetchColumn() > 0) { $ligne['collisions']++; continue; }
-                    }
-
-                    if ($insStmt !== null) {
-                        $vals = [];
-                        foreach ($communes as $c) $vals[] = $r[$c] ?? null;
-                        // Colonnes calculées : rattachement d'édition + empreinte email.
-                        // decrypt() traverse aussi bien une valeur chiffrée qu'une valeur en clair.
-                        $vals[] = $ligne['edition'];
-                        if ($avecEmailNorm) $vals[] = fer_emailHash(decrypt((string) ($r['email'] ?? '')));
-                        try {
-                            $insStmt->execute($vals);
-                            $ligne['importees']++;
-                        } catch (\Throwable $eRow) {
-                            // Une ligne refusée (clé étrangère `created_by` pointant vers un
-                            // compte supprimé, valeur hors ENUM…) ne doit pas interrompre
-                            // l'import du reste de la table.
-                            $ligne['erreurs_lignes']++;
-                            if ($ligne['erreur'] === null) $ligne['erreur'] = 'Exemple d\'erreur ligne : ' . $eRow->getMessage();
-                        }
-                    }
-                }
-                $ligne['ignorees'] = $ligne['sans_no'] + $ligne['collisions'];
-            } catch (\Throwable $e) {
-                $ligne['erreur'] = $e->getMessage();
-            }
-            $rapport[] = $ligne;
-        }
-    }
-
-    lot1ToolHead(
-        '<i class="bi bi-archive me-2"></i>Consolider les archives',
-        "Reverse les tables <code>registrations_AAAA</code> dans <code>registrations</code>, rattachées à l'édition de leur année.",
-        'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4'
-    );
-    ?>
-    <?php if ($errorMsg !== null): ?>
-      <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= htmlspecialchars($errorMsg) ?></div>
-    <?php endif; ?>
-
-    <?php if ($refuse): ?>
-      <div class="oc-alert oc-alert-danger"><i class="bi bi-shield-exclamation me-1"></i>
-        <strong>Consolidation refusée.</strong> « Appliquer » était coché, mais pas la confirmation
-        des conséquences sur le back-office. Rien n'a été écrit.</div>
-    <?php endif; ?>
-
-    <!-- Prérequis : tant que le back-office n'est pas multi-édition, appliquer cet
-         outil rend le dashboard et les compteurs incohérents. Bloc toujours visible. -->
-    <div class="oc-alert oc-alert-danger">
-      <i class="bi bi-exclamation-octagon me-1"></i>
-      <strong>À ne pas appliquer tant que le back-office n'est pas multi-édition.</strong>
-      <p style="margin:8px 0 0">
-        Aujourd'hui, tout l'administration lit <code>registrations</code> comme si la table ne
-        contenait que <strong>l'édition en cours</strong> — il n'existe aucun filtre par édition.
-        Une fois les archives consolidées :
-      </p>
-      <ul style="margin:8px 0 0;padding-left:1.1rem">
-        <li>le <strong>dashboard affiche toutes les années à la fois</strong> ;</li>
-        <li>les <strong>compteurs et statistiques</strong> comptent tout l'historique ;</li>
-        <li>le classement <strong>« X premiers payants » du QR Code</strong> est faussé ;</li>
-        <li>le prochain <strong>archivage annuel</strong> recopierait toutes les années dans
-            l'archive de l'année, avant de vider <code>registrations</code>.</li>
-      </ul>
-      <p style="margin:8px 0 0">
-        Les tables <code>registrations_AAAA</code> restent intactes : tant que le back-office n'est
-        pas adapté, <strong>laissez les archives où elles sont</strong> et utilisez cette page en
-        aperçu seulement.
-      </p>
-    </div>
-
-    <details style="margin-bottom:var(--sp-3)">
-      <summary style="cursor:pointer;font-size:var(--fs-small);font-weight:600">
-        Marche arrière — annuler une consolidation déjà appliquée
-      </summary>
-      <p class="tool-intro" style="margin-top:8px">
-        Les archives n'ayant jamais été modifiées, il suffit de retirer de
-        <code>registrations</code> les lignes rattachées à une édition non active.
-        Vérifiez d'abord ce que vous allez supprimer :
-      </p>
-      <pre style="background:var(--surface-2);padding:10px;border-radius:var(--radius-m);font-size:var(--fs-micro);overflow:auto">SELECT e.annee, e.is_active, COUNT(r.id) AS lignes
-  FROM editions e
-  LEFT JOIN registrations r ON r.edition_id = e.id
- GROUP BY e.id ORDER BY e.annee;
-
--- puis, après sauvegarde :
-DELETE r FROM registrations r
-  JOIN editions e ON e.id = r.edition_id
- WHERE e.is_active = 0;</pre>
-    </details>
-
-    <?php if ($schemaOk && empty($rapport)): ?>
-      <div class="oc-alert oc-alert-info"><i class="bi bi-info-circle me-1"></i>
-        Aucune table d'archive <code>registrations_AAAA</code> détectée. Rien à consolider.</div>
-    <?php elseif (!empty($rapport)): ?>
-      <?php if ($apply): ?>
-        <div class="oc-alert oc-alert-success"><i class="bi bi-check-circle me-1"></i>
-          <strong>Consolidation appliquée.</strong> Les tables d'archive n'ont pas été modifiées.</div>
-      <?php else: ?>
-        <div class="oc-alert oc-alert-info"><i class="bi bi-eye me-1"></i>
-          <strong>Aperçu — aucune écriture n'a eu lieu.</strong> Pour appliquer, cochez « Appliquer » ci-dessous.</div>
-      <?php endif; ?>
-
-      <div class="tool-scroll">
-        <table class="tool-table">
-          <thead><tr>
-            <th>Table d'archive</th><th>Année</th><th class="num">Lignes</th>
-            <th>Édition cible</th><th class="num">Sans n°</th><th class="num">Collisions</th>
-            <th class="num">Erreurs</th><th class="num"><?= $apply ? 'Importées' : 'À importer' ?></th>
-          </tr></thead>
-          <tbody>
-          <?php foreach ($rapport as $l): ?>
-            <tr>
-              <td class="mono"><?= htmlspecialchars($l['table']) ?></td>
-              <td class="num"><?= (int) $l['annee'] ?></td>
-              <td class="num"><?= (int) $l['total'] ?></td>
-              <td>
-                <?php if ($l['edition'] !== null): ?>
-                  #<?= (int) $l['edition'] ?><?= $l['edition_creee'] ? ' <span class="tool-tag tool-tag-annee">créée</span>' : '' ?>
-                <?php else: ?>
-                  <span class="tool-tag tool-tag-note">à créer</span>
-                <?php endif; ?>
-              </td>
-              <td class="num"><?= (int) $l['sans_no'] ?></td>
-              <td class="num"><?= (int) $l['collisions'] ?></td>
-              <td class="num"><?= (int) $l['erreurs_lignes'] ?></td>
-              <td class="num"><?= $apply ? (int) $l['importees'] : max(0, $l['total'] - $l['sans_no'] - $l['collisions']) ?></td>
-            </tr>
-            <?php if ($l['erreur']): ?>
-              <tr><td colspan="8" class="err" style="font-size:12px"><?= htmlspecialchars($l['erreur']) ?></td></tr>
-            <?php endif; ?>
-          <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-
-      <p class="tool-intro" style="margin-top:14px">
-        <strong>Sans n°</strong> : lignes d'archive sans <code>inscription_no</code> — jamais importées
-        (la colonne est obligatoire), à reprendre à la main.<br>
-        <strong>Collisions</strong> : lignes dont le couple (édition, n° d'inscription) existe déjà dans
-        <code>registrations</code> — ignorées, ce qui rend l'outil rejouable sans créer de doublon.
-      </p>
-    <?php endif; ?>
-
-    <?php if ($schemaOk && !empty($rapport) && !$apply): ?>
-      <div class="oc-alert oc-alert-warning">
-        <i class="bi bi-exclamation-triangle me-1"></i>
-        <strong>Opération à sens unique.</strong> Une fois les lignes versées dans <code>registrations</code>,
-        rien ne les distingue des autres. <strong>Sauvegardez la base avant d'appliquer.</strong>
-      </div>
-    <?php endif; ?>
-
-    <form method="post" action="?tool=consolidate-archives" style="margin-top:8px;">
-      <?= csrf_field() ?>
-      <label class="tool-check tool-check-apply">
-        <input type="checkbox" name="apply" value="1">
-        <span><strong>Appliquer réellement</strong> la consolidation (sinon : aperçu seulement)</span>
-      </label>
-      <label class="tool-check tool-check-apply">
-        <input type="checkbox" name="je_confirme" value="1">
-        <span>Je comprends que le <strong>dashboard, les compteurs, le classement du QR Code et
-          l'archivage annuel</strong> afficheront alors toutes les éditions confondues, et que
-          j'ai <strong>sauvegardé la base</strong>. Sans cette case, « Appliquer » est ignoré.</span>
-      </label>
-      <div class="tool-actions">
-        <button type="submit" class="oc-btn"><i class="bi bi-play-fill"></i> Analyser / Consolider</button>
-        <a href="update.php" class="oc-btn-secondary" style="text-decoration:none"><i class="bi bi-arrow-left"></i> Migrations</a>
-      </div>
-    </form>
-    <?php
-    lot1ToolFoot();
-    exit;
-}
-
-/* ════════════════════════════════════════════════════════════════════════════
- * OUTIL : Normalisation des dates de naissance (?tool=normalize-naissance)
- * ----------------------------------------------------------------------------
- * Remplit `annee_naissance`, `date_naissance` et `naissance_source` à partir de
- * la colonne `naissance`. ⚠️ `naissance` n'est JAMAIS modifiée.
- *
- * Aperçu par défaut, écriture seulement si « Appliquer » est coché ; la branche
- * se termine par exit. Rejouable : ne retraite que les lignes dont
- * naissance_source = 'inconnu' ou dont annee_naissance IS NULL.
- *
- * ⚠️ L'âge se calcule sur l'année de l'ÉDITION DE LA LIGNE, jamais sur l'année
- * courante (une archive 2023 où l'inscrit avait 42 ans donne 1981, pas 1984).
- *
- * &format=csv : rapport des lignes non interprétées, pour correction manuelle.
- * ════════════════════════════════════════════════════════════════════════════ */
-if (($_GET['tool'] ?? '') === 'normalize-naissance') {
-
-    $apply      = ($_SERVER['REQUEST_METHOD'] === 'POST') && !empty($_POST['apply']);
-    $csv        = ($_GET['format'] ?? '') === 'csv';
-    // 1 ou 2 chiffres interprétés comme un âge : c'est le format réellement
-    // stocké par ce site (regcore_naissanceToAge ne conserve que l'âge).
-    // Décochable pour revenir à la prudence maximale (valeur classée « ambigu »).
-    $shortAsAge = ($_SERVER['REQUEST_METHOD'] === 'POST') ? !empty($_POST['short_as_age']) : true;
     $errorMsg   = null;
+    $orphelines = [];   // par table : lignes dont (annee, inscription_no) ne résout pas
+    $sansNo     = [];   // inscriptions sans inscription_no : ni revendicables ni chronométrables
+    $derive     = [];   // dérive de schéma entre tables d'inscriptions
+    $tables     = [];
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !csrf_verify()) {
-        $errorMsg = 'Jeton de sécurité invalide. Rechargez la page et réessayez.';
-        $apply    = false;
-    }
+    // Tables du lot 1 portant une clé métier, et libellé lisible.
+    $aControler = [
+        'participant_registrations' => 'Rattachements compte ↔ inscription',
+        'registration_transfers'    => 'Transferts d\'inscription',
+        'resultats'                 => 'Résultats',
+        'traces_gps'                => 'Traces GPS',
+        'detections'                => 'Détections',
+    ];
 
-    $colsOk = 0;
-    foreach (['annee_naissance', 'date_naissance', 'naissance_source'] as $c) {
-        $colsOk += (int) $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-                                       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'registrations'
-                                         AND COLUMN_NAME = " . $pdo->quote($c))->fetchColumn();
-    }
-    if ($colsOk < 3) {
-        $errorMsg = "Les colonnes de naissance ne sont pas encore créées. Lancez d'abord update.php.";
-    }
+    try {
+        $tables = regres_listTables($pdo);
+        $derive = regres_schemaDrift($pdo);
 
-    $stats = ['date' => 0, 'annee' => 0, 'age' => 0, 'age_court' => 0, 'inconnu' => 0, 'total' => 0];
-    $groupes = [];   // valeur brute → ['n' => int, 'parse' => array]
-    $illisibles = [];
-    $ecrites = 0;
-
-    if ($errorMsg === null) {
-        $anneeParDefaut = (int) date('Y');
-        $sql = "SELECT r.id, r.inscription_no, r.nom, r.prenom, r.naissance,
-                       COALESCE(e.annee, :defaut) AS annee_edition
-                  FROM `registrations` r
-                  LEFT JOIN `editions` e ON e.id = r.edition_id
-                 WHERE r.naissance_source = 'inconnu' OR r.annee_naissance IS NULL";
-        $st = $pdo->prepare($sql);
-        $st->execute(['defaut' => $anneeParDefaut]);
-        $lignes = $st->fetchAll(PDO::FETCH_ASSOC);
-
-        $upd = $pdo->prepare(
-            'UPDATE `registrations` SET `annee_naissance` = ?, `date_naissance` = ?, `naissance_source` = ? WHERE id = ?'
-        );
-        try {
-        if ($apply) $pdo->beginTransaction();
-
-        foreach ($lignes as $l) {
-            $brut  = (string) decrypt($l['naissance']);
-            $parse = regcore_parseNaissance($brut, (int) $l['annee_edition'], $shortAsAge);
-            $stats['total']++;
-            $stats[$parse['source']]++;
-            if ($parse['note'] === 'age_court') $stats['age_court']++;
-
-            $cle = $brut === '' ? '(vide)' : $brut;
-            if (!isset($groupes[$cle])) $groupes[$cle] = ['n' => 0, 'parse' => $parse];
-            $groupes[$cle]['n']++;
-
-            if ($parse['source'] === 'inconnu') {
-                $illisibles[] = [
-                    'id'   => (int) $l['id'],
-                    'no'   => (string) $l['inscription_no'],
-                    'nom'  => (string) decrypt($l['nom']),
-                    'prenom' => (string) decrypt($l['prenom']),
-                    'brut' => $brut,
-                    'note' => $parse['note'] ?: 'non_parsable',
-                ];
-                continue;   // on n'écrit rien : naissance_source reste 'inconnu'
+        // ── Lignes sans inscription_no dans les tables d'inscriptions ──
+        foreach ($tables as $t) {
+            $cols = regres_tableColumns($pdo, $t['table']);
+            if (!in_array('inscription_no', $cols, true)) {
+                $sansNo[] = ['table' => $t['table'], 'annee' => $t['annee'], 'n' => null];
+                continue;
             }
+            $n = (int) $pdo->query(
+                "SELECT COUNT(*) FROM `{$t['table']}` WHERE inscription_no IS NULL OR TRIM(inscription_no) = ''"
+            )->fetchColumn();
+            if ($n > 0) $sansNo[] = ['table' => $t['table'], 'annee' => $t['annee'], 'n' => $n];
+        }
 
-            if ($apply) {
-                $upd->execute([$parse['annee'], $parse['date'], $parse['source'], (int) $l['id']]);
-                $ecrites++;
+        // ── Références orphelines ──
+        // On construit l'ensemble des couples (annee, inscription_no) réellement
+        // existants, puis on compare en PHP : une jointure SQL est impossible,
+        // les inscriptions étant réparties sur plusieurs tables.
+        $connus = [];
+        foreach ($tables as $t) {
+            $cols = regres_tableColumns($pdo, $t['table']);
+            if (!in_array('inscription_no', $cols, true)) continue;
+            foreach ($pdo->query("SELECT inscription_no FROM `{$t['table']}`")->fetchAll(PDO::FETCH_COLUMN) as $no) {
+                $no = trim((string) $no);
+                if ($no !== '') $connus[$t['annee'] . '|' . $no] = true;
             }
         }
-        if ($apply) $pdo->commit();
-        } catch (\Throwable $e) {
-            // Tout ou rien : une écriture partielle laisserait la base dans un état
-            // à moitié normalisé, impossible à distinguer d'un traitement complet.
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            $errorMsg = 'Normalisation interrompue, aucune écriture conservée : ' . $e->getMessage();
-            $apply    = false;
-            $ecrites  = 0;
-        }
 
-        // Tri du tableau d'aperçu : les cas les plus fréquents d'abord.
-        uasort($groupes, fn($a, $b) => $b['n'] <=> $a['n']);
+        foreach ($aControler as $table => $libelle) {
+            if (!updTableExists($pdo, $table)) {
+                $orphelines[$table] = ['libelle' => $libelle, 'total' => null, 'lignes' => []];
+                continue;
+            }
+            $rows = $pdo->query("SELECT id, annee, inscription_no FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
+            $ko = [];
+            foreach ($rows as $r) {
+                $cle = (int) $r['annee'] . '|' . trim((string) $r['inscription_no']);
+                if (!isset($connus[$cle])) $ko[] = $r;
+            }
+            $orphelines[$table] = ['libelle' => $libelle, 'total' => count($rows), 'lignes' => $ko];
+        }
+    } catch (\Throwable $e) {
+        $errorMsg = 'Contrôle interrompu : ' . $e->getMessage();
     }
 
-    /* ── Export CSV des lignes non interprétées ── */
-    if ($csv && $errorMsg === null) {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="naissances-non-interpretees-' . date('Y-m-d') . '.csv"');
-        $out = fopen('php://output', 'w');
-        fwrite($out, "\xEF\xBB\xBF");   // BOM UTF-8 : Excel lit les accents correctement
-        fputcsv($out, ['id', 'inscription_no', 'nom', 'prenom', 'valeur_brute', 'motif'], ';');
-        foreach ($illisibles as $i) {
-            fputcsv($out, [$i['id'], $i['no'], $i['nom'], $i['prenom'], $i['brut'], $i['note']], ';');
-        }
-        fclose($out);
-        exit;
-    }
+    $nbOrphelines = 0;
+    foreach ($orphelines as $o) $nbOrphelines += count($o['lignes']);
+    $nbSansNo = 0;
+    foreach ($sansNo as $s) $nbSansNo += (int) $s['n'];
 
-    lot1ToolHead(
-        '<i class="bi bi-calendar-heart me-2"></i>Normaliser les dates de naissance',
-        "Remplit <code>annee_naissance</code>, <code>date_naissance</code> et <code>naissance_source</code>. La colonne <code>naissance</code> n'est jamais modifiée.",
-        'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
+    updToolHead(
+        '<i class="bi bi-shield-check me-2"></i>Contrôle d\'intégrité',
+        "Vérifie que chaque référence <code>(année, n° d'inscription)</code> désigne bien une inscription existante. Lecture seule.",
+        'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
     );
     ?>
     <?php if ($errorMsg !== null): ?>
       <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= htmlspecialchars($errorMsg) ?></div>
     <?php else: ?>
 
-      <?php if ($apply): ?>
+      <?php if ($nbOrphelines === 0 && $nbSansNo === 0): ?>
         <div class="oc-alert oc-alert-success"><i class="bi bi-check-circle me-1"></i>
-          <strong><?= (int) $ecrites ?> ligne(s) normalisée(s).</strong>
-          <?= count($illisibles) ?> ligne(s) laissée(s) en « inconnu » pour arbitrage humain.</div>
-      <?php elseif ($stats['total'] === 0): ?>
-        <div class="oc-alert oc-alert-success"><i class="bi bi-check-circle me-1"></i>
-          Rien à normaliser : toutes les lignes ont déjà une année de naissance.</div>
+          <strong>Aucune anomalie.</strong> Toutes les références pointent vers une inscription existante.</div>
       <?php else: ?>
-        <div class="oc-alert oc-alert-info"><i class="bi bi-eye me-1"></i>
-          <strong>Aperçu — aucune écriture n'a eu lieu.</strong>
-          <?= (int) $stats['total'] ?> ligne(s) à traiter. Pour appliquer, cochez « Appliquer » ci-dessous.</div>
+        <div class="oc-alert oc-alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>
+          <strong><?= (int) $nbOrphelines ?> référence(s) orpheline(s)</strong> et
+          <strong><?= (int) $nbSansNo ?> inscription(s) sans numéro</strong>. Détail ci-dessous.</div>
       <?php endif; ?>
 
-      <?php if ($stats['total'] > 0): ?>
-        <h2 class="tool-section-title">Répartition des interprétations</h2>
+      <h2 class="tool-section-title">Tables d'inscriptions détectées</h2>
+      <div class="tool-scroll">
         <table class="tool-table">
-          <thead><tr><th>Cas</th><th class="num">Lignes</th><th>Interprétation</th></tr></thead>
+          <thead><tr><th>Table</th><th class="num">Année</th><th>Rôle</th><th>Colonnes manquantes</th></tr></thead>
           <tbody>
-            <tr><td><span class="tool-tag tool-tag-date">date</span></td><td class="num"><?= (int) $stats['date'] ?></td>
-                <td>Date complète → <code>date_naissance</code> + <code>annee_naissance</code></td></tr>
-            <tr><td><span class="tool-tag tool-tag-annee">annee</span></td><td class="num"><?= (int) $stats['annee'] ?></td>
-                <td>Année sur 4 chiffres → <code>annee_naissance</code></td></tr>
-            <tr><td><span class="tool-tag tool-tag-age">age</span></td><td class="num"><?= (int) $stats['age'] ?></td>
-                <td>Âge → <code>annee_naissance = année de l'édition de la ligne − âge</code></td></tr>
-            <tr><td><span class="tool-tag tool-tag-note">dont 1-2 chiffres</span></td><td class="num"><?= (int) $stats['age_court'] ?></td>
-                <td>Valeurs courtes interprétées comme un âge (voir l'option ci-dessous)</td></tr>
-            <tr><td><span class="tool-tag tool-tag-inconnu">inconnu</span></td><td class="num"><?= (int) $stats['inconnu'] ?></td>
-                <td>Non interprété — <code>naissance_source</code> reste « inconnu », arbitrage humain</td></tr>
+          <?php foreach ($derive as $d): ?>
+            <tr>
+              <td class="mono"><?= htmlspecialchars($d['table']) ?></td>
+              <td class="num"><?= (int) $d['annee'] ?></td>
+              <td><?= $d['table'] === 'registrations'
+                    ? '<span class="tool-tag tool-tag-date">édition en cours — écriture</span>'
+                    : '<span class="tool-tag">archive — lecture seule</span>' ?></td>
+              <td><?= $d['manquantes']
+                    ? '<span class="tool-tag tool-tag-note">' . htmlspecialchars(implode(', ', $d['manquantes'])) . '</span>'
+                    : '<span class="tool-tag tool-tag-date">aucune</span>' ?></td>
+            </tr>
+          <?php endforeach; ?>
           </tbody>
         </table>
+      </div>
+      <p class="tool-intro" style="margin-top:8px">
+        Les archives ont été créées par <code>CREATE TABLE … LIKE registrations</code> à des dates
+        différentes : leurs colonnes divergent. L'aiguilleur renvoie <code>null</code> pour les
+        colonnes absentes plutôt que d'échouer — aucune action n'est requise ici, c'est un constat.
+      </p>
 
-        <h2 class="tool-section-title">Valeurs brutes rencontrées</h2>
+      <h2 class="tool-section-title">Références orphelines</h2>
+      <div class="tool-scroll">
+        <table class="tool-table">
+          <thead><tr><th>Table</th><th>Rôle</th><th class="num">Lignes</th><th class="num">Orphelines</th><th>Exemples</th></tr></thead>
+          <tbody>
+          <?php foreach ($orphelines as $table => $o): ?>
+            <tr>
+              <td class="mono"><?= htmlspecialchars($table) ?></td>
+              <td><?= htmlspecialchars($o['libelle']) ?></td>
+              <td class="num"><?= $o['total'] === null ? '—' : (int) $o['total'] ?></td>
+              <td class="num"><?= $o['total'] === null
+                    ? '<span class="tool-tag">table absente</span>'
+                    : (count($o['lignes']) > 0
+                        ? '<span class="tool-tag tool-tag-inconnu">' . count($o['lignes']) . '</span>'
+                        : '<span class="tool-tag tool-tag-date">0</span>') ?></td>
+              <td class="mono"><?php
+                $ex = array_slice($o['lignes'], 0, 5);
+                $lbl = array_map(fn($r) => '#' . (int) $r['id'] . ' → ' . (int) $r['annee'] . '/' . htmlspecialchars((string) $r['inscription_no']), $ex);
+                echo $lbl ? implode('<br>', $lbl) . (count($o['lignes']) > 5 ? '<br>…' : '') : '—';
+              ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <p class="tool-intro" style="margin-top:8px">
+        Une orpheline signifie qu'un résultat, un transfert ou un rattachement désigne une
+        inscription qui n'existe dans aucune table. Cause la plus probable&nbsp;: un
+        <code>inscription_no</code> modifié après coup dans l'administration.
+      </p>
+
+      <h2 class="tool-section-title">Inscriptions sans numéro</h2>
+      <?php if (empty($sansNo)): ?>
+        <div class="oc-alert oc-alert-success"><i class="bi bi-check-circle me-1"></i>
+          Toutes les inscriptions ont un numéro.</div>
+      <?php else: ?>
         <div class="tool-scroll">
           <table class="tool-table">
-            <thead><tr><th>Valeur brute</th><th class="num">Lignes</th><th>Source</th><th>Année déduite</th></tr></thead>
+            <thead><tr><th>Table</th><th class="num">Année</th><th class="num">Sans numéro</th></tr></thead>
             <tbody>
-            <?php foreach (array_slice($groupes, 0, 300, true) as $brut => $g): ?>
+            <?php foreach ($sansNo as $s): ?>
               <tr>
-                <td class="mono"><?= htmlspecialchars($brut) ?></td>
-                <td class="num"><?= (int) $g['n'] ?></td>
-                <td><span class="tool-tag tool-tag-<?= htmlspecialchars($g['parse']['source']) ?>"><?= htmlspecialchars($g['parse']['source']) ?></span>
-                    <?php if ($g['parse']['note'] !== ''): ?><span class="tool-tag tool-tag-note"><?= htmlspecialchars($g['parse']['note']) ?></span><?php endif; ?></td>
-                <td class="num"><?= $g['parse']['annee'] !== null ? (int) $g['parse']['annee'] : '—' ?>
-                    <?= $g['parse']['date'] !== null ? ' (' . htmlspecialchars($g['parse']['date']) . ')' : '' ?></td>
+                <td class="mono"><?= htmlspecialchars($s['table']) ?></td>
+                <td class="num"><?= (int) $s['annee'] ?></td>
+                <td class="num"><?= $s['n'] === null ? 'colonne absente' : (int) $s['n'] ?></td>
               </tr>
             <?php endforeach; ?>
             </tbody>
           </table>
         </div>
-        <?php if (count($groupes) > 300): ?>
-          <p class="tool-intro" style="margin-top:6px">Affichage limité aux 300 valeurs distinctes les plus fréquentes
-             (<?= count($groupes) ?> au total).</p>
-        <?php endif; ?>
+        <p class="tool-intro" style="margin-top:8px">
+          Une inscription sans numéro ne peut être <strong>ni revendiquée dans l'espace coureur,
+          ni chronométrée</strong> : la clé métier lui manque. À corriger dans l'administration.
+        </p>
       <?php endif; ?>
-
-      <?php if (!empty($illisibles)): ?>
-        <div class="oc-alert oc-alert-warning" style="margin-top:18px">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          <strong><?= count($illisibles) ?> ligne(s)</strong> n'ont pas pu être interprétées et restent en
-          « inconnu ». Téléchargez le rapport pour les corriger à la main :
-          <div style="margin-top:10px">
-            <a class="oc-btn-secondary" href="?tool=normalize-naissance&amp;format=csv">
-              <i class="bi bi-filetype-csv"></i> Télécharger le rapport CSV
-            </a>
-          </div>
-        </div>
-      <?php endif; ?>
-
-      <form method="post" action="?tool=normalize-naissance" style="margin-top:14px;">
-        <?= csrf_field() ?>
-        <label class="tool-check">
-          <input type="checkbox" name="short_as_age" value="1" <?= $shortAsAge ? 'checked' : '' ?>>
-          <span>Interpréter les valeurs de <strong>1 ou 2 chiffres comme un âge</strong>.
-            Ce site ne stocke que l'âge dans <code>naissance</code>, c'est donc le cas normal.
-            Décoché, ces valeurs sont considérées ambiguës (« 85 » = 85 ans ou année 1985 ?)
-            et laissées en « inconnu ».</span>
-        </label>
-        <label class="tool-check tool-check-apply">
-          <input type="checkbox" name="apply" value="1">
-          <span><strong>Appliquer réellement</strong> la normalisation (sinon : aperçu seulement)</span>
-        </label>
-        <div class="tool-actions">
-          <button type="submit" class="oc-btn"><i class="bi bi-play-fill"></i> Analyser / Normaliser</button>
-          <a href="update.php" class="oc-btn-secondary" style="text-decoration:none"><i class="bi bi-arrow-left"></i> Migrations</a>
-        </div>
-      </form>
     <?php endif; ?>
     <?php
-    lot1ToolFoot();
+    updToolFoot();
     exit;
 }
 
@@ -1500,14 +1178,9 @@ try {
 /**
  * Vérifie l'existence d'une table dans la base courante.
  */
-$tableExists = function (string $name) use ($pdo): bool {
-    $st = $pdo->prepare(
-        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
-    );
-    $st->execute([$name]);
-    return (int) $st->fetchColumn() > 0;
-};
+// Conservée pour ne pas toucher aux dizaines d'appels existants ; elle délègue à
+// updTableExists() pour qu'il n'y ait qu'une seule implémentation.
+$tableExists = fn (string $name): bool => updTableExists($pdo, $name);
 
 foreach ($migrations as $sql) {
     // CREATE TABLE IF NOT EXISTS et DROP TABLE IF EXISTS ne lèvent jamais
@@ -2205,77 +1878,108 @@ try {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * LOT 1 — ESPACE COUREUR & API MOBILE : schéma de données
+ * LOT 1 — ESPACE COUREUR : neuf tables indexées sur la CLÉ MÉTIER
  * ----------------------------------------------------------------------------
- * ORDRE IMPOSÉ (les blocs dépendent les uns des autres) :
- *   1.  table `editions`
- *   2.  édition de l'année en cours (is_active = 1)
- *   3.  registrations.edition_id + index + FK, puis backfill
- *   4.  bascule de l'unicité inscription_no → (edition_id, inscription_no)
- *   5.  registrations.email_normalise + participant_id + index, backfill
- *   6.  colonnes de naissance (création seule, AUCUNE normalisation)
- *   7.  participants / participant_auth_codes / participant_devices
- *   8.  registration_transfers
- *   9.  resultats / traces_gps / detections
- *   10. synchronisation registrations_stats → editions
+ * PRINCIPE : la table `registrations` n'est PAS modifiée, et l'archivage annuel
+ * n'est pas touché. Les nouvelles tables désignent un coureur par le couple
+ * `(annee, inscription_no)`.
  *
- * NE SONT PAS ICI (sous-outils manuels à aperçu préalable, cf. bas de page) :
- *   - la consolidation des archives   → update.php?tool=consolidate-archives
- *   - la normalisation des naissances → update.php?tool=normalize-naissance
+ * POURQUOI : la route `archive-current` crée `registrations_<année>`, y recopie
+ * les lignes puis vide `registrations`. Les `id` techniques changent donc de
+ * table tous les ans — une clé étrangère vers `registrations.id` casserait à
+ * chaque archivage. « L'inscrit n°142 de l'édition 2026 » survit, lui.
  *
- * RÈGLE ABSOLUE : un backfill ne s'exécute qu'À LA CRÉATION de la colonne,
- * dans la branche `else` du test d'existence — jamais à l'extérieur. update.php
- * est rejoué régulièrement ; un UPDATE inconditionnel écraserait à chaque
- * passage les corrections faites à la main par l'administrateur.
+ * CONTREPARTIE ASSUMÉE : MySQL ne peut plus garantir qu'un résultat pointe vers
+ * une inscription existante. C'est le rôle de update.php?tool=check-integrity.
+ *
+ * ORDRE IMPOSÉ : `participants` avant `participant_registrations` et
+ * `participant_devices`, qui portent une clé étrangère vers elle. `editions`
+ * en premier (son peuplement lit les tables d'archive). Le reste est indépendant.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-$lot1Col = function (string $table, string $col) use ($pdo): bool {
-    $st = $pdo->prepare(
-        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-    );
-    $st->execute([$table, $col]);
-    return (int) $st->fetchColumn() > 0;
-};
-$lot1Idx = function (string $table, string $index) use ($pdo): bool {
-    // SHOW INDEX plutôt qu'INFORMATION_SCHEMA : c'est la forme retenue par le
-    // patron de migration du projet, et elle échoue proprement si la table manque.
-    try {
-        $st = $pdo->query("SHOW INDEX FROM `$table` WHERE Key_name = " . $pdo->quote($index));
-        return $st !== false && $st->fetch() !== false;
-    } catch (\Throwable $e) {
-        return false;
-    }
-};
-$lot1Fk = function (string $table, string $constraint) use ($pdo): bool {
-    $st = $pdo->prepare(
-        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-         WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ?
-           AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'"
-    );
-    $st->execute([$table, $constraint]);
-    return (int) $st->fetchColumn() > 0;
-};
-
 // ─────────────────────────────────────────────────────────────────────────
-// LOT 1.1 — Table `editions`
-// Une ligne par édition annuelle de la course. Les colonnes géo, la distance
-// et `temps_min_plausible_s` ne servent pas encore : elles sont créées
-// maintenant pour que l'application mobile n'exige aucune seconde migration.
-// ⏱️ `heure_depart` est stockée EN UTC, comme toutes les colonnes de
-// chronométrage. C'est l'heure du coup de feu, donc la référence de tous les
-// temps calculés : en heure locale face à des arrivées en UTC, tous les
-// chronos seraient faux de deux heures.
-// ℹ️ UNIQUE (annee) interdit deux éditions la même année — vrai aujourd'hui
-// (un seul événement annuel). Un second événement imposerait (annee, slug).
-// Idempotent : CREATE TABLE IF NOT EXISTS + test d'existence préalable.
+// GARDE — refuser de continuer si l'ANCIEN lot 1 est encore en place.
+// Les tables portaient alors `registration_id` / `edition_id` au lieu de
+// `(annee, inscription_no)`. `CREATE TABLE IF NOT EXISTS` les ignorerait
+// silencieusement et laisserait un schéma faux, impossible à diagnostiquer
+// ensuite. On exige le passage de rollback_lot1.sql (cf. § 0).
 // ─────────────────────────────────────────────────────────────────────────
-$desc = "Créer la table `editions`";
+$desc = "Vérifier l'absence de l'ancien schéma du lot 1";
+$ancienSchema = [];
 try {
-    if ($tableExists('editions')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
+    $st = $pdo->prepare(
+        "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND ((TABLE_NAME IN ('resultats','traces_gps','detections','registration_transfers')
+                  AND COLUMN_NAME = 'registration_id')
+              OR (TABLE_NAME = 'registrations'
+                  AND COLUMN_NAME IN ('edition_id','email_normalise','participant_id',
+                                      'annee_naissance','date_naissance','naissance_source')))"
+    );
+    $st->execute();
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $ancienSchema[] = $r['TABLE_NAME'] . '.' . $r['COLUMN_NAME'];
+    }
+
+    if ($ancienSchema) {
+        $results[] = ['status' => 'error', 'sql' => $desc,
+            'msg' => "ANCIEN SCHÉMA DÉTECTÉ (" . implode(', ', $ancienSchema) . "). "
+                   . "Exécutez rollback_lot1.sql AVANT de relancer update.php : les nouvelles tables "
+                   . "utilisent (annee, inscription_no) et non registration_id/edition_id. "
+                   . "Aucune table du lot 1 n'a été créée."];
     } else {
-        $pdo->exec(
+        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Aucun vestige de l\'ancien schéma'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+    $ancienSchema[] = 'verification_impossible';
+}
+
+if (empty($ancienSchema)) {
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Les neuf tables. Commentaires par table :
+    //
+    // `editions` — configuration par année (date, distance, géo, horaires).
+    //   ⏱️ `heure_depart` est stockée EN UTC : c'est l'heure du coup de feu, donc
+    //   la référence de tous les temps calculés. En heure locale face à des
+    //   arrivées en UTC, tous les chronos seraient faux de deux heures.
+    //   Elle ne remplace pas `registrations_stats` : elle ajoute la configuration
+    //   que celle-ci ne porte pas. `registrations_stats` n'est pas modifiée.
+    //
+    // `participant_registrations` — LE LIEN, cœur du dispositif. Il remplace la
+    //   colonne `registrations.participant_id` que l'on ne crée pas.
+    //   L'index UNIQUE (annee, inscription_no) garantit qu'une inscription
+    //   appartient à UN compte au maximum : deux comptes ne pourront jamais
+    //   revendiquer le même coureur le jour de la course.
+    //   La clé étrangère vers `participants` est légitime : c'est une table que
+    //   l'on maîtrise et qui n'est jamais archivée.
+    //
+    // ⚠️ Deux hachages différents, volontairement — ne pas « harmoniser » :
+    //   • participant_auth_codes.code_hash → password_hash() : un code à 6
+    //     chiffres n'a que 10^6 combinaisons, il faut un hachage LENT. Recherche
+    //     par email_normalise (indexé), puis password_verify() sur la ligne.
+    //   • participant_devices.token_hash → SHA-256 : un token serveur porte 256
+    //     bits d'entropie, rien à forcer. Il faut un hachage RAPIDE et
+    //     déterministe, car la recherche se fait PAR LE HASH à chaque appel
+    //     d'API — avec password_hash(), l'index serait inutilisable.
+    //   Lent pour un secret faible, rapide pour un secret fort.
+    //
+    // `resultats.valide_par` référence `users.id` : l'administrateur qui a validé
+    //   ou corrigé un temps. Seule référence vers `users` de tout le lot, et elle
+    //   désigne un admin, jamais un coureur.
+    //
+    // `traces_gps.points` est un LONGBLOB : JSON compressé par gzencode. À 1000
+    //   coureurs × ~3600 points, le non-compressé pèserait plusieurs centaines de
+    //   Mo. Format documenté dans inc/api-doc.php.
+    //
+    // `detections` conserve TOUTES les détections brutes ; `retenue` marque celle
+    //   qui a produit le résultat. On n'en supprime jamais.
+    //
+    // ⏱️ Toutes les colonnes DATETIME(3) sont stockées EN UTC, sans exception.
+    // ─────────────────────────────────────────────────────────────────────
+    $lot1Tables = [
+        'editions' =>
             "CREATE TABLE IF NOT EXISTS `editions` (
               `id` INT AUTO_INCREMENT PRIMARY KEY,
               `annee` SMALLINT NOT NULL,
@@ -2292,467 +1996,217 @@ try {
               `is_active` TINYINT(1) NOT NULL DEFAULT 0,
               `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               UNIQUE KEY `idx_annee` (`annee`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-        );
-        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Table créée'];
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'participants' =>
+            "CREATE TABLE IF NOT EXISTS `participants` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `email` VARCHAR(255) NOT NULL,
+              `email_normalise` VARCHAR(255) NOT NULL,
+              `nom` VARCHAR(255) DEFAULT NULL,
+              `prenom` VARCHAR(255) DEFAULT NULL,
+              `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+              `rgpd_consent_at` DATETIME DEFAULT NULL,
+              `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
+              `derniere_connexion` DATETIME DEFAULT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE KEY `idx_email_norm` (`email_normalise`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'participant_registrations' =>
+            "CREATE TABLE IF NOT EXISTS `participant_registrations` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `participant_id` INT NOT NULL,
+              `annee` SMALLINT NOT NULL,
+              `inscription_no` VARCHAR(50) NOT NULL,
+              `revendique_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              `origine` ENUM('email','transfert','admin') NOT NULL DEFAULT 'email',
+              UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
+              INDEX `idx_participant` (`participant_id`),
+              CONSTRAINT `fk_pr_participant` FOREIGN KEY (`participant_id`)
+                REFERENCES `participants`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'participant_auth_codes' =>
+            "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `email_normalise` VARCHAR(255) NOT NULL,
+              `code_hash` VARCHAR(255) NOT NULL,
+              `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
+              `tentatives` TINYINT NOT NULL DEFAULT 0,
+              `consomme_at` DATETIME DEFAULT NULL,
+              `expires_at` DATETIME NOT NULL,
+              `ip` VARCHAR(45) DEFAULT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX `idx_email` (`email_normalise`),
+              INDEX `idx_expires` (`expires_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'participant_devices' =>
+            "CREATE TABLE IF NOT EXISTS `participant_devices` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `participant_id` INT NOT NULL,
+              `token_hash` VARCHAR(255) NOT NULL,
+              `type` ENUM('web','app') NOT NULL,
+              `libelle` VARCHAR(120) DEFAULT NULL,
+              `plateforme` VARCHAR(60) DEFAULT NULL,
+              `modele` VARCHAR(120) DEFAULT NULL,
+              `ip_creation` VARCHAR(45) DEFAULT NULL,
+              `user_agent` VARCHAR(500) DEFAULT NULL,
+              `derniere_utilisation` DATETIME DEFAULT NULL,
+              `expires_at` DATETIME DEFAULT NULL,
+              `revoque_at` DATETIME DEFAULT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX `idx_participant` (`participant_id`),
+              UNIQUE KEY `idx_token` (`token_hash`),
+              INDEX `idx_expires` (`expires_at`),
+              CONSTRAINT `fk_pd_participant` FOREIGN KEY (`participant_id`)
+                REFERENCES `participants`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'registration_transfers' =>
+            "CREATE TABLE IF NOT EXISTS `registration_transfers` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `annee` SMALLINT NOT NULL,
+              `inscription_no` VARCHAR(50) NOT NULL,
+              `email_source` VARCHAR(255) NOT NULL,
+              `email_cible` VARCHAR(255) NOT NULL,
+              `token_hash` VARCHAR(255) NOT NULL,
+              `statut` ENUM('en_attente','accepte','annule','expire') NOT NULL DEFAULT 'en_attente',
+              `demande_par` INT DEFAULT NULL,
+              `expires_at` DATETIME NOT NULL,
+              `accepte_at` DATETIME DEFAULT NULL,
+              `annule_at` DATETIME DEFAULT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX `idx_inscription` (`annee`, `inscription_no`),
+              INDEX `idx_statut` (`statut`),
+              UNIQUE KEY `idx_token` (`token_hash`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'resultats' =>
+            "CREATE TABLE IF NOT EXISTS `resultats` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `annee` SMALLINT NOT NULL,
+              `inscription_no` VARCHAR(50) NOT NULL,
+              `depart_at` DATETIME(3) DEFAULT NULL,
+              `arrivee_at` DATETIME(3) DEFAULT NULL,
+              `temps_s` DECIMAL(10,3) DEFAULT NULL,
+              `methode` ENUM('beacon','gps_ligne','gps_extrapole','gps_distance','manuel','declaratif') DEFAULT NULL,
+              `precision_s` INT DEFAULT NULL,
+              `distance_m` INT DEFAULT NULL,
+              `denivele_positif_m` INT DEFAULT NULL,
+              `statut` ENUM('en_course','termine','abandon','non_partant','invalide') NOT NULL DEFAULT 'en_course',
+              `valide_par` INT DEFAULT NULL,
+              `commentaire` VARCHAR(255) DEFAULT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
+              INDEX `idx_classement` (`annee`, `temps_s`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'traces_gps' =>
+            "CREATE TABLE IF NOT EXISTS `traces_gps` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `annee` SMALLINT NOT NULL,
+              `inscription_no` VARCHAR(50) NOT NULL,
+              `device_id` INT DEFAULT NULL,
+              `source` ENUM('app','gpx_import') NOT NULL DEFAULT 'app',
+              `points` LONGBLOB DEFAULT NULL,
+              `nb_points` INT DEFAULT 0,
+              `debut_at` DATETIME(3) DEFAULT NULL,
+              `fin_at` DATETIME(3) DEFAULT NULL,
+              `purge_at` DATE DEFAULT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX `idx_inscription` (`annee`, `inscription_no`),
+              INDEX `idx_purge` (`purge_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        'detections' =>
+            "CREATE TABLE IF NOT EXISTS `detections` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `annee` SMALLINT NOT NULL,
+              `inscription_no` VARCHAR(50) NOT NULL,
+              `device_id` INT DEFAULT NULL,
+              `type` ENUM('beacon','geofence','gps_ligne','manuel') NOT NULL,
+              `point` ENUM('depart','arrivee') NOT NULL,
+              `detecte_at` DATETIME(3) NOT NULL,
+              `recu_at` DATETIME(3) DEFAULT NULL,
+              `rssi_pic` SMALLINT DEFAULT NULL,
+              `beacon_minor` SMALLINT DEFAULT NULL,
+              `confiance` TINYINT DEFAULT NULL,
+              `retenue` TINYINT(1) NOT NULL DEFAULT 0,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX `idx_inscription` (`annee`, `inscription_no`, `point`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ];
+
+    $editionsCreee = false;
+    foreach ($lot1Tables as $table => $ddl) {
+        $desc = "Créer la table `$table`";
+        try {
+            if ($tableExists($table)) {
+                $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
+            } else {
+                $pdo->exec($ddl);
+                if ($table === 'editions') $editionsCreee = true;
+                $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Table créée'];
+            }
+        } catch (PDOException $e) {
+            $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+        }
     }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
 
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.2 — Édition de l'année en cours, marquée active
-// `date_course` est reprise de `setting.date_course` UNIQUEMENT si elle tombe
-// bien sur l'année en cours (sinon on laisse NULL : une date de l'an dernier
-// ne décrit pas l'édition courante).
-// Idempotent : ne crée rien si une édition existe déjà pour cette année.
-// ─────────────────────────────────────────────────────────────────────────
-$desc = "Créer l'édition de l'année en cours (is_active = 1)";
-try {
-    if (!$tableExists('editions')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table `editions` absente'];
-    } else {
-        $anneeCourante = (int) date('Y');
-        $st = $pdo->prepare('SELECT id FROM editions WHERE annee = ?');
-        $st->execute([$anneeCourante]);
-        $editionId = $st->fetchColumn();
-
-        if ($editionId !== false) {
-            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => "Édition $anneeCourante déjà présente (id " . (int) $editionId . ')'];
+    // ─────────────────────────────────────────────────────────────────────
+    // Peuplement de `editions` : l'année en cours (is_active = 1) + une ligne
+    // par table d'archive détectée.
+    // ⚠️ UNIQUEMENT À LA CRÉATION DE LA TABLE. update.php est rejoué
+    // régulièrement ; réexécuter ce peuplement écraserait la date de course,
+    // la distance, les coordonnées et les horaires saisis à la main.
+    // ─────────────────────────────────────────────────────────────────────
+    $desc = "Peupler `editions` (année en cours + une ligne par archive)";
+    try {
+        if (!$editionsCreee) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table déjà présente — peuplement non rejoué'];
         } else {
+            $anneeCourante = (int) date('Y');
+
+            // date_course reprise de `setting` seulement si elle tombe bien sur
+            // l'année en cours : une date de l'an dernier ne décrit pas l'édition.
             $dateCourse = null;
             try {
                 $dc = $pdo->query('SELECT date_course FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
                 if (!empty($dc) && (int) substr((string) $dc, 0, 4) === $anneeCourante) {
                     $dateCourse = substr((string) $dc, 0, 10);
                 }
-            } catch (\Throwable $e) { /* colonne absente : on laisse NULL */ }
+            } catch (\Throwable $e) { /* colonne absente : NULL */ }
 
-            // Une seule édition active à la fois.
-            $pdo->exec('UPDATE editions SET is_active = 0 WHERE is_active = 1');
             $ins = $pdo->prepare(
-                'INSERT INTO editions (annee, libelle, date_course, is_active) VALUES (?, ?, ?, 1)'
+                'INSERT IGNORE INTO editions (annee, libelle, date_course, is_active) VALUES (?, ?, ?, ?)'
             );
-            $ins->execute([$anneeCourante, 'Forbach en Rose ' . $anneeCourante, $dateCourse]);
-            $results[] = ['status' => 'success', 'sql' => $desc,
-                          'msg' => "Édition $anneeCourante créée (id " . (int) $pdo->lastInsertId() . ')'
-                                 . ($dateCourse ? ", date de course $dateCourse" : '')];
-        }
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
+            $ins->execute([$anneeCourante, 'Forbach en Rose ' . $anneeCourante, $dateCourse, 1]);
+            $creees = [$anneeCourante];
 
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.3 — `registrations.edition_id` + backfill vers l'édition active
-// Le backfill est DANS la branche de création : au second passage, une ligne
-// rattachée à la main à une autre édition ne doit jamais être réécrite.
-// ─────────────────────────────────────────────────────────────────────────
-$desc = "Ajouter la colonne `edition_id` dans `registrations` (+ backfill)";
-try {
-    if (!$tableExists('editions')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table `editions` absente'];
-    } elseif ($lot1Col('registrations', 'edition_id')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } else {
-        $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `edition_id` INT NULL AFTER `id`");
-        // Backfill UNIQUE, à la création seulement : toutes les inscriptions
-        // existantes appartiennent à l'édition active.
-        $editionActive = $pdo->query('SELECT id FROM editions ORDER BY is_active DESC, annee DESC LIMIT 1')->fetchColumn();
-        $n = 0;
-        if ($editionActive !== false) {
-            $up = $pdo->prepare('UPDATE `registrations` SET `edition_id` = ? WHERE `edition_id` IS NULL');
-            $up->execute([(int) $editionActive]);
-            $n = $up->rowCount();
-        }
-        $results[] = ['status' => 'success', 'sql' => $desc,
-                      'msg' => "Colonne ajoutée, $n inscription(s) rattachée(s) à l'édition " . (int) $editionActive];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-$desc = "Ajouter l'index `idx_edition` sur `registrations`";
-try {
-    if (!$lot1Col('registrations', 'edition_id')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Colonne `edition_id` absente'];
-    } elseif ($lot1Idx('registrations', 'idx_edition')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } else {
-        $pdo->exec("ALTER TABLE `registrations` ADD INDEX `idx_edition` (`edition_id`)");
-        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Index créé'];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-$desc = "Ajouter la clé étrangère `fk_registrations_edition`";
-try {
-    if (!$lot1Col('registrations', 'edition_id') || !$tableExists('editions')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Colonne ou table cible absente'];
-    } elseif ($lot1Fk('registrations', 'fk_registrations_edition')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } else {
-        $pdo->exec(
-            "ALTER TABLE `registrations`
-             ADD CONSTRAINT `fk_registrations_edition`
-             FOREIGN KEY (`edition_id`) REFERENCES `editions` (`id`)
-             ON DELETE SET NULL ON UPDATE CASCADE"
-        );
-        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Clé étrangère créée'];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.4 — Unicité de `inscription_no` : globale → par édition
-// Sans cette bascule, la consolidation des archives échouerait : deux éditions
-// peuvent parfaitement réutiliser le même numéro d'inscription.
-// ⚠️ S'exécute APRÈS le backfill d'edition_id : un edition_id NULL rendrait
-// l'index inopérant (en SQL, plusieurs NULL ne se contredisent pas).
-// ─────────────────────────────────────────────────────────────────────────
-$desc = "Basculer l'unicité vers `idx_edition_inscription` (edition_id, inscription_no)";
-try {
-    if (!$lot1Col('registrations', 'edition_id')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Colonne `edition_id` absente'];
-    } elseif ($lot1Idx('registrations', 'idx_edition_inscription')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Déjà appliqué'];
-    } else {
-        $orphelines = (int) $pdo->query('SELECT COUNT(*) FROM `registrations` WHERE `edition_id` IS NULL')->fetchColumn();
-        if ($orphelines > 0) {
-            $results[] = ['status' => 'error', 'sql' => $desc,
-                          'msg' => "$orphelines inscription(s) sans edition_id — bascule refusée (l'index serait inopérant). Relancez après avoir créé une édition."];
-        } else {
-            $pdo->exec("ALTER TABLE `registrations` ADD UNIQUE KEY `idx_edition_inscription` (`edition_id`, `inscription_no`)");
-            // L'ancien index UNIQUE global ne se retire qu'une fois le nouveau en
-            // place : à aucun instant la table n'est sans protection contre les
-            // doublons de numéro d'inscription.
-            if ($lot1Idx('registrations', 'inscription_no')) {
-                $pdo->exec("ALTER TABLE `registrations` DROP INDEX `inscription_no`");
-                $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Index composite créé, ancien index UNIQUE global supprimé'];
-            } else {
-                $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Index composite créé (ancien index déjà absent)'];
+            // Une édition par table d'archive registrations_AAAA (jamais active).
+            $archives = $pdo->query(
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME REGEXP '^registrations_[0-9]{4}$'"
+            )->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($archives as $t) {
+                $a = (int) substr($t, -4);
+                if ($a < 1900 || $a > 2200 || $a === $anneeCourante) continue;
+                $ins->execute([$a, 'Forbach en Rose ' . $a, null, 0]);
+                $creees[] = $a;
             }
-        }
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
 
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.5 — Colonnes de rattachement des comptes coureurs
-//
-// `email_normalise` n'est PAS l'adresse en clair : `registrations.email` est
-// chiffré (AES-256-GCM, IV aléatoire), donc LOWER(TRIM(email)) en SQL ne
-// verrait que du chiffré, et recopier l'adresse en clair annulerait la
-// protection des données (une sauvegarde exposerait tous les emails).
-// On stocke une empreinte HMAC-SHA256 déterministe (64 caractères hex) :
-// indexable et joignable, non réversible. Cf. fer_emailHash() dans config.php.
-//
-// Conséquence directe : le backfill ne peut pas être un UPDATE SQL, il faut
-// déchiffrer ligne par ligne en PHP.
-//
-// Un bloc distinct par colonne et par index : un ALTER groupé ne serait pas
-// idempotent (au second passage il échouerait en bloc, y compris sur les
-// clauses encore nécessaires).
-// ─────────────────────────────────────────────────────────────────────────
-$desc = "Ajouter la colonne `email_normalise` dans `registrations` (+ backfill)";
-try {
-    if ($lot1Col('registrations', 'email_normalise')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } else {
-        $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `email_normalise` VARCHAR(64) NULL AFTER `email`");
-        // Backfill UNIQUE, à la création seulement.
-        $rows = $pdo->query("SELECT id, email FROM `registrations` WHERE `email` IS NOT NULL AND `email` <> ''")
-                    ->fetchAll(PDO::FETCH_ASSOC);
-        $up = $pdo->prepare('UPDATE `registrations` SET `email_normalise` = ? WHERE id = ?');
-        $n = 0; $vides = 0;
-        $pdo->beginTransaction();
-        foreach ($rows as $r) {
-            $hash = fer_emailHash(decrypt($r['email']));
-            if ($hash === null) { $vides++; continue; }
-            $up->execute([$hash, (int) $r['id']]);
-            $n++;
-        }
-        $pdo->commit();
-        $results[] = ['status' => 'success', 'sql' => $desc,
-                      'msg' => "Colonne ajoutée, $n empreinte(s) calculée(s)" . ($vides ? ", $vides adresse(s) illisible(s) ignorée(s)" : '')];
-    }
-} catch (\Throwable $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-$desc = "Ajouter l'index `idx_email_norm` sur `registrations`";
-try {
-    if (!$lot1Col('registrations', 'email_normalise')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Colonne absente'];
-    } elseif ($lot1Idx('registrations', 'idx_email_norm')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } else {
-        $pdo->exec("ALTER TABLE `registrations` ADD INDEX `idx_email_norm` (`email_normalise`)");
-        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Index créé'];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-// `participant_id` : rattachement durable, renseigné à la PREMIÈRE revendication
-// de l'inscription par un compte. Il prime ensuite sur l'email — c'est lui qui
-// fait survivre l'historique d'un coureur qui change d'adresse.
-// Aucun backfill : aucun compte n'existe encore.
-$desc = "Ajouter la colonne `participant_id` dans `registrations`";
-try {
-    if ($lot1Col('registrations', 'participant_id')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } elseif (!$lot1Col('registrations', 'email_normalise')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Colonne `email_normalise` absente (ordre non respecté)'];
-    } else {
-        $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `participant_id` INT NULL AFTER `email_normalise`");
-        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Colonne ajoutée'];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-$desc = "Ajouter l'index `idx_participant` sur `registrations`";
-try {
-    if (!$lot1Col('registrations', 'participant_id')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Colonne absente'];
-    } elseif ($lot1Idx('registrations', 'idx_participant')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-    } else {
-        $pdo->exec("ALTER TABLE `registrations` ADD INDEX `idx_participant` (`participant_id`)");
-        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Index créé'];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.6 — Colonnes de naissance : CRÉATION SEULE
-// Aucune normalisation automatique ici : elle se déclenche à la main via
-// update.php?tool=normalize-naissance, avec aperçu préalable.
-// ⚠️ La colonne `naissance` n'est JAMAIS modifiée — on l'enrichit.
-// ─────────────────────────────────────────────────────────────────────────
-foreach ([
-    ['annee_naissance',  "SMALLINT NULL AFTER `naissance`",                                  'naissance'],
-    ['date_naissance',   "DATE NULL AFTER `annee_naissance`",                                'annee_naissance'],
-    ['naissance_source', "ENUM('date','annee','age','inconnu') NOT NULL DEFAULT 'inconnu' AFTER `date_naissance`", 'date_naissance'],
-] as [$col, $ddl, $apres]) {
-    $desc = "Ajouter la colonne `$col` dans `registrations`";
-    try {
-        if ($lot1Col('registrations', $col)) {
-            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-        } elseif (!$lot1Col('registrations', $apres)) {
-            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => "Colonne `$apres` absente (ordre non respecté)"];
-        } else {
-            $pdo->exec("ALTER TABLE `registrations` ADD COLUMN `$col` $ddl");
-            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Colonne ajoutée (aucune normalisation automatique)'];
+            sort($creees);
+            $results[] = ['status' => 'success', 'sql' => $desc,
+                          'msg' => count($creees) . ' édition(s) : ' . implode(', ', $creees)];
         }
     } catch (PDOException $e) {
         $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
     }
-}
 
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.7 à 1.9 — Nouvelles tables
-//
-// ⚠️ `participants` n'a AUCUNE colonne de mot de passe : le seul moyen
-// d'accéder à un compte coureur est le code à 6 chiffres reçu par mail.
-//
-// ⚠️ Les deux hachages ci-dessous sont volontairement différents :
-//   - participant_auth_codes.code_hash → password_hash() : un code à 6 chiffres
-//     n'a que 10^6 combinaisons, il faut un hachage LENT. La recherche se fait
-//     par email_normalise (indexé), puis password_verify() sur la ligne trouvée.
-//   - participant_devices.token_hash  → SHA-256 : un token serveur porte 256
-//     bits d'entropie, rien à forcer. Il faut un hachage RAPIDE et déterministe,
-//     car la recherche se fait directement par le hash à chaque appel d'API.
-//   Lent pour un secret faible, rapide pour un secret fort. Ne pas « harmoniser ».
-//
-// `email_normalise` porte ici aussi l'EMPREINTE HMAC, pas l'adresse ;
-// `participants.email` est chiffré comme les autres colonnes PII du site.
-//
-// Tables de chronométrage : alimentées plus tard par l'application mobile, mais
-// créées maintenant pour que l'API du lot 5 les expose sans seconde migration.
-// DATETIME(3) = précision milliseconde, indispensable au chronométrage, et
-// toutes ces colonnes sont stockées EN UTC.
-// ─────────────────────────────────────────────────────────────────────────
-$lot1Tables = [
-    'participants' =>
-        "CREATE TABLE IF NOT EXISTS `participants` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `email` VARCHAR(255) NOT NULL,
-          `email_normalise` VARCHAR(64) NOT NULL,
-          `nom` VARCHAR(255) DEFAULT NULL,
-          `prenom` VARCHAR(255) DEFAULT NULL,
-          `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-          `rgpd_consent_at` DATETIME DEFAULT NULL,
-          `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
-          `derniere_connexion` DATETIME DEFAULT NULL,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE KEY `idx_email_norm` (`email_normalise`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-    'participant_auth_codes' =>
-        "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `email_normalise` VARCHAR(64) NOT NULL,
-          `code_hash` VARCHAR(255) NOT NULL,
-          `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
-          `tentatives` TINYINT NOT NULL DEFAULT 0,
-          `consomme_at` DATETIME DEFAULT NULL,
-          `expires_at` DATETIME NOT NULL,
-          `ip` VARCHAR(45) DEFAULT NULL,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_email` (`email_normalise`),
-          INDEX `idx_expires` (`expires_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-    'participant_devices' =>
-        "CREATE TABLE IF NOT EXISTS `participant_devices` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `participant_id` INT NOT NULL,
-          `token_hash` VARCHAR(255) NOT NULL,
-          `type` ENUM('web','app') NOT NULL,
-          `libelle` VARCHAR(120) DEFAULT NULL,
-          `plateforme` VARCHAR(60) DEFAULT NULL,
-          `modele` VARCHAR(120) DEFAULT NULL,
-          `ip_creation` VARCHAR(45) DEFAULT NULL,
-          `user_agent` VARCHAR(500) DEFAULT NULL,
-          `derniere_utilisation` DATETIME DEFAULT NULL,
-          `expires_at` DATETIME DEFAULT NULL,
-          `revoque_at` DATETIME DEFAULT NULL,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_participant` (`participant_id`),
-          UNIQUE KEY `idx_token` (`token_hash`),
-          INDEX `idx_expires` (`expires_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-    'registration_transfers' =>
-        "CREATE TABLE IF NOT EXISTS `registration_transfers` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `registration_id` INT NOT NULL,
-          `email_source` VARCHAR(255) NOT NULL,
-          `email_cible` VARCHAR(255) NOT NULL,
-          `token_hash` VARCHAR(255) NOT NULL,
-          `statut` ENUM('en_attente','accepte','annule','expire') NOT NULL DEFAULT 'en_attente',
-          `demande_par` INT DEFAULT NULL,
-          `expires_at` DATETIME NOT NULL,
-          `accepte_at` DATETIME DEFAULT NULL,
-          `annule_at` DATETIME DEFAULT NULL,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_registration` (`registration_id`),
-          INDEX `idx_statut` (`statut`),
-          UNIQUE KEY `idx_token` (`token_hash`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-    'resultats' =>
-        "CREATE TABLE IF NOT EXISTS `resultats` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `registration_id` INT NOT NULL,
-          `edition_id` INT NOT NULL,
-          `depart_at` DATETIME(3) DEFAULT NULL,
-          `arrivee_at` DATETIME(3) DEFAULT NULL,
-          `temps_s` DECIMAL(10,3) DEFAULT NULL,
-          `methode` ENUM('beacon','gps_ligne','gps_extrapole','gps_distance','manuel','declaratif') DEFAULT NULL,
-          `precision_s` INT DEFAULT NULL,
-          `distance_m` INT DEFAULT NULL,
-          `denivele_positif_m` INT DEFAULT NULL,
-          `statut` ENUM('en_course','termine','abandon','non_partant','invalide') NOT NULL DEFAULT 'en_course',
-          `valide_par` INT DEFAULT NULL,
-          `commentaire` VARCHAR(255) DEFAULT NULL,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE KEY `idx_reg_edition` (`registration_id`, `edition_id`),
-          INDEX `idx_edition_temps` (`edition_id`, `temps_s`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-    'traces_gps' =>
-        "CREATE TABLE IF NOT EXISTS `traces_gps` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `registration_id` INT NOT NULL,
-          `edition_id` INT NOT NULL,
-          `device_id` INT DEFAULT NULL,
-          `source` ENUM('app','gpx_import') NOT NULL DEFAULT 'app',
-          `points` LONGTEXT DEFAULT NULL,
-          `nb_points` INT DEFAULT 0,
-          `debut_at` DATETIME(3) DEFAULT NULL,
-          `fin_at` DATETIME(3) DEFAULT NULL,
-          `purge_at` DATE DEFAULT NULL,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_reg` (`registration_id`),
-          INDEX `idx_purge` (`purge_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-    'detections' =>
-        "CREATE TABLE IF NOT EXISTS `detections` (
-          `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `registration_id` INT NOT NULL,
-          `edition_id` INT NOT NULL,
-          `device_id` INT DEFAULT NULL,
-          `type` ENUM('beacon','geofence','gps_ligne','manuel') NOT NULL,
-          `point` ENUM('depart','arrivee') NOT NULL,
-          `detecte_at` DATETIME(3) NOT NULL,
-          `recu_at` DATETIME(3) DEFAULT NULL,
-          `rssi_pic` SMALLINT DEFAULT NULL,
-          `beacon_minor` SMALLINT DEFAULT NULL,
-          `confiance` TINYINT DEFAULT NULL,
-          `retenue` TINYINT(1) NOT NULL DEFAULT 0,
-          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_reg_point` (`registration_id`, `point`),
-          INDEX `idx_edition` (`edition_id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-];
-
-foreach ($lot1Tables as $table => $ddl) {
-    $desc = "Créer la table `$table`";
-    try {
-        if ($tableExists($table)) {
-            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-        } else {
-            $pdo->exec($ddl);
-            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Table créée'];
-        }
-    } catch (PDOException $e) {
-        $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// LOT 1.10 — Cohérence `registrations_stats` → `editions`
-// L'endpoint `years` d'api.php lit registrations_stats.year ; api.php reste
-// STRICTEMENT inchangé. `editions` devient la source de vérité : on garantit
-// simplement qu'une édition existe pour chaque année déjà connue des stats.
-// Idempotent : ne crée que les années manquantes, ne touche pas is_active.
-// ─────────────────────────────────────────────────────────────────────────
-$desc = "Synchroniser `registrations_stats.year` → `editions.annee`";
-try {
-    if (!$tableExists('editions') || !$tableExists('registrations_stats')) {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table `editions` ou `registrations_stats` absente'];
-    } else {
-        $manquantes = $pdo->query(
-            'SELECT s.year FROM registrations_stats s
-              LEFT JOIN editions e ON e.annee = s.year
-              WHERE e.id IS NULL AND s.year BETWEEN 1900 AND 2200
-              ORDER BY s.year'
-        )->fetchAll(PDO::FETCH_COLUMN);
-
-        if (empty($manquantes)) {
-            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Toutes les années des stats ont déjà une édition'];
-        } else {
-            $ins = $pdo->prepare('INSERT IGNORE INTO editions (annee, libelle, is_active) VALUES (?, ?, 0)');
-            foreach ($manquantes as $y) {
-                $ins->execute([(int) $y, 'Forbach en Rose ' . (int) $y]);
-            }
-            $results[] = ['status' => 'success', 'sql' => $desc,
-                          'msg' => count($manquantes) . ' édition(s) créée(s) : ' . implode(', ', $manquantes)];
-        }
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-}
+} // fin : ancien schéma absent
 
 /* ═══════════════════ fin LOT 1 ══════════════════════════════════════════ */
 
@@ -2851,13 +2305,10 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
       <a href="update.php?tool=repair-dates" class="oc-btn-secondary" style="width:auto;text-decoration:none">
         <i class="bi bi-calendar-check"></i> Réparer les dates d'inscription (jour/mois inversés)
       </a>
-      <!-- Outils manuels du lot 1 : opérations massives, à aperçu obligatoire.
-           Volontairement HORS de la séquence de migration ci-dessus. -->
-      <a href="update.php?tool=consolidate-archives" class="oc-btn-secondary" style="width:auto;text-decoration:none">
-        <i class="bi bi-archive"></i> Consolider les archives (registrations_AAAA)
-      </a>
-      <a href="update.php?tool=normalize-naissance" class="oc-btn-secondary" style="width:auto;text-decoration:none">
-        <i class="bi bi-calendar-heart"></i> Normaliser les dates de naissance
+      <!-- Contrepartie de l'absence de clés étrangères vers `registrations` :
+           MySQL ne peut pas garantir l'intégrité des clés métier, cet outil si. -->
+      <a href="update.php?tool=check-integrity" class="oc-btn-secondary" style="width:auto;text-decoration:none">
+        <i class="bi bi-shield-check"></i> Contrôle d'intégrité (clés métier)
       </a>
     </p>
 

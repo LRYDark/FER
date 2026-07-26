@@ -196,125 +196,6 @@ function regcore_naissanceToAge($value): ?string
     return $age === null ? null : (string) $age;
 }
 
-/* ────────────────────── Date de naissance (lot 1) ─────────────────────────── */
-
-/**
- * Interprète une valeur brute de `naissance` et en déduit l'année de naissance.
- *
- * ORDRE D'ÉVALUATION IMPOSÉ (ne pas réordonner) :
- *   1. date complète  (JJ/MM/AAAA, AAAA-MM-JJ, JJ-MM-AAAA, JJ.MM.AAAA)
- *   2. année sur 4 chiffres (1900 → année de l'édition)
- *   3. valeur de 1 ou 2 chiffres
- *   4. âge sur 3 chiffres (≤ 120)
- *   5. inconnu
- *
- * ⚠️ L'âge se calcule sur l'année de l'ÉDITION DE LA LIGNE, jamais sur l'année
- * courante : « 42 ans » sur une archive 2023 donne 1981, pas 1984. Se tromper
- * ici décale silencieusement tout l'historique des catégories d'âge.
- *
- * ⚠️ Cas des valeurs de 1 ou 2 chiffres. « 85 » peut être un âge (né en 1941)
- * comme une année abrégée (1985). Le site ne stockant QUE des âges depuis
- * regcore_naissanceToAge(), le comportement retenu est de les interpréter comme
- * un âge — mais la ligne est systématiquement marquée `age_court` dans le
- * rapport pour rester vérifiable. $shortAsAge = false rétablit la prudence
- * maximale (valeur classée « inconnu », listée comme ambiguë).
- *
- * @param  string|null $raw          valeur brute de `naissance` (déjà déchiffrée)
- * @param  int         $editionYear  année de l'édition de la ligne traitée
- * @param  bool        $shortAsAge   interpréter 1-2 chiffres comme un âge
- * @return array{annee: ?int, date: ?string, source: string, note: string}
- *         source ∈ date|annee|age|inconnu ; note ∈ ''|age_court|ambigu|hors_plage|vide
- */
-function regcore_parseNaissance(?string $raw, int $editionYear, bool $shortAsAge = true): array
-{
-    $none = ['annee' => null, 'date' => null, 'source' => 'inconnu', 'note' => ''];
-
-    $v = trim((string) $raw);
-    if ($v === '') return ['annee' => null, 'date' => null, 'source' => 'inconnu', 'note' => 'vide'];
-
-    // Retire une heure en suffixe (« 2000-05-09 00:00:00 » venant d'un client API)
-    $v = preg_replace('/[T ]\d{1,2}:\d{2}(:\d{2})?$/', '', $v);
-    $v = trim($v);
-
-    $minYear = 1900;
-    $maxYear = $editionYear;
-
-    // ── 1. Date complète ────────────────────────────────────────────────────
-    $d = $m = $y = null;
-    if (preg_match('/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/', $v, $p)) {
-        $y = (int) $p[1]; $m = (int) $p[2]; $d = (int) $p[3];        // AAAA-MM-JJ
-    } elseif (preg_match('#^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$#', $v, $p)) {
-        $d = (int) $p[1]; $m = (int) $p[2]; $y = (int) $p[3];        // JJ/MM/AAAA
-    }
-    if ($y !== null) {
-        if ($y < $minYear || $y > $maxYear || !checkdate($m, $d, $y)) {
-            return ['annee' => null, 'date' => null, 'source' => 'inconnu', 'note' => 'hors_plage'];
-        }
-        return [
-            'annee'  => $y,
-            'date'   => sprintf('%04d-%02d-%02d', $y, $m, $d),
-            'source' => 'date',
-            'note'   => '',
-        ];
-    }
-
-    // ── 2. Année seule sur 4 chiffres ───────────────────────────────────────
-    if (preg_match('/^\d{4}$/', $v)) {
-        $y = (int) $v;
-        if ($y < $minYear || $y > $maxYear) {
-            return ['annee' => null, 'date' => null, 'source' => 'inconnu', 'note' => 'hors_plage'];
-        }
-        return ['annee' => $y, 'date' => null, 'source' => 'annee', 'note' => ''];
-    }
-
-    // ── 3. Valeur de 1 ou 2 chiffres (âge court, potentiellement ambigu) ────
-    if (preg_match('/^\d{1,2}$/', $v)) {
-        $age = (int) $v;
-        if (!$shortAsAge) {
-            return ['annee' => null, 'date' => null, 'source' => 'inconnu', 'note' => 'ambigu'];
-        }
-        return ['annee' => $editionYear - $age, 'date' => null, 'source' => 'age', 'note' => 'age_court'];
-    }
-
-    // ── 4. Âge sur 3 chiffres ───────────────────────────────────────────────
-    if (preg_match('/^\d{3}$/', $v)) {
-        $age = (int) $v;
-        if ($age > 120) {
-            return ['annee' => null, 'date' => null, 'source' => 'inconnu', 'note' => 'hors_plage'];
-        }
-        return ['annee' => $editionYear - $age, 'date' => null, 'source' => 'age', 'note' => ''];
-    }
-
-    // ── 5. Inconnu ──────────────────────────────────────────────────────────
-    return $none;
-}
-
-/**
- * Colonnes de naissance dérivées d'une valeur brute, prêtes à être insérées.
- *
- * Appelée à CHAQUE création d'inscription : sans elle, toute nouvelle inscription
- * arriverait avec `annee_naissance` vide et `naissance_source = 'inconnu'`, et il
- * faudrait relancer l'outil de normalisation après chaque vague d'inscriptions.
- *
- * La valeur passée est la valeur BRUTE saisie (âge, année ou date complète), pas
- * celle déjà convertie en âge : une vraie date de naissance renseigne alors aussi
- * `date_naissance`.
- *
- * @return array<string,mixed> tableau colonne => valeur, vide si la migration du
- *         lot 1 n'est pas encore passée (le code peut être déployé avant update.php)
- */
-function regcore_naissanceColumns(PDO $pdo, $brut, ?int $editionId = null): array
-{
-    if (!fer_hasColumn($pdo, 'registrations', 'annee_naissance')) return [];
-
-    $p = regcore_parseNaissance((string) $brut, fer_editionYear($pdo, $editionId), true);
-    return [
-        'annee_naissance'  => $p['annee'],
-        'date_naissance'   => $p['date'],
-        'naissance_source' => $p['source'],
-    ];
-}
-
 /** Journalise une erreur d'import dans storage/logs/import_errors.log. */
 function regcore_logImportError(array $data, string $filename = 'import_errors.log'): void
 {
@@ -415,26 +296,6 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
         $cols[] = 'prestation';    $phs[] = '?'; $vals[] = regcore_prestationFromPaiement($d['paiement_mode'] ?? null);
         $cols[] = 'montant_du';    $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';    $phs[] = '?'; $vals[] = null; // créé via API : aucun utilisateur
-
-        /* Lot 1 — rattachement de l'inscription
-         * `edition_id`      : sans lui, l'unicité (edition_id, inscription_no) est
-         *                     inopérante et l'inscription n'apparaît dans aucune édition.
-         * `email_normalise` : empreinte HMAC de l'adresse (cf. fer_emailHash), clé de
-         *                     rattachement au compte coureur. `email` étant chiffré, elle
-         *                     ne peut pas être recalculée en SQL : on l'écrit ici.
-         * Colonnes ajoutées seulement si la migration du lot 1 est passée. */
-        $editionId = fer_activeEditionId($pdo);
-        if ($editionId !== null) {
-            $cols[] = 'edition_id'; $phs[] = '?'; $vals[] = $editionId;
-        }
-        if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
-            $cols[] = 'email_normalise'; $phs[] = '?'; $vals[] = fer_emailHash($d['email'] ?? null);
-        }
-        // Année de naissance déduite de la valeur BRUTE saisie (avant conversion en
-        // âge) : un âge se périme, une année de naissance non.
-        foreach (regcore_naissanceColumns($pdo, $d['naissance'] ?? '', $editionId) as $c => $v) {
-            $cols[] = $c; $phs[] = '?'; $vals[] = $v;
-        }
 
         // Date d'inscription : si fournie (date réelle), on l'enregistre (antidatage possible
         // côté API) ; sinon DEFAULT du jour. created_at (date d'ajout) reste auto.
@@ -596,26 +457,15 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
         $registrationFee = (float) ($pdo->query('SELECT registration_fee FROM setting WHERE id = 1 LIMIT 1')->fetchColumn() ?: 0);
 
         /* 5. Requête d'insertion */
-        // created_at (date d'AJOUT) n'est volontairement PAS listé → DEFAULT = NOW()
-        // (instant de l'import). La date du fichier AssoConnect alimente date_inscription
-        // (date réelle d'inscription, qui pilote le classement QR).
-        //
-        // Lot 1 : `edition_id` et `email_normalise` (empreinte HMAC de l'adresse)
-        // sont ajoutés à la volée, uniquement si la migration est passée — l'import
-        // doit continuer à fonctionner sur une base pas encore migrée.
-        $importCols = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe',
-                       'tshirt_size', 'ville', 'entreprise', 'origine', 'paiement_mode',
-                       'prestation', 'montant_du', 'date_inscription', 'created_by'];
-        $importEditionId    = fer_activeEditionId($pdo);
-        $importHasEmailNorm = fer_hasColumn($pdo, 'registrations', 'email_normalise');
-        $importHasNaissance = fer_hasColumn($pdo, 'registrations', 'annee_naissance');
-        if ($importEditionId !== null)  $importCols[] = 'edition_id';
-        if ($importHasEmailNorm)        $importCols[] = 'email_normalise';
-        if ($importHasNaissance)        array_push($importCols, 'annee_naissance', 'date_naissance', 'naissance_source');
-
         $insert = $pdo->prepare(
-            'INSERT INTO registrations (' . implode(', ', $importCols) . ') VALUES ('
-            . implode(',', array_fill(0, count($importCols), '?')) . ')'
+            // created_at (date d'AJOUT) n'est volontairement PAS listé → DEFAULT = NOW()
+            // (instant de l'import). La date du fichier AssoConnect alimente date_inscription
+            // (date réelle d'inscription, qui pilote le classement QR).
+            'INSERT INTO registrations
+             (inscription_no, nom, prenom, tel, email, naissance, sexe,
+              tshirt_size, ville, entreprise, origine, paiement_mode,
+              prestation, montant_du, date_inscription, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
 
         /* Colonne « Prestations » (catégorie AssoConnect), lue par en-tête. */
@@ -727,24 +577,13 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
                 } else {
                     $prestation = 'tarif_unique';
                 }
-                $insertVals = [
+                $insert->execute([
                     $v['inscription_no'], encrypt($v['nom']), encrypt($v['prenom']),
                     encrypt($v['tel']), encrypt($v['email']), encrypt($v['naissance']), $v['sexe'],
                     '-', encrypt($v['ville']), encrypt($v['entreprise']),
                     ($v['origine'] ?? null) ?: $defaultOrig,
                     $paiementMode, $prestation, (float) $montant, $v['date_inscription'], $createdBy,
-                ];
-                // Mêmes colonnes optionnelles, dans le même ordre que $importCols.
-                if ($importEditionId !== null)  $insertVals[] = $importEditionId;
-                if ($importHasEmailNorm)        $insertVals[] = fer_emailHash($v['email'] ?? null);
-                if ($importHasNaissance) {
-                    // $v['naissance'] contient déjà l'âge (converti au parsing du fichier) ;
-                    // il est rapporté à l'année de l'édition cible, pas à l'année courante.
-                    $nc = regcore_naissanceColumns($pdo, $v['naissance'] ?? '', $importEditionId);
-                    array_push($insertVals, $nc['annee_naissance'] ?? null,
-                               $nc['date_naissance'] ?? null, $nc['naissance_source'] ?? 'inconnu');
-                }
-                $insert->execute($insertVals);
+                ]);
                 $added++;
                 if (!empty($v['email'])) {
                     $newRegistrants[] = [
