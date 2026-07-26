@@ -48,19 +48,23 @@ $ecMenu = [
   <?php endif; ?>
 </header>
 <style>
-  body { margin:0; background:#f8f7f9; font-family:system-ui,-apple-system,'Segoe UI',sans-serif; color:#0f172a; }
+  /* Couleurs prises dans les variables de _styles.php : clair et sombre suivent
+     automatiquement, il n'y a qu'un seul jeu de règles à maintenir. */
+  body { margin:0; background:var(--ec-bg); color:var(--ec-ink);
+         font-family:system-ui,-apple-system,'Segoe UI',sans-serif; }
   .ec-nav { display:flex; align-items:center; justify-content:space-between; gap:16px;
-            padding:12px 20px; background:#fff; border-bottom:1px solid #f0e8eb; flex-wrap:wrap; }
+            padding:12px 20px; background:var(--ec-card);
+            border-bottom:1px solid var(--ec-border); flex-wrap:wrap; }
   .ec-brand { display:flex; align-items:center; gap:10px; text-decoration:none;
-              color:#0f172a; font-weight:700; font-size:.95rem; }
+              color:var(--ec-ink); font-weight:700; font-size:.95rem; }
   .ec-brand img { height:30px; width:auto; }
   .ec-tabs { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
   .ec-tabs a { display:inline-flex; align-items:center; gap:6px; text-decoration:none;
-               color:#475569; font-size:.85rem; font-weight:600;
+               color:var(--ec-soft-ink); font-size:.85rem; font-weight:600;
                padding:.45rem .7rem; border-radius:.5rem; }
-  .ec-tabs a:hover { background:#fdf2f8; color:#F42182; }
-  .ec-tabs a.actif { background:#fdf2f8; color:#F42182; }
-  .ec-tabs .ec-sortie { color:#94a3b8; }
+  .ec-tabs a:hover { background:var(--ec-rose-soft); color:var(--ec-rose); }
+  .ec-tabs a.actif { background:var(--ec-rose-soft); color:var(--ec-rose); }
+  .ec-tabs .ec-sortie { color:var(--ec-dim); }
   /* Sous 620px, les libellés disparaissent : quatre onglets plus la sortie ne
      tiennent pas sur une ligne, et un menu qui passe à la ligne pousse le
      contenu hors de l'écran. Les icônes restent explicites. */

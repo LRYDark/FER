@@ -21,9 +21,13 @@ if (!$authAccent) {
     $authAccent = ['#db2777', '#bc2266', '#ffffff', '#e668a0', '#ea82b0', '#ffffff'];
 }
 
-// Thème DÉDIÉ aux pages de connexion (séparé de l'admin). Si l'utilisateur est
-// connecté (update.php, change-password), on lit sa préférence login_theme en
-// base ; sinon (login, reset : pré-auth) le script client lira le localStorage.
+// Les pages de connexion suivent le THÈME DE L'ADMINISTRATION : un seul réglage
+// pour tout le parcours d'un administrateur. L'ancien « thème des pages de
+// connexion » a été retiré du profil — deux réglages à accorder pour deux
+// moments du même parcours n'apportaient rien.
+// Si l'utilisateur est déjà connecté (update.php, change-password), on lit sa
+// préférence en base ; sinon (login, reset : pré-auth) le script client lira le
+// localStorage, où theme.js range déjà « jr-theme ».
 $authLoginTheme = null;
 try {
     if (isset($pdo) && isset($_SESSION['uid'])) {
@@ -32,8 +36,11 @@ try {
         $raw = $st->fetchColumn();
         if ($raw) {
             $p = json_decode($raw, true);
-            if (is_array($p) && in_array($p['login_theme'] ?? '', ['light', 'dark', 'system'], true)) {
-                $authLoginTheme = $p['login_theme'];
+            // Repli sur login_theme pour les comptes qui n'ont encore que
+            // l'ancienne clé enregistrée : leur choix n'est pas perdu.
+            $choix = $p['admin_theme'] ?? ($p['login_theme'] ?? '');
+            if (is_array($p) && in_array($choix, ['light', 'dark', 'system'], true)) {
+                $authLoginTheme = $choix;
             }
         }
     }
@@ -60,7 +67,16 @@ $authV = function (string $rel) use ($authBase) { $p = dirname(__DIR__, 2) . '/'
      visiteur qui n'a jamais rien réglé se verrait servir le goût de l'admin. */
   var force = <?= isset($authForceTheme) ? json_encode($authForceTheme) : 'null' ?>;
   var t = force !== null ? force : <?= $authLoginTheme !== null ? json_encode($authLoginTheme) : 'null' ?>;
-  if (t === null) { try { t = localStorage.getItem('jr-login-theme'); } catch (e) {} }
+  /* Clé de préférence à consulter avant authentification. Par défaut celle de
+     l'administration ; l'espace coureur pose la sienne, sans quoi les deux
+     espaces se partageraient un réglage unique alors qu'ils n'ont ni le même
+     public ni le même usage.
+     « jr-login-theme » n'est plus alimenté ; on l'accepte encore en repli pour
+     les navigateurs qui n'ont que l'ancienne clé. */
+  var cle = <?= json_encode($authThemeKey ?? 'jr-theme') ?>;
+  if (t === null) {
+    try { t = localStorage.getItem(cle) || (cle === 'jr-theme' ? localStorage.getItem('jr-login-theme') : null); } catch (e) {}
+  }
   if (t !== 'dark' && t !== 'system') t = 'light';
   d.setAttribute('data-theme', t);
   var dark = t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);

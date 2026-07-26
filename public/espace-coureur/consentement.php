@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $authBase       = '../../';
-$authForceTheme = 'light';   // espace public : jamais le thème sombre de l'admin
+$authThemeKey   = PAUTH_THEME_KEY;   // préférence propre au coureur, jamais celle de l'admin
 $authArtKicker  = 'Forbach en Rose · Espace coureur';
 $authArtTitre   = 'Vos données.<br>Vos droits.';
 

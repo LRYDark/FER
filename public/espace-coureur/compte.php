@@ -74,6 +74,21 @@ if (isset($_GET['export'])) {
     exit;
 }
 
+/* ── Thème d'affichage ───────────────────────────────────────────────────── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['theme'])) {
+    if (!csrf_verify()) {
+        $erreur = "Session expirée. Rechargez la page et réessayez.";
+    } else {
+        $t = (string) $_POST['theme'];
+        if (!in_array($t, PAUTH_THEMES, true)) $t = 'light';
+        $pdo->prepare('UPDATE participants SET theme = ? WHERE id = ?')->execute([$t, $moiId]);
+        $_SESSION[PAUTH_SESSION_KEY]['theme'] = $t;
+        // Rechargement : le thème est posé dans le <head>, avant tout rendu.
+        header('Location: compte.php?theme_ok=1');
+        exit;
+    }
+}
+
 /* ── Suppression du compte ───────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supprimer'])) {
     if (!csrf_verify()) {
@@ -156,6 +171,36 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       Nom et prénom proviennent de votre inscription. Pour les corriger, contactez
       l'organisation&nbsp;: ce sont les données officielles de la course.
     </div>
+  </div>
+
+  <h2 class="ec-h2"><i class="bi bi-palette"></i>Apparence</h2>
+  <div class="ec-card">
+    <?php if (isset($_GET['theme_ok'])): ?>
+      <div class="ec-alert ec-ok" style="margin-bottom:12px">
+        <i class="bi bi-check-circle me-1"></i>Thème enregistré.
+      </div>
+    <?php endif; ?>
+    <p class="ec-meta" style="margin:0 0 12px">
+      Le thème de votre espace coureur. Il vous suit d'un appareil à l'autre&nbsp;:
+      il est enregistré avec votre compte, pas seulement dans ce navigateur.
+    </p>
+    <?php $themeActuel = $_SESSION[PAUTH_SESSION_KEY]['theme'] ?? 'light'; ?>
+    <form method="post" class="ec-theme-seg" id="ecThemeSeg">
+      <?= csrf_field() ?>
+      <?php foreach ([
+            'light'  => ['Clair',   'bi-sun'],
+            'dark'   => ['Sombre',  'bi-moon-stars'],
+            'system' => ['Système', 'bi-circle-half'],
+          ] as $val => [$lib, $ico]): ?>
+        <button type="submit" name="theme" value="<?= $val ?>"
+                class="<?= $themeActuel === $val ? 'is-active' : '' ?>">
+          <i class="bi <?= $ico ?>"></i><?= $lib ?>
+        </button>
+      <?php endforeach; ?>
+    </form>
+    <p class="ec-meta" style="margin-top:10px">
+      « Système » suit le réglage clair/sombre de votre téléphone ou de votre ordinateur.
+    </p>
   </div>
 
   <h2 class="ec-h2"><i class="bi bi-download"></i>Exporter mes données</h2>

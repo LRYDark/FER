@@ -167,7 +167,7 @@ $authBase = '../../';   // lu par auth-head.php pour retrouver css/ et js/
    l'administrateur pour lui-même : la préférence de thème vit dans le
    localStorage du domaine et ne distingue pas les deux espaces — sans cela, un
    visiteur qui n'a jamais rien réglé se verrait servir le goût de l'admin. */
-$authForceTheme = 'light';
+$authThemeKey   = PAUTH_THEME_KEY;   // préférence propre au coureur, jamais celle de l'admin
 $authArtKicker  = 'Forbach en Rose · Espace coureur';
 $authArtTitre   = 'Votre course.<br>Votre espace.';
 

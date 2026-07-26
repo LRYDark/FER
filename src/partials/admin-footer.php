@@ -627,19 +627,10 @@ if (pfThemeSeg) {
   });
 }
 
-/* ── Thème des pages de connexion (indépendant de l'admin) ── */
-var pfLoginThemeSeg = document.getElementById('pfLoginThemeSeg');
-if (pfLoginThemeSeg) {
-  pfLoginThemeSeg.querySelectorAll('button[data-login-theme-choice]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var t = btn.dataset.loginThemeChoice;
-      pfLoginThemeSeg.querySelectorAll('button').forEach(function(b) { b.classList.toggle('is-active', b === btn); });
-      // pas d'aperçu (on n'est pas sur la page de connexion) : on mémorise seulement
-      try { localStorage.setItem('jr-login-theme', t); } catch (e) {}
-      jrSaveAppearance({ login_theme: t });
-    });
-  });
-}
+/* Le réglage « thème des pages de connexion » a été retiré : les pages de
+   connexion suivent désormais le thème de l'administration, réglé ci-dessus.
+   Deux réglages pour deux moments du même parcours n'apportaient rien, et il
+   fallait penser à les accorder. */
 
 /* ── Accent ── */
 var pfAccentOptions = document.getElementById('pfAccentOptions');
