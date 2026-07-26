@@ -51,56 +51,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-<style>
-  body { background:var(--surface-2); }
-  .api-doc h2 { color:#880e4f; font-weight:700; margin-top:2.5rem; }
-  .api-doc h3 { color:#c4577a; font-weight:600; margin-top:1.75rem; font-size:1.2rem; }
-  .api-code {
-    background:#1e1e2e; color:#e4e4ef; padding:1rem 1.15rem; border-radius:10px;
-    font-size:.85rem; overflow-x:auto; margin:.6rem 0 1rem;
-  }
-  .api-code code { color:inherit; background:none; white-space:pre; }
-  .api-card {
-    background: var(--surface); border:1px solid var(--border); border-radius:14px;
-    padding:1.5rem; margin-bottom:1.5rem;
-  }
-  .endpoint-badge {
-    display:inline-block; font-weight:700; font-size:.78rem; padding:.2rem .6rem;
-    border-radius:6px; margin-right:.5rem; font-family:monospace;
-  }
-  .m-get  { background:#d1fae5; color: var(--ok); }
-  .m-post { background: color-mix(in srgb, var(--info) 15%, var(--surface)); color: var(--info); }
-  .m-patch  { background: color-mix(in srgb, var(--warn) 18%, var(--surface));   color: var(--warn); }
-  .m-delete { background: color-mix(in srgb, var(--danger) 15%, var(--surface)); color: var(--danger); }
-  .api-toc a { color:#880e4f; text-decoration:none; }
-  .api-toc a:hover { text-decoration:underline; }
-  table.api-params td, table.api-params th { font-size:.88rem; vertical-align:top; }
-  .url-pill { background: var(--accent-soft); color:#880e4f; padding:.15rem .5rem; border-radius:6px; font-family:monospace; font-size:.85rem; }
-  /* navbar-admin.php applique « display:flex » à toutes les alertes
-     (#oc-content .alert) : ici les alertes contiennent du texte riche
-     multi-lignes, on rétablit donc un affichage en flux normal. */
-  #oc-content .api-doc .alert { display:block; }
-  /* Les <code> dans les alertes : puce blanche lisible sur tout fond
-     (y compris le fond rouge de alert-danger). */
-  #oc-content .api-doc .alert code {
-    background: var(--surface); color: var(--ink);
-    padding:.05rem .35rem; border-radius:4px;
-    font-size:.85em; word-break:break-word;
-  }
-  #oc-content .api-doc .alert a { color:inherit; font-weight:600; }
-  /* Les tableaux restent lisibles sur mobile (défilement horizontal si besoin) */
-  .api-card .table-responsive { margin-bottom:0; }
-  table.api-params { width:100%; }
-  /* Adaptation mobile */
-  @media (max-width: 576px) {
-    .api-card { padding:1.1rem; }
-    .api-doc h1 { font-size:1.5rem; }
-    .api-doc h2 { font-size:1.25rem; }
-    .api-doc h3 { font-size:1.05rem; }
-    .api-code { font-size:.76rem; padding:.8rem .9rem; }
-    .api-card table { display:block; overflow-x:auto; white-space:normal; }
-  }
-</style>
+<?php include __DIR__ . '/../src/partials/api-doc-styles.php'; ?>
 </head>
 <body>
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
@@ -108,10 +59,21 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
 <div class="container-fluid pb-5 api-doc">
 
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-    <h1 class="fw-bold mb-0"><i class="bi bi-plug me-2"></i>Documentation de l'API</h1>
-    <a href="setting.php?tab=api" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Retour aux réglages</a>
+    <h1 class="fw-bold mb-0"><i class="bi bi-plug me-2"></i>Documentation de l'API partenaire</h1>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="api-doc-mobile.php" class="btn btn-outline-secondary">
+        <i class="bi bi-phone me-1"></i>API mobile
+      </a>
+      <a href="setting.php?tab=api" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Retour aux réglages
+      </a>
+    </div>
   </div>
-  <p class="text-muted">Connectez vos applications externes au site Forbach en Rose, en toute sécurité.</p>
+  <p class="text-muted">
+    Connectez un <strong>logiciel externe</strong> au site Forbach en Rose : import Excel, ajout
+    d'inscrits, consultation des statistiques. Pour une <strong>application mobile destinée aux
+    coureurs</strong>, c'est <a href="api-doc-mobile.php">l'autre documentation</a>.
+  </p>
 
   <?php if (!$apiEnabled): ?>
   <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>
@@ -148,8 +110,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
       <li><a href="#stats">Phase 3 — Statistiques — <code>stats</code> &amp; <code>years</code></a></li>
       <li><a href="#errors">Codes d'erreur</a></li>
       <li><a href="#modele">Modèle de données — clé métier, fuseaux horaires, traces GPS</a></li>
-      <li><a href="#mobile">API mobile — <code>/api/v1</code> (espace coureur, application)</a></li>
-      <li><a href="#mobile-errors">Codes d'erreur de l'API mobile</a></li>
+      <li><a href="#mobile">L'autre API : celle de l'application des coureurs</a></li>
     </ol>
   </div>
 
@@ -528,181 +489,52 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
        non sur l'année courante.</p>
   </div>
 
-  <!-- ═══ 10. API mobile ═══ -->
+  <!-- ═══ 10. Renvoi vers l'API mobile ═══ -->
   <div class="api-card" id="mobile">
-    <h2 class="mt-0">10. API mobile — <code>/api/v1</code></h2>
+    <h2 class="mt-0"><i class="bi bi-phone me-2"></i>10. L'autre API : celle de l'application des coureurs</h2>
 
-    <div class="alert alert-info"><i class="bi bi-phone me-2"></i>
-      <strong>C'est une API différente de celle décrite ci-dessus.</strong>
-      <code>api.php</code> parle au nom de l'<em>association</em> (un token global, un logiciel
-      partenaire). <code>/api/v1</code> parle au nom d'<em>un coureur</em> : chaque requête n'accède
-      qu'aux données de son compte. Les deux ne partagent aucun identifiant et ne se remplacent pas.
+    <div class="alert alert-info"><i class="bi bi-signpost-split me-2"></i>
+      <strong>Vous n'êtes pas sur la bonne page si vous développez une application mobile.</strong>
+      Le site expose <strong>deux APIs distinctes</strong>, qui n'ont ni le même public, ni le même
+      mécanisme d'authentification. Tout ce qui précède concerne l'API <em>partenaire</em>.
     </div>
 
-    <p>Adresse de base : <span class="url-pill"><?= htmlspecialchars($baseUrl . $baseDir . '/api/v1', ENT_QUOTES, 'UTF-8') ?></span></p>
-
-    <h3>Trois barrières avant d'entrer</h3>
     <table class="table table-sm api-params">
-      <thead><tr><th>Barrière</th><th>Contre quoi</th><th>Refus</th></tr></thead>
+      <thead><tr><th></th><th>Cette page — <code>api.php</code></th><th>L'API mobile — <code>/api/v1</code></th></tr></thead>
       <tbody>
         <tr>
-          <td><strong>HTTPS obligatoire</strong></td>
-          <td>La <strong>fuite</strong> du jeton sur le réseau. C'est la seule des trois qui empêche
-              réellement une divulgation : en clair, n'importe qui sur le même wifi lit le jeton.</td>
-          <td><code>403 https_required</code></td>
+          <th>Qui parle</th>
+          <td>Un <strong>logiciel</strong>, au nom de l'association</td>
+          <td>Un <strong>coureur</strong>, en son nom propre</td>
         </tr>
         <tr>
-          <td><strong>Interrupteur</strong></td>
-          <td>L'imprévu. Réglages → API, un clic ferme tout. L'espace coureur du <em>site web</em>
-              continue de fonctionner : les deux sont indépendants.</td>
-          <td><code>503 api_disabled</code></td>
+          <th>Jeton</th>
+          <td><strong>Un seul</strong>, pour toute l'association</td>
+          <td><strong>Un par coureur</strong></td>
         </tr>
         <tr>
-          <td><strong>Version minimale</strong></td>
-          <td>Les applications périmées. L'application annonce sa version dans
-              <code>X-App-Version</code> ; en dessous de <code>app_version_minimale</code>, le
-              <strong>serveur</strong> refuse. Relever ce numéro met une version défectueuse hors
-              service partout, d'un coup.</td>
-          <td><code>426 app_outdated</code></td>
+          <th>Créé par</th>
+          <td>Vous, dans Réglages → API</td>
+          <td>Le coureur, avec son email + un code à 6 chiffres</td>
+        </tr>
+        <tr>
+          <th>Donne accès à</th>
+          <td><strong>Tous</strong> les inscrits, l'import Excel, les statistiques</td>
+          <td><strong>Ses</strong> données à lui, et rien d'autre</td>
+        </tr>
+        <tr>
+          <th>Où il vit</th>
+          <td>Sur un serveur partenaire, jamais publié</td>
+          <td>Dans le trousseau du téléphone de chacun</td>
         </tr>
       </tbody>
     </table>
 
-    <div class="alert alert-success"><i class="bi bi-key me-2"></i>
-      <strong>Il n'y a volontairement AUCUNE clé d'application globale.</strong>
-      Une clé unique valable pour tout le monde devrait être livrée dans l'application, donc
-      présente sur le téléphone de chaque coureur — un <code>.apk</code> se décompile en quelques
-      minutes. Un secret publié n'est pas un secret, et croire le contraire fait baisser la garde
-      là où elle compte. Ce qui protège les données, c'est le jeton <strong>personnel</strong> de
-      chaque coureur : un accès compromis se révoque seul, sans toucher aux autres. Ce qui protège
-      les envois de mail de <code>/auth/request-code</code>, c'est la limitation de débit par
-      adresse et par IP (Réglages → Espace coureur).
-    </div>
-
-    <p>Toutes les réponses ont la même forme, succès comme erreur :</p>
-    <?php codeBlock("{ \"ok\": true,  \"data\": { … }, \"error\": null }\n{ \"ok\": false, \"data\": null,  \"error\": { \"code\": \"invalid_code\", \"message\": \"Code incorrect.\" } }"); ?>
-
-    <h3>Deux niveaux de jeton</h3>
-    <table class="table table-sm api-params">
-      <thead><tr><th>Jeton</th><th>Durée</th><th>Où il vit</th><th>À quoi il sert</th></tr></thead>
-      <tbody>
-        <tr>
-          <td><strong>device_token</strong></td><td>illimitée</td>
-          <td>trousseau du téléphone</td>
-          <td>Obtenir un jeton d'accès. Ne circule qu'au renouvellement.</td>
-        </tr>
-        <tr>
-          <td><strong>access_token</strong></td><td>1 h (réglable)</td>
-          <td>mémoire de l'application</td>
-          <td><code>Authorization: Bearer …</code> sur chaque appel.</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="alert alert-warning"><i class="bi bi-shield-lock me-2"></i>
-      Le jeton d'accès est <strong>signé, pas stocké</strong> — aucune table de sessions à purger.
-      Mais chaque appel <strong>revérifie en base</strong> que l'appareil n'a pas été révoqué : sans
-      ce contrôle, une révocation depuis « Mes appareils » resterait sans effet pendant une heure.
-      La révocation est donc immédiate, dans l'application comme sur le web.
-    </div>
-
-    <h3>Se connecter</h3>
-    <p>Toute requête — sauf <code>/app/config</code> — doit porter l'en-tête de version :</p>
-    <?php codeBlock("X-App-Version: 1.2.0\nAuthorization: Bearer <jeton d'accès>   (sauf /auth/request-code et /auth/verify-code)"); ?>
-    <?php codeBlock(
-      "POST /api/v1/auth/request-code\n"
-    . "{ \"email\": \"coureur@exemple.fr\" }\n"
-    . "→ réponse IDENTIQUE que l'adresse existe ou non (anti-énumération)\n\n"
-    . "POST /api/v1/auth/verify-code\n"
-    . "{ \"email\": \"coureur@exemple.fr\", \"code\": \"123456\",\n"
-    . "  \"device_info\": { \"libelle\": \"iPhone de Marie\", \"plateforme\": \"iOS 18\", \"modele\": \"iPhone 14\" } }\n"
-    . "→ { \"device_token\": \"…\", \"access_token\": \"…\", \"expires_at\": \"…\", \"rgpd_consent_requis\": false }\n\n"
-    . "POST /api/v1/auth/refresh\n"
-    . "{ \"device_token\": \"…\" }   → nouveau access_token\n\n"
-    . "POST /api/v1/auth/logout     (Bearer)  → révoque l'appareil courant"
-    ); ?>
-
-    <h3>Points d'entrée</h3>
-    <table class="table table-sm api-params">
-      <thead><tr><th>Méthode</th><th>Chemin</th><th>Rôle</th></tr></thead>
-      <tbody>
-        <tr><td><code>GET</code></td><td><code>/app/config</code></td><td><strong>Sans authentification.</strong> Version minimale exigée, liens des stores, textes. Une application trop ancienne doit pouvoir l'apprendre — et elle n'a justement pas de jeton valide.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/editions</code>, <code>/editions/{id}</code></td><td>Éditions : date, distance, heure de départ, départ/arrivée.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me</code></td><td>Profil du compte.</td></tr>
-        <tr><td><code>PATCH</code></td><td><code>/me</code></td><td>Nom et prénom. Répercutés sur l'inscription de l'édition en cours.</td></tr>
-        <tr><td><code>POST</code></td><td><code>/me/email/request-change</code></td><td>Envoie un code à la <strong>nouvelle</strong> adresse.</td></tr>
-        <tr><td><code>POST</code></td><td><code>/me/email/confirm</code></td><td>Vérifie le code et applique le changement.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me/registrations</code></td><td>Toutes les inscriptions rattachées au compte.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me/registrations/{annee}/{no}</code></td><td>Une inscription, par sa <strong>clé métier</strong>.</td></tr>
-        <tr><td><code>PATCH</code></td><td><code>/me/registrations/{annee}/{no}</code></td><td>Sexe et âge. Refusé sur une édition archivée ou après le départ.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me/registrations/{annee}/{no}/qrcode</code></td><td>QR code en PNG base64 — la même image que le mail.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me/devices</code></td><td>Appareils de confiance actifs.</td></tr>
-        <tr><td><code>DELETE</code></td><td><code>/me/devices/{id}</code></td><td>Révoque un appareil.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me/transfers</code></td><td>Demandes de transfert émises.</td></tr>
-        <tr><td><code>POST</code></td><td><code>/me/transfers</code></td><td>Nouvelle demande.</td></tr>
-        <tr><td><code>DELETE</code></td><td><code>/me/transfers/{id}</code></td><td>Annule une demande en attente.</td></tr>
-        <tr><td><code>GET</code></td><td><code>/me/results</code></td><td>Résultats. Liste vide tant que le chronométrage n'existe pas — le contrat est figé dès maintenant pour ne pas le casser plus tard.</td></tr>
-      </tbody>
-    </table>
-
-    <h3>Ce que le coureur peut modifier lui-même</h3>
-    <?php codeBlock(
-      "PATCH /api/v1/me\n"
-    . "{ \"nom\": \"Durand\", \"prenom\": \"Marie\" }\n\n"
-    . "PATCH /api/v1/me/registrations/2026/FER-00123\n"
-    . "{ \"sexe\": \"F\", \"age\": 34 }\n\n"
-    . "POST  /api/v1/me/email/request-change   { \"email\": \"nouvelle@exemple.fr\" }\n"
-    . "POST  /api/v1/me/email/confirm          { \"email\": \"nouvelle@exemple.fr\", \"code\": \"123456\" }"
-    ); ?>
-    <div class="alert alert-warning mb-0"><i class="bi bi-exclamation-triangle me-2"></i>
-      Ces règles vivent dans <code>src/auth/participant_profile.php</code>, <strong>partagé avec les
-      pages web</strong>. L'API n'a pas sa propre copie des contrôles : sinon elle deviendrait le
-      chemin qui les contourne. Concrètement : seules les <strong>éditions en cours</strong> sont
-      modifiables (les tables <code>registrations_AAAA</code> restent en lecture seule), le sexe et
-      l'âge se figent au départ de la course, et un changement d'adresse exige un code reçu sur la
-      nouvelle boîte. Chaque modification est tracée dans
-      <code>storage/logs/logs_espace_coureur.log</code> et dans les journaux de contenu.
-    </div>
-  </div>
-
-  <!-- ═══ 11. Codes d'erreur de l'API mobile ═══ -->
-  <div class="api-card" id="mobile-errors">
-    <h2 class="mt-0">11. Codes d'erreur de l'API mobile</h2>
-    <table class="table table-sm api-params">
-      <thead><tr><th>HTTP</th><th>code</th><th>Signification</th></tr></thead>
-      <tbody>
-        <tr><td>400</td><td><code>invalid_json</code></td><td>Corps de requête illisible.</td></tr>
-        <tr><td>400</td><td><code>missing_app_version</code></td><td>En-tête <code>X-App-Version</code> absent.</td></tr>
-        <tr><td>403</td><td><code>https_required</code></td><td>Connexion non chiffrée.</td></tr>
-        <tr><td>426</td><td><code>app_outdated</code></td><td>Version de l'application trop ancienne. L'erreur contient <code>version_minimale</code> et <code>config_url</code> : l'application sait quoi afficher sans second appel.</td></tr>
-        <tr><td>503</td><td><code>api_disabled</code> / <code>not_installed</code></td><td>API mobile désactivée dans les réglages, ou migration <code>update.php</code> non jouée.</td></tr>
-        <tr><td>401</td><td><code>missing_token</code> / <code>invalid_token</code></td><td>En-tête <code>Authorization</code> absent, signature invalide ou jeton expiré.</td></tr>
-        <tr><td>401</td><td><code>device_revoked</code></td><td>L'appareil a été révoqué : il faut se reconnecter.</td></tr>
-        <tr><td>401</td><td><code>invalid_code</code></td><td>Code à 6 chiffres faux, expiré ou inexistant.</td></tr>
-        <tr><td>403</td><td><code>account_disabled</code></td><td>Compte désactivé par l'administration.</td></tr>
-        <tr><td>403</td><td><code>forbidden</code></td><td>Ressource valide, mais qui n'appartient pas à ce compte.</td></tr>
-        <tr><td>403</td><td><code>no_registration</code></td><td>Aucune inscription associée à cette adresse.</td></tr>
-        <tr><td>404</td><td><code>not_found</code> / <code>unknown_endpoint</code></td><td>Ressource ou chemin inconnu.</td></tr>
-        <tr><td>405</td><td><code>method_not_allowed</code></td><td>Mauvaise méthode HTTP sur un chemin valide.</td></tr>
-        <tr><td>422</td><td><code>invalid_email</code> / <code>missing_fields</code> / <code>invalid_key</code> / <code>invalid_input</code></td><td>Données de la requête incorrectes.</td></tr>
-        <tr><td>422</td><td><code>transfer_refused</code> / <code>email_change_refused</code></td><td>Demande valide en la forme, mais refusée par les règles métier (message explicite).</td></tr>
-        <tr><td>429</td><td><code>rate_limited</code></td><td>Trop de demandes de code. Attendre quelques minutes.</td></tr>
-      </tbody>
-    </table>
-
-    <div class="alert alert-secondary mb-0"><i class="bi bi-shield-check me-2"></i>
-      <strong>Choix de sécurité assumés.</strong>
-      Aucune <strong>clé d'application globale</strong> : elle serait publiée dans chaque
-      téléphone (voir plus haut).
-      Aucune en-tête <strong>CORS</strong> n'est émise : une application native n'en a pas besoin, et
-      un <code>*</code> ouvrirait l'API à toutes les pages web du monde.
-      <strong>Aucune donnée personnelle en paramètre d'URL</strong> — les adresses passent par le
-      corps de la requête, car les URL sont journalisées par les serveurs et les proxys.
-      Un <code>403 forbidden</code> plutôt qu'un <code>404</code> sur une inscription qui ne vous
-      appartient pas : le message ne dit pas laquelle des deux raisons s'applique.
-      Les appels à <code>/auth/*</code> sont journalisés dans
-      <code>storage/logs/logs_api_mobile.log</code>, visible dans
-      <a href="logs.php">Journaux système</a>.
-    </div>
+    <p class="mb-0">
+      <a href="api-doc-mobile.php" class="btn btn-primary">
+        <i class="bi bi-book me-1"></i>Ouvrir la documentation de l'API mobile
+      </a>
+    </p>
   </div>
 
 </div>

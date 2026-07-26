@@ -5607,8 +5607,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             Réglage dans l'onglet « Application mobile ».
           </div>
 
-          <a href="api-doc.php#mobile" target="_blank" rel="noopener" class="btn btn-info">
-            <i class="bi bi-book me-1"></i>Voir la documentation
+          <a href="api-doc-mobile.php" target="_blank" rel="noopener" class="btn btn-info">
+            <i class="bi bi-book me-1"></i>Documentation de l'API mobile
           </a>
         <?php endif; ?>
       </div>

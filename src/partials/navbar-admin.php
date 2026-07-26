@@ -31,7 +31,8 @@ $pageTitles = [
     'connexions.php'    => 'Connexions',
     'logs.php'          => 'Logs',
     'page_stats.php'    => 'Visites',
-    'api-doc.php'       => "Documentation de l'API",
+    'api-doc.php'        => "Documentation de l'API",
+    'api-doc-mobile.php' => "Documentation de l'API mobile",
     'assistant.php'     => 'Assistance',
 ];
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
