@@ -1,6 +1,6 @@
 <?php
 /**
- * _layout-haut.php — En-tête des pages de l'espace coureur.
+ * _layout-haut.php — En-tête et navigation des pages de l'espace coureur.
  *
  * POURQUOI PAS navbar-modern.php : ce partial code ses liens en relatif
  * (href="accueil", ../files/_logos/…) en supposant une page située dans
@@ -10,8 +10,17 @@
  *
  * Le préfixe underscore signale un fragment : ce n'est pas une page à ouvrir.
  */
-$ecLogo = dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png';
+$ecLogo     = dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png';
 $ecConnecte = function_exists('pauth_isLogged') && pauth_isLogged();
+$ecPage     = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
+/** Onglets de l'espace, dans l'ordre d'usage. */
+$ecMenu = [
+    'index.php'         => ['Mes inscriptions', 'bi-list-check'],
+    'mes-resultats.php' => ['Mes résultats',    'bi-stopwatch'],
+    'appareils.php'     => ['Mes appareils',    'bi-phone'],
+    'compte.php'        => ['Mon compte',       'bi-person-gear'],
+];
 ?>
 <header class="ec-nav">
   <a class="ec-brand" href="../accueil.php">
@@ -20,26 +29,40 @@ $ecConnecte = function_exists('pauth_isLogged') && pauth_isLogged();
     <?php endif; ?>
     <span>Forbach en Rose</span>
   </a>
-  <nav class="ec-nav-links">
-    <?php if ($ecConnecte): ?>
-      <a href="index.php"><i class="bi bi-list-check"></i><span>Mes inscriptions</span></a>
-      <a href="deconnexion.php"><i class="bi bi-box-arrow-right"></i><span>Se déconnecter</span></a>
-    <?php else: ?>
+
+  <?php if ($ecConnecte): ?>
+    <nav class="ec-tabs">
+      <?php foreach ($ecMenu as $fichier => [$libelle, $icone]): ?>
+        <a href="<?= $fichier ?>" class="<?= $ecPage === $fichier ? 'actif' : '' ?>">
+          <i class="bi <?= $icone ?>"></i><span><?= htmlspecialchars($libelle) ?></span>
+        </a>
+      <?php endforeach; ?>
+      <a href="deconnexion.php" class="ec-sortie">
+        <i class="bi bi-box-arrow-right"></i><span>Quitter</span>
+      </a>
+    </nav>
+  <?php else: ?>
+    <nav class="ec-tabs">
       <a href="../accueil.php"><i class="bi bi-arrow-left"></i><span>Retour au site</span></a>
-    <?php endif; ?>
-  </nav>
+    </nav>
+  <?php endif; ?>
 </header>
 <style>
-  body { margin:0; background:#f8f7f9; font-family:system-ui,-apple-system,'Segoe UI',sans-serif; }
+  body { margin:0; background:#f8f7f9; font-family:system-ui,-apple-system,'Segoe UI',sans-serif; color:#0f172a; }
   .ec-nav { display:flex; align-items:center; justify-content:space-between; gap:16px;
             padding:12px 20px; background:#fff; border-bottom:1px solid #f0e8eb; flex-wrap:wrap; }
   .ec-brand { display:flex; align-items:center; gap:10px; text-decoration:none;
               color:#0f172a; font-weight:700; font-size:.95rem; }
   .ec-brand img { height:30px; width:auto; }
-  .ec-nav-links { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-  .ec-nav-links a { display:inline-flex; align-items:center; gap:6px; text-decoration:none;
-                    color:#475569; font-size:.85rem; font-weight:600;
-                    padding:.45rem .75rem; border-radius:.5rem; }
-  .ec-nav-links a:hover { background:#fdf2f8; color:#F42182; }
-  @media (max-width:480px) { .ec-nav-links a span { display:none; } }
+  .ec-tabs { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+  .ec-tabs a { display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+               color:#475569; font-size:.85rem; font-weight:600;
+               padding:.45rem .7rem; border-radius:.5rem; }
+  .ec-tabs a:hover { background:#fdf2f8; color:#F42182; }
+  .ec-tabs a.actif { background:#fdf2f8; color:#F42182; }
+  .ec-tabs .ec-sortie { color:#94a3b8; }
+  /* Sous 620px, les libellés disparaissent : quatre onglets plus la sortie ne
+     tiennent pas sur une ligne, et un menu qui passe à la ligne pousse le
+     contenu hors de l'écran. Les icônes restent explicites. */
+  @media (max-width:620px) { .ec-tabs a span { display:none; } .ec-tabs a { padding:.5rem .6rem; } }
 </style>

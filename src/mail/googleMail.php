@@ -194,19 +194,12 @@ function getAccessToken(bool $autoRedirect = true) {
  */
 function generateQrCodeDataUri(string|int $inscriptionNo): string
 {
-    try {
-        $qrCode = new \Endroid\QrCode\QrCode(
-            data: (string) $inscriptionNo,
-            size: 200,
-            margin: 8
-        );
-        $writer = new \Endroid\QrCode\Writer\PngWriter();
-        $result = $writer->write($qrCode);
-        return $result->getDataUri();
-    } catch (\Throwable $e) {
-        writeLog("⚠️ Erreur génération QR Code : " . $e->getMessage());
-        return '';
-    }
+    // Délègue à src/core/qrcode.php : UNE SEULE définition des données encodées
+    // et des paramètres visuels, partagée avec l'espace coureur. Deux
+    // générateurs qui divergent, c'est un bénévole qui scanne un QR non reconnu
+    // le jour du retrait des t-shirts.
+    require_once __DIR__ . '/../core/qrcode.php';
+    return fer_qrCodeDataUri($inscriptionNo);
 }
 
 /**
@@ -217,19 +210,9 @@ function generateQrCodeDataUri(string|int $inscriptionNo): string
  */
 function generateQrCodePngBytes(string|int $inscriptionNo): ?string
 {
-    try {
-        $qrCode = new \Endroid\QrCode\QrCode(
-            data: (string) $inscriptionNo,
-            size: 200,
-            margin: 8
-        );
-        $writer = new \Endroid\QrCode\Writer\PngWriter();
-        $result = $writer->write($qrCode);
-        return $result->getString();
-    } catch (\Throwable $e) {
-        writeLog("⚠️ Erreur génération QR Code PNG : " . $e->getMessage());
-        return null;
-    }
+    // Même source unique que generateQrCodeDataUri() — cf. src/core/qrcode.php.
+    require_once __DIR__ . '/../core/qrcode.php';
+    return fer_qrCodePngBytes($inscriptionNo);
 }
 
 /**
