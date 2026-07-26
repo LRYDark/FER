@@ -1,11 +1,11 @@
 <?php
 /**
- * index.php — Accueil de l'espace coureur.
+ * index.php — « Mes inscriptions » (lot 3).
  *
- * ⚠️ VERSION MINIMALE DU LOT 2 : elle ne sert qu'à constater que la connexion
- * fonctionne et que les inscriptions ont bien été rattachées au compte.
- * Le lot 3 la remplace par la vraie page « Mes inscriptions » (cartes par
- * édition, inscriptions groupées, QR code, transferts).
+ * Toutes les inscriptions rattachées au compte, TOUTES ÉDITIONS CONFONDUES,
+ * groupées par édition (la plus récente en premier), puis par `group_id` :
+ * c'est le cas classique du parent qui inscrit toute la famille sous sa propre
+ * adresse. C'est précisément là que le bouton « Transférer » doit se voir.
  */
 define('FER_SESSION_COUREUR', true);
 require '../../src/core/config.php';
@@ -15,18 +15,31 @@ require_once '../../src/auth/participant_auth.php';
 
 pauth_require($pdo, 'index.php');
 
-// Rattachements du compte, toutes éditions confondues.
-$st = $pdo->prepare(
-    'SELECT annee, inscription_no, origine, revendique_at
-       FROM participant_registrations
-      WHERE participant_id = ?
-      ORDER BY annee DESC, inscription_no ASC'
-);
-$st->execute([pauth_id()]);
-$liens = $st->fetchAll(PDO::FETCH_ASSOC);
+$moi     = $_SESSION[PAUTH_SESSION_KEY];
+$lignes  = pauth_registrations($pdo, pauth_id());
 
-$moi = $_SESSION[PAUTH_SESSION_KEY];
-$h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+/* Regroupement : édition → group_id (les inscriptions seules ont la clé '') */
+$parEdition = [];
+foreach ($lignes as $r) {
+    $annee = (int) $r['annee'];
+    $grp   = trim((string) ($r['group_id'] ?? ''));
+    $parEdition[$annee][$grp === '' ? '_seul_' . $r['inscription_no'] : $grp][] = $r;
+}
+krsort($parEdition);
+
+$h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+
+/** Badge de paiement, à partir du montant et du mode. */
+function ec_badgePaiement(array $r): string
+{
+    $montant = (float) ($r['montant_du'] ?? 0);
+    $mode    = strtolower(trim((string) ($r['paiement_mode'] ?? '')));
+    if ($montant <= 0 || $mode === 'gratuit') {
+        return '<span class="ec-tag ec-tag-ok">Gratuit</span>';
+    }
+    return '<span class="ec-tag">' . htmlspecialchars($mode !== '' ? $mode : 'Payé', ENT_QUOTES, 'UTF-8')
+         . ' — ' . number_format($montant, 2, ',', ' ') . ' €</span>';
+}
 ?>
 <!doctype html>
 <html lang="fr">
@@ -37,50 +50,78 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <title>Espace coureur — Mes inscriptions</title>
 <link rel="stylesheet" href="../../css/tokens.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  .ec-page { max-width:760px; margin:0 auto; padding:28px 16px 40px; }
-  .ec-title { font-size:1.35rem; font-weight:700; color:#0f172a; margin:0 0 4px; }
-  .ec-sub { font-size:.9rem; color:#64748b; margin:0 0 22px; }
-  .ec-card { background:#fff; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,.06);
-             padding:16px 18px; margin-bottom:12px; }
-  .ec-no { font-family:monospace; font-weight:700; color:#F42182; }
-  .ec-meta { font-size:.82rem; color:#64748b; margin-top:4px; }
-  .ec-empty { background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;
-              border-radius:.6rem; padding:14px 16px; font-size:.9rem; line-height:1.6; }
-  .ec-note { background:#fffbeb; color:#92400e; border:1px solid #fde68a;
-             border-radius:.6rem; padding:12px 14px; font-size:.82rem; margin-top:22px; }
-</style>
+<?php include __DIR__ . '/_styles.php'; ?>
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
 <div class="ec-page">
-  <h1 class="ec-title">Bonjour <?= $h(trim(($moi['prenom'] ?? '') . ' ' . ($moi['nom'] ?? ''))) ?: 'et bienvenue' ?></h1>
+  <h1 class="ec-h1">
+    Bonjour <?= $h(trim(($moi['prenom'] ?? '') . ' ' . ($moi['nom'] ?? ''))) ?: 'et bienvenue' ?>
+  </h1>
   <p class="ec-sub"><?= $h($moi['email'] ?? '') ?></p>
 
-  <?php if (!$liens): ?>
-    <div class="ec-empty">
-      Aucune inscription n'est rattachée à ce compte pour le moment.
-      Si vous vous êtes inscrit avec une autre adresse, reconnectez-vous avec celle-ci.
-    </div>
-  <?php else: ?>
-    <?php foreach ($liens as $l): ?>
-      <div class="ec-card">
-        <span class="ec-no"><?= $h($l['inscription_no']) ?></span>
-        &nbsp;—&nbsp;édition <?= (int) $l['annee'] ?>
-        <div class="ec-meta">
-          Rattachée le <?= $h(date('d/m/Y', strtotime((string) $l['revendique_at']))) ?>
-          (<?= $h($l['origine']) ?>)
-        </div>
+  <?php if (!$parEdition): ?>
+    <div class="ec-alert ec-info">
+      <strong>Aucune inscription rattachée à ce compte.</strong><br>
+      Si vous vous êtes inscrit avec une autre adresse email, déconnectez-vous et
+      reconnectez-vous avec celle-ci — c'est l'adresse qui fait le lien.
+      <div class="ec-actions">
+        <a class="ec-btn ec-btn-sec" href="../faq.php">Questions fréquentes</a>
+        <a class="ec-btn" href="../register.php">S'inscrire à la course</a>
       </div>
-    <?php endforeach; ?>
+    </div>
   <?php endif; ?>
 
-  <div class="ec-note">
-    <i class="bi bi-cone-striped me-1"></i>
-    Page provisoire du lot 2&nbsp;: elle confirme que la connexion et le rattachement
-    fonctionnent. Le détail des inscriptions, le QR code et les transferts arrivent au lot 3.
-  </div>
+  <?php foreach ($parEdition as $annee => $groupes): ?>
+    <h2 class="ec-h2">
+      <i class="bi bi-calendar-event"></i>Édition <?= (int) $annee ?>
+      <span class="ec-tag"><?= array_sum(array_map('count', $groupes)) ?> inscription(s)</span>
+    </h2>
+
+    <?php foreach ($groupes as $cle => $membres): ?>
+      <?php $estGroupe = count($membres) > 1; ?>
+      <div class="ec-card <?= $estGroupe ? 'ec-groupe' : '' ?>">
+        <?php if ($estGroupe): ?>
+          <div class="ec-groupe-tete">
+            <i class="bi bi-people-fill"></i>
+            Inscription groupée — <?= count($membres) ?> personnes
+          </div>
+        <?php endif; ?>
+
+        <?php foreach ($membres as $i => $r): ?>
+          <?php if ($i > 0): ?><hr style="border:0;border-top:1px solid #f1f5f9;margin:12px 0"><?php endif; ?>
+          <div class="ec-row">
+            <div>
+              <div class="ec-nom"><?= $h(trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''))) ?: 'Sans nom' ?></div>
+              <div class="ec-meta">
+                N° <span class="ec-no"><?= $h($r['inscription_no']) ?></span>
+                <?php if (!empty($r['tshirt_size']) && $r['tshirt_size'] !== '-'): ?>
+                  &nbsp;·&nbsp;T-shirt <?= $h($r['tshirt_size']) ?>
+                <?php endif; ?>
+                <?php if (!empty($r['ville'])): ?>&nbsp;·&nbsp;<?= $h($r['ville']) ?><?php endif; ?>
+              </div>
+              <div class="ec-meta" style="margin-top:6px"><?= ec_badgePaiement($r) ?></div>
+            </div>
+            <div class="ec-actions" style="margin:0">
+              <a class="ec-btn ec-btn-sec"
+                 href="inscription.php?annee=<?= (int) $r['annee'] ?>&amp;no=<?= urlencode((string) $r['inscription_no']) ?>">
+                <i class="bi bi-eye"></i>Voir
+              </a>
+            </div>
+          </div>
+        <?php endforeach; ?>
+
+        <?php if ($estGroupe): ?>
+          <div class="ec-meta" style="margin-top:12px">
+            <i class="bi bi-info-circle me-1"></i>
+            Ces personnes partagent votre adresse email. Pour que l'une d'elles ait son
+            propre chronométrage, transférez son inscription depuis sa fiche.
+          </div>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+  <?php endforeach; ?>
 </div>
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>

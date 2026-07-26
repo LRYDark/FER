@@ -160,6 +160,55 @@ function pauth_syncRegistrations(PDO $pdo, int $participantId, string $email): i
     return $n;
 }
 
+/**
+ * Inscriptions rattachées à un compte, toutes éditions confondues, la plus
+ * récente en premier. Chaque ligne est résolue dans sa table d'origine
+ * (`registrations` ou `registrations_AAAA`) et déjà déchiffrée.
+ *
+ * Les rattachements dont l'inscription est introuvable sont ignorés plutôt que
+ * d'être affichés vides : un numéro modifié à la main côté administration
+ * produirait sinon une carte fantôme. update.php?tool=check-integrity les liste.
+ *
+ * @return array<int, array> lignes enrichies de `_origine` et `_revendique_at`
+ */
+function pauth_registrations(PDO $pdo, int $participantId): array
+{
+    $st = $pdo->prepare(
+        'SELECT annee, inscription_no, origine, revendique_at
+           FROM participant_registrations
+          WHERE participant_id = ?
+          ORDER BY annee DESC, inscription_no ASC'
+    );
+    $st->execute([$participantId]);
+
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $lien) {
+        $row = regres_find($pdo, (int) $lien['annee'], (string) $lien['inscription_no']);
+        if ($row === null) continue;
+        $row['_origine']       = $lien['origine'];
+        $row['_revendique_at'] = $lien['revendique_at'];
+        $out[] = $row;
+    }
+    return $out;
+}
+
+/**
+ * Ce compte possède-t-il bien cette inscription ?
+ *
+ * Contrôle d'accès de toutes les pages de détail : on ne se fie JAMAIS au seul
+ * couple (annee, inscription_no) fourni dans l'URL, sinon n'importe quel coureur
+ * connecté lirait la fiche de n'importe quel autre en changeant un chiffre.
+ */
+function pauth_owns(PDO $pdo, int $participantId, int $annee, string $inscriptionNo): bool
+{
+    $st = $pdo->prepare(
+        'SELECT 1 FROM participant_registrations
+          WHERE participant_id = ? AND annee = ? AND inscription_no = ? LIMIT 1'
+    );
+    $st->execute([$participantId, $annee, $inscriptionNo]);
+    return (bool) $st->fetchColumn();
+}
+
 /* ══════════════════════ Codes à 6 chiffres ══════════════════════════════ */
 
 /**
