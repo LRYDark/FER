@@ -342,8 +342,12 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
   </div>
 
   <?php
+    // Onglets autorisés déduits de $logFiles, et non figés sur les cinq du socle :
+    // sinon un lien vers un journal découvert automatiquement retomberait sur
+    // l'onglet « Erreurs PHP ».
+    $ongletsValides = array_column($logFiles, 'tab');
     $activeLogTab = $_GET['log'] ?? 'php';
-    if (!in_array($activeLogTab, ['php', 'mail', 'smtp', 'import', 'api'])) $activeLogTab = 'php';
+    if (!in_array($activeLogTab, $ongletsValides, true)) $activeLogTab = 'php';
   ?>
 
   <!-- Onglets -->
