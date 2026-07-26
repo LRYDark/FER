@@ -41,6 +41,52 @@ if ($inscriptions) {
     } catch (\Throwable $e) { /* table absente : rien à afficher */ }
 }
 
+/* ── Consentement au suivi GPS ───────────────────────────────────────────────
+ * Le retrait vaut pour l'AVENIR : il n'efface pas les traces déjà enregistrées.
+ * D'où un second bouton, distinct, pour les supprimer — mélanger les deux
+ * laisserait croire qu'un simple retrait suffit à tout effacer. */
+$ecMsg = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
+    if (isset($_POST['consent'])) {
+        $accord = $_POST['consent'] === '1';
+        $pdo->prepare('UPDATE participants SET traces_consent_at = ' . ($accord ? 'NOW()' : 'NULL')
+                    . ' WHERE id = ?')->execute([pauth_id()]);
+        $ecMsg = $accord
+            ? 'Suivi GPS autorisé. Vous pouvez le retirer à tout moment.'
+            : 'Autorisation retirée. Aucune nouvelle trace ne sera enregistrée.';
+    } elseif (isset($_POST['supprimer_traces']) && $inscriptions) {
+        $n = 0;
+        foreach ($inscriptions as $r) {
+            $st = $pdo->prepare('DELETE FROM traces_gps WHERE annee = ? AND inscription_no = ?');
+            $st->execute([(int) $r['annee'], (string) $r['inscription_no']]);
+            $n += $st->rowCount();
+        }
+        $ecMsg = $n > 0 ? "$n trace(s) supprimée(s) définitivement." : 'Aucune trace à supprimer.';
+    }
+}
+
+$st = $pdo->prepare('SELECT traces_consent_at FROM participants WHERE id = ?');
+$st->execute([pauth_id()]);
+$ecConsent = $st->fetchColumn() ?: null;
+
+$ecNbTraces = 0;
+foreach ($inscriptions as $r) {
+    try {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM traces_gps WHERE annee = ? AND inscription_no = ?');
+        $st->execute([(int) $r['annee'], (string) $r['inscription_no']]);
+        $ecNbTraces += (int) $st->fetchColumn();
+    } catch (\Throwable $e) { /* table absente */ }
+}
+$ecJoursTraces = (int) ($pdo->query('SELECT traces_gps_conservation_jours FROM setting WHERE id = 1')
+                            ->fetchColumn() ?: 400);
+
+/* Le chronométrage est « actif » dès qu'un résultat porte un temps : inutile
+   d'afficher « pas encore actif » à quelqu'un qui a déjà son chrono sous les yeux. */
+$ecChronoActif = false;
+foreach ($resultats as $res) {
+    if ($res['temps_s'] !== null) { $ecChronoActif = true; break; }
+}
+
 /** Libellé honnête de la méthode de chronométrage. */
 function ec_methode(?string $m): string
 {
@@ -101,7 +147,20 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
                 · n° <span class="ec-mono"><?= $h($r['inscription_no']) ?></span>
               </div>
             </div>
-            <?php if ($res === null || $res['temps_s'] === null): ?>
+            <?php if ($res !== null && $res['statut'] === 'invalide'): ?>
+              <?php /* Un temps aberrant n'est PAS affiché comme un temps. Le
+                       masquer sans rien dire laisserait croire à un oubli ; le
+                       publier ferait passer une anomalie pour un résultat. */ ?>
+              <span class="pill is-danger" title="<?= $h($res['commentaire'] ?? '') ?>">
+                À vérifier
+              </span>
+            <?php elseif ($res !== null && $res['statut'] === 'abandon'): ?>
+              <span class="pill no-dot">Abandon</span>
+            <?php elseif ($res !== null && $res['statut'] === 'non_partant'): ?>
+              <span class="pill no-dot">Non partant</span>
+            <?php elseif ($res !== null && $res['statut'] === 'en_course' && $res['depart_at'] !== null): ?>
+              <span class="pill is-ok">En course</span>
+            <?php elseif ($res === null || $res['temps_s'] === null): ?>
               <span class="pill is-warn">Chronométrage à venir</span>
             <?php else: ?>
               <?php
@@ -123,12 +182,67 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       </div>
     </section>
 
-    <div class="alert">
-      <i class="bi bi-cone-striped"></i>
-      <strong>Le chronométrage n'est pas encore actif.</strong>
-      Il arrivera avec l'application mobile. Vous retrouverez alors ici votre temps,
-      la façon dont il a été mesuré, et le tracé de votre parcours.
-    </div>
+    <?php /* ── Consentement au suivi GPS ────────────────────────────────────
+             La trace GPS dit où vous vous trouviez minute par minute. Elle ne
+             s'enregistre QUE si vous l'avez explicitement autorisée, et le
+             retrait vaut pour l'avenir : les traces déjà enregistrées se
+             suppriment ici, en un clic, sans avoir à écrire à personne. */ ?>
+    <section class="card">
+      <header>
+        <div class="iconwell"><i class="bi bi-geo-alt"></i></div>
+        <h2>Suivi GPS pendant la course</h2>
+        <?php if ($ecConsent !== null): ?>
+          <span class="pill is-ok">autorisé</span>
+        <?php else: ?>
+          <span class="pill no-dot">non autorisé</span>
+        <?php endif; ?>
+      </header>
+
+      <?php if ($ecMsg !== ''): ?>
+        <div class="alert is-ok"><i class="bi bi-check-circle"></i> <?= $h($ecMsg) ?></div>
+      <?php endif; ?>
+
+      <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
+        Si vous l'autorisez, l'application enregistre votre position pendant la course
+        pour établir votre temps même en cas de panne de balise, et vous montrer votre
+        parcours. <strong>C'est la donnée la plus sensible du site</strong> : elle dit où
+        vous étiez, minute par minute. Sans votre accord, rien n'est enregistré.
+      </p>
+
+      <form method="post">
+        <?= csrf_field() ?>
+        <div class="row-actions" style="margin-top:var(--sp-4)">
+          <?php if ($ecConsent !== null): ?>
+            <button class="btn" type="submit" name="consent" value="0">
+              <i class="bi bi-x-circle"></i> Retirer mon autorisation
+            </button>
+            <button class="btn btn-danger" type="submit" name="supprimer_traces" value="1"
+                    onclick="return confirm('Supprimer définitivement toutes vos traces GPS enregistrées ?');">
+              <i class="bi bi-trash3"></i> Supprimer mes traces (<?= (int) $ecNbTraces ?>)
+            </button>
+          <?php else: ?>
+            <button class="btn btn-primary" type="submit" name="consent" value="1">
+              <i class="bi bi-check2"></i> Autoriser le suivi GPS
+            </button>
+          <?php endif; ?>
+        </div>
+      </form>
+
+      <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
+        <i class="bi bi-hourglass me-1"></i>
+        Les traces sont effacées automatiquement au bout de
+        <?= (int) $ecJoursTraces ?> jours, même si vous ne faites rien.
+      </p>
+    </section>
+
+    <?php if (!$ecChronoActif): ?>
+      <div class="alert">
+        <i class="bi bi-cone-striped"></i>
+        <strong>Le chronométrage n'est pas encore actif.</strong>
+        Il arrivera avec l'application mobile. Vous retrouverez alors ici votre temps,
+        la façon dont il a été mesuré, et le tracé de votre parcours.
+      </div>
+    <?php endif; ?>
   <?php endif; ?>
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>

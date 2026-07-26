@@ -1135,6 +1135,10 @@ function getCreateTableStatements(): array
           `theme` ENUM('light','dark','system') NOT NULL DEFAULT 'light',
           `accent` VARCHAR(20) NOT NULL DEFAULT 'rose',
           `accent_custom` VARCHAR(7) DEFAULT NULL,
+          /* Consentement explicite au suivi GPS. Une trace dit où une personne
+           * se trouvait minute par minute : NULL = pas de consentement, donc
+           * aucune trace enregistrée. C'est le défaut le plus protecteur. */
+          `traces_consent_at` DATETIME DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_email_hmac` (`email_hmac`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
@@ -1297,7 +1301,11 @@ function getCreateTableStatements(): array
           `confiance` TINYINT DEFAULT NULL,
           `retenue` TINYINT(1) NOT NULL DEFAULT 0,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_inscription` (`annee`, `inscription_no`, `point`)
+          INDEX `idx_inscription` (`annee`, `inscription_no`, `point`),
+          /* Rend la réception des détections idempotente : le réseau tombera
+           * pendant la course, l'application renverra ses détections, et un
+           * même passage devant la balise ne doit pas créer dix lignes. */
+          UNIQUE KEY `idx_unicite` (`annee`, `inscription_no`, `type`, `point`, `detecte_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
     ];
 }
