@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
 }
 
 $authBase       = '../../';
-$authForceTheme = 'light';   // espace public : jamais le thème sombre de l'admin
+$authThemeKey   = PAUTH_THEME_KEY;   // préférence propre au coureur, jamais celle de l'admin
 $authArtKicker  = 'Forbach en Rose · Espace coureur';
 $authArtTitre   = 'À bientôt.<br>Sur la ligne de départ.';
 ?>

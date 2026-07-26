@@ -40,6 +40,20 @@ const PAUTH_SESSION_KEY = 'participant';
 /** Nom du cookie « se souvenir de moi ». */
 const PAUTH_COOKIE = 'fer_coureur';
 
+/**
+ * Clé de localStorage du thème coureur.
+ *
+ * Distincte de « jr-theme » (administration) : les deux espaces n'ont ni le même
+ * public ni le même usage, et un administrateur qui travaille en sombre ne doit
+ * pas imposer son choix aux coureurs depuis le même navigateur.
+ * Sert AVANT authentification (page de connexion) ; une fois connecté, c'est la
+ * colonne `participants.theme` qui fait foi.
+ */
+const PAUTH_THEME_KEY = 'fer-coureur-theme';
+
+/** Thèmes acceptés. */
+const PAUTH_THEMES = ['light', 'dark', 'system'];
+
 /* ═══════════════════════════ Réglages ═══════════════════════════════════ */
 
 /**
@@ -377,6 +391,9 @@ function pauth_login(PDO $pdo, array $participant): void
         'nom'     => $participant['nom'] ?? '',
         'prenom'  => $participant['prenom'] ?? '',
         'rgpd'    => !empty($participant['rgpd_consent_at']),
+        // Préférence d'affichage : en session pour éviter une requête à chaque page.
+        'theme'   => in_array($participant['theme'] ?? '', PAUTH_THEMES, true)
+                        ? $participant['theme'] : 'light',
         'depuis'  => time(),
     ];
     try {
@@ -474,7 +491,8 @@ function pauth_loginFromCookie(PDO $pdo): bool
 
     try {
         $st = $pdo->prepare(
-            'SELECT d.*, p.id AS pid, p.email_chiffre, p.nom, p.prenom, p.is_active, p.rgpd_consent_at
+            'SELECT d.*, p.id AS pid, p.email_chiffre, p.nom, p.prenom, p.is_active,
+                    p.rgpd_consent_at, p.theme
                FROM participant_devices d
                JOIN participants p ON p.id = d.participant_id
               WHERE d.token_hash = ? AND d.revoque_at IS NULL
@@ -500,6 +518,7 @@ function pauth_loginFromCookie(PDO $pdo): bool
         'nom'             => $row['nom'],
         'prenom'          => $row['prenom'],
         'rgpd_consent_at' => $row['rgpd_consent_at'],
+        'theme'           => $row['theme'] ?? 'light',
     ]);
     $_SESSION[PAUTH_SESSION_KEY]['device_id'] = (int) $row['id'];
     return true;

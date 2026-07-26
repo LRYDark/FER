@@ -2017,6 +2017,7 @@ $lot1Tables = [
           `rgpd_consent_at` DATETIME DEFAULT NULL,
           `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
           `derniere_connexion` DATETIME DEFAULT NULL,
+          `theme` ENUM('light','dark','system') NOT NULL DEFAULT 'light',
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_email_hmac` (`email_hmac`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
@@ -2166,6 +2167,35 @@ foreach ($lot1Tables as $table => $ddl) {
     } catch (PDOException $e) {
         $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// `participants.theme` — préférence d'affichage du coureur.
+// Nécessaire EN PLUS du CREATE TABLE : sur une base où `participants` existe
+// déjà, CREATE TABLE IF NOT EXISTS ne fait rien et la colonne manquerait.
+// Aucun backfill : le DEFAULT 'light' remplit les lignes existantes.
+// ─────────────────────────────────────────────────────────────────────
+$desc = "Ajouter la colonne `theme` dans `participants`";
+try {
+    if (!$tableExists('participants')) {
+        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table absente'];
+    } else {
+        $exists = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'participants'
+               AND COLUMN_NAME = 'theme'"
+        )->fetchColumn();
+        if ($exists > 0) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
+        } else {
+            $pdo->exec("ALTER TABLE `participants`
+                        ADD COLUMN `theme` ENUM('light','dark','system') NOT NULL DEFAULT 'light'
+                        AFTER `derniere_connexion`");
+            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Colonne ajoutée'];
+        }
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
 }
 
 // ─────────────────────────────────────────────────────────────────────

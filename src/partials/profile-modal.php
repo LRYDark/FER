@@ -230,12 +230,7 @@
         <div class="pf-appearance-row">
           <label>Thème de l'administration</label>
           <?php $__themeBtns('pfThemeSeg', 'theme-choice', $jrTheme ?? 'light'); ?>
-        </div>
-
-        <div class="pf-appearance-row">
-          <label>Thème des pages de connexion</label>
-          <?php $__themeBtns('pfLoginThemeSeg', 'login-theme-choice', $jrLoginTheme ?? 'light'); ?>
-          <p class="pf-hint" style="margin-top:6px">La page de connexion, de réinitialisation et de mise à jour — indépendant de l'administration.</p>
+          <p class="pf-hint" style="margin-top:6px">S'applique aussi aux pages de connexion, de réinitialisation et de mise à jour.</p>
         </div>
 
         <div class="pf-appearance-row">
