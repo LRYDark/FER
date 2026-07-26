@@ -54,6 +54,49 @@ $logFiles = [
     ],
 ];
 
+// Les cinq journaux ci-dessus sont ceux du socle : ils font partie du produit,
+// on peut les vider mais pas les supprimer — le code les recrée aussitôt et une
+// suppression laisserait croire à une disparition définitive.
+$logsPermanents = array_keys($logFiles);
+
+/* ── Journaux découverts automatiquement ─────────────────────────────────────
+ * Tout autre fichier .log de storage/logs apparaît comme un onglet à part
+ * entière. Sans ça, un journal ajouté par une nouvelle fonctionnalité (ex.
+ * logs_mail_catchall.log) reste invisible depuis l'administration : personne ne
+ * pense à aller le lire sur le serveur, et il grossit sans limite.
+ *
+ * Ces journaux-là sont SUPPRIMABLES : beaucoup sont temporaires, liés à un
+ * diagnostic ponctuel, et n'ont pas vocation à rester après coup.
+ * ────────────────────────────────────────────────────────────────────────── */
+$logDir = __DIR__ . '/../storage/logs';
+// Comparaison par NOM DE FICHIER, pas par chemin : tous les journaux vivent dans
+// ce même dossier, et realpath() renvoie false pour un fichier pas encore créé —
+// un journal du socle jamais écrit aurait alors été redétecté en doublon.
+$connus = array_map(fn($lf) => basename($lf['path']), $logFiles);
+
+foreach (glob($logDir . '/*.log') ?: [] as $chemin) {
+    if (in_array(basename($chemin), $connus, true)) continue;
+
+    $base = basename($chemin, '.log');
+    // Clé sûre : sert d'identifiant de formulaire et d'ancre d'onglet, jamais de
+    // chemin — le fichier est toujours retrouvé par comparaison avec `path`.
+    $cle  = preg_replace('/[^a-z0-9_]+/', '_', strtolower($base));
+    if ($cle === '' || isset($logFiles[$cle])) continue;
+
+    // « logs_mail_catchall » → « Mail catchall »
+    $libelle = preg_replace('/^logs?_/', '', $base);
+    $libelle = ucfirst(str_replace(['_', '-'], ' ', $libelle));
+
+    $logFiles[$cle] = [
+        'name'       => $libelle,
+        'key'        => $cle,
+        'tab'        => $cle,
+        'icon'       => 'bi-file-earmark-text',
+        'path'       => $chemin,
+        'decouvert'  => true,   // → bouton « Supprimer le fichier » en plus de « Vider »
+    ];
+}
+
 // ── Traitement vidage ───────────────────────────────────────
 $flash = null;
 
@@ -77,6 +120,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_log'])) {
         }
     }
     header('Location: ' . $_SERVER['PHP_SELF'] . '?log=' . $redirectTab);
+    exit;
+}
+
+/* ── Suppression d'un journal découvert automatiquement ──────────────────────
+ * Réservée aux journaux hors socle : les cinq permanents ne peuvent qu'être
+ * vidés. Le fichier n'est jamais désigné par une valeur venue du navigateur —
+ * on retrouve son entrée par sa clé, et on revérifie que le chemin résolu est
+ * bien dans storage/logs avant d'effacer.
+ * ────────────────────────────────────────────────────────────────────────── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_log'])) {
+    $key = $_POST['delete_log'];
+    $lf  = $logFiles[$key] ?? null;
+
+    if ($lf === null || in_array($key, $logsPermanents, true)) {
+        addToast('danger', 'Ce journal fait partie du socle : il peut être vidé, pas supprimé.');
+    } else {
+        $reel = realpath($lf['path']);
+        $dir  = realpath($logDir);
+        if ($reel !== false && $dir !== false && str_starts_with($reel, $dir . DIRECTORY_SEPARATOR) && @unlink($reel)) {
+            addToast('success', 'Le journal « ' . $lf['name'] . ' » a été supprimé.');
+        } else {
+            addToast('danger', 'Suppression impossible (droits du fichier ?).');
+        }
+    }
+    header('Location: ' . $_SERVER['PHP_SELF']);
     exit;
 }
 
@@ -320,6 +388,19 @@ $debogage = (int) ($settingRow['debogage'] ?? 0);
               <input type="hidden" name="clear_log" value="<?= htmlspecialchars($lf['key']) ?>">
               <button type="submit" class="btn btn-clear">
                 <i class="bi bi-trash3"></i> Vider
+              </button>
+            </form>
+          <?php endif; ?>
+          <?php /* Journal découvert automatiquement : souvent temporaire, donc
+                   supprimable. Les cinq journaux du socle ne le sont pas — le
+                   code les recrée aussitôt, une suppression serait trompeuse. */ ?>
+          <?php if (!empty($lf['decouvert']) && $canWrite): ?>
+            <form method="post" class="d-inline"
+                  data-confirm="Supprimer définitivement le fichier « <?= htmlspecialchars(basename($lf['path'])) ?> » ? L'onglet disparaîtra jusqu'à ce que le fichier soit recréé.">
+              <?= csrf_field() ?>
+              <input type="hidden" name="delete_log" value="<?= htmlspecialchars($lf['key']) ?>">
+              <button type="submit" class="btn btn-clear" title="Supprimer le fichier">
+                <i class="bi bi-x-octagon"></i> Supprimer
               </button>
             </form>
           <?php endif; ?>

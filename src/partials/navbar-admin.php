@@ -445,7 +445,9 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
         $mgFile = dirname(__DIR__) . '/mail/mail_guard.php';
         if (is_file($mgFile)) { try { require_once $mgFile; } catch (\Throwable $e) {} }
     }
-    if (function_exists('mailCatchallStatus')):
+    // Réservé aux administrateurs : c'est une information d'environnement, pas
+    // un message destiné aux rôles de saisie ou de consultation.
+    if (function_exists('mailCatchallStatus') && currentRole() === 'admin'):
         $ocCatchall = mailCatchallStatus();
         if ($ocCatchall['actif']):
     ?>
