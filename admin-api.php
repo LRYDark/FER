@@ -1765,8 +1765,10 @@ function saisieAllowedCreatorIds(PDO $pdo): array {
 
 /* ───── REGISTRATIONS ────────────────────────── */
 if ($route==='registrations'){
-    /* GET : accessible si l'utilisateur a accès au dashboard */
-    if($_SERVER['REQUEST_METHOD']==='GET'){
+    /* GET : accessible si l'utilisateur a accès au dashboard.
+     * `?links=1` est traité plus bas (rattachements de l'espace coureur) : on
+     * l'exclut ici, sinon la liste complète des inscrits répondrait à sa place. */
+    if($_SERVER['REQUEST_METHOD']==='GET' && !isset($_GET['links'])){
         if (!canAccessPage('dashboard')) {
             http_response_code(403);
             echo json_encode(['error' => 'Accès refusé']);
@@ -1969,6 +1971,58 @@ if ($route==='registrations'){
         }
         $pdo->prepare('DELETE FROM registrations WHERE id=?')->execute([$d['id']]);
         echo json_encode(['ok'=>true]); exit;
+    }
+
+    /* ---------- GET ?links=1 : rattachements de l'espace coureur ----------
+     * Interrogé JUSTE AVANT la confirmation de suppression, pour prévenir
+     * l'administrateur qu'une inscription porte un résultat de course et/ou un
+     * compte coureur rattaché.
+     *
+     * POURQUOI. Les tables de l'espace coureur désignent un coureur par sa clé
+     * métier (annee, inscription_no) : il n'y a donc AUCUNE clé étrangère vers
+     * `registrations`, et MySQL ne peut pas s'opposer à la suppression. Sans cet
+     * avertissement, le chrono et le rattachement deviendraient orphelins en
+     * silence — visibles seulement plus tard dans update.php?tool=check-integrity.
+     *
+     * Ce n'est QU'UN AVERTISSEMENT : la suppression reste possible, le
+     * comportement de l'administrateur n'est pas modifié.
+     * ------------------------------------------------------------------- */
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['links'])) {
+        if (!canDoAction('dashboard.delete_registration')) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'err' => 'Action non autorisée']);
+            exit;
+        }
+        require_once __DIR__ . '/src/core/registrations_resolver.php';
+
+        $ids = array_values(array_filter(array_map('intval',
+            preg_split('/\s*,\s*/', (string) ($_GET['ids'] ?? $_GET['id'] ?? ''), -1, PREG_SPLIT_NO_EMPTY))));
+        if (!$ids) { echo json_encode(['ok' => true, 'resultats' => 0, 'comptes' => 0]); exit; }
+
+        $annee = regres_activeYear($pdo);
+        $in    = implode(',', array_fill(0, count($ids), '?'));
+        $st    = $pdo->prepare("SELECT inscription_no FROM registrations WHERE id IN ($in)");
+        $st->execute($ids);
+        $nos = array_values(array_filter($st->fetchAll(PDO::FETCH_COLUMN), fn($n) => trim((string) $n) !== ''));
+
+        $compte = function (string $table) use ($pdo, $nos, $annee): int {
+            if (!$nos) return 0;
+            try {
+                $in = implode(',', array_fill(0, count($nos), '?'));
+                $st = $pdo->prepare("SELECT COUNT(*) FROM `$table` WHERE annee = ? AND inscription_no IN ($in)");
+                $st->execute(array_merge([$annee], $nos));
+                return (int) $st->fetchColumn();
+            } catch (\Throwable $e) {
+                return 0;   // table pas encore créée (update.php non lancé)
+            }
+        };
+
+        echo json_encode([
+            'ok'        => true,
+            'resultats' => $compte('resultats'),
+            'comptes'   => $compte('participant_registrations'),
+        ]);
+        exit;
     }
 
     /* ---------- PUT (mise à jour) ---------- */

@@ -416,9 +416,9 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
       <thead><tr><th>Table</th><th>Rôle</th><th>Clé</th></tr></thead>
       <tbody>
         <tr><td><code>editions</code></td><td>Configuration d'une édition : date, distance, heure et coordonnées de départ/arrivée, date limite des transferts</td><td><code>annee</code> (unique)</td></tr>
-        <tr><td><code>participants</code></td><td>Comptes coureurs. <strong>Aucune colonne de mot de passe</strong> : connexion par code à 6 chiffres. Table strictement distincte de <code>users</code></td><td><code>email_normalise</code> (unique)</td></tr>
+        <tr><td><code>participants</code></td><td>Comptes coureurs. <strong>Aucune colonne de mot de passe</strong> : connexion par code à 6 chiffres. Table strictement distincte de <code>users</code></td><td><code>email_hmac</code> (unique)</td></tr>
         <tr><td><code>participant_registrations</code></td><td>Le lien compte ↔ inscription. Son index unique garantit qu'<strong>une inscription appartient à un compte au maximum</strong></td><td><code>(annee, inscription_no)</code></td></tr>
-        <tr><td><code>participant_auth_codes</code></td><td>Codes de connexion à 6 chiffres, hachés</td><td><code>email_normalise</code></td></tr>
+        <tr><td><code>participant_auth_codes</code></td><td>Codes de connexion à 6 chiffres, hachés</td><td><code>email_hmac</code></td></tr>
         <tr><td><code>participant_devices</code></td><td>Appareils de confiance (navigateur / application)</td><td><code>token_hash</code> (unique)</td></tr>
         <tr><td><code>registration_transfers</code></td><td>Transferts d'inscription en double opt-in, limités à l'édition active</td><td><code>(annee, inscription_no)</code></td></tr>
         <tr><td><code>resultats</code></td><td>Chronométrage</td><td><code>(annee, inscription_no)</code></td></tr>
@@ -491,6 +491,31 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     <p><code>resultats.valide_par</code> référence <code>users.id</code> : l'<strong>administrateur</strong>
        qui a validé ou corrigé un temps. C'est la seule référence vers <code>users</code> de tout ce
        modèle, et elle ne désigne jamais un coureur.</p>
+
+    <h3>Adresse email d'un compte coureur</h3>
+    <p>La table <code>participants</code> stocke l'adresse <strong>deux fois</strong>, et c'est
+       nécessaire :</p>
+    <ul>
+      <li><code>email_hmac</code> — HMAC-SHA256 de l'adresse en minuscules. Déterministe, donc
+          <strong>indexable et unique</strong> : c'est par lui qu'on retrouve un compte à la
+          connexion. Un HMAC seul ne suffirait pas — irréversible, on ne pourrait plus envoyer le
+          code à 6 chiffres.</li>
+      <li><code>email_chiffre</code> — chiffré par le même mécanisme que
+          <code>registrations.email</code> (AES-256-GCM, vecteur d'initialisation aléatoire) :
+          il permet de retrouver l'adresse en clair au moment de l'envoi. Un chiffrement seul ne
+          suffirait pas — l'IV aléatoire rend toute recherche par égalité impossible.</li>
+    </ul>
+    <p><code>participant_auth_codes</code> ne porte que <code>email_hmac</code> : cette table
+       journalise les tentatives d'authentification, y compris pour des adresses ne correspondant à
+       aucun compte, et ne doit contenir aucune adresse lisible.</p>
+    <div class="alert alert-warning">
+      <i class="bi bi-key me-2"></i>
+      <strong>La clé HMAC (<code>EMAIL_HMAC_KEY</code>) vit dans <code>config/config.enc</code>,
+      jamais en base.</strong> Un dump compromis livrerait sinon à la fois les empreintes et le
+      moyen de les recalculer. Sauvegardez-la avec <code>ENCRYPTION_KEY</code> : sa perte rend les
+      comptes coureurs introuvables. Une rotation invaliderait toutes les recherches par email et
+      exigerait de recalculer chaque <code>email_hmac</code> depuis <code>email_chiffre</code>.
+    </div>
 
     <h3>Âge et catégorie</h3>
     <p>Aucune migration de la colonne <code>naissance</code> n'a été faite : l'âge est calculé
