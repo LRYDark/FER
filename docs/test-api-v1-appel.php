@@ -80,7 +80,11 @@ $bearer  = $argv[4] ?? '';
 $_SERVER['REQUEST_METHOD'] = $methode;
 $_SERVER['SCRIPT_NAME']    = '/api/v1/index.php';
 $_SERVER['REQUEST_URI']    = '/api/v1' . $chemin;
-$_SERVER['REMOTE_ADDR']    = '10.0.0.1';
+$_SERVER['REMOTE_ADDR']    = getenv('FER_TEST_IP') ?: '127.0.0.1';   // boucle locale : HTTPS non exigé
+$_SERVER['HTTPS']          = getenv('FER_TEST_HTTPS') ?: '';
+$_SERVER['HTTP_X_APP_VERSION'] = getenv('FER_TEST_APP_VERSION') !== false
+    ? getenv('FER_TEST_APP_VERSION') : '1.0.0';
+if ($_SERVER['HTTP_X_APP_VERSION'] === '') unset($_SERVER['HTTP_X_APP_VERSION']);
 if ($bearer !== '') $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $bearer;
 
 /* Le corps de requête arrive normalement par php://input, illisible en CLI :

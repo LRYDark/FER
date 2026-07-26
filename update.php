@@ -2310,6 +2310,20 @@ $lot1Settings = [
     // Lot 5 — API mobile
     'app_version_minimale'                 => "VARCHAR(20) NOT NULL DEFAULT '1.0.0'",
     'app_access_token_ttl_min'             => "SMALLINT NOT NULL DEFAULT 60",
+    // Interrupteur de l'API mobile /api/v1, distinct de celui de api.php : les
+    // deux API n'ont ni le même public ni les mêmes risques, couper l'une ne
+    // doit pas couper l'autre.
+    // DÉFAUT 0 : après mise à jour, l'API mobile est FERMÉE tant qu'on ne l'a pas
+    // activée dans Réglages → API. Un service qui s'ouvre tout seul lors d'une
+    // migration est un service que personne n'a décidé d'ouvrir.
+    //
+    // ⚠️ Pas de « clé d'application » ici, et c'est délibéré : elle serait livrée
+    // dans l'application installée sur chaque téléphone, donc lisible par
+    // quiconque décompile le fichier. Publier un secret ne protège rien et donne
+    // l'illusion du contraire. Ce qui protège les données, c'est le jeton
+    // PERSONNEL de chaque coureur ; ce qui protège les envois de mail, c'est la
+    // limitation de débit (participant_code_max_par_*).
+    'api_v1_enabled'                       => "TINYINT(1) NOT NULL DEFAULT 0",
     // Lot 6 — page de téléchargement
     'app_store_url_ios'                    => "VARCHAR(255) NULL DEFAULT NULL",
     'app_store_url_android'                => "VARCHAR(255) NULL DEFAULT NULL",

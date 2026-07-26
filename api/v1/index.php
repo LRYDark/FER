@@ -101,6 +101,105 @@ function api_log(string $message): void
         '[' . date('Y-m-d H:i:s') . '] ' . fer_client_ip() . ' ' . $message . "\n", FILE_APPEND);
 }
 
+/* ═══════════════════ Contrôle d'entrée de l'API ═════════════════════════
+ *
+ * TROIS BARRIÈRES QUI NE FONT PAS LE MÊME TRAVAIL — ne pas les confondre :
+ *
+ *   1. HTTPS        → protège les DONNÉES. La seule des trois qui empêche une
+ *                     fuite : en clair, le jeton du coureur traverse le réseau
+ *                     lisible par quiconque partage le même wifi.
+ *   2. Interrupteur → protège contre l'IMPRÉVU. Un robinet qu'on ferme : faille,
+ *                     abus, version de l'application qui déraille.
+ *   3. Version min. → protège contre les VIEILLES VERSIONS, refusées par le
+ *                     serveur et non par la bonne volonté du client.
+ *
+ * ⚠️ IL N'Y A DÉLIBÉRÉMENT AUCUNE « CLÉ D'APPLICATION » GLOBALE.
+ * Elle serait livrée dans l'application installée sur chaque téléphone, donc
+ * lisible par quiconque décompile le fichier — un secret publié n'est pas un
+ * secret, et prétendre le contraire fait baisser la garde ailleurs. Ce qui
+ * protège les données personnelles, c'est le jeton PERSONNEL de chaque coureur
+ * (plus bas). Ce qui protège les envois de mail de /auth/request-code, c'est la
+ * limitation de débit par adresse et par IP, dans participant_auth.php.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/** La connexion est-elle chiffrée ? Même détection que api.php, proxys compris. */
+function api_isHttps(): bool
+{
+    if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') return true;
+    if ((int) ($_SERVER['SERVER_PORT'] ?? 0) === 443) return true;
+    if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
+        && strtolower(explode(',', $_SERVER['HTTP_X_FORWARDED_PROTO'])[0]) === 'https') return true;
+    if (!empty($_SERVER['HTTP_X_FORWARDED_SSL'])
+        && strtolower((string) $_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') return true;
+    if (!empty($_SERVER['HTTP_CF_VISITOR'])
+        && stripos((string) $_SERVER['HTTP_CF_VISITOR'], 'https') !== false) return true;
+    return false;
+}
+
+/**
+ * Barrières 1 à 4, avant tout routage.
+ *
+ * @param string[] $route chemin découpé — sert à laisser passer /app/config
+ */
+function api_gate(PDO $pdo, array $route): void
+{
+    // 1. HTTPS. Toléré en boucle locale : ce trafic ne quitte pas la machine,
+    //    et sans cette exception aucun développement local n'est possible.
+    if (!api_isHttps() && !in_array(fer_client_ip(), ['127.0.0.1', '::1', ''], true)) {
+        api_err(403, 'https_required', "L'API n'accepte que les connexions sécurisées HTTPS.");
+    }
+
+    try {
+        $cfg = $pdo->query('SELECT api_v1_enabled, app_version_minimale
+                              FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        // Colonnes absentes : la migration n'a pas été jouée. On refuse plutôt
+        // que d'ouvrir une API que personne n'a encore configurée.
+        api_err(503, 'not_installed', 'Mise à jour de la base requise (update.php).');
+    }
+
+    // 2. Interrupteur.
+    if (empty($cfg['api_v1_enabled'])) {
+        api_err(503, 'api_disabled', "L'API mobile est désactivée. Activez-la dans Réglages → API.");
+    }
+
+    /* 3. VERSION MINIMALE — IMPOSÉE PAR LE SERVEUR, PAS SUGGÉRÉE.
+     *
+     * `app_version_minimale` était jusqu'ici une simple information servie par
+     * /app/config : l'application devait être assez consciencieuse pour la lire
+     * et se bloquer elle-même. Une version défectueuse qui l'ignore n'était donc
+     * arrêtée par rien. C'est ici que le refus devient effectif.
+     *
+     * /app/config reste TOUJOURS joignable — c'est précisément là que
+     * l'application périmée apprend qu'elle doit se mettre à jour, et où elle
+     * trouve le lien du store. La lui fermer serait lui dire « tu es trop
+     * vieille » sans jamais lui dire comment cesser de l'être.
+     */
+    if (($route[0] ?? '') === 'app' && ($route[1] ?? '') === 'config') return;
+
+    $minimale = trim((string) ($cfg['app_version_minimale'] ?? '1.0.0'));
+    $version  = trim((string) ($_SERVER['HTTP_X_APP_VERSION'] ?? ''));
+
+    if ($version === '') {
+        api_err(400, 'missing_app_version',
+            "En-tête X-App-Version absent. Toute application doit annoncer sa version.");
+    }
+    // 426 Upgrade Required : le code HTTP prévu exactement pour ça. Un 403
+    // laisserait croire à un problème de droits, et l'application afficherait
+    // « accès refusé » au lieu de « mettez-moi à jour ».
+    if ($minimale !== '' && version_compare($version, $minimale, '<')) {
+        api_log("version $version refusee (minimum $minimale)");
+        api_json(426, ['ok' => false, 'data' => null, 'error' => [
+            'code'    => 'app_outdated',
+            'message' => "Cette version de l'application n'est plus acceptée. Mettez-la à jour.",
+            // Servis DANS l'erreur : l'application n'a pas à faire un second
+            // appel pour savoir vers quoi diriger la personne.
+            'version_minimale' => $minimale,
+            'config_url'       => api_siteUrl('api/v1/app/config'),
+        ]]);
+    }
+}
+
 /* ══════════════════════════ Jetons d'accès ══════════════════════════════ */
 
 /**
@@ -192,6 +291,11 @@ if ($racine !== '' && str_starts_with($chemin, $racine)) {
 }
 $route   = array_values(array_filter(explode('/', trim($chemin, '/')), fn($s) => $s !== ''));
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+// AVANT tout traitement : HTTPS, interrupteur, version minimale. Placé ici et
+// non dans chaque route : un point d'entrée ajouté plus tard est protégé
+// d'office, on ne peut pas oublier le contrôle sur une route neuve.
+api_gate($pdo, $route);
 
 /* Corps JSON. Les données personnelles y passent, jamais par l'URL. */
 $corps = [];

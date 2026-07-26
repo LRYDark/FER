@@ -239,9 +239,13 @@ else { echo "❌ Éditions attendues " . implode(',', $attendues) . " — obtenu
 
 echo "\n=== 6. Réglages : valeurs par défaut appliquées à la ligne existante ===\n";
 $row = $B->query("SELECT participant_code_ttl_min, app_version_minimale, traces_gps_conservation_jours,
-                         auth_codes_conservation_jours FROM setting WHERE id = 1")->fetch();
+                         auth_codes_conservation_jours, api_v1_enabled FROM setting WHERE id = 1")->fetch();
+// api_v1_enabled = 0 : l'API mobile doit rester FERMÉE après une migration.
+// Un service qui s'ouvre tout seul est un service que personne n'a décidé
+// d'ouvrir — c'est la valeur la plus importante de cette liste.
 $attendu = ['participant_code_ttl_min' => 15, 'app_version_minimale' => '1.0.0',
-            'traces_gps_conservation_jours' => 400, 'auth_codes_conservation_jours' => 30];
+            'traces_gps_conservation_jours' => 400, 'auth_codes_conservation_jours' => 30,
+            'api_v1_enabled' => 0];
 foreach ($attendu as $k => $v) {
     if ((string) $row[$k] === (string) $v) echo "✅ $k = $v\n";
     else { echo "❌ $k = " . var_export($row[$k], true) . " (attendu $v)\n"; $ko++; }
