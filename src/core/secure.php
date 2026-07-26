@@ -118,15 +118,49 @@ final class FerSecureConfig
         return $data;
     }
 
-    /** @param array<string, string> $data */
+    /**
+     * Écrit config.enc de façon ATOMIQUE.
+     *
+     * POURQUOI : ce fichier porte les identifiants de la base et la clé de
+     * chiffrement. Une écriture directe interrompue (disque plein, coupure,
+     * quota) le laisserait tronqué — et un config.enc tronqué, c'est le site
+     * entier inaccessible, sans possibilité de le régénérer.
+     *
+     * On écrit donc dans un fichier temporaire, puis on le déplace par rename(),
+     * opération atomique au sein d'un même système de fichiers : à aucun instant
+     * config.enc n'existe à l'état incomplet. En cas d'échec, l'ancien fichier
+     * est intact et le temporaire est retiré.
+     *
+     * Le nom du temporaire commence par un point : il tombe ainsi sous la règle
+     * `FilesMatch "^\."` de config/.htaccess et n'est jamais servi par le web,
+     * même pendant le bref instant où il existe.
+     *
+     * @param array<string, string> $data
+     */
     public static function write(array $data): void
     {
         self::ensureKey();
         $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if (file_put_contents(self::configFile(), self::encrypt((string) $json), LOCK_EX) === false) {
-            throw new \RuntimeException('Impossible d\'écrire config/config.enc.');
+
+        // Chiffrement AVANT toute écriture : si la clé est illisible ou le
+        // chiffrement échoue, l'exception part sans avoir touché au fichier.
+        $blob = self::encrypt((string) $json);
+
+        $file = self::configFile();
+        $tmp  = dirname($file) . '/.' . basename($file) . '.' . bin2hex(random_bytes(6)) . '.tmp';
+
+        $ecrits = @file_put_contents($tmp, $blob, LOCK_EX);
+        if ($ecrits === false || $ecrits !== strlen($blob)) {
+            @unlink($tmp);   // écriture partielle : on ne garde rien
+            throw new \RuntimeException('Impossible d\'écrire config/config.enc (écriture temporaire incomplète).');
         }
-        @chmod(self::configFile(), 0600);
+        @chmod($tmp, 0600);
+
+        if (!@rename($tmp, $file)) {
+            @unlink($tmp);
+            throw new \RuntimeException('Impossible de remplacer config/config.enc (droits du dossier config/ ?).');
+        }
+        @chmod($file, 0600);
     }
 
     /** @return bool true si toutes les clés obligatoires sont présentes et non vides */
