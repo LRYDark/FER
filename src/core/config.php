@@ -391,6 +391,13 @@ function permCatalog(): array
             'dashboard.delete_registration','dashboard.archive',
             'dashboard.import_excel','dashboard.export_excel',
             'dashboard.scan_qr','dashboard.bulk_create',
+            // Espace coureur (écrans d'administration livrés au lot 4).
+            // Volontairement absents de hardcodedDefaultPermissions() pour user,
+            // viewer et saisie : un écran listant les comptes coureurs, leurs
+            // adresses et leurs appareils de confiance ne s'ouvre pas d'office à
+            // un rôle de consultation. Le rôle `admin` y accède de toute façon,
+            // canAccessPage()/canDoAction() court-circuitant sur lui.
+            'dashboard.participants','dashboard.transfers',
             // Contenus — granularité par page
             'news.create','news.edit','news.trash','news.delete',
             'timeline.create','timeline.edit','timeline.trash','timeline.delete',
@@ -836,6 +843,58 @@ function decryptRow(array $row): array {
 
 function decryptRows(array $rows): array {
     return array_map('decryptRow', $rows);
+}
+
+/* ── Empreinte d'email des comptes coureurs ─────────────────────────────────
+ *
+ * Les comptes coureurs (`participants`) stockent leur adresse DEUX fois, et
+ * c'est nécessaire :
+ *   • `email_chiffre` → encrypt() : AES-256-GCM avec IV aléatoire. Permet de
+ *     retrouver l'adresse en clair pour envoyer le code à 6 chiffres. L'IV
+ *     aléatoire rend en revanche toute recherche par égalité impossible.
+ *   • `email_hmac`    → fer_emailHmac() : déterministe, donc INDEXABLE et
+ *     UNIQUE. C'est par lui qu'on retrouve un compte à la connexion. Un HMAC
+ *     seul ne suffirait pas : irréversible, on ne pourrait plus écrire à la
+ *     personne.
+ *
+ * ⚠️ LA CLÉ VIT DANS config/config.enc, JAMAIS EN BASE. Un dump compromis
+ * livrerait sinon à la fois les empreintes et le moyen de les recalculer —
+ * c'est-à-dire de retrouver l'adresse de chaque coureur par force brute sur des
+ * listes d'adresses connues.
+ *
+ * ⚠️ ROTATION : changer EMAIL_HMAC_KEY invalide TOUTES les recherches par email.
+ * Il faudrait alors recalculer chaque `email_hmac` en déchiffrant
+ * `email_chiffre` (c'est possible, mais c'est une opération à écrire). Traitez
+ * cette clé comme ENCRYPTION_KEY : sauvegardée, jamais régénérée à la légère.
+ */
+
+/** Clé HMAC dédiée, lue dans config.enc. Null si absente (cf. update.php). */
+function fer_emailHmacKey(): ?string {
+    $hex = $_ENV['EMAIL_HMAC_KEY'] ?? (getenv('EMAIL_HMAC_KEY') ?: null);
+    if (!is_string($hex) || $hex === '') return null;
+    $bin = @hex2bin(trim($hex));
+    return ($bin !== false && strlen($bin) >= 32) ? $bin : null;
+}
+
+/** Forme canonique d'une adresse : minuscules + espaces retirés. */
+function fer_normalizeEmail(?string $email): string {
+    return mb_strtolower(trim((string) $email), 'UTF-8');
+}
+
+/**
+ * Empreinte déterministe d'une adresse email (64 caractères hexadécimaux).
+ * Renvoie null si l'adresse est vide ou si la clé n'est pas configurée —
+ * l'appelant doit traiter ce cas plutôt que de retomber sur une valeur en clair.
+ */
+function fer_emailHmac(?string $email): ?string {
+    $norm = fer_normalizeEmail($email);
+    if ($norm === '') return null;
+    $key = fer_emailHmacKey();
+    if ($key === null) {
+        error_log('[FER] EMAIL_HMAC_KEY absente de config.enc — relancez update.php.');
+        return null;
+    }
+    return hash_hmac('sha256', $norm, $key);
 }
 
 /**

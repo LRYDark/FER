@@ -242,10 +242,15 @@ function regres_findByEmail(PDO $pdo, string $emailNormalise): array
     return $out;
 }
 
-/** Forme canonique d'une adresse : minuscules + espaces retirés. */
+/**
+ * Forme canonique d'une adresse : minuscules + espaces retirés.
+ * Délègue à fer_normalizeEmail() (config.php) pour qu'il n'existe qu'une seule
+ * définition de « adresse normalisée » — c'est la même qui sert au calcul des
+ * empreintes HMAC des comptes coureurs.
+ */
 function regres_normalizeEmailValue(?string $email): string
 {
-    return mb_strtolower(trim((string) $email), 'UTF-8');
+    return fer_normalizeEmail($email);
 }
 
 /**

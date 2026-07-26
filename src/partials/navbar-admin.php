@@ -431,6 +431,45 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
        (Réglages) chargent css/accueil.css pour l'aperçu du site public, qui
        style l'élément main (centrage, largeurs) et polluerait l'admin. -->
   <div class="jr-main" id="oc-content">
+
+    <?php
+    /* ═══ Bandeau « MODE TEST » — garde-fou catch-all des mails (P1) ═══
+     * Affiché en permanence, sur toutes les pages d'administration, dès que le
+     * garde-fou est actif.
+     *
+     * POURQUOI : le risque résiduel n'est pas que le garde-fou échoue — il est
+     * de croire qu'on travaille sur la recette alors qu'on est en production, ou
+     * l'inverse. Quelqu'un qui déclenche un envoi groupé en pensant écrire à
+     * 300 inscrits doit voir immédiatement que rien ne partira. */
+    if (!function_exists('mailCatchallStatus')) {
+        $mgFile = dirname(__DIR__) . '/mail/mail_guard.php';
+        if (is_file($mgFile)) { try { require_once $mgFile; } catch (\Throwable $e) {} }
+    }
+    if (function_exists('mailCatchallStatus')):
+        $ocCatchall = mailCatchallStatus();
+        if ($ocCatchall['actif']):
+    ?>
+      <div style="background:<?= $ocCatchall['bloquant'] ? 'var(--danger, #dc3545)' : 'var(--warn, #fd7e14)' ?>;
+                  color:#fff;padding:8px 16px;font-size:13px;font-weight:600;
+                  display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.4">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <?php if ($ocCatchall['bloquant']): ?>
+          MODE TEST &mdash; garde-fou actif <strong>sans adresse valide</strong> :
+          <strong>aucun mail ne part</strong>.
+        <?php else: ?>
+          MODE TEST &mdash; tous les mails sortants partent vers
+          <strong><?= htmlspecialchars($ocCatchall['adresse']) ?></strong>,
+          jamais aux inscrits.
+        <?php endif; ?>
+        <?php if (canAccessPage('mail-settings')): ?>
+          <a href="mail-settings.php?tab=google" style="color:#fff;text-decoration:underline;font-weight:700">Modifier</a>
+        <?php endif; ?>
+      </div>
+    <?php
+        endif;
+    endif;
+    ?>
+
     <header class="jr-topbar">
       <div style="display:flex;align-items:center;gap:12px">
         <button class="jr-burger" id="ocBurger" type="button" aria-label="Menu">

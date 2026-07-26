@@ -1788,14 +1788,46 @@ $('#tbl').on('change','.tshirt-dd',function(){
 });
 
 /* ══ SUPPRESSION ════ */
+
+/* Rattachements de l'espace coureur pour une ou plusieurs inscriptions.
+   Les tables de l'espace coureur désignent un coureur par (année, n° d'inscription)
+   et n'ont donc AUCUNE clé étrangère vers registrations : MySQL ne peut pas
+   s'opposer à la suppression. On avertit avant, plutôt que d'orpheliner un chrono
+   ou un compte en silence. En cas d'échec de l'appel, on n'empêche rien. */
+function fetchRegistrationLinks(ids) {
+  return fetch('../admin-api.php?route=registrations&links=1&ids=' + encodeURIComponent(ids.join(',')), {
+    headers: {'X-CSRF-TOKEN': _csrfToken}
+  })
+    .then(r => r.json())
+    .catch(() => ({ ok: false }));
+}
+
+/* Phrase d'avertissement, ou chaîne vide s'il n'y a rien à signaler. */
+function linksWarning(info) {
+  if (!info || !info.ok) return '';
+  const bouts = [];
+  if (info.resultats > 0) bouts.push(info.resultats > 1 ? `${info.resultats} résultats de course enregistrés` : 'un résultat de course enregistré');
+  if (info.comptes   > 0) bouts.push(info.comptes   > 1 ? `${info.comptes} comptes coureurs rattachés`      : 'un compte coureur rattaché');
+  if (!bouts.length) return '';
+  return `\n\n⚠️ Attention : cette sélection a ${bouts.join(' et ')}.\n`
+       + `Ces données ne seront pas supprimées mais deviendront orphelines`
+       + ` (repérables via update.php → Contrôle d'intégrité).`;
+}
+
 $('#tbl').on('click', '.delete-row', function() {
   const row = tbl.row($(this).closest('tr'));
   const data = row.data();
 
-  if (!confirm(`Êtes-vous sûr de vouloir supprimer l'inscription de ${data.prenom} ${data.nom} ?`)) {
-    return;
-  }
+  fetchRegistrationLinks([data.id]).then(info => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'inscription de ${data.prenom} ${data.nom} ?`
+                 + linksWarning(info))) {
+      return;
+    }
+    deleteRegistrationRow(row, data);
+  });
+});
 
+function deleteRegistrationRow(row, data) {
   fetch('../admin-api.php?route=registrations', {
     method: 'DELETE',
     headers: {'Content-Type': 'application/x-www-form-urlencoded','X-CSRF-TOKEN':_csrfToken},
@@ -1817,7 +1849,7 @@ $('#tbl').on('click', '.delete-row', function() {
     console.error('Erreur:', error);
     alert('Erreur de communication avec le serveur');
   });
-});
+}
 
 <?php if($canEditReg || $canDeleteReg): ?>
 /* ══ ACTIONS GROUPÉES (sélection multiple) ════════════════════════════════
@@ -1909,8 +1941,16 @@ $('#fBulkEdit').on('submit',function(e){
 /* — Suppression groupée — */
 $('#bulkDeleteBtn').on('click',function(){
   if(bulkSel.size===0){ alert('Sélectionnez au moins une inscription.'); return; }
-  if(!confirm('Supprimer '+bulkSel.size+' inscription(s) ? Cette action est irréversible.')) return;
   const ids = [...bulkSel];
+  // Même avertissement que la suppression unitaire, agrégé sur la sélection.
+  fetchRegistrationLinks(ids).then(info=>{
+    if(!confirm('Supprimer '+ids.length+' inscription(s) ? Cette action est irréversible.'
+                + linksWarning(info))) return;
+    bulkDeleteRegistrations(ids);
+  });
+});
+
+function bulkDeleteRegistrations(ids){
   fetch('../admin-api.php?route=registrations-bulk',{
     method:'DELETE',
     headers:{'Content-Type':'application/json','X-CSRF-TOKEN':_csrfToken},
@@ -1922,7 +1962,7 @@ $('#bulkDeleteBtn').on('click',function(){
       alert((j.deleted||0)+' inscription(s) supprimée(s).');
     } else { alert('Erreur : '+(j.err||'inconnue')); }
   }).catch(()=>alert('Erreur de communication avec le serveur.'));
-});
+}
 <?php endif; ?>
 <?php endif; ?>
 

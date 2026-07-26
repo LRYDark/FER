@@ -1998,11 +1998,22 @@ if (empty($ancienSchema)) {
               UNIQUE KEY `idx_annee` (`annee`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
+        // Deux colonnes pour une seule adresse, et c'est nécessaire :
+        //   • `email_hmac`    : HMAC-SHA256 de l'adresse en minuscules. Déterministe,
+        //     donc INDEXABLE et UNIQUE — c'est par lui qu'on retrouve un compte à la
+        //     connexion. Un HMAC seul ne suffirait pas : irréversible, on ne pourrait
+        //     plus envoyer le code à 6 chiffres.
+        //   • `email_chiffre` : chiffré par le MÊME mécanisme que registrations.email
+        //     (AES-256-GCM, IV aléatoire). Nécessaire pour récupérer l'adresse en clair
+        //     au moment de l'envoi. Un chiffrement seul ne suffirait pas : l'IV aléatoire
+        //     rend toute recherche par égalité impossible.
+        // La clé HMAC vit dans config/config.enc, JAMAIS en base — sinon un dump
+        // compromis livre à la fois les empreintes et le moyen de les recalculer.
         'participants' =>
             "CREATE TABLE IF NOT EXISTS `participants` (
               `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `email` VARCHAR(255) NOT NULL,
-              `email_normalise` VARCHAR(255) NOT NULL,
+              `email_chiffre` TEXT NOT NULL,
+              `email_hmac` CHAR(64) NOT NULL,
               `nom` VARCHAR(255) DEFAULT NULL,
               `prenom` VARCHAR(255) DEFAULT NULL,
               `is_active` TINYINT(1) NOT NULL DEFAULT 1,
@@ -2010,7 +2021,7 @@ if (empty($ancienSchema)) {
               `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
               `derniere_connexion` DATETIME DEFAULT NULL,
               `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              UNIQUE KEY `idx_email_norm` (`email_normalise`)
+              UNIQUE KEY `idx_email_hmac` (`email_hmac`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
         'participant_registrations' =>
@@ -2027,10 +2038,14 @@ if (empty($ancienSchema)) {
                 REFERENCES `participants`(`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
+        // `email_hmac` et non l'adresse : cette table journalise les tentatives
+        // d'authentification, y compris pour des adresses qui ne correspondent à
+        // aucun compte (anti-énumération du lot 2). Elle ne doit contenir aucune
+        // adresse lisible.
         'participant_auth_codes' =>
             "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
               `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `email_normalise` VARCHAR(255) NOT NULL,
+              `email_hmac` CHAR(64) NOT NULL,
               `code_hash` VARCHAR(255) NOT NULL,
               `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
               `tentatives` TINYINT NOT NULL DEFAULT 0,
@@ -2038,7 +2053,7 @@ if (empty($ancienSchema)) {
               `expires_at` DATETIME NOT NULL,
               `ip` VARCHAR(45) DEFAULT NULL,
               `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX `idx_email` (`email_normalise`),
+              INDEX `idx_email_hmac` (`email_hmac`),
               INDEX `idx_expires` (`expires_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
@@ -2207,6 +2222,88 @@ if (empty($ancienSchema)) {
     }
 
 } // fin : ancien schéma absent
+
+// ─────────────────────────────────────────────────────────────────────────
+// LOT 1 — Clé HMAC des adresses des comptes coureurs (§ 1.2)
+// Vit dans config/config.enc, JAMAIS en base : un dump compromis livrerait
+// sinon à la fois les empreintes et le moyen de les recalculer.
+// Créée UNE SEULE FOIS, si absente. La régénérer invaliderait toutes les
+// recherches par email et couperait l'accès à tous les comptes existants.
+// ─────────────────────────────────────────────────────────────────────────
+$desc = "Générer la clé HMAC des emails (EMAIL_HMAC_KEY dans config.enc)";
+try {
+    $cfgHmac = FerSecureConfig::load();
+    if (!empty($cfgHmac['EMAIL_HMAC_KEY'])) {
+        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Clé déjà présente — jamais régénérée'];
+    } else {
+        $cfgHmac['EMAIL_HMAC_KEY'] = bin2hex(random_bytes(32));
+        FerSecureConfig::write($cfgHmac);
+        FerSecureConfig::exportToEnv($cfgHmac);   // prise d'effet immédiate
+        $results[] = ['status' => 'success', 'sql' => $desc,
+                      'msg' => 'Clé générée (32 octets). À sauvegarder avec config.enc : sa perte rend les comptes coureurs introuvables.'];
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// LOT 1 § 3 bis.1 — Réglages : colonnes de la table `setting`
+//
+// `setting` est une table à ligne unique, une colonne par réglage. La valeur
+// par défaut est portée par le DEFAULT de la colonne, PAS par un UPDATE après
+// création : sur une table déjà peuplée, ADD COLUMN … DEFAULT x remplit la
+// ligne existante. C'est le comportement voulu, et il est idempotent par nature.
+//
+// ⚠️ Une colonne n'est créée que si elle est absente. update.php est rejoué à
+// chaque mise à jour : un ALTER ou un UPDATE inconditionnel écraserait les
+// valeurs modifiées par l'administrateur.
+//
+// Aucun écran de réglage dans ce lot : ces colonnes sont lues par les lots
+// suivants, leur interface viendra avec les fonctionnalités qui les utilisent.
+// ─────────────────────────────────────────────────────────────────────────
+$lot1Settings = [
+    // Lot 2 — authentification coureur par code à 6 chiffres
+    'participant_code_ttl_min'             => "SMALLINT NOT NULL DEFAULT 15",
+    'participant_code_max_tentatives'      => "TINYINT NOT NULL DEFAULT 5",
+    'participant_code_max_par_email_15min' => "TINYINT NOT NULL DEFAULT 3",
+    'participant_code_max_par_ip_heure'    => "TINYINT NOT NULL DEFAULT 10",
+    'participant_web_remember_jours'       => "SMALLINT NOT NULL DEFAULT 30",
+    'participant_rgpd_version'             => "VARCHAR(20) NOT NULL DEFAULT '1.0'",
+    // Lot 4 — transferts d'inscription
+    'transferts_deadline_defaut_h'         => "SMALLINT NOT NULL DEFAULT 24",
+    'transferts_expiration_jours'          => "SMALLINT NOT NULL DEFAULT 7",
+    // Lot 5 — API mobile
+    'app_version_minimale'                 => "VARCHAR(20) NOT NULL DEFAULT '1.0.0'",
+    'app_access_token_ttl_min'             => "SMALLINT NOT NULL DEFAULT 60",
+    // Lot 6 — page de téléchargement
+    'app_store_url_ios'                    => "VARCHAR(255) NULL DEFAULT NULL",
+    'app_store_url_android'                => "VARCHAR(255) NULL DEFAULT NULL",
+    // Lot 7 — purges RGPD.
+    // 400 jours et non 365 : il faut couvrir une édition entière PLUS la marge de
+    // publication des résultats. Ce chiffre doit figurer dans la politique de
+    // confidentialité.
+    'traces_gps_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 400",
+    'auth_codes_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 30",
+];
+
+foreach ($lot1Settings as $col => $ddl) {
+    $desc = "Ajouter le réglage `setting`.`$col`";
+    try {
+        $exists = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'setting'
+               AND COLUMN_NAME = " . $pdo->quote($col)
+        )->fetchColumn();
+        if ($exists > 0) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
+        } else {
+            $pdo->exec("ALTER TABLE `setting` ADD COLUMN `$col` $ddl");
+            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Colonne ajoutée avec sa valeur par défaut'];
+        }
+    } catch (PDOException $e) {
+        $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+    }
+}
 
 /* ═══════════════════ fin LOT 1 ══════════════════════════════════════════ */
 

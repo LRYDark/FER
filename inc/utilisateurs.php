@@ -232,6 +232,11 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             // manuel vit désormais dans l'onglet Réglages → Import AssoConnect).
             'dashboard.export_excel'        => 'Exporter en Excel',
             'dashboard.scan_qr'             => 'Scanner QR + remise des T-shirts (mode bénévole)',
+            // Espace coureur — écrans livrés au lot 4. Décochés par défaut pour
+            // user / viewer / saisie : ces écrans exposent les adresses et les
+            // appareils de confiance des coureurs.
+            'dashboard.participants'        => 'Comptes coureurs (voir, désactiver, révoquer les appareils)',
+            'dashboard.transfers'           => 'Transferts d\'inscription (forcer ou annuler)',
           ];
           foreach ($dashActions as $k => $label): ?>
           <tr>

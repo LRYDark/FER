@@ -336,6 +336,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
                                 'DB_USER'        => $dbUser,
                                 'DB_PASS'        => $dbPass,
                                 'ENCRYPTION_KEY' => $encryptionKey,
+                                // Clé HMAC des adresses des comptes coureurs (lot 1). Vit ici et
+                                // JAMAIS en base : un dump compromis livrerait sinon les empreintes
+                                // ET le moyen de les recalculer. À sauvegarder avec ENCRYPTION_KEY.
+                                'EMAIL_HMAC_KEY' => bin2hex(random_bytes(32)),
                             ]);
                             @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed (existing db)');
                         }
@@ -388,6 +392,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 4) 
                     'DB_USER'        => $inst['db_user'],
                     'DB_PASS'        => $inst['db_pass'],
                     'ENCRYPTION_KEY' => $inst['encryption_key'] ?? '',
+                    // Clé HMAC des adresses des comptes coureurs (lot 1). Vit ici et
+                    // JAMAIS en base : un dump compromis livrerait sinon les empreintes
+                    // ET le moyen de les recalculer. À sauvegarder avec ENCRYPTION_KEY.
+                    'EMAIL_HMAC_KEY' => bin2hex(random_bytes(32)),
                 ]);
                 @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed (existing db)');
                 $_SESSION['install_done'] = true;
@@ -441,6 +449,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_POST['step'] ?? 0) === 4) 
                                 'DB_USER'        => $inst['db_user'],
                                 'DB_PASS'        => $inst['db_pass'],
                                 'ENCRYPTION_KEY' => $encryptionKey,
+                                // Clé HMAC des adresses des comptes coureurs (lot 1). Vit ici et
+                                // JAMAIS en base : un dump compromis livrerait sinon les empreintes
+                                // ET le moyen de les recalculer. À sauvegarder avec ENCRYPTION_KEY.
+                                'EMAIL_HMAC_KEY' => bin2hex(random_bytes(32)),
                             ]);
                             @file_put_contents($lockPath, date('Y-m-d H:i:s') . ' — installed');
                             $_SESSION['install_done'] = true;
@@ -570,6 +582,34 @@ function getCreateTableStatements(): array
           `legal_mentions` LONGTEXT DEFAULT NULL,
           `legal_privacy` LONGTEXT DEFAULT NULL,
           `chatbot_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+          /* ── Espace coureur & application mobile (lot 1) ──────────────────
+           * Les valeurs par défaut sont portées par le DEFAULT de la colonne,
+           * jamais par un UPDATE : sur une table à ligne unique, ADD COLUMN …
+           * DEFAULT x remplit la ligne existante, ce qui rend l'ajout idempotent
+           * par nature côté update.php.
+           * Aucun écran de réglage dans ce lot : ces colonnes sont lues par les
+           * lots suivants, leur interface viendra avec les fonctionnalités. */
+          /* Lot 2 — authentification coureur par code à 6 chiffres */
+          `participant_code_ttl_min` SMALLINT NOT NULL DEFAULT 15,
+          `participant_code_max_tentatives` TINYINT NOT NULL DEFAULT 5,
+          `participant_code_max_par_email_15min` TINYINT NOT NULL DEFAULT 3,
+          `participant_code_max_par_ip_heure` TINYINT NOT NULL DEFAULT 10,
+          `participant_web_remember_jours` SMALLINT NOT NULL DEFAULT 30,
+          `participant_rgpd_version` VARCHAR(20) NOT NULL DEFAULT '1.0',
+          /* Lot 4 — transferts d'inscription */
+          `transferts_deadline_defaut_h` SMALLINT NOT NULL DEFAULT 24,
+          `transferts_expiration_jours` SMALLINT NOT NULL DEFAULT 7,
+          /* Lot 5 — API mobile */
+          `app_version_minimale` VARCHAR(20) NOT NULL DEFAULT '1.0.0',
+          `app_access_token_ttl_min` SMALLINT NOT NULL DEFAULT 60,
+          /* Lot 6 — page de téléchargement */
+          `app_store_url_ios` VARCHAR(255) NULL DEFAULT NULL,
+          `app_store_url_android` VARCHAR(255) NULL DEFAULT NULL,
+          /* Lot 7 — purges RGPD. 400 jours et non 365 : il faut couvrir une
+           * édition entière PLUS la marge de publication des résultats. Ce
+           * chiffre doit figurer dans la politique de confidentialité. */
+          `traces_gps_conservation_jours` SMALLINT NOT NULL DEFAULT 400,
+          `auth_codes_conservation_jours` SMALLINT NOT NULL DEFAULT 30,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -1057,10 +1097,22 @@ function getCreateTableStatements(): array
         // réservée à l'administration : deux tables, deux sessions, deux
         // systèmes de jetons. AUCUNE colonne de mot de passe — la connexion se
         // fait uniquement par code à 6 chiffres reçu par mail.
+        // Deux colonnes pour une seule adresse, et c'est nécessaire :
+        //   • `email_hmac`    : HMAC-SHA256 de l'adresse en minuscules.
+        //     Déterministe, donc INDEXABLE et UNIQUE — c'est par lui qu'on
+        //     retrouve un compte à la connexion. Un HMAC seul ne suffirait pas :
+        //     irréversible, on ne pourrait plus envoyer le code à 6 chiffres.
+        //   • `email_chiffre` : chiffré par le MÊME mécanisme que
+        //     registrations.email (AES-256-GCM, IV aléatoire). Nécessaire pour
+        //     retrouver l'adresse en clair au moment de l'envoi. Un chiffrement
+        //     seul ne suffirait pas : l'IV aléatoire rend toute recherche par
+        //     égalité impossible.
+        // La clé HMAC vit dans config/config.enc, JAMAIS en base — sinon un dump
+        // compromis livre à la fois les empreintes et le moyen de les recalculer.
         "CREATE TABLE IF NOT EXISTS `participants` (
           `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `email` VARCHAR(255) NOT NULL,
-          `email_normalise` VARCHAR(255) NOT NULL,
+          `email_chiffre` TEXT NOT NULL,
+          `email_hmac` CHAR(64) NOT NULL,
           `nom` VARCHAR(255) DEFAULT NULL,
           `prenom` VARCHAR(255) DEFAULT NULL,
           `is_active` TINYINT(1) NOT NULL DEFAULT 1,
@@ -1068,7 +1120,7 @@ function getCreateTableStatements(): array
           `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
           `derniere_connexion` DATETIME DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE KEY `idx_email_norm` (`email_normalise`)
+          UNIQUE KEY `idx_email_hmac` (`email_hmac`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
         // LE LIEN, cœur du dispositif : il remplace la colonne
@@ -1094,9 +1146,12 @@ function getCreateTableStatements(): array
         // Codes de connexion à 6 chiffres. Jamais stockés en clair :
         // password_hash() à l'écriture, password_verify() à la vérification.
         // Hachage LENT volontaire — 6 chiffres = 10^6 combinaisons seulement.
+        // `email_hmac` et non l'adresse : cette table journalise les tentatives
+        // d'authentification, y compris pour des adresses ne correspondant à
+        // aucun compte (anti-énumération). Aucune adresse lisible ici.
         "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
           `id` INT AUTO_INCREMENT PRIMARY KEY,
-          `email_normalise` VARCHAR(255) NOT NULL,
+          `email_hmac` CHAR(64) NOT NULL,
           `code_hash` VARCHAR(255) NOT NULL,
           `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
           `tentatives` TINYINT NOT NULL DEFAULT 0,
@@ -1104,7 +1159,7 @@ function getCreateTableStatements(): array
           `expires_at` DATETIME NOT NULL,
           `ip` VARCHAR(45) DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_email` (`email_normalise`),
+          INDEX `idx_email_hmac` (`email_hmac`),
           INDEX `idx_expires` (`expires_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
