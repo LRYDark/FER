@@ -307,7 +307,7 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
     $sansNo     = [];   // inscriptions sans inscription_no : ni revendicables ni chronométrables
     $derive     = [];   // dérive de schéma entre tables d'inscriptions
     $tables     = [];
-    $ancienSchemaDetecte = false;   // tables restées à la structure de l'ancien lot 1
+    $structureInattendue = false;   // table du lot 1 sans sa clé métier (annee, inscription_no)
 
     // Tables du lot 1 portant une clé métier, et libellé lisible.
     $aControler = [
@@ -366,14 +366,13 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
                 continue;
             }
 
-            // ⚠️ Une table de l'ANCIEN lot 1 porte `registration_id`/`edition_id` et
-            // n'a pas de colonne `annee` : l'interroger lèverait une erreur SQL brute
-            // (« Unknown column 'annee' ») au lieu d'expliquer ce qui se passe.
-            // On le détecte et on le rapporte, plutôt que de planter.
+            // Garde de robustesse : une table du lot 1 sans sa clé métier est
+            // forcément anormale (structure étrangère, migration partielle). On le
+            // signale au lieu de laisser remonter un « Unknown column 'annee' ».
             $cols = $colonnesDe($table);
             if (!in_array('annee', $cols, true) || !in_array('inscription_no', $cols, true)) {
-                $orphelines[$table] = ['libelle' => $libelle, 'total' => null, 'lignes' => [], 'ancienne' => true];
-                $ancienSchemaDetecte = true;
+                $orphelines[$table] = ['libelle' => $libelle, 'total' => null, 'lignes' => [], 'structure_ko' => true];
+                $structureInattendue = true;
                 continue;
             }
 
@@ -404,26 +403,15 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
       <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= htmlspecialchars($errorMsg) ?></div>
     <?php else: ?>
 
-      <?php if ($ancienSchemaDetecte): ?>
-        <!-- Cas rencontré en vrai : les tables de l'ANCIEN lot 1 sont encore là.
-             Elles portent registration_id/edition_id et pas de colonne `annee` :
-             les interroger levait « Unknown column 'annee' ». On l'explique
-             au lieu de laisser remonter l'erreur SQL brute. -->
+      <?php if ($structureInattendue): ?>
         <div class="oc-alert oc-alert-danger">
           <i class="bi bi-exclamation-octagon me-1"></i>
-          <strong>Schéma de l'ancien lot 1 encore en place.</strong>
+          <strong>Structure inattendue.</strong>
           <p style="margin:8px 0 0">
-            Une ou plusieurs tables portent encore <code>registration_id</code> / <code>edition_id</code>
-            au lieu du couple <code>(annee, inscription_no)</code>. Le contrôle d'intégrité ne peut pas
-            s'appliquer à cette structure, et <code>update.php</code> refuse de créer les nouvelles
-            tables tant qu'elle est présente — elles portent les mêmes noms, <code>CREATE TABLE IF NOT
-            EXISTS</code> les ignorerait en silence et laisserait un schéma faux.
-          </p>
-          <p style="margin:8px 0 0">
-            <strong>Marche à suivre :</strong> sauvegardez la base, exécutez
-            <code>rollback_lot1.sql</code> (phpMyAdmin → onglet SQL), puis relancez
-            <code>update.php</code>. Vos tables d'archive <code>registrations_AAAA</code> ne sont
-            jamais touchées.
+            Une ou plusieurs tables du lot 1 n'ont pas leur clé métier
+            <code>(annee, inscription_no)</code> — voir la colonne « Orphelines » ci-dessous.
+            Le contrôle ne peut pas s'y appliquer. Relancez <code>update.php</code> ; si le
+            problème persiste, comparez la structure avec <code>SHOW CREATE TABLE</code>.
           </p>
         </div>
       <?php elseif ($nbOrphelines === 0 && $nbSansNo === 0): ?>
@@ -471,8 +459,8 @@ if (($_GET['tool'] ?? '') === 'check-integrity') {
               <td class="mono"><?= htmlspecialchars($table) ?></td>
               <td><?= htmlspecialchars($o['libelle']) ?></td>
               <td class="num"><?= $o['total'] === null ? '—' : (int) $o['total'] ?></td>
-              <td class="num"><?= !empty($o['ancienne'])
-                    ? '<span class="tool-tag tool-tag-inconnu">ancienne structure</span>'
+              <td class="num"><?= !empty($o['structure_ko'])
+                    ? '<span class="tool-tag tool-tag-inconnu">structure inattendue</span>'
                     : ($o['total'] === null
                         ? '<span class="tool-tag">table absente</span>'
                         : (count($o['lignes']) > 0
@@ -1945,331 +1933,291 @@ try {
  * en premier (son peuplement lit les tables d'archive). Le reste est indépendant.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-// ─────────────────────────────────────────────────────────────────────────
-// GARDE — refuser de continuer si l'ANCIEN lot 1 est encore en place.
-// Les tables portaient alors `registration_id` / `edition_id` au lieu de
-// `(annee, inscription_no)`. `CREATE TABLE IF NOT EXISTS` les ignorerait
-// silencieusement et laisserait un schéma faux, impossible à diagnostiquer
-// ensuite. On exige le passage de rollback_lot1.sql (cf. § 0).
-// ─────────────────────────────────────────────────────────────────────────
-$desc = "Vérifier l'absence de l'ancien schéma du lot 1";
-$ancienSchema = [];
-try {
-    $st = $pdo->prepare(
-        "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE()
-            AND ((TABLE_NAME IN ('resultats','traces_gps','detections','registration_transfers')
-                  AND COLUMN_NAME = 'registration_id')
-              OR (TABLE_NAME = 'registrations'
-                  AND COLUMN_NAME IN ('edition_id','email_normalise','participant_id',
-                                      'annee_naissance','date_naissance','naissance_source')))"
-    );
-    $st->execute();
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $ancienSchema[] = $r['TABLE_NAME'] . '.' . $r['COLUMN_NAME'];
-    }
 
-    if ($ancienSchema) {
-        $results[] = ['status' => 'error', 'sql' => $desc,
-            'msg' => "ANCIEN SCHÉMA DÉTECTÉ (" . implode(', ', $ancienSchema) . "). "
-                   . "Exécutez rollback_lot1.sql AVANT de relancer update.php : les nouvelles tables "
-                   . "utilisent (annee, inscription_no) et non registration_id/edition_id. "
-                   . "Aucune table du lot 1 n'a été créée."];
-    } else {
-        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Aucun vestige de l\'ancien schéma'];
-    }
-} catch (PDOException $e) {
-    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-    $ancienSchema[] = 'verification_impossible';
-}
+// ─────────────────────────────────────────────────────────────────────
+// Les neuf tables. Commentaires par table :
+//
+// `editions` — configuration par année (date, distance, géo, horaires).
+//   ⏱️ `heure_depart` est stockée EN UTC : c'est l'heure du coup de feu, donc
+//   la référence de tous les temps calculés. En heure locale face à des
+//   arrivées en UTC, tous les chronos seraient faux de deux heures.
+//   Elle ne remplace pas `registrations_stats` : elle ajoute la configuration
+//   que celle-ci ne porte pas. `registrations_stats` n'est pas modifiée.
+//
+// `participant_registrations` — LE LIEN, cœur du dispositif. Il remplace la
+//   colonne `registrations.participant_id` que l'on ne crée pas.
+//   L'index UNIQUE (annee, inscription_no) garantit qu'une inscription
+//   appartient à UN compte au maximum : deux comptes ne pourront jamais
+//   revendiquer le même coureur le jour de la course.
+//   La clé étrangère vers `participants` est légitime : c'est une table que
+//   l'on maîtrise et qui n'est jamais archivée.
+//
+// ⚠️ Deux hachages différents, volontairement — ne pas « harmoniser » :
+//   • participant_auth_codes.code_hash → password_hash() : un code à 6
+//     chiffres n'a que 10^6 combinaisons, il faut un hachage LENT. Recherche
+//     par email_normalise (indexé), puis password_verify() sur la ligne.
+//   • participant_devices.token_hash → SHA-256 : un token serveur porte 256
+//     bits d'entropie, rien à forcer. Il faut un hachage RAPIDE et
+//     déterministe, car la recherche se fait PAR LE HASH à chaque appel
+//     d'API — avec password_hash(), l'index serait inutilisable.
+//   Lent pour un secret faible, rapide pour un secret fort.
+//
+// `resultats.valide_par` référence `users.id` : l'administrateur qui a validé
+//   ou corrigé un temps. Seule référence vers `users` de tout le lot, et elle
+//   désigne un admin, jamais un coureur.
+//
+// `traces_gps.points` est un LONGBLOB : JSON compressé par gzencode. À 1000
+//   coureurs × ~3600 points, le non-compressé pèserait plusieurs centaines de
+//   Mo. Format documenté dans inc/api-doc.php.
+//
+// `detections` conserve TOUTES les détections brutes ; `retenue` marque celle
+//   qui a produit le résultat. On n'en supprime jamais.
+//
+// ⏱️ Toutes les colonnes DATETIME(3) sont stockées EN UTC, sans exception.
+// ─────────────────────────────────────────────────────────────────────
+$lot1Tables = [
+    'editions' =>
+        "CREATE TABLE IF NOT EXISTS `editions` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT NOT NULL,
+          `libelle` VARCHAR(120) NOT NULL,
+          `date_course` DATE DEFAULT NULL,
+          `distance_km` DECIMAL(5,2) DEFAULT NULL,
+          `heure_depart` DATETIME DEFAULT NULL,
+          `lat_depart` DECIMAL(10,7) DEFAULT NULL,
+          `lon_depart` DECIMAL(10,7) DEFAULT NULL,
+          `lat_arrivee` DECIMAL(10,7) DEFAULT NULL,
+          `lon_arrivee` DECIMAL(10,7) DEFAULT NULL,
+          `temps_min_plausible_s` INT DEFAULT NULL,
+          `transferts_deadline` DATETIME DEFAULT NULL,
+          `is_active` TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_annee` (`annee`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-if (empty($ancienSchema)) {
+    // Deux colonnes pour une seule adresse, et c'est nécessaire :
+    //   • `email_hmac`    : HMAC-SHA256 de l'adresse en minuscules. Déterministe,
+    //     donc INDEXABLE et UNIQUE — c'est par lui qu'on retrouve un compte à la
+    //     connexion. Un HMAC seul ne suffirait pas : irréversible, on ne pourrait
+    //     plus envoyer le code à 6 chiffres.
+    //   • `email_chiffre` : chiffré par le MÊME mécanisme que registrations.email
+    //     (AES-256-GCM, IV aléatoire). Nécessaire pour récupérer l'adresse en clair
+    //     au moment de l'envoi. Un chiffrement seul ne suffirait pas : l'IV aléatoire
+    //     rend toute recherche par égalité impossible.
+    // La clé HMAC vit dans config/config.enc, JAMAIS en base — sinon un dump
+    // compromis livre à la fois les empreintes et le moyen de les recalculer.
+    'participants' =>
+        "CREATE TABLE IF NOT EXISTS `participants` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `email_chiffre` TEXT NOT NULL,
+          `email_hmac` CHAR(64) NOT NULL,
+          `nom` VARCHAR(255) DEFAULT NULL,
+          `prenom` VARCHAR(255) DEFAULT NULL,
+          `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+          `rgpd_consent_at` DATETIME DEFAULT NULL,
+          `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
+          `derniere_connexion` DATETIME DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_email_hmac` (`email_hmac`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Les neuf tables. Commentaires par table :
-    //
-    // `editions` — configuration par année (date, distance, géo, horaires).
-    //   ⏱️ `heure_depart` est stockée EN UTC : c'est l'heure du coup de feu, donc
-    //   la référence de tous les temps calculés. En heure locale face à des
-    //   arrivées en UTC, tous les chronos seraient faux de deux heures.
-    //   Elle ne remplace pas `registrations_stats` : elle ajoute la configuration
-    //   que celle-ci ne porte pas. `registrations_stats` n'est pas modifiée.
-    //
-    // `participant_registrations` — LE LIEN, cœur du dispositif. Il remplace la
-    //   colonne `registrations.participant_id` que l'on ne crée pas.
-    //   L'index UNIQUE (annee, inscription_no) garantit qu'une inscription
-    //   appartient à UN compte au maximum : deux comptes ne pourront jamais
-    //   revendiquer le même coureur le jour de la course.
-    //   La clé étrangère vers `participants` est légitime : c'est une table que
-    //   l'on maîtrise et qui n'est jamais archivée.
-    //
-    // ⚠️ Deux hachages différents, volontairement — ne pas « harmoniser » :
-    //   • participant_auth_codes.code_hash → password_hash() : un code à 6
-    //     chiffres n'a que 10^6 combinaisons, il faut un hachage LENT. Recherche
-    //     par email_normalise (indexé), puis password_verify() sur la ligne.
-    //   • participant_devices.token_hash → SHA-256 : un token serveur porte 256
-    //     bits d'entropie, rien à forcer. Il faut un hachage RAPIDE et
-    //     déterministe, car la recherche se fait PAR LE HASH à chaque appel
-    //     d'API — avec password_hash(), l'index serait inutilisable.
-    //   Lent pour un secret faible, rapide pour un secret fort.
-    //
-    // `resultats.valide_par` référence `users.id` : l'administrateur qui a validé
-    //   ou corrigé un temps. Seule référence vers `users` de tout le lot, et elle
-    //   désigne un admin, jamais un coureur.
-    //
-    // `traces_gps.points` est un LONGBLOB : JSON compressé par gzencode. À 1000
-    //   coureurs × ~3600 points, le non-compressé pèserait plusieurs centaines de
-    //   Mo. Format documenté dans inc/api-doc.php.
-    //
-    // `detections` conserve TOUTES les détections brutes ; `retenue` marque celle
-    //   qui a produit le résultat. On n'en supprime jamais.
-    //
-    // ⏱️ Toutes les colonnes DATETIME(3) sont stockées EN UTC, sans exception.
-    // ─────────────────────────────────────────────────────────────────────
-    $lot1Tables = [
-        'editions' =>
-            "CREATE TABLE IF NOT EXISTS `editions` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `annee` SMALLINT NOT NULL,
-              `libelle` VARCHAR(120) NOT NULL,
-              `date_course` DATE DEFAULT NULL,
-              `distance_km` DECIMAL(5,2) DEFAULT NULL,
-              `heure_depart` DATETIME DEFAULT NULL,
-              `lat_depart` DECIMAL(10,7) DEFAULT NULL,
-              `lon_depart` DECIMAL(10,7) DEFAULT NULL,
-              `lat_arrivee` DECIMAL(10,7) DEFAULT NULL,
-              `lon_arrivee` DECIMAL(10,7) DEFAULT NULL,
-              `temps_min_plausible_s` INT DEFAULT NULL,
-              `transferts_deadline` DATETIME DEFAULT NULL,
-              `is_active` TINYINT(1) NOT NULL DEFAULT 0,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              UNIQUE KEY `idx_annee` (`annee`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'participant_registrations' =>
+        "CREATE TABLE IF NOT EXISTS `participant_registrations` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `participant_id` INT NOT NULL,
+          `annee` SMALLINT NOT NULL,
+          `inscription_no` VARCHAR(50) NOT NULL,
+          `revendique_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `origine` ENUM('email','transfert','admin') NOT NULL DEFAULT 'email',
+          UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
+          INDEX `idx_participant` (`participant_id`),
+          CONSTRAINT `fk_pr_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-        // Deux colonnes pour une seule adresse, et c'est nécessaire :
-        //   • `email_hmac`    : HMAC-SHA256 de l'adresse en minuscules. Déterministe,
-        //     donc INDEXABLE et UNIQUE — c'est par lui qu'on retrouve un compte à la
-        //     connexion. Un HMAC seul ne suffirait pas : irréversible, on ne pourrait
-        //     plus envoyer le code à 6 chiffres.
-        //   • `email_chiffre` : chiffré par le MÊME mécanisme que registrations.email
-        //     (AES-256-GCM, IV aléatoire). Nécessaire pour récupérer l'adresse en clair
-        //     au moment de l'envoi. Un chiffrement seul ne suffirait pas : l'IV aléatoire
-        //     rend toute recherche par égalité impossible.
-        // La clé HMAC vit dans config/config.enc, JAMAIS en base — sinon un dump
-        // compromis livre à la fois les empreintes et le moyen de les recalculer.
-        'participants' =>
-            "CREATE TABLE IF NOT EXISTS `participants` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `email_chiffre` TEXT NOT NULL,
-              `email_hmac` CHAR(64) NOT NULL,
-              `nom` VARCHAR(255) DEFAULT NULL,
-              `prenom` VARCHAR(255) DEFAULT NULL,
-              `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-              `rgpd_consent_at` DATETIME DEFAULT NULL,
-              `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
-              `derniere_connexion` DATETIME DEFAULT NULL,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              UNIQUE KEY `idx_email_hmac` (`email_hmac`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    // `email_hmac` et non l'adresse : cette table journalise les tentatives
+    // d'authentification, y compris pour des adresses qui ne correspondent à
+    // aucun compte (anti-énumération du lot 2). Elle ne doit contenir aucune
+    // adresse lisible.
+    'participant_auth_codes' =>
+        "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `email_hmac` CHAR(64) NOT NULL,
+          `code_hash` VARCHAR(255) NOT NULL,
+          `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
+          `tentatives` TINYINT NOT NULL DEFAULT 0,
+          `consomme_at` DATETIME DEFAULT NULL,
+          `expires_at` DATETIME NOT NULL,
+          `ip` VARCHAR(45) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_email_hmac` (`email_hmac`),
+          INDEX `idx_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-        'participant_registrations' =>
-            "CREATE TABLE IF NOT EXISTS `participant_registrations` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `participant_id` INT NOT NULL,
-              `annee` SMALLINT NOT NULL,
-              `inscription_no` VARCHAR(50) NOT NULL,
-              `revendique_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              `origine` ENUM('email','transfert','admin') NOT NULL DEFAULT 'email',
-              UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
-              INDEX `idx_participant` (`participant_id`),
-              CONSTRAINT `fk_pr_participant` FOREIGN KEY (`participant_id`)
-                REFERENCES `participants`(`id`) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'participant_devices' =>
+        "CREATE TABLE IF NOT EXISTS `participant_devices` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `participant_id` INT NOT NULL,
+          `token_hash` VARCHAR(255) NOT NULL,
+          `type` ENUM('web','app') NOT NULL,
+          `libelle` VARCHAR(120) DEFAULT NULL,
+          `plateforme` VARCHAR(60) DEFAULT NULL,
+          `modele` VARCHAR(120) DEFAULT NULL,
+          `ip_creation` VARCHAR(45) DEFAULT NULL,
+          `user_agent` VARCHAR(500) DEFAULT NULL,
+          `derniere_utilisation` DATETIME DEFAULT NULL,
+          `expires_at` DATETIME DEFAULT NULL,
+          `revoque_at` DATETIME DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_participant` (`participant_id`),
+          UNIQUE KEY `idx_token` (`token_hash`),
+          INDEX `idx_expires` (`expires_at`),
+          CONSTRAINT `fk_pd_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-        // `email_hmac` et non l'adresse : cette table journalise les tentatives
-        // d'authentification, y compris pour des adresses qui ne correspondent à
-        // aucun compte (anti-énumération du lot 2). Elle ne doit contenir aucune
-        // adresse lisible.
-        'participant_auth_codes' =>
-            "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `email_hmac` CHAR(64) NOT NULL,
-              `code_hash` VARCHAR(255) NOT NULL,
-              `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
-              `tentatives` TINYINT NOT NULL DEFAULT 0,
-              `consomme_at` DATETIME DEFAULT NULL,
-              `expires_at` DATETIME NOT NULL,
-              `ip` VARCHAR(45) DEFAULT NULL,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX `idx_email_hmac` (`email_hmac`),
-              INDEX `idx_expires` (`expires_at`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'registration_transfers' =>
+        "CREATE TABLE IF NOT EXISTS `registration_transfers` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT NOT NULL,
+          `inscription_no` VARCHAR(50) NOT NULL,
+          `email_source` VARCHAR(255) NOT NULL,
+          `email_cible` VARCHAR(255) NOT NULL,
+          `token_hash` VARCHAR(255) NOT NULL,
+          `statut` ENUM('en_attente','accepte','annule','expire') NOT NULL DEFAULT 'en_attente',
+          `demande_par` INT DEFAULT NULL,
+          `expires_at` DATETIME NOT NULL,
+          `accepte_at` DATETIME DEFAULT NULL,
+          `annule_at` DATETIME DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_inscription` (`annee`, `inscription_no`),
+          INDEX `idx_statut` (`statut`),
+          UNIQUE KEY `idx_token` (`token_hash`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-        'participant_devices' =>
-            "CREATE TABLE IF NOT EXISTS `participant_devices` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `participant_id` INT NOT NULL,
-              `token_hash` VARCHAR(255) NOT NULL,
-              `type` ENUM('web','app') NOT NULL,
-              `libelle` VARCHAR(120) DEFAULT NULL,
-              `plateforme` VARCHAR(60) DEFAULT NULL,
-              `modele` VARCHAR(120) DEFAULT NULL,
-              `ip_creation` VARCHAR(45) DEFAULT NULL,
-              `user_agent` VARCHAR(500) DEFAULT NULL,
-              `derniere_utilisation` DATETIME DEFAULT NULL,
-              `expires_at` DATETIME DEFAULT NULL,
-              `revoque_at` DATETIME DEFAULT NULL,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX `idx_participant` (`participant_id`),
-              UNIQUE KEY `idx_token` (`token_hash`),
-              INDEX `idx_expires` (`expires_at`),
-              CONSTRAINT `fk_pd_participant` FOREIGN KEY (`participant_id`)
-                REFERENCES `participants`(`id`) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'resultats' =>
+        "CREATE TABLE IF NOT EXISTS `resultats` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT NOT NULL,
+          `inscription_no` VARCHAR(50) NOT NULL,
+          `depart_at` DATETIME(3) DEFAULT NULL,
+          `arrivee_at` DATETIME(3) DEFAULT NULL,
+          `temps_s` DECIMAL(10,3) DEFAULT NULL,
+          `methode` ENUM('beacon','gps_ligne','gps_extrapole','gps_distance','manuel','declaratif') DEFAULT NULL,
+          `precision_s` INT DEFAULT NULL,
+          `distance_m` INT DEFAULT NULL,
+          `denivele_positif_m` INT DEFAULT NULL,
+          `statut` ENUM('en_course','termine','abandon','non_partant','invalide') NOT NULL DEFAULT 'en_course',
+          `valide_par` INT DEFAULT NULL,
+          `commentaire` VARCHAR(255) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
+          INDEX `idx_classement` (`annee`, `temps_s`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-        'registration_transfers' =>
-            "CREATE TABLE IF NOT EXISTS `registration_transfers` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `annee` SMALLINT NOT NULL,
-              `inscription_no` VARCHAR(50) NOT NULL,
-              `email_source` VARCHAR(255) NOT NULL,
-              `email_cible` VARCHAR(255) NOT NULL,
-              `token_hash` VARCHAR(255) NOT NULL,
-              `statut` ENUM('en_attente','accepte','annule','expire') NOT NULL DEFAULT 'en_attente',
-              `demande_par` INT DEFAULT NULL,
-              `expires_at` DATETIME NOT NULL,
-              `accepte_at` DATETIME DEFAULT NULL,
-              `annule_at` DATETIME DEFAULT NULL,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX `idx_inscription` (`annee`, `inscription_no`),
-              INDEX `idx_statut` (`statut`),
-              UNIQUE KEY `idx_token` (`token_hash`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'traces_gps' =>
+        "CREATE TABLE IF NOT EXISTS `traces_gps` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT NOT NULL,
+          `inscription_no` VARCHAR(50) NOT NULL,
+          `device_id` INT DEFAULT NULL,
+          `source` ENUM('app','gpx_import') NOT NULL DEFAULT 'app',
+          `points` LONGBLOB DEFAULT NULL,
+          `nb_points` INT DEFAULT 0,
+          `debut_at` DATETIME(3) DEFAULT NULL,
+          `fin_at` DATETIME(3) DEFAULT NULL,
+          `purge_at` DATE DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_inscription` (`annee`, `inscription_no`),
+          INDEX `idx_purge` (`purge_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
-        'resultats' =>
-            "CREATE TABLE IF NOT EXISTS `resultats` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `annee` SMALLINT NOT NULL,
-              `inscription_no` VARCHAR(50) NOT NULL,
-              `depart_at` DATETIME(3) DEFAULT NULL,
-              `arrivee_at` DATETIME(3) DEFAULT NULL,
-              `temps_s` DECIMAL(10,3) DEFAULT NULL,
-              `methode` ENUM('beacon','gps_ligne','gps_extrapole','gps_distance','manuel','declaratif') DEFAULT NULL,
-              `precision_s` INT DEFAULT NULL,
-              `distance_m` INT DEFAULT NULL,
-              `denivele_positif_m` INT DEFAULT NULL,
-              `statut` ENUM('en_course','termine','abandon','non_partant','invalide') NOT NULL DEFAULT 'en_course',
-              `valide_par` INT DEFAULT NULL,
-              `commentaire` VARCHAR(255) DEFAULT NULL,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-              UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
-              INDEX `idx_classement` (`annee`, `temps_s`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    'detections' =>
+        "CREATE TABLE IF NOT EXISTS `detections` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT NOT NULL,
+          `inscription_no` VARCHAR(50) NOT NULL,
+          `device_id` INT DEFAULT NULL,
+          `type` ENUM('beacon','geofence','gps_ligne','manuel') NOT NULL,
+          `point` ENUM('depart','arrivee') NOT NULL,
+          `detecte_at` DATETIME(3) NOT NULL,
+          `recu_at` DATETIME(3) DEFAULT NULL,
+          `rssi_pic` SMALLINT DEFAULT NULL,
+          `beacon_minor` SMALLINT DEFAULT NULL,
+          `confiance` TINYINT DEFAULT NULL,
+          `retenue` TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_inscription` (`annee`, `inscription_no`, `point`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+];
 
-        'traces_gps' =>
-            "CREATE TABLE IF NOT EXISTS `traces_gps` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `annee` SMALLINT NOT NULL,
-              `inscription_no` VARCHAR(50) NOT NULL,
-              `device_id` INT DEFAULT NULL,
-              `source` ENUM('app','gpx_import') NOT NULL DEFAULT 'app',
-              `points` LONGBLOB DEFAULT NULL,
-              `nb_points` INT DEFAULT 0,
-              `debut_at` DATETIME(3) DEFAULT NULL,
-              `fin_at` DATETIME(3) DEFAULT NULL,
-              `purge_at` DATE DEFAULT NULL,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX `idx_inscription` (`annee`, `inscription_no`),
-              INDEX `idx_purge` (`purge_at`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-
-        'detections' =>
-            "CREATE TABLE IF NOT EXISTS `detections` (
-              `id` INT AUTO_INCREMENT PRIMARY KEY,
-              `annee` SMALLINT NOT NULL,
-              `inscription_no` VARCHAR(50) NOT NULL,
-              `device_id` INT DEFAULT NULL,
-              `type` ENUM('beacon','geofence','gps_ligne','manuel') NOT NULL,
-              `point` ENUM('depart','arrivee') NOT NULL,
-              `detecte_at` DATETIME(3) NOT NULL,
-              `recu_at` DATETIME(3) DEFAULT NULL,
-              `rssi_pic` SMALLINT DEFAULT NULL,
-              `beacon_minor` SMALLINT DEFAULT NULL,
-              `confiance` TINYINT DEFAULT NULL,
-              `retenue` TINYINT(1) NOT NULL DEFAULT 0,
-              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              INDEX `idx_inscription` (`annee`, `inscription_no`, `point`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-    ];
-
-    $editionsCreee = false;
-    foreach ($lot1Tables as $table => $ddl) {
-        $desc = "Créer la table `$table`";
-        try {
-            if ($tableExists($table)) {
-                $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
-            } else {
-                $pdo->exec($ddl);
-                if ($table === 'editions') $editionsCreee = true;
-                $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Table créée'];
-            }
-        } catch (PDOException $e) {
-            $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Peuplement de `editions` : l'année en cours (is_active = 1) + une ligne
-    // par table d'archive détectée.
-    // ⚠️ UNIQUEMENT À LA CRÉATION DE LA TABLE. update.php est rejoué
-    // régulièrement ; réexécuter ce peuplement écraserait la date de course,
-    // la distance, les coordonnées et les horaires saisis à la main.
-    // ─────────────────────────────────────────────────────────────────────
-    $desc = "Peupler `editions` (année en cours + une ligne par archive)";
+$editionsCreee = false;
+foreach ($lot1Tables as $table => $ddl) {
+    $desc = "Créer la table `$table`";
     try {
-        if (!$editionsCreee) {
-            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table déjà présente — peuplement non rejoué'];
+        if ($tableExists($table)) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
         } else {
-            $anneeCourante = (int) date('Y');
-
-            // date_course reprise de `setting` seulement si elle tombe bien sur
-            // l'année en cours : une date de l'an dernier ne décrit pas l'édition.
-            $dateCourse = null;
-            try {
-                $dc = $pdo->query('SELECT date_course FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
-                if (!empty($dc) && (int) substr((string) $dc, 0, 4) === $anneeCourante) {
-                    $dateCourse = substr((string) $dc, 0, 10);
-                }
-            } catch (\Throwable $e) { /* colonne absente : NULL */ }
-
-            $ins = $pdo->prepare(
-                'INSERT IGNORE INTO editions (annee, libelle, date_course, is_active) VALUES (?, ?, ?, ?)'
-            );
-            $ins->execute([$anneeCourante, 'Forbach en Rose ' . $anneeCourante, $dateCourse, 1]);
-            $creees = [$anneeCourante];
-
-            // Une édition par table d'archive registrations_AAAA (jamais active).
-            $archives = $pdo->query(
-                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
-                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME REGEXP '^registrations_[0-9]{4}$'"
-            )->fetchAll(PDO::FETCH_COLUMN);
-            foreach ($archives as $t) {
-                $a = (int) substr($t, -4);
-                if ($a < 1900 || $a > 2200 || $a === $anneeCourante) continue;
-                $ins->execute([$a, 'Forbach en Rose ' . $a, null, 0]);
-                $creees[] = $a;
-            }
-
-            sort($creees);
-            $results[] = ['status' => 'success', 'sql' => $desc,
-                          'msg' => count($creees) . ' édition(s) : ' . implode(', ', $creees)];
+            $pdo->exec($ddl);
+            if ($table === 'editions') $editionsCreee = true;
+            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Table créée'];
         }
     } catch (PDOException $e) {
         $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
     }
+}
 
-} // fin : ancien schéma absent
+// ─────────────────────────────────────────────────────────────────────
+// Peuplement de `editions` : l'année en cours (is_active = 1) + une ligne
+// par table d'archive détectée.
+// ⚠️ UNIQUEMENT À LA CRÉATION DE LA TABLE. update.php est rejoué
+// régulièrement ; réexécuter ce peuplement écraserait la date de course,
+// la distance, les coordonnées et les horaires saisis à la main.
+// ─────────────────────────────────────────────────────────────────────
+$desc = "Peupler `editions` (année en cours + une ligne par archive)";
+try {
+    if (!$editionsCreee) {
+        $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table déjà présente — peuplement non rejoué'];
+    } else {
+        $anneeCourante = (int) date('Y');
+
+        // date_course reprise de `setting` seulement si elle tombe bien sur
+        // l'année en cours : une date de l'an dernier ne décrit pas l'édition.
+        $dateCourse = null;
+        try {
+            $dc = $pdo->query('SELECT date_course FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
+            if (!empty($dc) && (int) substr((string) $dc, 0, 4) === $anneeCourante) {
+                $dateCourse = substr((string) $dc, 0, 10);
+            }
+        } catch (\Throwable $e) { /* colonne absente : NULL */ }
+
+        $ins = $pdo->prepare(
+            'INSERT IGNORE INTO editions (annee, libelle, date_course, is_active) VALUES (?, ?, ?, ?)'
+        );
+        $ins->execute([$anneeCourante, 'Forbach en Rose ' . $anneeCourante, $dateCourse, 1]);
+        $creees = [$anneeCourante];
+
+        // Une édition par table d'archive registrations_AAAA (jamais active).
+        $archives = $pdo->query(
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME REGEXP '^registrations_[0-9]{4}$'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($archives as $t) {
+            $a = (int) substr($t, -4);
+            if ($a < 1900 || $a > 2200 || $a === $anneeCourante) continue;
+            $ins->execute([$a, 'Forbach en Rose ' . $a, null, 0]);
+            $creees[] = $a;
+        }
+
+        sort($creees);
+        $results[] = ['status' => 'success', 'sql' => $desc,
+                      'msg' => count($creees) . ' édition(s) : ' . implode(', ', $creees)];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // LOT 1 — Clé HMAC des adresses des comptes coureurs (§ 1.2)
