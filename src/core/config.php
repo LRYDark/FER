@@ -912,6 +912,33 @@ function fer_activeEditionId(PDO $pdo, bool $refresh = false): ?int {
     return $cache;
 }
 
+/**
+ * Année d'une édition (celle de l'édition active si $editionId est null).
+ * Repli sur l'année courante si la table n'existe pas encore.
+ *
+ * ⚠️ C'est cette année-là — et jamais date('Y') — qui sert à convertir un âge en
+ * année de naissance : « 42 ans » sur une ligne de 2023 donne 1981, pas 1984.
+ */
+function fer_editionYear(PDO $pdo, ?int $editionId = null): int {
+    static $cache = [];
+    $cle = $editionId === null ? 'active' : (string) $editionId;
+    if (isset($cache[$cle])) return $cache[$cle];
+
+    $annee = (int) date('Y');
+    try {
+        if ($editionId === null) {
+            $v = $pdo->query('SELECT annee FROM editions ORDER BY is_active DESC, annee DESC, id DESC LIMIT 1')->fetchColumn();
+        } else {
+            $st = $pdo->prepare('SELECT annee FROM editions WHERE id = ?');
+            $st->execute([$editionId]);
+            $v = $st->fetchColumn();
+        }
+        if ($v !== false && (int) $v > 1900) $annee = (int) $v;
+    } catch (\Throwable $e) { /* table absente : année courante */ }
+
+    return $cache[$cle] = $annee;
+}
+
 /** Forme canonique d'une adresse : minuscules + espaces retirés. */
 function fer_normalizeEmail(?string $email): string {
     return mb_strtolower(trim((string) $email), 'UTF-8');

@@ -189,6 +189,13 @@ if ($_POST) {
                     $formData['email_normalise'] = fer_emailHash($src['email'] ?? null);
                     $columns[] = '`email_normalise`'; $placeholders[] = ':email_normalise';
                 }
+                // Année de naissance déduite de la valeur BRUTE saisie (âge, année ou
+                // date complète) : un âge se périme, une année de naissance non.
+                require_once __DIR__ . '/../src/content/registrations_core.php';
+                foreach (regcore_naissanceColumns($pdo, $src['naissance'] ?? '', $editionIdPublic) as $c => $v) {
+                    $formData[$c] = $v;
+                    $columns[] = "`$c`"; $placeholders[] = ":$c";
+                }
 
                 $columns[] = 'created_at';       $placeholders[] = 'NOW()';
                 $columns[] = 'date_inscription'; $placeholders[] = 'NOW()';
