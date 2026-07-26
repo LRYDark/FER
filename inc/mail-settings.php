@@ -41,6 +41,9 @@ $notify_toggles += ['mention' => true, 'partner' => true, 'ip_ban' => true, 'two
 // Charger les admins pour le select
 $adminUsers = $pdo->query("SELECT email FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY email ASC")->fetchAll(PDO::FETCH_COLUMN);
 
+// 🛡️ Garde-fou catch-all des mails (P1) — état affiché dans l'onglet Gmail/SMTP
+require_once '../src/mail/mail_guard.php';
+
 // Abonnés newsletter (pour le bouton "Newsletter" des destinataires)
 require_once '../src/mail/newsletter.php';
 $newsletterEmails = newsletterSubscribedEmails($pdo);
@@ -279,6 +282,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
                 addToast('danger', 'Email introuvable');
             }
         } catch (\Throwable $e) { addToast('danger', 'Échec : ' . $e->getMessage()); }
+    }
+
+    // 🛡️ Garde-fou catch-all des mails (P1)
+    // Stocké dans config/config.enc (et non dans `setting`) : c'est un réglage
+    // d'ENVIRONNEMENT — la recette redirige tout, la production n'y touche pas.
+    if (isset($_POST['save_mail_catchall']) && $canWrite) {
+        require_once __DIR__ . '/../src/mail/mail_guard.php';
+        $newCatchall = trim($_POST['mail_catchall'] ?? '');
+        $wantActif   = !empty($_POST['mail_catchall_actif']);
+
+        if ($newCatchall !== '' && !filter_var($newCatchall, FILTER_VALIDATE_EMAIL)) {
+            addToast('danger', 'Adresse catch-all invalide — configuration inchangée.');
+        } elseif ($wantActif && $newCatchall === '') {
+            addToast('danger', 'Impossible d\'activer le garde-fou sans adresse de redirection.');
+        } else {
+            try {
+                $cfgCatchall = FerSecureConfig::load();
+                $cfgCatchall['MAIL_CATCHALL']       = $newCatchall;
+                $cfgCatchall['MAIL_CATCHALL_ACTIF'] = $wantActif ? '1' : '0';
+                FerSecureConfig::write($cfgCatchall);
+                // Prise d'effet immédiate dans la requête courante
+                FerSecureConfig::exportToEnv($cfgCatchall);
+                mailCatchallLog('Configuration modifiée par ' . ($_SESSION['email'] ?? 'admin')
+                    . ' → actif=' . ($wantActif ? '1' : '0') . ', adresse=' . ($newCatchall ?: '(vide)'));
+                addToast('success', $wantActif
+                    ? 'Garde-fou ACTIF : tous les mails partent vers ' . htmlspecialchars($newCatchall)
+                    : 'Garde-fou DÉSACTIVÉ : les mails partent aux destinataires réels.');
+            } catch (\Throwable $e) {
+                addToast('danger', 'Écriture de la configuration impossible : ' . htmlspecialchars($e->getMessage()));
+            }
+        }
     }
 
     // QR Code config
@@ -1354,6 +1388,62 @@ $jsConfig = json_encode([
 <!-- ═══ GOOGLE / SMTP PANE ═══ -->
 <div class="ed-pane <?= $activeSubTab==='google'?'active':'' ?>" id="paneGoogle" style="display:<?= $activeSubTab==='google'?'block':'none' ?>">
   <div class="row g-4">
+
+    <!-- ── 🛡️ Garde-fou catch-all (P1) ── -->
+    <?php $catchall = mailCatchallStatus(); ?>
+    <div class="col-12">
+      <div class="setting-card" style="border-left:6px solid <?= $catchall['actif'] ? ($catchall['bloquant'] ? '#dc3545' : '#fd7e14') : '#198754' ?>">
+        <h2>
+          <i class="bi bi-shield-exclamation me-2"></i>Garde-fou &laquo;&nbsp;catch-all&nbsp;&raquo;
+          <span class="badge <?= $catchall['actif'] ? ($catchall['bloquant'] ? 'bg-danger' : 'bg-warning text-dark') : 'bg-success' ?>" style="font-size:13px;vertical-align:middle;margin-left:8px">
+            <?= $catchall['actif'] ? ($catchall['bloquant'] ? 'ACTIF SANS ADRESSE — ENVOIS BLOQUÉS' : 'ACTIF — mails redirigés') : 'Désactivé — envois réels' ?>
+          </span>
+        </h2>
+        <?php if ($catchall['actif'] && !$catchall['bloquant']): ?>
+          <div class="p-3 rounded mb-3 bg-warning-subtle">
+            <strong>Tous</strong> les mails sortants partent vers <strong><?= htmlspecialchars($catchall['adresse']) ?></strong>.
+            Le destinataire réel est injecté dans le sujet&nbsp;: <code>[TEST &rarr; jean@exemple.fr] Sujet d'origine</code>.
+          </div>
+        <?php elseif ($catchall['bloquant']): ?>
+          <div class="p-3 rounded mb-3 bg-danger-subtle">
+            Le garde-fou est actif mais aucune adresse valide n'est configurée&nbsp;:
+            <strong>tout envoi de mail est refusé</strong>. Renseignez une adresse, ou décochez la case pour envoyer réellement.
+          </div>
+        <?php else: ?>
+          <div class="p-3 rounded mb-3 bg-success-subtle">
+            Les mails partent aux <strong>destinataires réels</strong>. À n'utiliser qu'en production.
+          </div>
+        <?php endif; ?>
+        <?php if ($catchall['defaut']): ?>
+          <p class="text-muted small mb-3">
+            <i class="bi bi-info-circle me-1"></i>Aucun réglage enregistré&nbsp;: le garde-fou est actif par défaut
+            (choix volontaire — une configuration oubliée ne doit jamais écrire à de vrais inscrits).
+          </p>
+        <?php endif; ?>
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="<?= htmlspecialchars($activeMailView) ?>">
+          <div class="col-12 col-md-7">
+            <label class="form-label">Adresse de redirection (MAIL_CATCHALL)</label>
+            <input type="email" class="form-control" name="mail_catchall" value="<?= htmlspecialchars($catchall['adresse']) ?>" placeholder="dev@exemple.fr" <?= $canWrite?'':'disabled' ?>>
+          </div>
+          <div class="col-12 col-md-5 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="mailCatchallActif" name="mail_catchall_actif" value="1" <?= $catchall['actif']?'checked':'' ?> <?= $canWrite?'':'disabled' ?>>
+              <label class="form-check-label" for="mailCatchallActif">Activer le garde-fou (MAIL_CATCHALL_ACTIF)</label>
+            </div>
+          </div>
+          <?php if ($canWrite): ?>
+          <div class="col-12 text-end">
+            <button type="submit" name="save_mail_catchall" class="btn btn-primary w-auto"
+                    data-confirm="Modifier le garde-fou des mails ? Décoché, les mails partiront aux vrais inscrits.">Sauvegarder</button>
+          </div>
+          <?php endif; ?>
+        </form>
+        <p class="text-muted small mb-0 mt-2">
+          Journal des redirections&nbsp;: <code>storage/logs/logs_mail_catchall.log</code>
+        </p>
+      </div>
+    </div>
 
     <!-- ── Provider switch (affichage seulement, pas de submit) ── -->
     <div class="col-12">

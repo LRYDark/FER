@@ -1907,6 +1907,21 @@ if ($route==='registrations'){
         $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
         $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
 
+        /* Lot 1 — rattachement de l'inscription (colonnes ajoutées seulement si la
+         * migration est passée) :
+         *   edition_id      : sans lui, l'inscription n'appartient à aucune édition
+         *                     et l'unicité (edition_id, inscription_no) est inopérante ;
+         *   email_normalise : empreinte HMAC de l'adresse (fer_emailHash), clé de
+         *                     rattachement au compte coureur — `email` étant chiffré,
+         *                     elle ne peut pas être recalculée en SQL. */
+        $editionIdIns = fer_activeEditionId($pdo);
+        if ($editionIdIns !== null) {
+            $cols[] = 'edition_id'; $phs[] = '?'; $vals[] = $editionIdIns;
+        }
+        if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
+            $cols[] = 'email_normalise'; $phs[] = '?'; $vals[] = fer_emailHash($d['email'] ?? null);
+        }
+
         // Date d'inscription (date_inscription) : antidatable UNIQUEMENT pour un admin
         // connecté (un inscrit public ne doit jamais pouvoir s'antidater). Vide → DEFAULT
         // du jour. NB : created_at (date d'ajout) reste auto via le DEFAULT de la colonne.
@@ -2025,6 +2040,7 @@ if ($route==='registrations'){
 
         $params = ['id' => $d['id']];
         $setParts = [];
+        $emailEnClair = null;   // lot 1 : email en clair réellement écrit, s'il l'est
 
         if (array_key_exists('commentaire', $d) && $d['commentaire'] !== null) {
             $d['commentaire'] = mb_substr((string) $d['commentaire'], 0, 2000);
@@ -2045,6 +2061,9 @@ if ($route==='registrations'){
             // Colonnes ENUM assainies (évite « Data truncated » sur valeur vide/invalide).
             if ($col === 'tshirt_size') { $raw = in_array($raw, ['-','XS','S','M','L','XL','XXL'], true) ? $raw : '-'; }
             if ($col === 'sexe')        { $raw = in_array($raw, ['H','F','Autre'], true) ? $raw : 'Autre'; }
+            // Lot 1 : on retient la valeur EN CLAIR de l'email effectivement écrite,
+            // pour recalculer l'empreinte de rattachement plus bas.
+            if ($col === 'email') $emailEnClair = (string) $raw;
             $params[$col] = $meta['encrypted'] ? encrypt($raw !== '' ? $raw : '') : $raw;
             $setParts[] = "`{$col}` = :{$col}";
         }
@@ -2089,6 +2108,15 @@ if ($route==='registrations'){
                 $params['date_inscription'] = $newDateInsc;
                 $setParts[] = "`date_inscription` = :date_inscription";
             }
+        }
+
+        /* Lot 1 — si l'adresse email change, l'empreinte de rattachement doit
+         * suivre DANS LA MÊME requête. Sinon l'inscription resterait rattachée à
+         * l'ancien compte coureur (et disparaîtrait du nouveau) sans que rien ne
+         * le signale : `email` est chiffré, l'incohérence est invisible en base. */
+        if ($emailEnClair !== null && fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
+            $params['email_normalise'] = fer_emailHash($emailEnClair);
+            $setParts[] = "`email_normalise` = :email_normalise";
         }
 
         if (empty($setParts)) {
@@ -2186,6 +2214,12 @@ if ($route === 'registrations-bulk') {
             if ($col === 'sexe')        { $val = in_array($val, ['H','F','Autre'], true) ? $val : 'Autre'; }
             $baseParams[$col] = $meta['encrypted'] ? encrypt($val !== '' ? $val : '') : $val;
             $setParts[] = "`{$col}` = :{$col}";
+            // Lot 1 : l'empreinte de rattachement suit l'email dans la MÊME requête.
+            // (Modification en masse de l'email : rare, mais elle existe.)
+            if ($col === 'email' && fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
+                $baseParams['email_normalise'] = fer_emailHash((string) $val);
+                $setParts[] = "`email_normalise` = :email_normalise";
+            }
         }
 
         // Paiement : recalcule le montant dû + synchronise la prestation + normalise
@@ -2472,6 +2506,18 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols[] = 'montant_du';   $phs[] = '?'; $vals[] = $montantDu;
             $cols[] = 'created_by';   $phs[] = '?'; $vals[] = currentUserId();
             if ($groupId !== null) { $cols[] = 'group_id'; $phs[] = '?'; $vals[] = $groupId; }
+
+            /* Lot 1 — rattachement de l'inscription (cf. route « nouvel inscrit »).
+             * C'est ici le cas classique de l'inscription groupée : sans
+             * `email_normalise`, aucune des personnes du lot n'apparaîtrait dans
+             * l'espace coureur du titulaire de l'adresse. */
+            $editionIdBulk = fer_activeEditionId($pdo);
+            if ($editionIdBulk !== null) {
+                $cols[] = 'edition_id'; $phs[] = '?'; $vals[] = $editionIdBulk;
+            }
+            if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
+                $cols[] = 'email_normalise'; $phs[] = '?'; $vals[] = fer_emailHash($row['email'] ?? null);
+            }
 
             // Date d'inscription (date_inscription). Fournie par personne (champ
             // « Date d'inscription ») ou mappée depuis l'Excel : enregistrée telle quelle
