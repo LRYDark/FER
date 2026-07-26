@@ -74,7 +74,10 @@ if (isset($_GET['export'])) {
     exit;
 }
 
-/* ── Thème d'affichage ───────────────────────────────────────────────────── */
+/* ── Apparence : thème et couleur d'accent ───────────────────────────────────
+ * Les deux sont attachés au COMPTE, pas au navigateur : ils suivent le coureur
+ * d'un appareil à l'autre. Rechargement après enregistrement, car thème et
+ * accent sont posés dans le <head>, avant tout rendu. */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['theme'])) {
     if (!csrf_verify()) {
         $erreur = "Session expirée. Rechargez la page et réessayez.";
@@ -83,9 +86,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['theme'])) {
         if (!in_array($t, PAUTH_THEMES, true)) $t = 'light';
         $pdo->prepare('UPDATE participants SET theme = ? WHERE id = ?')->execute([$t, $moiId]);
         $_SESSION[PAUTH_SESSION_KEY]['theme'] = $t;
-        // Rechargement : le thème est posé dans le <head>, avant tout rendu.
-        header('Location: compte.php?theme_ok=1');
+        header('Location: compte.php?apparence_ok=1');
         exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accent'])) {
+    if (!csrf_verify()) {
+        $erreur = "Session expirée. Rechargez la page et réessayez.";
+    } else {
+        $a = (string) $_POST['accent'];
+        if (!in_array($a, PAUTH_ACCENTS, true)) $a = 'rose';
+
+        // La couleur libre n'est retenue que si elle est bien un code
+        // hexadécimal : elle finit dans une variable CSS, pas question d'y
+        // laisser passer une valeur arbitraire.
+        $custom = trim((string) ($_POST['accent_custom'] ?? ''));
+        if ($a === 'custom' && !preg_match('/^#[0-9a-fA-F]{6}$/', $custom)) {
+            $erreur = "Couleur invalide. Choisissez-la avec le sélecteur.";
+        } else {
+            $custom = $a === 'custom' ? strtolower($custom) : null;
+            $pdo->prepare('UPDATE participants SET accent = ?, accent_custom = ? WHERE id = ?')
+                ->execute([$a, $custom, $moiId]);
+            $_SESSION[PAUTH_SESSION_KEY]['accent']        = $a;
+            $_SESSION[PAUTH_SESSION_KEY]['accent_custom'] = $custom;
+            header('Location: compte.php?apparence_ok=1');
+            exit;
+        }
     }
 }
 
@@ -182,33 +209,72 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <h2>Apparence</h2>
     </header>
 
-    <?php if (isset($_GET['theme_ok'])): ?>
-      <div class="alert is-ok"><i class="bi bi-check-circle"></i> Thème enregistré.</div>
+    <?php if (isset($_GET['apparence_ok'])): ?>
+      <div class="alert is-ok"><i class="bi bi-check-circle"></i> Apparence enregistrée.</div>
     <?php endif; ?>
 
     <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
-      Le thème de votre espace coureur. Il vous suit d'un appareil à l'autre&nbsp;:
-      il est enregistré avec votre compte, pas seulement dans ce navigateur.
+      Thème et couleur sont enregistrés <strong>avec votre compte</strong>&nbsp;: ils vous
+      suivent d'un appareil à l'autre, pas seulement dans ce navigateur.
     </p>
 
-    <?php $themeActuel = $_SESSION[PAUTH_SESSION_KEY]['theme'] ?? 'light'; ?>
-    <form method="post" class="seg" style="align-self:flex-start">
-      <?= csrf_field() ?>
-      <?php foreach ([
-            'light'  => ['Clair',   'bi-sun'],
-            'dark'   => ['Sombre',  'bi-moon-stars'],
-            'system' => ['Système', 'bi-circle-half'],
-          ] as $val => [$lib, $ico]): ?>
-        <button type="submit" name="theme" value="<?= $val ?>"
-                class="<?= $themeActuel === $val ? 'is-active' : '' ?>">
-          <i class="bi <?= $ico ?>"></i> <?= $lib ?>
-        </button>
-      <?php endforeach; ?>
-    </form>
+    <?php
+      $themeActuel  = $_SESSION[PAUTH_SESSION_KEY]['theme'] ?? 'light';
+      $accentActuel = $_SESSION[PAUTH_SESSION_KEY]['accent'] ?? 'rose';
+      $accentCustom = $_SESSION[PAUTH_SESSION_KEY]['accent_custom'] ?? '#db2777';
+    ?>
 
-    <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
-      « Système » suit le réglage clair/sombre de votre téléphone ou de votre ordinateur.
-    </p>
+    <div class="field">
+      <label>Thème</label>
+      <form method="post" class="seg" style="align-self:flex-start">
+        <?= csrf_field() ?>
+        <?php foreach ([
+              'light'  => ['Clair',   'bi-sun'],
+              'dark'   => ['Sombre',  'bi-moon-stars'],
+              'system' => ['Système', 'bi-circle-half'],
+            ] as $val => [$lib, $ico]): ?>
+          <button type="submit" name="theme" value="<?= $val ?>"
+                  class="<?= $themeActuel === $val ? 'is-active' : '' ?>">
+            <i class="bi <?= $ico ?>"></i> <?= $lib ?>
+          </button>
+        <?php endforeach; ?>
+      </form>
+      <span style="font-size:var(--fs-micro);color:var(--ink-faint)">
+        « Système » suit le réglage clair/sombre de votre téléphone ou de votre ordinateur.
+      </span>
+    </div>
+
+    <?php /* Mêmes palettes que le profil d'administration : elles viennent de
+             css/tokens.css, il n'y a pas de seconde définition à tenir à jour.
+             « Rose » suit la couleur primaire du site — c'est le défaut. */ ?>
+    <div class="field">
+      <label>Couleur d'accent</label>
+      <form method="post" class="ec-accents">
+        <?= csrf_field() ?>
+        <?php foreach ([
+              'rose'    => ['Rose (site)', '#db2777'],
+              'blue'    => ['Bleu',        '#3D63F0'],
+              'teal'    => ['Teal',        '#0FA894'],
+              'violet'  => ['Violet',      '#7C5CF6'],
+              'emerald' => ['Émeraude',    '#10B981'],
+            ] as $val => [$lib, $apercu]): ?>
+          <button type="submit" name="accent" value="<?= $val ?>"
+                  class="ec-accent <?= $accentActuel === $val ? 'is-active' : '' ?>">
+            <span class="dot" style="background:<?= $apercu ?>"></span><?= $lib ?>
+          </button>
+        <?php endforeach; ?>
+
+        <label class="ec-accent <?= $accentActuel === 'custom' ? 'is-active' : '' ?>">
+          <span class="dot" style="background:<?= htmlspecialchars($accentCustom) ?>"></span>
+          Personnalisée
+          <?php /* La soumission part au choix de la couleur : pas de bouton
+                   « valider » supplémentaire pour un réglage d'affichage. */ ?>
+          <input type="color" name="accent_custom" value="<?= htmlspecialchars($accentCustom) ?>"
+                 onchange="this.form.querySelector('[name=accent][type=hidden]').value='custom';this.form.submit();">
+          <input type="hidden" name="accent" value="custom">
+        </label>
+      </form>
+    </div>
   </section>
 
   <section class="card">
@@ -254,7 +320,9 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         <input class="input" id="ecConf" name="confirmation" type="text" required
                autocomplete="off" placeholder="SUPPRIMER">
       </div>
-      <div class="row-actions">
+      <?php /* Le bouton respire : collé au champ, il invitait à cliquer avant
+               d'avoir fini de saisir la confirmation. */ ?>
+      <div class="row-actions" style="margin-top:var(--sp-4)">
         <button class="btn btn-danger" type="submit" name="supprimer" value="1">
           <i class="bi bi-trash3"></i> Supprimer mon compte
         </button>

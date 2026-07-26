@@ -54,6 +54,13 @@ const PAUTH_THEME_KEY = 'fer-coureur-theme';
 /** Thèmes acceptés. */
 const PAUTH_THEMES = ['light', 'dark', 'system'];
 
+/**
+ * Accents acceptés — mêmes noms que le profil d'administration, pour que les
+ * deux espaces partagent les mêmes palettes (définies dans css/tokens.css).
+ * « rose » est celui du site : c'est le défaut.
+ */
+const PAUTH_ACCENTS = ['rose', 'blue', 'teal', 'violet', 'emerald', 'custom'];
+
 /* ═══════════════════════════ Réglages ═══════════════════════════════════ */
 
 /**
@@ -387,9 +394,13 @@ function pauth_login(PDO $pdo, array $participant): void
         'nom'     => $participant['nom'] ?? '',
         'prenom'  => $participant['prenom'] ?? '',
         'rgpd'    => !empty($participant['rgpd_consent_at']),
-        // Préférence d'affichage : en session pour éviter une requête à chaque page.
+        // Préférences d'affichage : en session pour éviter une requête à chaque page.
         'theme'   => in_array($participant['theme'] ?? '', PAUTH_THEMES, true)
                         ? $participant['theme'] : 'light',
+        'accent'  => in_array($participant['accent'] ?? '', PAUTH_ACCENTS, true)
+                        ? $participant['accent'] : 'rose',
+        'accent_custom' => preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($participant['accent_custom'] ?? ''))
+                        ? strtolower($participant['accent_custom']) : null,
         'depuis'  => time(),
     ];
     try {
@@ -488,7 +499,7 @@ function pauth_loginFromCookie(PDO $pdo): bool
     try {
         $st = $pdo->prepare(
             'SELECT d.*, p.id AS pid, p.email_chiffre, p.nom, p.prenom, p.is_active,
-                    p.rgpd_consent_at, p.theme
+                    p.rgpd_consent_at, p.theme, p.accent, p.accent_custom
                FROM participant_devices d
                JOIN participants p ON p.id = d.participant_id
               WHERE d.token_hash = ? AND d.revoque_at IS NULL
@@ -515,6 +526,8 @@ function pauth_loginFromCookie(PDO $pdo): bool
         'prenom'          => $row['prenom'],
         'rgpd_consent_at' => $row['rgpd_consent_at'],
         'theme'           => $row['theme'] ?? 'light',
+        'accent'          => $row['accent'] ?? 'rose',
+        'accent_custom'   => $row['accent_custom'] ?? null,
     ]);
     $_SESSION[PAUTH_SESSION_KEY]['device_id'] = (int) $row['id'];
     return true;

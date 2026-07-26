@@ -1120,6 +1120,8 @@ function getCreateTableStatements(): array
           `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
           `derniere_connexion` DATETIME DEFAULT NULL,
           `theme` ENUM('light','dark','system') NOT NULL DEFAULT 'light',
+          `accent` VARCHAR(20) NOT NULL DEFAULT 'rose',
+          `accent_custom` VARCHAR(7) DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_email_hmac` (`email_hmac`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
