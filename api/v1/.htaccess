@@ -1,0 +1,22 @@
+# ── Routage de l'API mobile ─────────────────────────────────────────────────
+# Le .htaccess de la racine réécrit « /x » en « /x.php » UNIQUEMENT si le
+# fichier existe. Pour « /api/v1/auth/request-code », aucun fichier ne
+# correspond : sa règle ne s'applique donc pas et la requête arrive ici intacte.
+# On dirige alors tout vers index.php, qui lit le chemin et route lui-même.
+#
+# Pas de RewriteBase : il dépendrait du dossier d'installation du site, et
+# casserait dès que le projet change de place.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Une API ne sert que du JSON : rien à indexer, rien à mettre en cache.
+<IfModule mod_headers.c>
+    Header always set X-Robots-Tag "noindex, nofollow"
+    Header always set Cache-Control "no-store"
+</IfModule>
+
+Options -Indexes

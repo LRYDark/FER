@@ -135,7 +135,20 @@ ini_set('session.use_strict_mode', 1);
 if (defined('FER_SESSION_COUREUR') && FER_SESSION_COUREUR) {
     session_name('FERCOUREUR');
 }
-session_start();
+
+/* ───── API sans session ──────────────────────────────────────────────────
+ * L'API mobile s'authentifie par jeton, jamais par cookie. Sans ce garde-fou,
+ * chaque appel ouvrirait une session PHP : un fichier de session créé par
+ * requête, jamais relu, jamais nettoyé autrement que par le ramasse-miettes —
+ * et un cookie de session renvoyé à un client qui n'en fera rien.
+ * $_SESSION est tout de même initialisé : du code partagé le lit sans se
+ * demander s'il tourne dans une page ou dans l'API.
+ * ───────────────────────────────────────────────────────────────────────── */
+if (defined('FER_NO_SESSION') && FER_NO_SESSION) {
+    $_SESSION = [];
+} else {
+    session_start();
+}
 
 /* ───── IP cliente fiable (anti-spoofing) ──────────────────────────────────
  * 🔒 [SEC-IP] Par défaut on n'utilise QUE REMOTE_ADDR. Les en-têtes
