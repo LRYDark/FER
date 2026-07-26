@@ -248,18 +248,6 @@ include_once __DIR__ . '/../content/theme.php';
         </nav>
       </div>
       <div class="cta">
-        <?php /* Espace coureur — bouton discret à côté de l'inscription.
-                 Icône seule : « Inscription » doit rester l'action mise en avant,
-                 c'est elle qui remplit la course. La connexion ne concerne que
-                 les personnes déjà inscrites, qui la cherchent volontairement. */ ?>
-        <a class="nav-espace-coureur" href="espace-coureur/login"
-           title="Espace coureur — mes inscriptions" aria-label="Espace coureur">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
-        </a>
         <a class="btn pink nav-cta" href="register">Inscription<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       </div>
     </div>
@@ -479,30 +467,12 @@ include_once __DIR__ . '/../content/theme.php';
           </svg>
           <span>Parcours</span>
         </a>
-        <!-- Espace coureur : icône seule, la place est comptée sur mobile -->
-        <a class="mobile-bottom-btn" href="espace-coureur/login" aria-label="Espace coureur">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
-          <span>Espace</span>
-        </a>
         <!-- Inner CTA: visible only when menu is open -->
         <a class="mobile-bottom-cta-inner" href="register">Inscription</a>
       </div>
     </div>
 
-    <!-- Outer CTA: visible only when menu is closed.
-         L'icône « espace coureur » l'accompagne : sur mobile, la barre du bas est
-         le seul point d'entrée visible quand le menu est fermé. -->
-    <a class="mobile-bottom-espace" href="espace-coureur/login"
-       aria-label="Espace coureur" title="Espace coureur">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-        <circle cx="12" cy="7" r="4"></circle>
-      </svg>
-    </a>
+    <!-- Outer CTA: visible only when menu is closed -->
     <a class="mobile-bottom-cta" href="register">Inscription</a>
   </div>
 </div>
