@@ -76,39 +76,45 @@ t('valeurs par défaut lues dans setting', (int) $s['participant_code_ttl_min'] 
 
 echo "\n── Émission et vérification du code ──\n";
 $c = pauth_issueCode($pdo, $mail, 'web', '10.0.0.1');
-t('code à 6 chiffres', (bool) preg_match('/^\d{6}$/', $c['code']));
-t('jeton de lien distinct du code', strlen($c['token']) === 64);
+t('code à 6 chiffres', (bool) preg_match('/^\d{6}$/', $c));
 $stock = $pdo->query('SELECT code_hash FROM participant_auth_codes')->fetchColumn();
-t('code JAMAIS stocké en clair', !str_contains((string) $stock, $c['code']));
+t('code JAMAIS stocké en clair', !str_contains((string) $stock, $c));
 t('adresse jamais stockée en clair', !str_contains(
     (string) $pdo->query('SELECT email_hmac FROM participant_auth_codes')->fetchColumn(), 'exemple'));
 
 t('code faux refusé', pauth_verifyCode($pdo, $mail, '000000')['ok'] === false);
-t('la casse de l\'adresse est indifférente', pauth_verifyCode($pdo, strtoupper($mail), $c['code'])['ok'] === true);
-t('code à USAGE UNIQUE (rejeu refusé)', pauth_verifyCode($pdo, $mail, $c['code'])['ok'] === false);
+t('la casse de l\'adresse est indifférente', pauth_verifyCode($pdo, strtoupper($mail), $c)['ok'] === true);
+t('code à USAGE UNIQUE (rejeu refusé)', pauth_verifyCode($pdo, $mail, $c)['ok'] === false);
 
-echo "\n── Lien cliquable ──\n";
-$c2 = pauth_issueCode($pdo, $mail, 'web', '10.0.0.1');
-t('jeton du lien accepté', pauth_verifyCode($pdo, $mail, null, $c2['token'])['ok'] === true);
-t('jeton consommé lui aussi', pauth_verifyCode($pdo, $mail, null, $c2['token'])['ok'] === false);
+echo "\n── Aucun lien de connexion dans le mail ──\n";
+/* Le mail ne contient que le code. Un lien transporterait le secret dans une
+   URL : journalisée, gardée dans l'historique, transmise en Referer, et
+   transférable d'un « faire suivre ». */
+t('pauth_sendCodeMail ne prend que pdo, email et code',
+    (new ReflectionFunction('pauth_sendCodeMail'))->getNumberOfParameters() === 3);
+t('pauth_verifyCode n\'accepte plus de jeton',
+    (new ReflectionFunction('pauth_verifyCode'))->getNumberOfParameters() === 3);
+$hash = (string) $pdo->query('SELECT code_hash FROM participant_auth_codes ORDER BY id DESC LIMIT 1')->fetchColumn();
+t('le secret stocké est un password_hash, pas un JSON à deux clés',
+    !str_contains($hash, '{') && password_verify($c, $hash) === false || str_starts_with($hash, '$2y$'));
 
 echo "\n── Une nouvelle demande invalide la précédente ──\n";
 $c3 = pauth_issueCode($pdo, $mail, 'web', '10.0.0.1');
 $c4 = pauth_issueCode($pdo, $mail, 'web', '10.0.0.1');
-t('l\'ancien code ne marche plus', pauth_verifyCode($pdo, $mail, $c3['code'])['ok'] === false);
-t('le nouveau code marche', pauth_verifyCode($pdo, $mail, $c4['code'])['ok'] === true);
+t('l\'ancien code ne marche plus', pauth_verifyCode($pdo, $mail, $c3)['ok'] === false);
+t('le nouveau code marche', pauth_verifyCode($pdo, $mail, $c4)['ok'] === true);
 
 echo "\n── Compteur de tentatives ──\n";
 $c5 = pauth_issueCode($pdo, $mail, 'web', '10.0.0.1');
 for ($i = 0; $i < 5; $i++) pauth_verifyCode($pdo, $mail, '111111');
-$r = pauth_verifyCode($pdo, $mail, $c5['code']);
+$r = pauth_verifyCode($pdo, $mail, $c5);
 t('le BON code est refusé après 5 échecs', $r['ok'] === false && $r['raison'] === 'trop_de_tentatives');
-t('le code est invalidé définitivement', pauth_verifyCode($pdo, $mail, $c5['code'])['raison'] === 'aucun');
+t('le code est invalidé définitivement', pauth_verifyCode($pdo, $mail, $c5)['raison'] === 'aucun');
 
 echo "\n── Expiration ──\n";
 $c6 = pauth_issueCode($pdo, $mail, 'web', '10.0.0.1');
 $pdo->exec('UPDATE participant_auth_codes SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE consomme_at IS NULL');
-t('code expiré refusé', pauth_verifyCode($pdo, $mail, $c6['code'])['raison'] === 'expire');
+t('code expiré refusé', pauth_verifyCode($pdo, $mail, $c6)['raison'] === 'expire');
 
 echo "\n── Limitation de débit ──\n";
 $pdo->exec('DELETE FROM participant_auth_codes');

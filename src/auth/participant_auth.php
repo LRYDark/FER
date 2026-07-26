@@ -281,16 +281,19 @@ function pauth_rateLimitOk(PDO $pdo, string $email, string $ip): bool
  * comportement incompréhensible pour l'utilisateur (« j'ai demandé un nouveau
  * code mais l'ancien marche aussi »).
  *
- * @return array{code: string, token: string} le code en clair et le jeton du lien
+ * Il n'y a QUE le code : pas de lien de connexion dans le mail. Un lien
+ * transporte un secret dans une URL — journalisée par les serveurs, conservée
+ * dans l'historique, transmise en Referer, et transférable d'un simple clic sur
+ * « faire suivre ». Le mail de connexion de l'administration ne contient déjà
+ * que le code, celui-ci fait pareil.
+ *
+ * @return string le code en clair, à envoyer par mail
  */
-function pauth_issueCode(PDO $pdo, string $email, string $canal, string $ip): array
+function pauth_issueCode(PDO $pdo, string $email, string $canal, string $ip): string
 {
-    $s     = pauth_settings($pdo);
-    $hmac  = fer_emailHmac($email);
-    $code  = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    // Jeton du lien cliquable : dérivé du MÊME enregistrement, donc soumis aux
-    // mêmes expiration et consommation que le code saisi à la main.
-    $token = bin2hex(random_bytes(32));
+    $s    = pauth_settings($pdo);
+    $hmac = fer_emailHmac($email);
+    $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
     $pdo->prepare('UPDATE participant_auth_codes SET consomme_at = NOW()
                     WHERE email_hmac = ? AND consomme_at IS NULL')->execute([$hmac]);
@@ -300,30 +303,28 @@ function pauth_issueCode(PDO $pdo, string $email, string $canal, string $ip): ar
          VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE), ?)'
     )->execute([
         $hmac,
-        // Le code ET le jeton du lien sont hachés ensemble : une seule ligne, donc
-        // une seule expiration, un seul compteur de tentatives, une seule consommation.
-        json_encode(['code' => password_hash($code, PASSWORD_DEFAULT), 'token' => hash('sha256', $token)]),
+        // password_hash() : 6 chiffres = 10^6 combinaisons, il faut un hachage LENT.
+        password_hash($code, PASSWORD_DEFAULT),
         in_array($canal, ['web', 'app'], true) ? $canal : 'web',
         max(1, (int) $s['participant_code_ttl_min']),
         mb_substr($ip, 0, 45),
     ]);
 
-    return ['code' => $code, 'token' => $token];
+    return $code;
 }
 
 /**
- * Vérifie un code (ou un jeton de lien) et le consomme.
+ * Vérifie un code à 6 chiffres et le consomme.
  *
  * ⚠️ Ne cible QU'UN SEUL enregistrement : le plus récent non consommé et non
- * expiré. Boucler sur plusieurs lignes en testant le secret contre chacune
+ * expiré. Boucler sur plusieurs lignes en testant le code contre chacune
  * contournerait le compteur de tentatives.
  *
- * @param  string|null $code  code à 6 chiffres saisi
- * @param  string|null $token jeton issu du lien cliquable
+ * @param  string|null $code code à 6 chiffres saisi
  * @return array{ok: bool, raison: string}
  *         raison ∈ ok | aucun | expire | trop_de_tentatives | invalide
  */
-function pauth_verifyCode(PDO $pdo, string $email, ?string $code, ?string $token = null): array
+function pauth_verifyCode(PDO $pdo, string $email, ?string $code): array
 {
     $s    = pauth_settings($pdo);
     $hmac = fer_emailHmac($email);
@@ -355,13 +356,8 @@ function pauth_verifyCode(PDO $pdo, string $email, ?string $code, ?string $token
         return ['ok' => false, 'raison' => 'trop_de_tentatives'];
     }
 
-    $secrets = json_decode((string) $ligne['code_hash'], true) ?: [];
-    $bon = false;
-    if ($token !== null && $token !== '' && !empty($secrets['token'])) {
-        $bon = hash_equals((string) $secrets['token'], hash('sha256', $token));
-    } elseif ($code !== null && $code !== '' && !empty($secrets['code'])) {
-        $bon = password_verify($code, (string) $secrets['code']);
-    }
+    $bon = $code !== null && $code !== ''
+        && password_verify($code, (string) $ligne['code_hash']);
 
     if (!$bon) {
         $pdo->prepare('UPDATE participant_auth_codes SET tentatives = tentatives + 1 WHERE id = ?')
@@ -573,13 +569,15 @@ function pauth_platform(): string
 /* ═══════════════════════════ Envoi du mail ══════════════════════════════ */
 
 /**
- * Envoie le code par mail : le code ET un lien cliquable, comme demandé — sur
- * mobile, recopier six chiffres depuis l'application mail est pénible.
+ * Envoie le code par mail. UNIQUEMENT le code, aucun lien de connexion — même
+ * forme que le mail de code de vérification de l'administration.
  *
- * Le lien porte le jeton à usage unique issu du MÊME enregistrement : cliquer ou
- * saisir revient exactement au même côté sécurité.
+ * Un lien transporterait le secret dans une URL : journalisée par les serveurs,
+ * conservée dans l'historique du navigateur, transmise en Referer, et transférée
+ * d'un simple « faire suivre ». Six chiffres à recopier, c'est le prix d'un
+ * secret qui ne circule pas.
  */
-function pauth_sendCodeMail(PDO $pdo, string $email, string $code, string $token, string $lienBase): bool
+function pauth_sendCodeMail(PDO $pdo, string $email, string $code): bool
 {
     if (!function_exists('sendMail')) {
         require_once __DIR__ . '/../mail/googleMail.php';
@@ -589,17 +587,12 @@ function pauth_sendCodeMail(PDO $pdo, string $email, string $code, string $token
         return false;
     }
 
-    $ttl  = (int) pauth_settings($pdo)['participant_code_ttl_min'];
-    $lien = $lienBase . '?email=' . urlencode($email) . '&token=' . urlencode($token);
-    $h    = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    $ttl = (int) pauth_settings($pdo)['participant_code_ttl_min'];
+    $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
     $corps = '<p>Voici votre code de connexion à votre espace coureur :</p>'
         . '<p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;'
         . 'color:#F42182;margin:20px 0">' . $h($code) . '</p>'
-        . '<p style="text-align:center;margin:0 0 20px">'
-        . '<a href="' . $h($lien) . '" style="display:inline-block;background:#F42182;color:#fff;'
-        . 'text-decoration:none;font-weight:700;font-size:15px;padding:13px 28px;border-radius:10px">'
-        . 'Me connecter directement</a></p>'
         . '<p>Ce code est valable <strong>' . $ttl . ' minutes</strong> et ne sert qu\'une fois.</p>'
         . '<p style="color:#64748b;font-size:13px">Si vous n\'avez pas demandé cette connexion, '
         . 'ignorez ce message : personne ne peut accéder à votre espace sans ce code.</p>';

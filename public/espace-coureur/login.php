@@ -45,28 +45,9 @@ if (isset($_GET['supprime'])) {
 $MSG_CODE_ENVOYE = "Si un compte correspond à cette adresse, un code vient d'être envoyé. "
                  . "Vérifiez votre boîte mail, et vos indésirables.";
 
-/* ── Lien cliquable du mail : ?email=…&token=… ───────────────────────────── */
-$tokenLien = (string) ($_GET['token'] ?? '');
-if ($tokenLien !== '' && $email !== '') {
-    $v = pauth_verifyCode($pdo, $email, null, $tokenLien);
-    if ($v['ok']) {
-        $participant = pauth_findByEmail($pdo, $email) ?? pauth_createFromRegistrations($pdo, $email);
-        if ($participant && (int) $participant['is_active'] === 1) {
-            pauth_syncRegistrations($pdo, (int) $participant['id'], $email);
-            pauth_login($pdo, $participant);
-            unset($_SESSION['pauth_email_encours']);
-            header('Location: ' . (empty($participant['rgpd_consent_at']) ? 'consentement.php' : 'index.php'));
-            exit;
-        }
-        $erreur = "Aucune inscription n'est associée à cette adresse.";
-    } else {
-        $erreur = match ($v['raison']) {
-            'expire'             => "Ce lien a expiré. Demandez un nouveau code.",
-            'trop_de_tentatives' => "Trop de tentatives. Demandez un nouveau code.",
-            default              => "Ce lien n'est plus valable. Demandez un nouveau code.",
-        };
-    }
-}
+/* Le mail ne contient QUE le code : aucun lien de connexion. Un lien
+   transporterait le secret dans une URL — journalisée, conservée dans
+   l'historique, transmise en Referer, transférable d'un « faire suivre ». */
 
 /* ── Traitements POST ────────────────────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -102,11 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // n'est créé ici : il le sera à la validation du code.
                 if (regres_findByEmail($pdo, fer_normalizeEmail($email))
                     || pauth_findByEmail($pdo, $email)) {
-                    $c = pauth_issueCode($pdo, $email, 'web', $ip);
-                    $base = (function_exists('getAppBaseUrl') ? getAppBaseUrl() : '')
-                          . rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/')
-                          . '/login.php';
-                    pauth_sendCodeMail($pdo, $email, $c['code'], $c['token'], $base);
+                    pauth_sendCodeMail($pdo, $email, pauth_issueCode($pdo, $email, 'web', $ip));
                 }
             }
 
@@ -279,7 +256,6 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
           </form>
 
           <p class="oc-form-hint" style="margin-top:var(--sp-3);line-height:1.6">
-            Le mail contient aussi un lien direct&nbsp;: un clic suffit.<br>
             Rien reçu&nbsp;? Vérifiez vos indésirables, puis
             <a href="login.php">demandez un nouveau code</a>.
           </p>
