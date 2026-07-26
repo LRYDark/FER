@@ -144,48 +144,56 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Espace coureur — Mon compte</title>
-<link rel="stylesheet" href="../../css/tokens.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <?php include __DIR__ . '/_styles.php'; ?>
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
-<div class="ec-page">
-  <h1 class="ec-h1">Mon compte</h1>
-  <p class="ec-sub">Vos informations, vos données, et la sortie si vous le souhaitez.</p>
+  <div class="ec-head">
+    <h1>Mon compte</h1>
+    <p>Vos informations, vos données, et la sortie si vous le souhaitez.</p>
+  </div>
 
   <?php if ($erreur !== ''): ?>
-    <div class="ec-alert ec-err"><i class="bi bi-exclamation-triangle me-1"></i><?= $h($erreur) ?></div>
+    <div class="alert is-danger"><i class="bi bi-exclamation-triangle"></i> <?= $h($erreur) ?></div>
   <?php endif; ?>
 
-  <div class="ec-card">
+  <section class="card">
+    <header>
+      <div class="iconwell"><i class="bi bi-person"></i></div>
+      <h2>Mes informations</h2>
+    </header>
     <dl class="ec-dl">
       <dt>Adresse email</dt><dd><?= $h($moi['email'] ?? '') ?></dd>
       <dt>Nom</dt><dd><?= $h($moi['nom'] ?? '') ?: '—' ?></dd>
       <dt>Prénom</dt><dd><?= $h($moi['prenom'] ?? '') ?: '—' ?></dd>
       <dt>Inscriptions</dt><dd><?= (int) $nb ?></dd>
     </dl>
-    <div class="ec-meta" style="margin-top:12px">
-      <i class="bi bi-info-circle me-1"></i>
+    <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
+      <i class="bi bi-info-circle"></i>
       Nom et prénom proviennent de votre inscription. Pour les corriger, contactez
       l'organisation&nbsp;: ce sont les données officielles de la course.
-    </div>
-  </div>
+    </p>
+  </section>
 
-  <h2 class="ec-h2"><i class="bi bi-palette"></i>Apparence</h2>
-  <div class="ec-card">
+  <section class="card">
+    <header>
+      <div class="iconwell"><i class="bi bi-palette"></i></div>
+      <h2>Apparence</h2>
+    </header>
+
     <?php if (isset($_GET['theme_ok'])): ?>
-      <div class="ec-alert ec-ok" style="margin-bottom:12px">
-        <i class="bi bi-check-circle me-1"></i>Thème enregistré.
-      </div>
+      <div class="alert is-ok"><i class="bi bi-check-circle"></i> Thème enregistré.</div>
     <?php endif; ?>
-    <p class="ec-meta" style="margin:0 0 12px">
+
+    <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
       Le thème de votre espace coureur. Il vous suit d'un appareil à l'autre&nbsp;:
       il est enregistré avec votre compte, pas seulement dans ce navigateur.
     </p>
+
     <?php $themeActuel = $_SESSION[PAUTH_SESSION_KEY]['theme'] ?? 'light'; ?>
-    <form method="post" class="ec-theme-seg" id="ecThemeSeg">
+    <form method="post" class="seg" style="align-self:flex-start">
       <?= csrf_field() ?>
       <?php foreach ([
             'light'  => ['Clair',   'bi-sun'],
@@ -194,54 +202,66 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
           ] as $val => [$lib, $ico]): ?>
         <button type="submit" name="theme" value="<?= $val ?>"
                 class="<?= $themeActuel === $val ? 'is-active' : '' ?>">
-          <i class="bi <?= $ico ?>"></i><?= $lib ?>
+          <i class="bi <?= $ico ?>"></i> <?= $lib ?>
         </button>
       <?php endforeach; ?>
     </form>
-    <p class="ec-meta" style="margin-top:10px">
+
+    <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
       « Système » suit le réglage clair/sombre de votre téléphone ou de votre ordinateur.
     </p>
-  </div>
+  </section>
 
-  <h2 class="ec-h2"><i class="bi bi-download"></i>Exporter mes données</h2>
-  <div class="ec-card">
-    <p class="ec-meta" style="margin:0 0 12px">
+  <section class="card">
+    <header>
+      <div class="iconwell"><i class="bi bi-download"></i></div>
+      <h2>Exporter mes données</h2>
+    </header>
+    <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
       Un fichier JSON contenant votre compte, vos inscriptions et vos appareils de
       confiance — tout ce que le site détient vous concernant.
     </p>
-    <a class="ec-btn ec-btn-sec" href="?export=1"><i class="bi bi-filetype-json"></i>Télécharger</a>
-  </div>
+    <div class="row-actions">
+      <a class="btn" href="?export=1"><i class="bi bi-filetype-json"></i> Télécharger</a>
+    </div>
+  </section>
 
-  <h2 class="ec-h2"><i class="bi bi-trash3"></i>Supprimer mon compte</h2>
-  <div class="ec-card" style="border-left:4px solid #dc3545">
-    <div class="ec-alert ec-warn" style="margin-bottom:14px">
-      <strong>Votre inscription à la course reste valable.</strong><br>
+  <section class="card">
+    <header>
+      <div class="iconwell" style="background:var(--danger-soft);color:var(--danger)">
+        <i class="bi bi-trash3"></i>
+      </div>
+      <h2>Supprimer mon compte</h2>
+    </header>
+
+    <div class="alert is-warn">
+      <strong>Votre inscription à la course reste valable.</strong>
       Seul votre accès en ligne disparaît. L'association conserve les inscriptions
       pour sa comptabilité&nbsp;: vous serez toujours attendu au départ, et votre
       t-shirt vous sera remis normalement.
     </div>
-    <p class="ec-meta" style="margin:0 0 12px">
+
+    <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
       Concrètement&nbsp;: votre adresse est effacée de votre compte, vos
-      <?= (int) $nb ?> rattachement(s) sont retirés et tous vos appareils sont révoqués.<br>
+      <?= (int) $nb ?> rattachement(s) sont retirés et tous vos appareils sont révoqués.
       Si vous vous reconnectez un jour avec la même adresse, un <strong>nouveau</strong>
       compte sera créé et retrouvera vos inscriptions.
     </p>
+
     <form method="post" onsubmit="return confirm('Supprimer définitivement votre compte en ligne ?');">
       <?= csrf_field() ?>
-      <label class="ec-meta" for="ecConf" style="display:block;margin-bottom:6px">
-        Saisissez <strong>SUPPRIMER</strong> pour confirmer&nbsp;:
-      </label>
-      <input class="ec-input" id="ecConf" name="confirmation" type="text" required
-             autocomplete="off" placeholder="SUPPRIMER"
-             style="padding:.6rem .8rem;border:1px solid #cbd5e1;border-radius:.55rem;max-width:220px">
-      <div class="ec-actions">
-        <button class="ec-btn ec-btn-danger" type="submit" name="supprimer" value="1">
-          <i class="bi bi-trash3"></i>Supprimer mon compte
+      <div class="field" style="max-width:260px">
+        <label for="ecConf">Saisissez <strong>SUPPRIMER</strong> pour confirmer</label>
+        <input class="input" id="ecConf" name="confirmation" type="text" required
+               autocomplete="off" placeholder="SUPPRIMER">
+      </div>
+      <div class="row-actions">
+        <button class="btn btn-danger" type="submit" name="supprimer" value="1">
+          <i class="bi bi-trash3"></i> Supprimer mon compte
         </button>
       </div>
     </form>
-  </div>
-</div>
+  </section>
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>
 </body>

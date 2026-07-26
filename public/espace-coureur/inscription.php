@@ -1,6 +1,6 @@
 <?php
 /**
- * inscription.php — Détail d'une inscription, avec son QR code (lot 3).
+ * inscription.php — Détail d'une inscription, avec son QR code.
  *
  * Identifiée par sa CLÉ MÉTIER (annee, inscription_no) et non par un id
  * technique : les identifiants changent de table à chaque archivage annuel.
@@ -20,6 +20,7 @@ pauth_require($pdo, 'index.php');
 
 $annee = (int) ($_GET['annee'] ?? 0);
 $no    = trim((string) ($_GET['no'] ?? ''));
+$r     = null;
 
 if ($annee <= 0 || $no === '' || !pauth_owns($pdo, pauth_id(), $annee, $no)) {
     http_response_code(403);
@@ -27,7 +28,7 @@ if ($annee <= 0 || $no === '' || !pauth_owns($pdo, pauth_id(), $annee, $no)) {
 } else {
     $interdit = false;
     $r = regres_find($pdo, $annee, $no);
-    if ($r === null) { http_response_code(404); }
+    if ($r === null) http_response_code(404);
 }
 
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
@@ -39,34 +40,54 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Espace coureur — Inscription <?= $h($no) ?></title>
-<link rel="stylesheet" href="../../css/tokens.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <?php include __DIR__ . '/_styles.php'; ?>
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
-<div class="ec-page">
   <?php if ($interdit): ?>
-    <div class="ec-alert ec-err">
-      <strong>Accès refusé.</strong> Cette inscription n'est pas rattachée à votre compte.
+    <div class="card">
+      <header>
+        <div class="iconwell" style="background:var(--danger-soft);color:var(--danger)">
+          <i class="bi bi-shield-exclamation"></i>
+        </div>
+        <h2>Accès refusé</h2>
+      </header>
+      <div class="empty">
+        <p>Cette inscription n'est pas rattachée à votre compte.</p>
+        <a class="btn" href="index.php"><i class="bi bi-arrow-left"></i> Mes inscriptions</a>
+      </div>
     </div>
-    <a class="ec-btn ec-btn-sec" href="index.php"><i class="bi bi-arrow-left"></i>Mes inscriptions</a>
 
   <?php elseif ($r === null): ?>
-    <div class="ec-alert ec-warn">
-      <strong>Inscription introuvable.</strong> Elle est rattachée à votre compte mais
-      n'existe plus dans la base. Signalez-le à l'organisation.
+    <div class="card">
+      <header>
+        <div class="iconwell" style="background:var(--warn-soft);color:var(--warn)">
+          <i class="bi bi-question-circle"></i>
+        </div>
+        <h2>Inscription introuvable</h2>
+      </header>
+      <div class="empty">
+        <p>Elle est rattachée à votre compte mais n'existe plus dans la base.
+           Signalez-le à l'organisation.</p>
+        <a class="btn" href="index.php"><i class="bi bi-arrow-left"></i> Mes inscriptions</a>
+      </div>
     </div>
-    <a class="ec-btn ec-btn-sec" href="index.php"><i class="bi bi-arrow-left"></i>Mes inscriptions</a>
 
   <?php else: ?>
-    <h1 class="ec-h1"><?= $h(trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''))) ?: 'Inscription' ?></h1>
-    <p class="ec-sub">Édition <?= (int) $annee ?> · n° <span class="ec-no"><?= $h($no) ?></span></p>
+    <div class="ec-head">
+      <h1><?= $h(trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''))) ?: 'Inscription' ?></h1>
+      <p>Édition <?= (int) $annee ?> · n° <span class="ec-mono"><?= $h($no) ?></span></p>
+    </div>
 
-    <div class="ec-card">
+    <section class="card">
+      <header>
+        <div class="iconwell"><i class="bi bi-card-list"></i></div>
+        <h2>Détail de l'inscription</h2>
+      </header>
       <dl class="ec-dl">
-        <dt>Numéro</dt><dd class="ec-no"><?= $h($r['inscription_no']) ?></dd>
+        <dt>Numéro</dt><dd class="ec-mono"><?= $h($r['inscription_no']) ?></dd>
         <dt>Édition</dt><dd><?= (int) $annee ?></dd>
         <?php if (!empty($r['ville'])): ?>
           <dt>Ville</dt><dd><?= $h($r['ville']) ?></dd>
@@ -81,7 +102,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         <dt>T-shirt</dt>
         <dd><?= (!empty($r['tshirt_size']) && $r['tshirt_size'] !== '-')
                 ? $h($r['tshirt_size'])
-                : '<span class="ec-tag">non attribué</span>' ?></dd>
+                : '<span class="pill no-dot">non attribué</span>' ?></dd>
         <?php if (!empty($r['entreprise'])): ?>
           <dt>Équipe</dt><dd><?= $h($r['entreprise']) ?></dd>
         <?php endif; ?>
@@ -90,56 +111,62 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
           $montant = (float) ($r['montant_du'] ?? 0);
           $mode    = trim((string) ($r['paiement_mode'] ?? ''));
           echo $montant <= 0 || strtolower($mode) === 'gratuit'
-            ? '<span class="ec-tag ec-tag-ok">Gratuit</span>'
-            : $h($mode !== '' ? $mode : 'Réglé') . ' — ' . number_format($montant, 2, ',', ' ') . ' €';
+            ? '<span class="pill is-ok">Gratuit</span>'
+            : $h($mode !== '' ? $mode : 'Réglé') . ' · ' . number_format($montant, 2, ',', ' ') . ' €';
         ?></dd>
         <?php if (!empty($r['date_inscription'])): ?>
           <dt>Inscrit le</dt>
           <dd><?= $h(date('d/m/Y', strtotime((string) $r['date_inscription']))) ?></dd>
         <?php endif; ?>
       </dl>
-    </div>
+    </section>
 
-    <?php /* Le QR code vient de src/core/qrcode.php — la MÊME fonction que celle
-             utilisée pour le mail. Mêmes données encodées, mêmes paramètres :
-             ce que le bénévole scanne ici est identique à ce qui a été envoyé. */ ?>
-    <h2 class="ec-h2"><i class="bi bi-qr-code"></i>Votre QR code</h2>
-    <div class="ec-card">
+    <?php /* Le QR vient de src/core/qrcode.php — la MÊME fonction que pour le
+             mail. Mêmes données encodées, mêmes paramètres : ce que le bénévole
+             scanne ici est identique à ce qui a été envoyé. */ ?>
+    <section class="card">
+      <header>
+        <div class="iconwell"><i class="bi bi-qr-code"></i></div>
+        <h2>Votre QR code</h2>
+      </header>
       <?php $qr = fer_qrCodeDataUri($r['inscription_no']); ?>
       <?php if ($qr !== ''): ?>
         <div class="ec-qr">
           <img src="<?= $qr ?>" alt="QR code de l'inscription <?= $h($no) ?>">
-          <div class="ec-meta" style="margin-top:10px">
-            Présentez-le au retrait des t-shirts. Il est identique à celui de votre
-            mail de confirmation.
-          </div>
+          <p style="font-size:var(--fs-micro);color:var(--ink-faint);text-align:center;margin:0">
+            Présentez-le au retrait des t-shirts.<br>
+            Il est identique à celui de votre mail de confirmation.
+          </p>
         </div>
       <?php else: ?>
-        <div class="ec-alert ec-warn" style="margin:0">
+        <div class="alert">
           Le QR code n'a pas pu être généré. Votre numéro d'inscription
-          (<span class="ec-no"><?= $h($no) ?></span>) suffit au retrait.
+          (<span class="ec-mono"><?= $h($no) ?></span>) suffit au retrait.
         </div>
       <?php endif; ?>
-    </div>
+    </section>
 
-    <h2 class="ec-h2"><i class="bi bi-arrow-left-right"></i>Transférer cette inscription</h2>
-    <div class="ec-card">
-      <p class="ec-meta" style="margin:0 0 12px">
+    <section class="card">
+      <header>
+        <div class="iconwell"><i class="bi bi-arrow-left-right"></i></div>
+        <h2>Transférer cette inscription</h2>
+      </header>
+      <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
         Si cette inscription concerne quelqu'un d'autre — un membre de votre famille
         inscrit sous votre adresse — vous pourrez la basculer sur sa propre adresse
         email, pour qu'il ait son espace et son chronométrage.
       </p>
-      <button class="ec-btn ec-btn-sec" type="button" disabled
-              title="Disponible prochainement">
-        <i class="bi bi-hourglass-split"></i>Transfert — bientôt disponible
-      </button>
-    </div>
+      <div class="row-actions">
+        <button class="btn" type="button" disabled>
+          <i class="bi bi-hourglass-split"></i> Bientôt disponible
+        </button>
+      </div>
+    </section>
 
-    <div class="ec-actions">
-      <a class="ec-btn ec-btn-sec" href="index.php"><i class="bi bi-arrow-left"></i>Mes inscriptions</a>
+    <div class="row-actions">
+      <a class="btn" href="index.php"><i class="bi bi-arrow-left"></i> Mes inscriptions</a>
     </div>
   <?php endif; ?>
-</div>
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>
 </body>
