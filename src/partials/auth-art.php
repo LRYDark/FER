@@ -1,11 +1,17 @@
 <?php /* Panneau droit des pages d'authentification (jr-theme) : halos d'accent
          + ruban Forbach en Rose qui se redessine en boucle (remplace le globe
-         générique du kit — styles autonomes, jr-theme non modifié). */ ?>
+         générique du kit — styles autonomes, jr-theme non modifié).
+
+         $authArtKicker : surtitre du panneau. Par défaut « Administration »,
+         puisque ce panneau ne servait qu'aux pages d'administration. L'espace
+         coureur pose sa propre valeur AVANT l'include — afficher
+         « Administration » à un coureur laisserait croire qu'il s'est trompé
+         de porte. */ ?>
 <aside class="auth-art" aria-hidden="true">
   <div class="art-inner">
     <div>
-      <span class="kicker">Forbach en Rose · Administration</span>
-      <h2>Luttons ensemble.<br>Contre le cancer.</h2>
+      <span class="kicker"><?= htmlspecialchars($authArtKicker ?? 'Forbach en Rose · Administration', ENT_QUOTES, 'UTF-8') ?></span>
+      <h2><?= $authArtTitre ?? 'Luttons ensemble.<br>Contre le cancer.' ?></h2>
     </div>
   </div>
   <svg class="fer-ribbon" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">

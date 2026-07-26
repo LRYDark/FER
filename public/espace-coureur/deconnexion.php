@@ -17,7 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
     exit;
 }
 
-$authBase = '../../';
+$authBase       = '../../';
+$authForceTheme = 'light';   // espace public : jamais le thème sombre de l'admin
+$authArtKicker  = 'Forbach en Rose · Espace coureur';
+$authArtTitre   = 'À bientôt.<br>Sur la ligne de départ.';
 ?>
 <!doctype html>
 <html lang="fr">
