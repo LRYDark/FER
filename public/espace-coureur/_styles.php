@@ -40,36 +40,15 @@ $ecV = function (string $rel): string {
 <link rel="stylesheet" href="<?= $ecV('css/base.css') ?>">
 <link rel="stylesheet" href="<?= $ecV('css/components.css') ?>">
 <link rel="stylesheet" href="<?= $ecV('css/app.css') ?>">
+<?php /* admin.css porte la coquille .jr-shell / .jr-nav / .jr-main : c'est elle
+         qui donne à l'espace coureur la barre latérale de l'administration,
+         y compris son repli sous 991px. */ ?>
+<link rel="stylesheet" href="<?= $ecV('css/admin.css') ?>">
 <style>
-  /* Ossature de page uniquement — tout le reste vient des composants. */
-  body { background: var(--canvas); }
-  .ec-shell { max-width: 880px; margin: 0 auto; padding: var(--sp-5) var(--sp-4) var(--sp-7); }
+  /* Rien que l'ossature de contenu — la coquille vient d'admin.css, les
+     composants de components.css. */
   .ec-stack { display: flex; flex-direction: column; gap: var(--sp-4); }
-
-  .ec-topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: var(--sp-4); flex-wrap: wrap;
-    padding: var(--sp-3) var(--sp-4);
-    background: var(--surface); border-bottom: 1px solid var(--border);
-  }
-  .ec-brand { display: inline-flex; align-items: center; gap: 10px;
-              color: var(--ink); font-weight: 650; font-size: var(--fs-small); text-decoration: none; }
-  .ec-brand img { height: 28px; width: auto; }
-
-  .ec-tabs { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
-  .ec-tabs a {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 0.45rem 0.8rem; border-radius: var(--radius-m);
-    color: var(--ink-dim); font-size: var(--fs-small); font-weight: 550; text-decoration: none;
-  }
-  .ec-tabs a:hover { background: var(--surface-2); color: var(--ink); }
-  .ec-tabs a.is-active { background: var(--accent-soft); color: var(--accent); }
-
-  .ec-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--sp-2); }
-  .ec-head h1 { font-size: var(--fs-h1); font-weight: 650; color: var(--ink); }
-  .ec-head p  { font-size: var(--fs-small); color: var(--ink-faint); }
-
-  .ec-mono { font-family: var(--font-mono); font-weight: 600; color: var(--accent); }
+  .ec-mono  { font-family: var(--font-mono); font-weight: 600; color: var(--accent); }
   .ec-dl   { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-5);
              font-size: var(--fs-small); margin: 0; }
   .ec-dl dt { color: var(--ink-faint); }
@@ -82,8 +61,6 @@ $ecV = function (string $rel): string {
                background: #fff; padding: 10px; border-radius: var(--radius-m); }
 
   @media (max-width: 640px) {
-    .ec-tabs a span { display: none; }
-    .ec-tabs a { padding: 0.5rem 0.65rem; }
     .ec-dl { grid-template-columns: 1fr; gap: 0; }
     .ec-dl dd { margin-bottom: var(--sp-2); }
   }

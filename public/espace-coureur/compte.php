@@ -135,6 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supprimer'])) {
 
 $moi = $_SESSION[PAUTH_SESSION_KEY];
 $nb  = count(pauth_registrations($pdo, $moiId));
+
+$ecTitre    = 'Mon compte';
+$ecSurtitre = 'Vos informations et vos données';
+
 $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -149,11 +153,6 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
-
-  <div class="ec-head">
-    <h1>Mon compte</h1>
-    <p>Vos informations, vos données, et la sortie si vous le souhaitez.</p>
-  </div>
 
   <?php if ($erreur !== ''): ?>
     <div class="alert is-danger"><i class="bi bi-exclamation-triangle"></i> <?= $h($erreur) ?></div>

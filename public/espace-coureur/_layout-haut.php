@@ -1,20 +1,24 @@
 <?php
 /**
- * _layout-haut.php — Barre supérieure des pages de l'espace coureur.
+ * _layout-haut.php — Coquille des pages de l'espace coureur : barre latérale
+ * à gauche et contenu à droite, EXACTEMENT la structure de l'administration
+ * (.jr-shell / .jr-nav / .jr-main de css/admin.css).
  *
- * POURQUOI PAS navbar-admin.php : ce partial est conditionné aux permissions
- * d'administration (canAccessPage / canDoAction) et pointe vers les pages
- * d'administration. Un coureur n'a ni les unes ni l'accès aux autres.
- * On garde donc une barre propre à l'espace, mais bâtie sur les MÊMES jetons de
- * style — elle suit la charte et le thème sans les recopier.
+ * POURQUOI PAS navbar-admin.php directement : ce partial est conditionné aux
+ * permissions d'administration (canAccessPage / canDoAction) et pointe vers les
+ * pages d'admin. Un coureur n'a ni les unes ni l'accès aux autres. On reprend
+ * donc sa structure et ses classes — donc son rendu — avec les entrées du
+ * coureur, sans dupliquer une seule règle de style.
  *
  * Le préfixe underscore signale un fragment : ce n'est pas une page à ouvrir.
  */
 $ecLogo     = dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png';
 $ecConnecte = function_exists('pauth_isLogged') && pauth_isLogged();
 $ecPage     = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$ecTitre    = $ecTitre ?? 'Espace coureur';
+$ecSurtitre = $ecSurtitre ?? '';
 
-/** Onglets de l'espace, dans l'ordre d'usage. */
+/** Entrées du menu : fichier => [libellé, icône Bootstrap]. */
 $ecMenu = [
     'index.php'         => ['Mes inscriptions', 'bi-list-check'],
     'mes-resultats.php' => ['Mes résultats',    'bi-stopwatch'],
@@ -22,30 +26,54 @@ $ecMenu = [
     'compte.php'        => ['Mon compte',       'bi-person-gear'],
 ];
 ?>
-<header class="ec-topbar">
-  <a class="ec-brand" href="../accueil.php">
-    <?php if (is_file($ecLogo)): ?>
-      <img src="../../files/_logos/logo_fer_rose.png" alt="">
-    <?php endif; ?>
-    <span>Forbach en Rose</span>
-  </a>
+<div class="jr-shell">
 
-  <nav class="ec-tabs">
-    <?php if ($ecConnecte): ?>
-      <?php foreach ($ecMenu as $fichier => [$libelle, $icone]): ?>
-        <a href="<?= $fichier ?>" class="<?= $ecPage === $fichier ? 'is-active' : '' ?>"
-           title="<?= htmlspecialchars($libelle) ?>">
-          <i class="bi <?= $icone ?>"></i><span><?= htmlspecialchars($libelle) ?></span>
+  <aside class="jr-nav" id="ecSidebar">
+    <a class="jr-brand" href="../accueil.php">
+      <?php if (is_file($ecLogo)): ?>
+        <img src="../../files/_logos/logo_fer_rose.png" alt="">
+      <?php endif; ?>
+      <span class="name">Forbach en Rose</span>
+    </a>
+
+    <nav>
+      <?php if ($ecConnecte): ?>
+        <div class="section">Mon espace</div>
+        <?php foreach ($ecMenu as $fichier => [$libelle, $icone]): ?>
+          <a class="item <?= $ecPage === $fichier ? 'is-active' : '' ?>" href="<?= $fichier ?>">
+            <i class="bi <?= $icone ?>"></i><?= htmlspecialchars($libelle) ?>
+          </a>
+        <?php endforeach; ?>
+
+        <div class="section">Le site</div>
+        <a class="item" href="../accueil.php"><i class="bi bi-house"></i>Site public</a>
+        <a class="item" href="../faq.php"><i class="bi bi-question-circle"></i>Questions fréquentes</a>
+        <a class="item" href="deconnexion.php" style="margin-top:var(--sp-4)">
+          <i class="bi bi-box-arrow-right"></i>Se déconnecter
         </a>
-      <?php endforeach; ?>
-      <a href="deconnexion.php" title="Se déconnecter">
-        <i class="bi bi-box-arrow-right"></i><span>Quitter</span>
-      </a>
-    <?php else: ?>
-      <a href="../accueil.php"><i class="bi bi-arrow-left"></i><span>Retour au site</span></a>
-    <?php endif; ?>
-  </nav>
-</header>
+      <?php else: ?>
+        <a class="item" href="login.php"><i class="bi bi-box-arrow-in-right"></i>Se connecter</a>
+        <a class="item" href="../accueil.php"><i class="bi bi-house"></i>Site public</a>
+      <?php endif; ?>
+    </nav>
+  </aside>
 
-<div class="ec-shell">
-  <div class="ec-stack">
+  <main class="jr-main">
+    <div class="jr-topbar">
+      <div style="display:flex;align-items:center;gap:var(--sp-3)">
+        <?php /* Burger : la barre latérale sort de l'écran sous 991px, comme en
+                 administration. Sans lui, le menu serait inaccessible sur mobile. */ ?>
+        <button class="jr-burger" id="ecBurger" type="button" aria-label="Menu"
+                aria-controls="ecSidebar" aria-expanded="false">
+          <i class="bi bi-list"></i>
+        </button>
+        <div class="crumbs">
+          <?php if ($ecSurtitre !== ''): ?>
+            <span class="eyebrow"><?= htmlspecialchars($ecSurtitre) ?></span>
+          <?php endif; ?>
+          <h1><?= htmlspecialchars($ecTitre) ?></h1>
+        </div>
+      </div>
+    </div>
+
+    <div class="ec-stack">

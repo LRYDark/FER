@@ -55,6 +55,9 @@ function ec_methode(?string $m): string
     };
 }
 
+$ecTitre    = 'Mes résultats';
+$ecSurtitre = 'Vos temps, édition par édition';
+
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -69,11 +72,6 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 </head>
 <body>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
-
-  <div class="ec-head">
-    <h1>Mes résultats</h1>
-    <p>Vos temps, édition par édition.</p>
-  </div>
 
   <?php if (!$inscriptions): ?>
     <section class="card">

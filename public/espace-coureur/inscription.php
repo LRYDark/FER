@@ -31,6 +31,14 @@ if ($annee <= 0 || $no === '' || !pauth_owns($pdo, pauth_id(), $annee, $no)) {
     if ($r === null) http_response_code(404);
 }
 
+/* Titre de la barre supérieure : le nom du coureur quand la fiche est
+   accessible, un intitulé neutre sinon — inutile de révéler quoi que ce soit
+   sur une inscription à laquelle on n'a pas droit. */
+$ecTitre = $r !== null
+    ? (trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? '')) ?: 'Inscription')
+    : 'Inscription';
+$ecSurtitre = $r !== null ? 'Édition ' . $annee . ' · n° ' . $no : '';
+
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -76,11 +84,6 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </div>
 
   <?php else: ?>
-    <div class="ec-head">
-      <h1><?= $h(trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''))) ?: 'Inscription' ?></h1>
-      <p>Édition <?= (int) $annee ?> · n° <span class="ec-mono"><?= $h($no) ?></span></p>
-    </div>
-
     <section class="card">
       <header>
         <div class="iconwell"><i class="bi bi-card-list"></i></div>
