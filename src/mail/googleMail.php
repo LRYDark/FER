@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/../core/config.php';
+// 🛡️ Garde-fou catch-all : intercepte le destinataire au point d'envoi (P1).
+// Doit rester AVANT toute déclaration d'envoi. Cf. src/mail/mail_guard.php.
+require_once __DIR__ . '/mail_guard.php';
 
 // Force global scope — nécessaire quand googleMail.php est chargé depuis une fonction
 global $data, $clientID, $clientSecret, $googleMailReady;
@@ -322,6 +325,16 @@ function sendMailSmtp($to, string $subject, $mailTitle = null, $description = nu
     global $data, $lastMailError, $pdo;
     $lastMailError = null;
 
+    // 🛡️ Garde-fou catch-all (P1) — remplace le destinataire réel AVANT tout envoi.
+    $guard = mailCatchallApply($to, $subject);
+    if ($guard['blocked']) {
+        $lastMailError = $guard['error'];
+        writeSmtpLog('❌ ' . $lastMailError);
+        return false;
+    }
+    $to      = $guard['to'];
+    $subject = $guard['subject'];
+
     $smtpHost  = $data['smtp_host'] ?? '';
     $smtpPort  = (int)($data['smtp_port'] ?? 465);
     $smtpUser  = $data['smtp_user'] ?? '';
@@ -480,8 +493,20 @@ function sendMail($to, string  $subject, $mailTitle = null, $description = null,
     // Route vers SMTP si c'est le fournisseur actif
     $provider = $data['mail_provider'] ?? 'google';
     if ($provider === 'smtp') {
+        // Le garde-fou catch-all est appliqué par sendMailSmtp() (une seule fois).
         return sendMailSmtp($to, $subject, $mailTitle, $description, $lastname, $firstname, $type, $inscriptionNo, $mailSubtype, $attachments, $qrOverride);
     }
+
+    // 🛡️ Garde-fou catch-all (P1) — branche Gmail. Placé après l'aiguillage SMTP
+    // pour ne jamais être appliqué deux fois sur le même envoi.
+    $guard = mailCatchallApply($to, $subject);
+    if ($guard['blocked']) {
+        $lastMailError = $guard['error'];
+        writeLog('❌ ' . $lastMailError);
+        return false;
+    }
+    $to      = $guard['to'];
+    $subject = $guard['subject'];
 
     /* ---------- Auth Gmail ---------- */
     $accessToken = getAccessToken(false);

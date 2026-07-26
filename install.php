@@ -699,16 +699,58 @@ function getCreateTableStatements(): array
           PRIMARY KEY (`year`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
+        // ── Éditions annuelles de la course (lot 1 « espace coureur ») ──
+        // Créée AVANT `registrations`, qui porte une clé étrangère vers elle.
+        // ⏱️ `heure_depart` est stockée EN UTC, comme les colonnes de chronométrage :
+        // c'est l'heure du coup de feu, donc la référence de tous les temps calculés.
+        // ℹ️ UNIQUE (annee) interdit deux éditions la même année (un seul événement
+        // annuel aujourd'hui) ; un second événement imposerait un couple (annee, slug).
+        "CREATE TABLE IF NOT EXISTS `editions` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT NOT NULL,
+          `libelle` VARCHAR(120) NOT NULL,
+          `date_course` DATE DEFAULT NULL,
+          `distance_km` DECIMAL(5,2) DEFAULT NULL,
+          `heure_depart` DATETIME DEFAULT NULL,
+          `lat_depart` DECIMAL(10,7) DEFAULT NULL,
+          `lon_depart` DECIMAL(10,7) DEFAULT NULL,
+          `lat_arrivee` DECIMAL(10,7) DEFAULT NULL,
+          `lon_arrivee` DECIMAL(10,7) DEFAULT NULL,
+          `temps_min_plausible_s` INT DEFAULT NULL,
+          `transferts_deadline` DATETIME DEFAULT NULL,
+          `is_active` TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_annee` (`annee`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
         // --- Tables avec FK vers les précédentes ---
 
+        // `registrations` est créée directement dans sa forme finale (lot 1) :
+        //   - `edition_id` + unicité (edition_id, inscription_no) — un numéro
+        //     d'inscription peut être réutilisé d'une édition à l'autre ;
+        //   - `email_normalise` = EMPREINTE HMAC-SHA256 de l'adresse (cf.
+        //     fer_emailHash() dans src/core/config.php). Ce n'est pas l'adresse en
+        //     clair : `email` est chiffré, donc non comparable et non indexable, et
+        //     recopier l'adresse en clair annulerait cette protection.
+        //   - `participant_id` : rattachement durable à un compte coureur, renseigné
+        //     à la première revendication ; prime ensuite sur l'email.
+        //   - colonnes de naissance : `naissance` (existant, jamais modifié) est
+        //     enrichie par annee_naissance / date_naissance / naissance_source.
+        // Base neuve = base vide : aucun backfill, aucune normalisation.
         "CREATE TABLE IF NOT EXISTS `registrations` (
           `id` int(11) NOT NULL AUTO_INCREMENT,
+          `edition_id` int(11) DEFAULT NULL,
           `inscription_no` VARCHAR(50) NOT NULL,
           `nom` varchar(255) NOT NULL,
           `prenom` varchar(255) NOT NULL,
           `tel` varchar(255) DEFAULT NULL,
           `email` varchar(255) DEFAULT NULL,
+          `email_normalise` varchar(64) DEFAULT NULL,
+          `participant_id` int(11) DEFAULT NULL,
           `naissance` varchar(255) DEFAULT NULL,
+          `annee_naissance` smallint(6) DEFAULT NULL,
+          `date_naissance` date DEFAULT NULL,
+          `naissance_source` enum('date','annee','age','inconnu') NOT NULL DEFAULT 'inconnu',
           `sexe` enum('H','F','Autre') DEFAULT 'H',
           `tshirt_size` enum('-','XS','S','M','L','XL','XXL') DEFAULT '-',
           `ville` varchar(255) NOT NULL DEFAULT '',
@@ -723,10 +765,168 @@ function getCreateTableStatements(): array
           `created_by` int(11) DEFAULT NULL,
           `group_id` varchar(40) DEFAULT NULL,
           PRIMARY KEY (`id`),
-          UNIQUE KEY `inscription_no` (`inscription_no`),
+          UNIQUE KEY `idx_edition_inscription` (`edition_id`,`inscription_no`),
           KEY `created_by` (`created_by`),
           KEY `group_id` (`group_id`),
-          CONSTRAINT `registrations_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
+          KEY `idx_edition` (`edition_id`),
+          KEY `idx_email_norm` (`email_normalise`),
+          KEY `idx_participant` (`participant_id`),
+          CONSTRAINT `registrations_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
+          CONSTRAINT `fk_registrations_edition` FOREIGN KEY (`edition_id`) REFERENCES `editions` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // ── Comptes coureurs (espace coureur + application mobile) ──
+        // ⚠️ AUCUNE colonne de mot de passe : le seul moyen d'accéder à un compte
+        // est le code à 6 chiffres reçu par mail. Table STRICTEMENT distincte de
+        // `users`, qui reste réservée à l'administration.
+        // `email` est chiffré comme toute donnée personnelle du site ;
+        // `email_normalise` porte l'empreinte HMAC qui assure l'unicité et les jointures.
+        "CREATE TABLE IF NOT EXISTS `participants` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `email` VARCHAR(255) NOT NULL,
+          `email_normalise` VARCHAR(64) NOT NULL,
+          `nom` VARCHAR(255) DEFAULT NULL,
+          `prenom` VARCHAR(255) DEFAULT NULL,
+          `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+          `rgpd_consent_at` DATETIME DEFAULT NULL,
+          `rgpd_consent_version` VARCHAR(20) DEFAULT NULL,
+          `derniere_connexion` DATETIME DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_email_norm` (`email_normalise`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Codes de connexion à 6 chiffres. Le code n'est JAMAIS stocké en clair :
+        // password_hash() à l'écriture, password_verify() à la vérification.
+        // Hachage LENT volontaire : 6 chiffres = 10^6 combinaisons seulement.
+        "CREATE TABLE IF NOT EXISTS `participant_auth_codes` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `email_normalise` VARCHAR(64) NOT NULL,
+          `code_hash` VARCHAR(255) NOT NULL,
+          `canal` ENUM('web','app') NOT NULL DEFAULT 'web',
+          `tentatives` TINYINT NOT NULL DEFAULT 0,
+          `consomme_at` DATETIME DEFAULT NULL,
+          `expires_at` DATETIME NOT NULL,
+          `ip` VARCHAR(45) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_email` (`email_normalise`),
+          INDEX `idx_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Appareils de confiance. `token_hash` = SHA-256 : hachage RAPIDE et
+        // déterministe, car la recherche se fait directement par le hash à chaque
+        // appel d'API — un token serveur porte 256 bits d'entropie, il n'y a rien
+        // à forcer par force brute. Différence assumée avec la table ci-dessus :
+        // lent pour un secret faible, rapide pour un secret fort.
+        // Révocation = renseigner `revoque_at` ; on ne supprime jamais la ligne.
+        "CREATE TABLE IF NOT EXISTS `participant_devices` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `participant_id` INT NOT NULL,
+          `token_hash` VARCHAR(255) NOT NULL,
+          `type` ENUM('web','app') NOT NULL,
+          `libelle` VARCHAR(120) DEFAULT NULL,
+          `plateforme` VARCHAR(60) DEFAULT NULL,
+          `modele` VARCHAR(120) DEFAULT NULL,
+          `ip_creation` VARCHAR(45) DEFAULT NULL,
+          `user_agent` VARCHAR(500) DEFAULT NULL,
+          `derniere_utilisation` DATETIME DEFAULT NULL,
+          `expires_at` DATETIME DEFAULT NULL,
+          `revoque_at` DATETIME DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_participant` (`participant_id`),
+          UNIQUE KEY `idx_token` (`token_hash`),
+          INDEX `idx_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Transferts d'inscription (double opt-in). `demande_par` référence
+        // `participants.id` — à ne pas confondre avec `registrations.created_by`,
+        // qui pointe vers `users.id` (un administrateur).
+        // La règle « un seul transfert en attente par inscription » n'est pas
+        // exprimable par un index en MySQL : elle est garantie dans le code (lot 4).
+        "CREATE TABLE IF NOT EXISTS `registration_transfers` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `registration_id` INT NOT NULL,
+          `email_source` VARCHAR(255) NOT NULL,
+          `email_cible` VARCHAR(255) NOT NULL,
+          `token_hash` VARCHAR(255) NOT NULL,
+          `statut` ENUM('en_attente','accepte','annule','expire') NOT NULL DEFAULT 'en_attente',
+          `demande_par` INT DEFAULT NULL,
+          `expires_at` DATETIME NOT NULL,
+          `accepte_at` DATETIME DEFAULT NULL,
+          `annule_at` DATETIME DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_registration` (`registration_id`),
+          INDEX `idx_statut` (`statut`),
+          UNIQUE KEY `idx_token` (`token_hash`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // ── Chronométrage ──
+        // Alimentées plus tard par l'application mobile ; créées maintenant pour
+        // que l'API du lot 5 les expose sans seconde migration.
+        // DATETIME(3) = précision milliseconde, indispensable au chronométrage.
+        // ⏱️ TOUTES ces dates sont stockées EN UTC, sans exception.
+        // `valide_par` référence `users.id` (l'administrateur qui a validé un temps) :
+        // c'est la seule référence vers `users` de tout le lot, et elle désigne un
+        // administrateur, jamais un coureur.
+        // `methode` et `precision_s` sont obligatoires à l'affichage : un temps
+        // extrapolé ne doit jamais être présenté comme équivalent à un temps beacon.
+        "CREATE TABLE IF NOT EXISTS `resultats` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `registration_id` INT NOT NULL,
+          `edition_id` INT NOT NULL,
+          `depart_at` DATETIME(3) DEFAULT NULL,
+          `arrivee_at` DATETIME(3) DEFAULT NULL,
+          `temps_s` DECIMAL(10,3) DEFAULT NULL,
+          `methode` ENUM('beacon','gps_ligne','gps_extrapole','gps_distance','manuel','declaratif') DEFAULT NULL,
+          `precision_s` INT DEFAULT NULL,
+          `distance_m` INT DEFAULT NULL,
+          `denivele_positif_m` INT DEFAULT NULL,
+          `statut` ENUM('en_course','termine','abandon','non_partant','invalide') NOT NULL DEFAULT 'en_course',
+          `valide_par` INT DEFAULT NULL,
+          `commentaire` VARCHAR(255) DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_reg_edition` (`registration_id`, `edition_id`),
+          INDEX `idx_edition_temps` (`edition_id`, `temps_s`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // `points` : JSON COMPRESSÉ (gzencode puis base64) — à 1000 coureurs et
+        // ~3600 points chacun, le non-compressé pèserait plusieurs centaines de Mo.
+        // Format documenté dans inc/api-doc.php.
+        // `purge_at` porte la date de suppression automatique (RGPD).
+        "CREATE TABLE IF NOT EXISTS `traces_gps` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `registration_id` INT NOT NULL,
+          `edition_id` INT NOT NULL,
+          `device_id` INT DEFAULT NULL,
+          `source` ENUM('app','gpx_import') NOT NULL DEFAULT 'app',
+          `points` LONGTEXT DEFAULT NULL,
+          `nb_points` INT DEFAULT 0,
+          `debut_at` DATETIME(3) DEFAULT NULL,
+          `fin_at` DATETIME(3) DEFAULT NULL,
+          `purge_at` DATE DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_reg` (`registration_id`),
+          INDEX `idx_purge` (`purge_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Toutes les détections brutes sont conservées ; `retenue` marque celle qui
+        // a produit le résultat. On ne jette jamais une détection.
+        "CREATE TABLE IF NOT EXISTS `detections` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `registration_id` INT NOT NULL,
+          `edition_id` INT NOT NULL,
+          `device_id` INT DEFAULT NULL,
+          `type` ENUM('beacon','geofence','gps_ligne','manuel') NOT NULL,
+          `point` ENUM('depart','arrivee') NOT NULL,
+          `detecte_at` DATETIME(3) NOT NULL,
+          `recu_at` DATETIME(3) DEFAULT NULL,
+          `rssi_pic` SMALLINT DEFAULT NULL,
+          `beacon_minor` SMALLINT DEFAULT NULL,
+          `confiance` TINYINT DEFAULT NULL,
+          `retenue` TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX `idx_reg_point` (`registration_id`, `point`),
+          INDEX `idx_edition` (`edition_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
         "CREATE TABLE IF NOT EXISTS `partners_years` (
@@ -1081,6 +1281,14 @@ function getDefaultInserts(): array
         "INSERT IGNORE INTO `sync_assoconnect` (`id`) VALUES (1)",
 
         "INSERT IGNORE INTO `tshirt_access` (`id`) VALUES (1)",
+
+        // Première édition (lot 1) : l'année en cours, marquée active. Toute
+        // inscription créée ensuite s'y rattache automatiquement
+        // (regcore_activeEditionId). L'administrateur pourra compléter la date de
+        // course, la distance et les coordonnées géographiques depuis la
+        // configuration. Base neuve = aucun backfill, aucune consolidation.
+        "INSERT IGNORE INTO `editions` (`annee`, `libelle`, `is_active`)
+          VALUES (YEAR(CURDATE()), CONCAT('Forbach en Rose ', YEAR(CURDATE())), 1)",
     ];
 }
 

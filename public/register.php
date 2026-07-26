@@ -173,6 +173,23 @@ if ($_POST) {
 
                 if ($groupId !== null) { $formData['group_id'] = $groupId; $columns[] = '`group_id`'; $placeholders[] = ':group_id'; }
 
+                /* Lot 1 — rattachement de l'inscription (colonnes ajoutées seulement
+                 * si la migration est passée, pour ne pas casser le formulaire public
+                 * si le code est déployé avant update.php).
+                 *   edition_id      : sans lui, l'inscription n'appartient à aucune édition.
+                 *   email_normalise : empreinte HMAC de l'adresse (fer_emailHash), clé de
+                 *                     rattachement au compte coureur. `email` étant chiffré,
+                 *                     elle ne peut pas être recalculée en SQL. */
+                $editionIdPublic = fer_activeEditionId($pdo);
+                if ($editionIdPublic !== null) {
+                    $formData['edition_id'] = $editionIdPublic;
+                    $columns[] = '`edition_id`'; $placeholders[] = ':edition_id';
+                }
+                if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
+                    $formData['email_normalise'] = fer_emailHash($src['email'] ?? null);
+                    $columns[] = '`email_normalise`'; $placeholders[] = ':email_normalise';
+                }
+
                 $columns[] = 'created_at';       $placeholders[] = 'NOW()';
                 $columns[] = 'date_inscription'; $placeholders[] = 'NOW()';
 

@@ -342,3 +342,71 @@
   font-size: var(--fs-small); font-weight: 600; font-family: inherit; cursor: pointer;
 }
 .upd-btn-danger:hover { filter: brightness(0.92); }
+
+/* ============================================================
+   OUTILS PONCTUELS — update.php?tool=…
+   ------------------------------------------------------------
+   Réparation des dates, consolidation des archives, normalisation
+   des naissances. Ces pages reprennent EXACTEMENT la coquille de
+   update.php (.auth / .auth-pane / .oc-*) : mêmes jetons de thème,
+   même bascule clair/sombre, même accent. Seuls les éléments que
+   le rapport de migration n'a pas (tableaux de données, cases
+   « Appliquer », étiquettes) sont définis ici.
+   ============================================================ */
+
+/* Les outils affichent des tableaux : il leur faut plus large que les 620px
+   de .is-wide, sans casser la colonne d'illustration. */
+.auth-pane .inner.is-widest { width: min(980px, 100%); margin: var(--sp-4) auto; align-self: center; }
+
+.tool-intro { font-size: var(--fs-small); color: var(--ink-dim); line-height: 1.6; margin-bottom: var(--sp-3); }
+.tool-intro code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-family: var(--font-mono); font-size: var(--fs-micro); }
+
+.tool-section-title { font-size: var(--fs-small); font-weight: 700; color: var(--ink); margin: var(--sp-4) 0 var(--sp-2); }
+
+/* Zone de défilement d'un tableau de résultats */
+.tool-scroll { max-height: 380px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-m); }
+
+.tool-table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
+.tool-table th, .tool-table td { text-align: left; padding: 0.5rem 0.65rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.tool-table tr:last-child td { border-bottom: none; }
+.tool-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface-2); color: var(--ink-faint);
+  font-size: var(--fs-micro); font-weight: 650; text-transform: uppercase; letter-spacing: .03em;
+}
+.tool-table td.mono, .tool-table td.num { font-family: var(--font-mono); font-size: var(--fs-micro); }
+.tool-table td.num, .tool-table th.num { text-align: right; }
+.tool-table td.err { color: var(--danger); font-size: var(--fs-micro); }
+
+/* Étiquettes d'interprétation (source de la date de naissance, état d'une table) */
+.tool-tag { display: inline-block; font-size: var(--fs-micro); font-weight: 700; padding: 2px 9px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-faint); }
+.tool-tag-date    { background: var(--ok-soft);     color: var(--ok); }
+.tool-tag-annee   { background: var(--info-soft);   color: var(--info); }
+.tool-tag-age     { background: var(--accent-soft); color: var(--accent); }
+.tool-tag-inconnu { background: var(--danger-soft); color: var(--danger); }
+.tool-tag-note    { background: var(--warn-soft);   color: var(--warn); }
+
+/* Cases à cocher : option neutre, et « Appliquer » qui écrit réellement en base */
+.tool-check {
+  display: flex; align-items: flex-start; gap: 10px;
+  border-radius: var(--radius-m); padding: 0.7rem 0.85rem; margin-bottom: var(--sp-2);
+  font-size: var(--fs-small); line-height: 1.5;
+  background: var(--surface); border: 1px solid var(--border-strong); color: var(--ink-dim);
+  cursor: pointer;
+}
+.tool-check input { width: 16px; height: 16px; flex: none; margin-top: 2px; accent-color: var(--accent); }
+.tool-check strong { color: var(--ink); }
+.tool-check-apply { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 35%, transparent); color: var(--warn); }
+.tool-check-apply strong { color: var(--warn); }
+
+.tool-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-3); }
+.tool-actions .oc-btn { width: auto; }
+
+/* Champ fichier (réparation des dates) */
+.tool-file {
+  width: 100%; font-size: var(--fs-small); padding: 0.6rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-m);
+  background: var(--surface); color: var(--ink); font-family: inherit;
+}
+.tool-old { color: var(--danger); text-decoration: line-through; }
+.tool-new { color: var(--ok); font-weight: 700; }

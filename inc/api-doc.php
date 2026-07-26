@@ -145,6 +145,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
       <li><a href="#list">Phase 3 — Lister les inscrits — <code>registrations</code></a></li>
       <li><a href="#stats">Phase 3 — Statistiques — <code>stats</code> &amp; <code>years</code></a></li>
       <li><a href="#errors">Codes d'erreur</a></li>
+      <li><a href="#modele">Modèle de données — éditions, fuseaux horaires, traces GPS</a></li>
     </ol>
   </div>
 
@@ -387,6 +388,105 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     <p class="mb-0 text-muted"><i class="bi bi-clock-history me-1"></i>Tous les appels à l'API sont
        journalisés dans le fichier <code>storage/logs/api.log</code>, consultable et videable
        depuis la page <a href="logs.php?log=api">Journaux système</a> (onglet « API »).</p>
+  </div>
+
+  <!-- ═══ 9. Modèle de données (lot 1 — espace coureur / application mobile) ═══ -->
+  <div class="api-card" id="modele">
+    <h2 class="mt-0">9. Modèle de données — éditions, fuseaux horaires, traces GPS</h2>
+
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i>
+      <strong>Cette section documente le schéma, pas de nouveaux endpoints.</strong>
+      L'API décrite ci-dessus (<code>api.php</code>) est <strong>inchangée</strong> : mêmes URL,
+      mêmes paramètres, mêmes réponses. Les éléments décrits ici sont utilisés par l'espace
+      coureur et par la future API mobile <code>/api/v1</code>.
+    </div>
+
+    <h3><code>editions</code> et <code>registrations_stats</code></h3>
+    <p>Deux tables portent désormais l'information « année » :</p>
+    <table class="table table-sm api-params">
+      <thead><tr><th>Table</th><th>Rôle</th><th>Utilisée par</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>editions</code></td>
+          <td><strong>Source de vérité</strong> d'une édition de la course : année, libellé, date,
+              distance, heure de départ, coordonnées de départ/arrivée, date limite des transferts.</td>
+          <td>Espace coureur, application mobile, chronométrage</td>
+        </tr>
+        <tr>
+          <td><code>registrations_stats</code></td>
+          <td>Statistiques agrégées par année (totaux, tailles de T-shirt, âge moyen…).
+              <strong>Inchangée</strong>.</td>
+          <td>Endpoints <code>stats</code> et <code>years</code> ci-dessus</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Une synchronisation lancée par <code>update.php</code> garantit qu'<strong>une édition existe
+       pour chaque année présente dans <code>registrations_stats</code></strong>. L'endpoint
+       <code>years</code> continue de lire <code>registrations_stats.year</code> : son comportement
+       et sa réponse ne changent pas.</p>
+    <p>Chaque ligne de <code>registrations</code> porte une colonne <code>edition_id</code>.
+       L'unicité du numéro d'inscription est désormais <strong>par édition</strong>
+       (<code>UNIQUE (edition_id, inscription_no)</code>) : un même numéro peut être réutilisé
+       d'une année sur l'autre.</p>
+
+    <h3>Contrat de fuseau horaire</h3>
+    <div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle me-2"></i>
+      <strong>Une erreur ici coûte deux heures de chrono.</strong> Le schéma historique est mixte et
+      ne change pas : <code>registrations.created_at</code> est un <code>TIMESTAMP</code> (converti
+      par MySQL), <code>registrations.date_inscription</code> un <code>DATETIME</code> (heure serveur,
+      stockée telle quelle).
+    </div>
+    <p>Pour <strong>tout ce qui a été ajouté</strong> (chronométrage, traces, détections), le contrat
+       est le suivant :</p>
+    <ul>
+      <li>les colonnes <code>DATETIME(3)</code> — <code>resultats.depart_at</code>,
+          <code>resultats.arrivee_at</code>, <code>detections.detecte_at</code>,
+          <code>detections.recu_at</code>, <code>traces_gps.debut_at</code>,
+          <code>traces_gps.fin_at</code> — sont stockées <strong>en UTC</strong>, sans exception ;</li>
+      <li><code>editions.heure_depart</code> est également stockée <strong>en UTC</strong> : c'est
+          l'heure du coup de feu, donc la référence de tous les temps calculés. Renseignée en heure
+          locale face à des arrivées en UTC, <strong>tous les chronos seraient faux de deux heures</strong> ;</li>
+      <li>l'API n'accepte et ne renvoie que de l'<strong>ISO-8601 avec décalage explicite</strong>
+          (<code>2027-07-04T09:32:15.123+02:00</code>), jamais une date nue ;</li>
+      <li>la conversion vers <code>Europe/Paris</code> se fait <strong>uniquement à l'affichage</strong>.</li>
+    </ul>
+
+    <h3>Format de <code>traces_gps.points</code></h3>
+    <p>Le JSON des points est stocké <strong>compressé</strong> : <code>gzencode()</code> puis
+       <code>base64_encode()</code>. À 1000 coureurs et ~3600 points chacun, le non-compressé
+       représenterait plusieurs centaines de Mo et rendrait les sauvegardes pénibles.</p>
+    <?php codeBlock("// Écriture\n\$points = [\n  ['t' => '2027-07-04T09:32:15.123+02:00', 'lat' => 49.1889, 'lon' => 6.9004, 'alt' => 218, 'acc' => 5],\n  // …\n];\n\$blob = base64_encode(gzencode(json_encode(\$points), 9));\n\n// Lecture\n\$points = json_decode(gzdecode(base64_decode(\$blob)), true);"); ?>
+    <p><code>nb_points</code> conserve le nombre de points sans avoir à décompresser, et
+       <code>purge_at</code> porte la date de suppression automatique (RGPD).</p>
+
+    <h3>Résultats : <code>methode</code> et <code>precision_s</code></h3>
+    <p>Tout résultat exposé porte <strong>obligatoirement</strong> sa méthode d'obtention
+       (<code>beacon</code>, <code>gps_ligne</code>, <code>gps_extrapole</code>,
+       <code>gps_distance</code>, <code>manuel</code>, <code>declaratif</code>) et sa précision en
+       secondes. Un temps issu d'une extrapolation GPS ne doit <strong>jamais</strong> être présenté
+       comme équivalent à un temps beacon.</p>
+    <p>La table <code>detections</code> conserve <strong>toutes</strong> les détections brutes ;
+       la colonne <code>retenue</code> marque celle qui a produit le résultat. On ne jette jamais
+       une détection.</p>
+
+    <h3>Comptes coureurs — tables séparées</h3>
+    <p><code>participants</code> (comptes coureurs) est <strong>strictement distincte</strong> de
+       <code>users</code> (comptes d'administration) : deux tables, deux sessions, deux systèmes de
+       jetons. <code>participants</code> ne comporte <strong>aucune colonne de mot de passe</strong> :
+       la connexion se fait uniquement par code à 6 chiffres reçu par mail.</p>
+    <p>La colonne <code>email_normalise</code> (présente sur <code>registrations</code>,
+       <code>participants</code> et <code>participant_auth_codes</code>) ne contient
+       <strong>pas l'adresse en clair</strong> mais une <strong>empreinte HMAC-SHA256</strong> de
+       l'adresse en minuscules, dérivée de la clé de chiffrement du site
+       (<code>fer_emailHash()</code>). La colonne <code>email</code> étant chiffrée avec un vecteur
+       d'initialisation aléatoire, elle n'est ni comparable ni indexable ; recopier l'adresse en clair
+       à côté aurait annulé cette protection. L'empreinte est déterministe : elle permet l'index,
+       la jointure et l'égalité — mais pas la recherche partielle.</p>
+    <p>La seule référence vers <code>users</code> dans tout ce modèle est
+       <code>resultats.valide_par</code> : elle désigne l'<strong>administrateur</strong> qui a validé
+       ou corrigé un temps, jamais un coureur.</p>
   </div>
 
 </div>
