@@ -1,23 +1,32 @@
 <?php
 /**
- * consentement.php — Acceptation RGPD, exigée à la première connexion (lot 2).
+ * consentement.php — Acceptation RGPD, exigée à la première connexion.
  *
  * pauth_require() redirige ici tant que `rgpd_consent_at` est vide : aucune
  * donnée personnelle n'est affichée avant. La version acceptée est enregistrée
  * (`participant_rgpd_version`), afin qu'une évolution de la politique puisse
  * exiger un nouveau consentement plutôt que de le présumer acquis.
+ *
+ * Même charte que la connexion : c'est la suite immédiate du même parcours.
  */
 define('FER_SESSION_COUREUR', true);
 require '../../src/core/config.php';
 checkMaintenance();
 require_once '../../src/security/csrf.php';
 require_once '../../src/auth/participant_auth.php';
-require __DIR__ . '/../../src/partials/navbar-data.php';
 
 // Connexion exigée, mais SANS le contrôle de consentement : c'est la page qui
 // le recueille, la renvoyer sur elle-même créerait une boucle.
 if (!pauth_isLogged()) pauth_loginFromCookie($pdo);
 if (!pauth_isLogged()) { header('Location: login.php'); exit; }
+
+// Refus : on ferme la session sans rien supprimer. L'inscription à la course
+// reste évidemment valable, seul l'accès en ligne est abandonné.
+if (isset($_GET['refus'])) {
+    pauth_logout($pdo);
+    header('Location: ../accueil.php');
+    exit;
+}
 
 $settings = pauth_settings($pdo);
 $version  = (string) $settings['participant_rgpd_version'];
@@ -37,14 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Refus : on ferme la session sans rien supprimer. L'inscription à la course
-// reste évidemment valable, seul l'accès en ligne est abandonné.
-if (isset($_GET['refus'])) {
-    pauth_logout($pdo);
-    header('Location: ../accueil.php');
-    exit;
-}
-
+$authBase = '../../';
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -54,95 +56,88 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Espace coureur — Vos données</title>
-<link rel="stylesheet" href="../../css/tokens.css">
-<link rel="stylesheet" href="../../css/fer-modern.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  .ec-wrap { min-height:70vh; display:flex; align-items:center; justify-content:center; padding:32px 16px; }
-  .ec-card { background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,.08); width:100%; max-width:620px; overflow:hidden; }
-  .ec-hd { background:linear-gradient(135deg,#F42182,#db2777); color:#fff; padding:26px 28px; }
-  .ec-hd h1 { font-size:1.25rem; font-weight:700; margin:0 0 4px; }
-  .ec-hd p  { font-size:.85rem; opacity:.92; margin:0; }
-  .ec-bd { padding:24px 28px 28px; font-size:.92rem; color:#334155; line-height:1.65; }
-  .ec-bd h2 { font-size:.95rem; font-weight:700; color:#1e293b; margin:18px 0 6px; }
-  .ec-bd ul { margin:0 0 0 1.1rem; padding:0; }
-  .ec-btn { border:0; border-radius:.6rem; padding:.8rem 1.4rem; font-size:1rem; font-weight:700;
-            background:linear-gradient(135deg,#F42182,#db2777); color:#fff; cursor:pointer; }
-  .ec-btn:hover { opacity:.93; }
-  .ec-alert { border-radius:.6rem; padding:.8rem .9rem; font-size:.88rem; margin-bottom:16px;
-              background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
-  .ec-check { display:flex; align-items:flex-start; gap:10px; margin:18px 0; }
-  .ec-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-  .ec-refus { color:#64748b; font-size:.85rem; text-decoration:underline; }
-</style>
+<?php include __DIR__ . '/../../src/partials/auth-head.php'; ?>
 </head>
 <body>
-<?php include __DIR__ . '/_layout-haut.php'; ?>
+<div class="auth">
+  <div class="auth-frame">
+    <div class="auth-pane">
+      <a class="brand" href="../accueil.php">
+        <?php if (file_exists(dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png')): ?>
+          <img src="../../files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+        <?php endif; ?>
+        <span class="name">Forbach en Rose</span>
+      </a>
 
-<div class="ec-wrap">
-  <div class="ec-card">
-    <div class="ec-hd">
-      <h1><i class="bi bi-shield-check me-2"></i>Vos données personnelles</h1>
-      <p>Une seule fois, avant d'accéder à votre espace.</p>
-    </div>
-    <div class="ec-bd">
-
-      <?php if ($erreur !== ''): ?>
-        <div class="ec-alert"><i class="bi bi-exclamation-triangle me-1"></i><?= $h($erreur) ?></div>
-      <?php endif; ?>
-
-      <p>Votre espace coureur vous permet de retrouver vos inscriptions, votre QR code
-         et, à terme, vos résultats. Voici ce que cela implique.</p>
-
-      <h2>Ce que nous utilisons</h2>
-      <ul>
-        <li>Votre <strong>adresse email</strong>, pour vous envoyer votre code de connexion
-            et rattacher vos inscriptions à votre compte.</li>
-        <li>Vos <strong>inscriptions</strong> déjà enregistrées&nbsp;: nom, prénom, édition,
-            taille de t-shirt, statut de paiement.</li>
-        <li>Vos <strong>appareils de confiance</strong>, si vous cochez « se souvenir de moi »&nbsp;:
-            navigateur, plateforme, date de dernière utilisation. Vous pouvez les révoquer
-            à tout moment.</li>
-      </ul>
-
-      <h2>Ce que nous ne faisons pas</h2>
-      <ul>
-        <li>Aucune revente, aucun partage à des fins commerciales.</li>
-        <li>Aucun mot de passe stocké&nbsp;: la connexion se fait par code à usage unique.</li>
-        <li>Aucun suivi de localisation aujourd'hui. Le jour où l'application mobile
-            proposera le chronométrage, votre accord explicite et distinct sera demandé.</li>
-      </ul>
-
-      <h2>Vos droits</h2>
-      <ul>
-        <li>Exporter vos données à tout moment depuis « Mon compte ».</li>
-        <li>Supprimer votre compte&nbsp;: le compte en ligne disparaît,
-            <strong>votre inscription à la course reste valable</strong> — l'association doit
-            la conserver pour sa comptabilité.</li>
-      </ul>
-
-      <p style="margin-top:14px">
-        Détail complet dans notre <a href="../politique-confidentialite.php" target="_blank"
-        rel="noopener">politique de confidentialité</a>.
-      </p>
-
-      <form method="post">
-        <?= csrf_field() ?>
-        <label class="ec-check">
-          <input type="checkbox" name="accepte" value="1" required>
-          <span>J'ai lu et j'accepte l'utilisation de mes données décrite ci-dessus
-                (version <?= $h($version) ?>).</span>
-        </label>
-        <div class="ec-actions">
-          <button class="ec-btn" type="submit"><i class="bi bi-check2 me-1"></i>Accéder à mon espace</button>
-          <a class="ec-refus" href="?refus=1">Refuser et me déconnecter</a>
+      <div class="inner is-wide">
+        <div class="oc-icon-area">
+          <div class="oc-icon-circle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+          </div>
+          <h1 class="oc-title">Vos données personnelles</h1>
+          <p class="oc-subtitle">Une seule fois, avant d'accéder à votre espace.</p>
         </div>
-      </form>
 
-    </div>
-  </div>
-</div>
+        <?php if ($erreur !== ''): ?>
+          <div class="oc-alert oc-alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><?= $h($erreur) ?></div>
+        <?php endif; ?>
 
-<?php include __DIR__ . '/_layout-bas.php'; ?>
+        <div class="oc-card" style="text-align:left;font-size:var(--fs-small);line-height:1.65">
+          <p style="margin-top:0">Votre espace coureur vous permet de retrouver vos inscriptions,
+             votre QR code et, à terme, vos résultats. Voici ce que cela implique.</p>
+
+          <p style="font-weight:700;margin-bottom:4px">Ce que nous utilisons</p>
+          <ul style="margin:0 0 12px 1.1rem;padding:0">
+            <li>Votre <strong>adresse email</strong>, pour vous envoyer votre code de connexion
+                et rattacher vos inscriptions à votre compte.</li>
+            <li>Vos <strong>inscriptions</strong>&nbsp;: nom, prénom, édition, taille de t-shirt,
+                statut de paiement.</li>
+            <li>Vos <strong>appareils de confiance</strong> si vous cochez « se souvenir de moi ».
+                Vous pouvez les révoquer à tout moment.</li>
+          </ul>
+
+          <p style="font-weight:700;margin-bottom:4px">Ce que nous ne faisons pas</p>
+          <ul style="margin:0 0 12px 1.1rem;padding:0">
+            <li>Aucune revente, aucun partage à des fins commerciales.</li>
+            <li>Aucun mot de passe stocké&nbsp;: connexion par code à usage unique.</li>
+            <li>Aucun suivi de localisation aujourd'hui. Le jour où l'application mobile
+                proposera le chronométrage, votre accord explicite et distinct sera demandé.</li>
+          </ul>
+
+          <p style="font-weight:700;margin-bottom:4px">Vos droits</p>
+          <ul style="margin:0 0 12px 1.1rem;padding:0">
+            <li>Exporter vos données à tout moment depuis « Mon compte ».</li>
+            <li>Supprimer votre compte&nbsp;: le compte en ligne disparaît,
+                <strong>votre inscription à la course reste valable</strong> — l'association doit
+                la conserver pour sa comptabilité.</li>
+          </ul>
+
+          <p style="margin-bottom:0">Détail complet dans la
+             <a href="../politique-confidentialite.php" target="_blank" rel="noopener">politique
+             de confidentialité</a>.</p>
+        </div>
+
+        <form method="post" style="margin-top:var(--sp-4)">
+          <?= csrf_field() ?>
+          <div class="oc-checkbox-group">
+            <input type="checkbox" id="ecAccepte" name="accepte" value="1" required>
+            <label for="ecAccepte">J'ai lu et j'accepte l'utilisation de mes données décrite
+              ci-dessus (version <?= $h($version) ?>).</label>
+          </div>
+          <button class="oc-btn" type="submit"><i class="bi bi-check2"></i> Accéder à mon espace</button>
+        </form>
+
+        <p style="margin-top:var(--sp-3);text-align:center">
+          <a class="oc-back" href="?refus=1">Refuser et me déconnecter</a>
+        </p>
+      </div><!-- /inner -->
+    </div><!-- /auth-pane -->
+    <?php include __DIR__ . '/../../src/partials/auth-art.php'; ?>
+  </div><!-- /auth-frame -->
+</div><!-- /auth -->
 </body>
 </html>
