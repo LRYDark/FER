@@ -26,7 +26,7 @@ $t = ($mtc['texts'] ?? []) + [
 Merci de rejoindre cette belle cause."
 ];
 $font = $mtc['font'] ?? 'system';
-$sectionOrder = $mtc['section_order'] ?? ['details','tips','description','qrcode','banner','contact'];
+$sectionOrder = $mtc['section_order'] ?? ['details','tips','description','qrcode','app','banner','contact'];
 $headerImage = $mtc['header_image'] ?? '';
 $r = ($mtc['radius'] ?? []) + ['card'=>16,'section'=>12,'badge'=>20];
 $visibility = $mtc['visibility'] ?? [];
@@ -51,6 +51,15 @@ if (isset($visibility['description']) && is_array($visibility['description'])) {
 if (isset($visibility['qrcode']) && is_array($visibility['qrcode'])
     && !in_array('bulk_recap', $visibility['qrcode'], true)) {
     $visibility['qrcode'][] = 'bulk_recap';
+}
+// ⚠️ Une section sans entrée de visibilité s'affiche dans TOUS les mails.
+// La section « app » ne concerne que les mails liés à une inscription : sans ce
+// défaut, elle proposerait « accédez à votre espace coureur » au bas d'une
+// réinitialisation de mot de passe d'administrateur ou d'un code 2FA. L'admin
+// peut toujours l'élargir depuis Paramètres mail — ce n'est qu'un point de
+// départ raisonnable.
+if (!isset($visibility['app'])) {
+    $visibility['app'] = ['inscription', 'bulk_recap'];
 }
 $mailSubtype = $mail_subtype ?? ($type === 'inscription' ? 'inscription' : 'info');
 
@@ -188,6 +197,55 @@ $sections['contact'] = function() use ($mail_email, $mail_phone, $c, $t) {
     }
     $html .= '</p></td></tr></table>';
     return $html;
+};
+
+/* ── Espace coureur / application (lot 6) ────────────────────────────────────
+ * Renvoie le destinataire vers son espace en ligne. Les liens des magasins
+ * d'applications ne s'affichent QUE s'ils sont renseignés dans les réglages :
+ * un bouton « Télécharger l'application » qui ne mène nulle part est pire que
+ * pas de bouton du tout — il fait passer l'association pour négligente.
+ *
+ * Aucun jeton, aucun identifiant dans ce lien : il mène à la page de connexion,
+ * où la personne saisit son adresse et reçoit un code. Un lien qui connecterait
+ * directement transporterait un secret dans une URL — journalisée par les
+ * serveurs, gardée dans l'historique, et transmise d'un simple « faire suivre ».
+ */
+$sections['app'] = function() use ($c, $t, $r, $espace_url, $app_ios, $app_android) {
+    if (empty($espace_url)) return '';
+    $rs     = (int) $r['section'];
+    $accent = htmlspecialchars($c['accent']);
+
+    $titre = $t['app_title'] ?? 'Votre espace coureur';
+    $texte = $t['app_text']  ?? "Retrouvez votre inscription, votre QR code et vos informations "
+                              . "à tout moment. Connexion par simple code envoyé par email.";
+
+    $html = '<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+        <tr><td style="padding:24px 28px;background:#f8fafc;border-radius:' . $rs . 'px;text-align:center;">
+            <p style="font-size:15px;font-weight:700;color:#0f172a;margin:0 0 6px;">'
+                . htmlspecialchars($titre) . '</p>
+            <p style="font-size:13px;color:#64748b;margin:0 0 16px;line-height:1.7;">'
+                . htmlspecialchars($texte) . '</p>
+            <a href="' . htmlspecialchars($espace_url) . '"
+               style="display:inline-block;background:' . $accent . ';color:#ffffff;text-decoration:none;'
+             . 'font-size:14px;font-weight:600;padding:11px 24px;border-radius:8px;">'
+             . 'Accéder à mon espace</a>';
+
+    if (!empty($app_ios) || !empty($app_android)) {
+        $html .= '<p style="font-size:12px;color:#94a3b8;margin:16px 0 6px;">'
+               . 'Ou téléchargez l\'application&nbsp;:</p><p style="margin:0;font-size:13px;">';
+        $liens = [];
+        if (!empty($app_ios)) {
+            $liens[] = '<a href="' . htmlspecialchars($app_ios) . '" style="color:' . $accent
+                     . ';text-decoration:none;font-weight:500;">iPhone</a>';
+        }
+        if (!empty($app_android)) {
+            $liens[] = '<a href="' . htmlspecialchars($app_android) . '" style="color:' . $accent
+                     . ';text-decoration:none;font-weight:500;">Android</a>';
+        }
+        $html .= implode(' <span style="color:#cbd5e1">·</span> ', $liens) . '</p>';
+    }
+
+    return $html . '</td></tr></table>';
 };
 
 // Custom sections — create renderer for each custom_* section

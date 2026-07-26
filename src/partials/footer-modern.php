@@ -88,6 +88,12 @@
       </p>
       <div class="footer-links">
         <a href="faq">FAQ</a>
+        <span class="footer-separator">•</span>
+        <?php /* Espace coureur & application (lot 6). Le lien est ici plutôt que
+                 dans la barre de navigation : celle-ci porte déjà un bouton
+                 « Espace coureur », et deux entrées pour la même destination
+                 en haut de page se disputeraient l'attention. */ ?>
+        <a href="telecharger-app">Espace coureur &amp; application</a>
         |
         <a href="../login.php">Administration</a>
         <span class="footer-separator">•</span>

@@ -99,11 +99,15 @@ $mtcTexts = ($mtc['texts'] ?? []) + [
     'tips_title'=>'Conseils pour le jour J','tips_1'=>'Arrivez 30 minutes avant le départ',
     'tips_2'=>'Portez des vêtements roses pour soutenir la cause','tips_3'=>'Prenez des chaussures confortables',
     'contact_title'=>'Une question ?',
+    // Section « app » (lot 6) — espace coureur et application mobile.
+    'app_title'=>'Votre espace coureur',
+    'app_text'=>"Retrouvez votre inscription, votre QR code et vos informations à tout moment. "
+              . "Connexion par simple code envoyé par email.",
     'title_subtitle'=>"Votre inscription a bien été enregistrée.
 Merci de rejoindre cette belle cause."
 ];
 $mtcFont      = $mtc['font'] ?? 'system';
-$mtcOrder     = $mtc['section_order'] ?? ['details','tips','description','qrcode','banner','contact'];
+$mtcOrder     = $mtc['section_order'] ?? ['details','tips','description','qrcode','app','banner','contact'];
 $mtcHeaderImg = $mtc['header_image'] ?? '';
 $mtcRadius    = ($mtc['radius'] ?? []) + ['card'=>16,'section'=>12,'badge'=>20];
 $mtcCardWidth = $mtc['card_width'] ?? 600;
@@ -170,9 +174,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
                 'tips_2'          => $_POST['mtc_tips_2']          ?? 'Portez des vêtements roses pour soutenir la cause',
                 'tips_3'          => $_POST['mtc_tips_3']          ?? 'Prenez des chaussures confortables',
                 'contact_title'   => $_POST['mtc_contact_title']   ?? 'Une question ?',
+                'app_title'       => $_POST['mtc_app_title']       ?? 'Votre espace coureur',
+                'app_text'        => $_POST['mtc_app_text']
+                    ?? "Retrouvez votre inscription, votre QR code et vos informations à tout moment. "
+                     . "Connexion par simple code envoyé par email.",
             ],
             'font'          => $_POST['mtc_font'] ?? 'system',
-            'section_order' => array_filter(explode(',', $_POST['mtc_section_order'] ?? 'details,tips,description,qrcode,banner,contact')),
+            'section_order' => array_filter(explode(',', $_POST['mtc_section_order'] ?? 'details,tips,description,qrcode,app,banner,contact')),
             'header_image'  => $headerImage,
             'radius' => [
                 'card'    => (int)($_POST['mtc_radius_card']    ?? 16),
@@ -1300,6 +1308,23 @@ $jsConfig = json_encode([
                     <p style="font-size:13px;color: #475569;margin:0 0 4px"><span data-dyn="n° inscription">Billet n° 42</span></p>
                     <p data-ed="qrcode_subtitle" style="font-size:13px;color:#64748b;margin:0 0 16px"><?= htmlspecialchars($mtcTexts['qrcode_subtitle']) ?></p>
                     <div style="width:120px;height:120px;background:#f1f5f9;border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;color: #64748b;font-size:11px">QR</div>
+                  </td></tr>
+                </table>
+<?php elseif($sec==='app'): ?>
+                <?php /* Espace coureur / application (lot 6). Les liens vers les
+                         magasins n'apparaissent dans le vrai mail QUE s'ils sont
+                         renseignés dans l'onglet « Application mobile » : ici on
+                         les montre en aperçu, grisés, pour que l'admin sache à
+                         quoi s'attendre. */ ?>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+                  <tr><td class="sec-r" style="padding:24px 28px;background:#f8fafc;text-align:center">
+                    <p data-ed="app_title" style="font-size:15px;font-weight:700;color:#0f172a;margin:0 0 6px"><?= htmlspecialchars($mtcTexts['app_title']) ?></p>
+                    <p data-ed="app_text" style="font-size:13px;color:#64748b;margin:0 0 16px;line-height:1.7"><?= htmlspecialchars($mtcTexts['app_text']) ?></p>
+                    <span data-acc="bg" style="display:inline-block;background:<?= $mtcColors['accent'] ?>;color:#fff;font-size:14px;font-weight:600;padding:11px 24px;border-radius:8px">Accéder à mon espace</span>
+                    <p style="font-size:12px;color:#94a3b8;margin:16px 0 6px">Ou téléchargez l'application :</p>
+                    <p style="margin:0;font-size:13px;color:#cbd5e1">iPhone · Android
+                      <span style="display:block;font-size:11px;margin-top:6px">(affichés seulement si les liens des magasins sont renseignés)</span>
+                    </p>
                   </td></tr>
                 </table>
 <?php elseif($sec==='banner'): ?>

@@ -461,6 +461,12 @@ function buildMailBody($to, string $subject, $mailTitle, $description, $lastname
         'inscription_no' => $inscriptionNo,
         'mtc'         => $mtc,
         'mail_subtype' => $mailSubtype ?? ($type === 'inscription' ? 'inscription' : 'info'),
+        // Section « app » (lot 6) : renvoi vers l'espace coureur et, s'ils sont
+        // renseignés, vers les magasins d'applications. Les liens sont calculés
+        // ici et non dans le gabarit — celui-ci n'a pas accès à $data.
+        'espace_url'  => rtrim(getAppBaseUrl(), '/') . '/public/espace-coureur/login.php',
+        'app_ios'     => $data['app_store_url_ios'] ?? '',
+        'app_android' => $data['app_store_url_android'] ?? '',
     ]);
 
     return ['body' => $body, 'qrPng' => $qrPngBytes];

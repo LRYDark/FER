@@ -1373,6 +1373,67 @@ function getDefaultInserts(): array
         // Base neuve : aucune archive à détecter, aucun backfill.
         "INSERT IGNORE INTO `editions` (`annee`, `libelle`, `is_active`)
           VALUES (YEAR(CURDATE()), CONCAT('Forbach en Rose ', YEAR(CURDATE())), 1)",
+
+        /* ── FAQ de l'espace coureur (lot 6) ─────────────────────────────────
+         * Identifiants FIXES à partir de 901, et INSERT IGNORE : c'est ce qui
+         * rend le peuplement idempotent, en installation comme en mise à jour.
+         * La plage 901+ évite toute collision avec les questions créées par
+         * l'administration, numérotées à partir de 1.
+         * `position` à 900+ pour qu'elles se placent après les siennes.
+         *
+         * ⚠️ Conséquence assumée : une question supprimée par l'administration
+         * réapparaît au prochain update.php. La désactiver (active = 0) plutôt
+         * que la supprimer la fait disparaître définitivement du site.
+         *
+         * Le champ `keywords` sert au chatbot : ce sont les mots que les gens
+         * tapent VRAIMENT, pas le vocabulaire de l'association. « je ne peux
+         * plus courir » amène plus de monde que « transfert d'inscription ». */
+        "INSERT IGNORE INTO `chatbot_faq` (`id`, `question`, `answer`, `keywords`, `position`, `active`) VALUES
+          (901,
+           'Comment accéder à mon espace coureur ?',
+           'Rendez-vous sur la page de connexion de l''espace coureur et saisissez l''adresse email utilisée lors de votre inscription. Vous recevez aussitôt un code à 6 chiffres par email : recopiez-le, et vous êtes connecté. Il n''y a aucun mot de passe à créer ni à retenir.',
+           'espace coureur, connexion, se connecter, mot de passe, code, mon compte',
+           901, 1),
+          (902,
+           'J''ai perdu mon QR code, comment le retrouver ?',
+           'Votre QR code est disponible à tout moment dans votre espace coureur, sur la fiche de votre inscription. C''est exactement le même que celui de votre mail de confirmation : vous pouvez le présenter depuis votre téléphone au retrait des t-shirts.',
+           'qr code, qrcode, billet, dossard, perdu, retrouver, mail non recu',
+           902, 1),
+          (903,
+           'Je ne peux plus courir. Que faire de mon inscription ?',
+           'Vous pouvez la transférer à quelqu''un d''autre depuis votre espace coureur, sans passer par l''organisation. Ouvrez l''inscription concernée, indiquez l''adresse email de la personne : elle reçoit un mail et confirme. Tant qu''elle n''a pas confirmé, vous pouvez annuler et l''inscription reste la vôtre. Une date limite s''applique avant la course.',
+           'transfert, transferer, ceder, donner ma place, ne peux plus courir, blesse, empeche, annuler, rembourser',
+           903, 1),
+          (904,
+           'Comment corriger mon nom, mon âge ou mon adresse email ?',
+           'Depuis votre espace coureur. Le nom et le prénom se modifient dans « Mon compte », le sexe et l''âge dans le détail de votre inscription. Pour l''adresse email, un code de confirmation est envoyé à la nouvelle adresse — cela évite qu''une faute de frappe vous empêche de vous reconnecter. Attention : le sexe et l''âge ne sont plus modifiables une fois le départ donné, car ils déterminent votre catégorie de classement.',
+           'changer, modifier, corriger, erreur, faute, nom, prenom, age, sexe, mail, email, adresse',
+           904, 1),
+          (905,
+           'Existe-t-il une application mobile ?',
+           'Une application est prévue : elle apportera le suivi de votre course le jour J, ce qu''une page web ne peut pas faire puisqu''elle s''arrête dès que l''écran s''éteint. En attendant, votre espace coureur fonctionne dans n''importe quel navigateur, sur téléphone comme sur ordinateur, et ne prend aucune place sur votre appareil.',
+           'application, appli, app, mobile, telecharger, android, iphone, ios, play store, app store',
+           905, 1),
+          (906,
+           'Je me connecte depuis plusieurs appareils, est-ce un problème ?',
+           'Non. Vous pouvez rester connecté sur votre téléphone, votre tablette et votre ordinateur. La rubrique « Mes appareils » de votre espace liste tous les appareils connectés et permet d''en déconnecter un à distance — utile si vous perdez votre téléphone ou si vous vous êtes connecté sur un appareil qui n''est pas le vôtre.',
+           'appareils, plusieurs, telephone, ordinateur, deconnecter, perdu, vole, securite',
+           906, 1),
+          (907,
+           'La course est-elle chronométrée ?',
+           'Forbach en Rose est avant tout un événement solidaire, à allure libre : l''essentiel est de participer. Un chronométrage par l''application mobile est en préparation. Tant qu''il n''est pas en service, aucun temps n''est enregistré — venez simplement profiter de la marche.',
+           'chronometre, chronometrage, chrono, temps, classement, resultat, performance, course',
+           907, 1),
+          (908,
+           'Où verrai-je mon temps et mes résultats ?',
+           'Dans la rubrique « Mes résultats » de votre espace coureur, dès que le chronométrage sera en service. La page existe déjà mais reste vide pour le moment : c''est normal, il n''y a encore rien à y afficher. Vous y retrouverez aussi vos éditions précédentes.',
+           'mes resultats, mon temps, mon chrono, ou voir, classement, performance',
+           908, 1),
+          (909,
+           'Que fera l''application que le site ne fait pas déjà ?',
+           'Le suivi de votre course le jour J. Une page web s''arrête dès que l''écran du téléphone s''éteint : elle ne peut pas enregistrer votre parcours pendant que vous marchez. C''est la seule chose qu''une application installée sait faire. Pour tout le reste — QR code, inscription, transfert, corrections — le site fait déjà le travail, sans rien occuper sur votre téléphone.',
+           'application, appli, difference, pourquoi, installer, suivi, gps, parcours, jour j',
+           909, 1)",
     ];
 }
 

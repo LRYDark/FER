@@ -48,6 +48,34 @@ function chatbot_match_intent(string $norm): array
 {
     // NB : ordre = priorité en cas d'égalité de score (le premier gagne).
     $intents = [
+        /* ── Espace coureur & application (lot 6) ────────────────────────────
+         * Placées EN TÊTE : « je veux voir mon inscription » doit mener à
+         * l'espace coureur, pas à l'intention générique « inscription ». Les
+         * poids sont élevés (4-5) pour la même raison — ces demandes sont
+         * précises, et une réponse générique à une demande précise donne
+         * l'impression de ne pas avoir été écouté. */
+        'espace_coureur' => [
+            ['/\bespace\b.*\b(coureur|personnel|perso|membre)\b/', 5],
+            ['/\b(mon|mes)\b.*\b(espace|compte)\b/', 4],
+            ['/\b(me connecter|connexion|se connecter|identifier)\b/', 4],
+            ['/\b(voir|consulter|retrouver|acceder|revoir)\b.*\b(mon|ma|mes)\b.*\b(inscription|dossard|qr|billet)\b/', 4],
+            ['/\bmot de passe\b.*\b(oubli|perdu)\b/', 3],
+        ],
+        'application' => [
+            ['/\b(application|appli|app)\b.*\b(mobile|telephone|portable|smartphone)\b/', 5],
+            ['/\b(telecharger|installer|download)\b.*\b(application|appli|app)\b/', 5],
+            ['/\b(application|appli)\b.*\b(existe|dispo|disponible|quand)\b/', 4],
+            ['/\b(android|iphone|ios|play store|app store)\b/', 4],
+            ['/\b(application|appli)\b/', 2],
+        ],
+        // Corriger ses informations. « je me suis trompé » sans complément est
+        // volontairement faible (1) : trop vague pour trancher tout seul.
+        'corriger_infos' => [
+            ['/\b(changer|modifier|corriger|rectifier|mettre a jour)\b.*\b(mail|email|adresse|nom|prenom|age|sexe|information)\b/', 5],
+            ['/\b(mail|email|adresse|nom|prenom)\b.*\b(faux|fausse|erreur|incorrect|change)\b/', 4],
+            ['/\b(erreur|faute)\b.*\b(nom|prenom|mail|email|age)\b/', 4],
+            ['/\b(je me suis trompe|jai fait une erreur)\b/', 1],
+        ],
         // Ai-je droit / vais-je recevoir un t-shirt ? (vérif par e-mail)
         'tshirt_check' => [
             ['/\btshirt\b.*\b(droit|avoir|recevoir|recois|aurai|eligible|elligible|gagne|obtenir|obtiens|beneficie)\b/', 3],
@@ -65,7 +93,10 @@ function chatbot_match_intent(string $norm): array
         'qrcode_resend' => [
             ['/\b(pas|jamais|non|rien)\b.*\brecu\b.*\b(mail|email|confirmation|qr|billet|code)\b/', 7],
             ['/\b(mail|email|confirmation|qr|billet|code)\b.*\b(pas|jamais|non|rien)\b.*\brecu/', 7],
-            ['/\b(renvoyer?|renvoi|renvoie|retrouver|perdu|efface|supprime)\b.*\b(mail|email|confirmation|qr|billet|code)\b/', 6],
+            // « oublié » et « egare » ajoutés au lot 6 : ce sont des mots que les
+            // gens emploient spontanément, et ils manquaient à la liste.
+            ['/\b(renvoyer?|renvoi|renvoie|retrouver|perdu|perdue|oublie|oubliee|egare|efface|supprime)\b.*\b(mail|email|confirmation|qr|billet|code)\b/', 6],
+            ['/\b(qr ?code|billet)\b.*\b(perdu|perdue|oublie|oubliee|egare|introuvable)\b/', 6],
             ['/\bqr ?codes?\b/', 4],
             ['/\b(mail|email)\b.*\bconfirmation\b|\bconfirmation\b.*\b(mail|email)\b/', 4],
             ['/\bbillet\b/', 2],
@@ -147,6 +178,17 @@ function chatbot_match_intent(string $norm): array
         'ranking' => [
             ['/\b(classements?|chrono|chronometr\w*|meilleur temps|record)\b/', 4],
             ['/\bresultats?\b.*\b(course|marche|classement)\b|\b(course|marche)\b.*\bresultats?\b/', 4],
+            // Ajouts du lot 6 : la formulation PERSONNELLE (« mon temps »,
+            // « mes résultats ») était absente. C'est pourtant celle qu'emploie
+            // un participant — « le classement » est le vocabulaire de
+            // l'organisateur, pas le sien.
+            ['/\b(mon|ma|mes)\b.*\b(temps|chrono|resultats?|performance|classement)\b/', 5],
+            ['/\bou (voir|trouver|consulter)\b.*\b(temps|resultats?|classement)\b/', 5],
+            // Les DEUX sens de lecture : « suivi de ma course » comme « ma course
+            // sera-t-elle suivie ». Et « suivie » au féminin — un participe passé
+            // accordé ne matche pas \bsuivi\b, ce qui laissait la phrase sans réponse.
+            ['/\b(suivi|suivie|suivre|tracking|gps)\b.*\b(course|parcours|marche|trajet)\b/', 4],
+            ['/\b(course|parcours|marche|trajet)\b.*\b(suivi|suivie|gps|tracking|enregistree?)\b/', 4],
         ],
         // Tenue / dress code rose (attention : ne jamais matcher « Forbach en Rose »)
         'dresscode' => [
@@ -165,6 +207,12 @@ function chatbot_match_intent(string $norm): array
             ['/\btransferts?\b.*\b(place|inscription|dossard)\b/', 6],
             ['/\bceder\b.*\binscription/', 6],
             ['/\b(peux|peut|pourrai) plus venir\b|\bne viendrai (pas|plus)\b|\bempeche\w*\b.*\bvenir\b/', 5],
+            // Ajouts du lot 6 : depuis que le transfert est en libre-service,
+            // c'est « je ne peux plus courir » qui ouvre la conversation, bien
+            // plus souvent que le mot « transfert » lui-même.
+            ['/\b(transferer|transfert|ceder|donner|passer)\b.*\b(inscription|dossard|billet)\b/', 6],
+            ['/\b(ne (peux|pourrai))\b.*\b(plus)?\b.*\b(courir|participer)\b/', 5],
+            ['/\b(blesse|blessee|indisponible)\b.*\b(courir|venir|participer)\b/', 4],
         ],
         // Accompagner / regarder sans participer
         'spectator' => [
@@ -370,6 +418,67 @@ function chatbot_answer(string $intent, array $set): array
             $r['text'] = 'À bientôt, et merci de soutenir la lutte contre le cancer du sein ! 🎀';
             break;
 
+        /* ── Espace coureur & application (lot 6) ───────────────────────────
+         * Les URL sont écrites en relatif depuis la racine du site : le chatbot
+         * répond sur toutes les pages publiques, et un lien relatif à la page
+         * courante casserait dès qu'on n'est pas à la racine. */
+        case 'espace_coureur':
+            $r['text'] = '🔑 Votre <strong>espace coureur</strong> vous donne accès à tout moment à '
+                       . 'votre inscription, votre QR code et vos informations.<br><br>'
+                       . '<strong>Pas de mot de passe à retenir</strong> : vous saisissez l\'adresse '
+                       . 'email utilisée lors de votre inscription, et vous recevez un code à '
+                       . '6 chiffres par email.<br><br>'
+                       . '👉 <a href="/public/espace-coureur/login.php">Accéder à mon espace</a>';
+            $r['quick'] = ['📱 L\'application', '✏️ Corriger mes infos', '🔄 Transférer mon inscription', '❓ Voir la FAQ'];
+            break;
+
+        case 'application': {
+            // On n'annonce l'application que si les liens des magasins sont
+            // renseignés. Promettre un téléchargement qui n'existe pas fait
+            // perdre son temps au coureur — et le chatbot ne doit jamais mentir.
+            $ios     = trim((string) ($set['app_store_url_ios'] ?? ''));
+            $android = trim((string) ($set['app_store_url_android'] ?? ''));
+
+            if ($ios !== '' || $android !== '') {
+                $liens = [];
+                if ($ios !== '')     $liens[] = '<a href="' . htmlspecialchars($ios, ENT_QUOTES, 'UTF-8') . '">iPhone</a>';
+                if ($android !== '') $liens[] = '<a href="' . htmlspecialchars($android, ENT_QUOTES, 'UTF-8') . '">Android</a>';
+                $r['text'] = '📱 L\'application Forbach en Rose est disponible !<br><br>'
+                           . 'Télécharger pour : ' . implode(' ou ', $liens) . '<br><br>'
+                           . 'Vous vous y connectez comme sur le site : votre adresse email, '
+                           . 'puis un code à 6 chiffres. Vous y retrouvez votre QR code, votre '
+                           . 'inscription, et le <strong>suivi de votre course</strong> le jour J.<br><br>'
+                           . 'Vous pouvez aussi tout faire depuis votre navigateur, sans rien installer : '
+                           . '<a href="/public/telecharger-app.php">en savoir plus</a>.';
+            } else {
+                $r['text'] = '📱 L\'application mobile <strong>arrive bientôt</strong>.<br><br>'
+                           . 'Ce qu\'elle apportera en plus du site : le <strong>suivi de votre '
+                           . 'course le jour J</strong> et votre temps. Une page web ne peut pas '
+                           . 'le faire — elle s\'arrête dès que l\'écran du téléphone s\'éteint.<br><br>'
+                           . 'En attendant, votre <strong>espace coureur</strong> fait déjà tout le reste '
+                           . '— QR code, inscription, transfert, corrections — depuis n\'importe quel '
+                           . 'navigateur, et sans rien installer.<br><br>'
+                           . '👉 <a href="/public/espace-coureur/login.php">Accéder à mon espace</a> '
+                           . 'ou <a href="/public/telecharger-app.php">en savoir plus</a>';
+            }
+            $r['quick'] = ['🔑 Mon espace coureur', '⏱️ Chronométrage', '📩 QR code non reçu', '❓ Voir la FAQ'];
+            break;
+        }
+
+        case 'corriger_infos':
+            $r['text'] = '✏️ Vous pouvez corriger vous-même vos informations depuis votre '
+                       . 'espace coureur :<br><br>'
+                       . '• <strong>Nom et prénom</strong> — dans « Mon compte »<br>'
+                       . '• <strong>Adresse email</strong> — un code de confirmation est envoyé à la '
+                       . 'nouvelle adresse, pour éviter toute faute de frappe<br>'
+                       . '• <strong>Sexe et âge</strong> — dans le détail de votre inscription<br><br>'
+                       . 'Les corrections sont reportées sur votre inscription à la course. '
+                       . 'Le sexe et l\'âge ne sont plus modifiables une fois le départ donné : '
+                       . 'ils déterminent votre catégorie de classement.<br><br>'
+                       . '👉 <a href="/public/espace-coureur/login.php">Accéder à mon espace</a>';
+            $r['quick'] = ['🔑 Mon espace coureur', '🔄 Transférer mon inscription', '✉️ Nous écrire'];
+            break;
+
         case 'registration_problem': {
             $txt = '😕 Désolé pour ce désagrément ! Le plus souvent, il s\'agit d\'un souci passager :<br>'
                  . '1️⃣ Réessayez dans quelques minutes, idéalement depuis un autre navigateur ou un autre appareil.<br>'
@@ -407,11 +516,24 @@ function chatbot_answer(string $intent, array $set): array
             break;
 
         case 'qrcode_resend':
-            $r['text'] = 'Pas de panique, je peux vous renvoyer votre confirmation ! 📩<br>'
-                . 'Indiquez-moi l\'adresse e-mail utilisée lors de votre inscription — '
-                . 'je vous y renverrai le mail (avec le QR code si votre inscription y donne droit).<br>'
-                . '<small>Pensez aussi à vérifier votre dossier spam / indésirables.</small>';
+            /* DEUX chemins, et l'ordre compte. L'espace coureur est instantané,
+             * ne peut pas tomber dans les indésirables, marche même si le mail
+             * d'origine a été effacé il y a longtemps, et n'a aucun quota
+             * d'envoi. Le renvoi par mail reste proposé juste après : c'est ce
+             * que beaucoup de gens viennent chercher, et il ne faut pas le leur
+             * retirer. L'action ask_email_qrcode est donc conservée telle
+             * quelle — la conversation continue exactement comme avant pour qui
+             * saisit son adresse. */
+            $r['text'] = 'Pas de panique, votre QR code n\'est jamais perdu ! 🎫<br><br>'
+                . '<strong>Le plus rapide</strong> — il est dans votre espace coureur, '
+                . 'consultable tout de suite :<br>'
+                . '👉 <a href="/public/espace-coureur/login.php">Voir mon QR code</a> '
+                . '<small>(connexion par code à 6 chiffres, sans mot de passe)</small><br><br>'
+                . '<strong>Ou par email</strong> — indiquez-moi l\'adresse utilisée lors de votre '
+                . 'inscription, je vous renvoie le mail de confirmation.<br>'
+                . '<small>Pensez alors à vérifier votre dossier spam / indésirables.</small>';
             $r['action'] = 'ask_email_qrcode';
+            $r['quick']  = ['🔑 Mon espace coureur', '🎽 T-shirt', '✉️ Nous écrire'];
             break;
 
         case 'tshirt_retrait': {
@@ -496,10 +618,21 @@ function chatbot_answer(string $intent, array $set): array
             $r['quick'] = ['📩 Je n\'ai pas reçu mon QR code', '📍 Lieu & horaires'];
             break;
 
+        /* ⚠️ NE PAS ANNONCER LE CHRONOMÉTRAGE COMME DISPONIBLE.
+         * La page « Mes résultats » existe dans l'espace coureur, mais elle est
+         * VIDE tant que le chronométrage n'est pas en service. On dit donc où
+         * les résultats apparaîtront, au futur, sans jamais laisser croire qu'ils
+         * s'y trouvent déjà — sinon les gens iront regarder, ne verront rien, et
+         * écriront à l'association pour signaler une panne qui n'existe pas. */
         case 'ranking':
-            $r['text'] = '🚶‍♀️ L\'événement est avant tout <strong>solidaire et à allure libre</strong> — l\'essentiel est de participer et de soutenir la cause. 🎀<br>'
-                . 'Pour toute précision sur le chronométrage ou les résultats, consultez <a href="parcours">la page Parcours</a> ou écrivez-nous !';
-            $r['quick'] = ['🗺️ Le parcours', '✉️ Nous écrire'];
+            $r['text'] = '🚶‍♀️ L\'événement est avant tout <strong>solidaire et à allure libre</strong> — '
+                . 'l\'essentiel est de participer et de soutenir la cause. 🎀<br><br>'
+                . '⏱️ Un <strong>chronométrage par l\'application mobile est en préparation</strong>. '
+                . 'Quand il sera en service, vos temps apparaîtront dans la rubrique '
+                . '« Mes résultats » de votre espace coureur — inutile de chercher ailleurs.<br><br>'
+                . 'D\'ici là, aucun temps n\'est enregistré : venez profiter de la marche. '
+                . 'Pour toute précision, consultez <a href="parcours">la page Parcours</a> ou écrivez-nous !';
+            $r['quick'] = ['🗺️ Le parcours', '📱 L\'application', '🔑 Mon espace coureur', '✉️ Nous écrire'];
             break;
 
         case 'dresscode':
@@ -514,10 +647,24 @@ function chatbot_answer(string $intent, array $set): array
             $r['quick'] = ['🗺️ Le parcours', '🕘 Les horaires'];
             break;
 
+        /* ⚠️ RÉPONSE REMPLACÉE AU LOT 6. Elle disait « écrivez-nous, nous
+         * verrons ensemble ce qui est possible » — ce qui était vrai avant le
+         * lot 4, quand un transfert passait par l'organisation. Ce n'est plus
+         * le cas : le coureur le fait lui-même en trente secondes. Laisser
+         * l'ancienne réponse aurait envoyé des gens écrire un mail pour rien,
+         * et donné du travail à l'association pour rien. */
         case 'transfer':
-            $r['text'] = '🔄 Vous ne pouvez plus venir ? Écrivez-nous avec l\'e-mail utilisé lors de l\'inscription '
-                . '(et les coordonnées de la personne si vous souhaitez céder votre place) : nous verrons ensemble ce qui est possible.';
-            $r['quick'] = ['✉️ Nous écrire'];
+            $r['text'] = '🔄 Vous ne pouvez plus venir ? <strong>Votre inscription peut être '
+                       . 'transférée</strong> à quelqu\'un d\'autre — inutile de la perdre, et '
+                       . 'vous n\'avez besoin de personne pour le faire.<br><br>'
+                       . '1️⃣ Connectez-vous à votre espace coureur<br>'
+                       . '2️⃣ Ouvrez l\'inscription concernée<br>'
+                       . '3️⃣ Indiquez l\'adresse email de la personne<br>'
+                       . '4️⃣ Elle reçoit un mail et confirme<br><br>'
+                       . 'Tant qu\'elle n\'a pas confirmé, <strong>vous pouvez annuler</strong> et '
+                       . 'l\'inscription reste la vôtre. Une date limite s\'applique avant la course.<br><br>'
+                       . '👉 <a href="/public/espace-coureur/login.php">Accéder à mon espace</a>';
+            $r['quick'] = ['🔑 Mon espace coureur', '📍 Lieu & horaires', '✉️ Nous écrire'];
             break;
 
         case 'spectator':

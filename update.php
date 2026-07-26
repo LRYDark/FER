@@ -2354,6 +2354,92 @@ foreach ($lot1Settings as $col => $ddl) {
     }
 }
 
+/* ═══════════════════ LOT 6 — section « app » du gabarit d'email ═════════
+ *
+ * Le gabarit d'email est stocké en JSON dans `setting`.`mail_template_config`.
+ * Un site déjà en service a donc son propre `section_order` enregistré, où la
+ * nouvelle section « app » n'existe pas — elle ne s'afficherait jamais.
+ *
+ * On l'insère JUSTE APRÈS le QR code : c'est l'endroit qui a du sens, le
+ * destinataire vient de voir son billet. Et on ne touche à rien d'autre :
+ * l'ordre choisi par l'administrateur pour les autres sections est le sien.
+ * ───────────────────────────────────────────────────────────────────────── */
+$descMtc = "Ajouter la section « espace coureur » au gabarit d'email";
+try {
+    $mtcJson = $pdo->query("SELECT mail_template_config FROM setting WHERE id = 1")->fetchColumn();
+    $mtc     = ($mtcJson !== false && $mtcJson !== null && $mtcJson !== '')
+                 ? json_decode((string) $mtcJson, true) : null;
+
+    if (!is_array($mtc) || empty($mtc['section_order'])) {
+        // Aucun gabarit personnalisé : le défaut du code contient déjà « app ».
+        $results[] = ['status' => 'skip', 'sql' => $descMtc,
+                      'msg' => 'Gabarit par défaut — la section y figure déjà'];
+    } elseif (in_array('app', $mtc['section_order'], true)) {
+        $results[] = ['status' => 'skip', 'sql' => $descMtc, 'msg' => 'Déjà présente'];
+    } else {
+        $ordre = $mtc['section_order'];
+        $pos   = array_search('qrcode', $ordre, true);
+        if ($pos === false) $ordre[] = 'app';                    // pas de QR : à la fin
+        else                array_splice($ordre, $pos + 1, 0, 'app');
+        $mtc['section_order'] = array_values($ordre);
+
+        // Textes par défaut, seulement s'ils n'ont jamais été saisis.
+        $mtc['texts'] = ($mtc['texts'] ?? []) + [
+            'app_title' => 'Votre espace coureur',
+            'app_text'  => "Retrouvez votre inscription, votre QR code et vos informations "
+                         . "à tout moment. Connexion par simple code envoyé par email.",
+        ];
+
+        $pdo->prepare('UPDATE setting SET mail_template_config = ? WHERE id = 1')
+            ->execute([json_encode($mtc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        $results[] = ['status' => 'success', 'sql' => $descMtc,
+                      'msg' => 'Insérée après le QR code — l\'ordre de vos autres sections est inchangé'];
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $descMtc, 'msg' => $e->getMessage()];
+}
+
+/* ═══════════════════ LOT 6 — questions de FAQ sur l'espace coureur ══════
+ *
+ * Identifiants FIXES à partir de 901 et INSERT IGNORE : rejouer la migration ne
+ * crée pas de doublon. La plage 901+ n'entre pas en conflit avec les questions
+ * créées par l'administration, numérotées à partir de 1.
+ *
+ * ⚠️ Une question supprimée par l'administration réapparaîtra ici au prochain
+ * update.php. La DÉSACTIVER (active = 0) plutôt que la supprimer la fait
+ * disparaître du site pour de bon — c'est dit dans le message de résultat.
+ *
+ * Les mêmes textes sont dans install.php (getDefaultInserts) pour une
+ * installation neuve.
+ * ───────────────────────────────────────────────────────────────────────── */
+$descFaq = 'Ajouter les questions de FAQ sur l\'espace coureur';
+try {
+    $install = @file_get_contents(__DIR__ . '/install.php');
+    // On extrait l'INSERT depuis install.php plutôt que de le recopier : deux
+    // copies d'un même texte finissent toujours par diverger, et c'est la
+    // version la moins relue qui part en production.
+    if ($install !== false
+        && preg_match('/("INSERT IGNORE INTO `chatbot_faq`.*?\(909,.*?909, 1\)")/s', $install, $mFaq)) {
+        $sqlFaq = eval('return ' . $mFaq[1] . ';');
+        $avant  = (int) $pdo->query('SELECT COUNT(*) FROM chatbot_faq WHERE id BETWEEN 901 AND 999')->fetchColumn();
+        $pdo->exec($sqlFaq);
+        $apres  = (int) $pdo->query('SELECT COUNT(*) FROM chatbot_faq WHERE id BETWEEN 901 AND 999')->fetchColumn();
+
+        if ($apres > $avant) {
+            $results[] = ['status' => 'success', 'sql' => $descFaq,
+                          'msg' => ($apres - $avant) . ' question(s) ajoutée(s). Pour en retirer une '
+                                 . 'définitivement, désactivez-la au lieu de la supprimer.'];
+        } else {
+            $results[] = ['status' => 'skip', 'sql' => $descFaq, 'msg' => 'Déjà présentes'];
+        }
+    } else {
+        $results[] = ['status' => 'error', 'sql' => $descFaq,
+                      'msg' => 'Textes introuvables dans install.php'];
+    }
+} catch (\Throwable $e) {
+    $results[] = ['status' => 'error', 'sql' => $descFaq, 'msg' => $e->getMessage()];
+}
+
 /* ═══════════════════ fin LOT 1 ══════════════════════════════════════════ */
 
 $countOk   = count(array_filter($results, fn($r) => $r['status'] === 'success'));
