@@ -1993,7 +1993,7 @@ $lot1Tables = [
           `is_active` TINYINT(1) NOT NULL DEFAULT 0,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_annee` (`annee`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     // Deux colonnes pour une seule adresse, et c'est nécessaire :
     //   • `email_hmac`    : HMAC-SHA256 de l'adresse en minuscules. Déterministe,
@@ -2019,7 +2019,7 @@ $lot1Tables = [
           `derniere_connexion` DATETIME DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_email_hmac` (`email_hmac`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     'participant_registrations' =>
         "CREATE TABLE IF NOT EXISTS `participant_registrations` (
@@ -2033,7 +2033,7 @@ $lot1Tables = [
           INDEX `idx_participant` (`participant_id`),
           CONSTRAINT `fk_pr_participant` FOREIGN KEY (`participant_id`)
             REFERENCES `participants`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     // `email_hmac` et non l'adresse : cette table journalise les tentatives
     // d'authentification, y compris pour des adresses qui ne correspondent à
@@ -2052,7 +2052,7 @@ $lot1Tables = [
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_email_hmac` (`email_hmac`),
           INDEX `idx_expires` (`expires_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     'participant_devices' =>
         "CREATE TABLE IF NOT EXISTS `participant_devices` (
@@ -2074,7 +2074,7 @@ $lot1Tables = [
           INDEX `idx_expires` (`expires_at`),
           CONSTRAINT `fk_pd_participant` FOREIGN KEY (`participant_id`)
             REFERENCES `participants`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     'registration_transfers' =>
         "CREATE TABLE IF NOT EXISTS `registration_transfers` (
@@ -2093,7 +2093,7 @@ $lot1Tables = [
           INDEX `idx_inscription` (`annee`, `inscription_no`),
           INDEX `idx_statut` (`statut`),
           UNIQUE KEY `idx_token` (`token_hash`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     'resultats' =>
         "CREATE TABLE IF NOT EXISTS `resultats` (
@@ -2114,7 +2114,7 @@ $lot1Tables = [
           `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_inscription` (`annee`, `inscription_no`),
           INDEX `idx_classement` (`annee`, `temps_s`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     'traces_gps' =>
         "CREATE TABLE IF NOT EXISTS `traces_gps` (
@@ -2131,7 +2131,7 @@ $lot1Tables = [
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_inscription` (`annee`, `inscription_no`),
           INDEX `idx_purge` (`purge_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     'detections' =>
         "CREATE TABLE IF NOT EXISTS `detections` (
@@ -2149,7 +2149,7 @@ $lot1Tables = [
           `retenue` TINYINT(1) NOT NULL DEFAULT 0,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_inscription` (`annee`, `inscription_no`, `point`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 ];
 
 $editionsCreee = false;
