@@ -95,6 +95,30 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
   .ec-qr img { width: 200px; height: 200px; image-rendering: pixelated;
                background: #fff; padding: 10px; border-radius: var(--radius-m); }
 
+  /* Détail de l'inscription et QR code côte à côte sur ordinateur. La colonne
+     du QR est fixe (320 px) : le QR fait 200 px et ne gagne rien à s'élargir,
+     alors que la liste des champs, elle, profite de toute la place restante.
+     align-items:start empêche la carte du QR de s'étirer inutilement à la
+     hauteur de sa voisine. */
+  .ec-duo { display: grid; gap: var(--sp-4); align-items: start; }
+  @media (min-width: 900px) {
+    .ec-duo { grid-template-columns: minmax(0, 1fr) 320px; }
+  }
+
+  /* Deux champs par ligne dès qu'il y a la place (prénom/nom, sexe/âge). */
+  .ec-grid2 { display: grid; gap: var(--sp-3); }
+  @media (min-width: 560px) { .ec-grid2 { grid-template-columns: 1fr 1fr; } }
+
+  /* Formulaire de correction, replié par défaut. */
+  .ec-edit { border-top: 1px solid var(--border); padding-top: var(--sp-4); margin-top: var(--sp-2); }
+  .ec-edit > summary {
+    cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 8px;
+    font-size: var(--fs-small); font-weight: 550; color: var(--accent);
+  }
+  .ec-edit > summary::-webkit-details-marker { display: none; }
+  .ec-edit > summary:hover { text-decoration: underline; }
+  .ec-edit[open] > summary { margin-bottom: var(--sp-4); }
+
   @media (max-width: 640px) {
     .ec-dl { grid-template-columns: 1fr; gap: 0; }
     .ec-dl dd { margin-bottom: var(--sp-2); }

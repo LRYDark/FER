@@ -20,11 +20,18 @@ require '../../src/core/config.php';
 checkMaintenance();
 require_once '../../src/security/csrf.php';
 require_once '../../src/auth/participant_auth.php';
+require_once '../../src/auth/participant_profile.php';
 
 pauth_require($pdo, 'compte.php');
 
 $moiId  = pauth_id();
 $erreur = '';
+$succes = '';
+
+/* Adresse en attente de confirmation : gardée en session, pas en base. C'est un
+   état transitoire de quelques minutes ; le code, lui, est bien en base et fait
+   foi. Rien ne dépend de cette variable côté sécurité. */
+$emailEnAttente = $_SESSION[PAUTH_SESSION_KEY]['email_en_attente'] ?? '';
 
 /* ── Export RGPD : tout ce que le site détient sur ce compte ─────────────── */
 if (isset($_GET['export'])) {
@@ -72,6 +79,75 @@ if (isset($_GET['export'])) {
     header('Content-Disposition: attachment; filename="mes-donnees-forbach-en-rose-' . date('Y-m-d') . '.json"');
     echo json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
+}
+
+/* ── Identité : nom et prénom ────────────────────────────────────────────────
+ * Les règles vivent dans participant_profile.php, partagées avec l'API mobile :
+ * une seule implémentation, donc pas de chemin qui contourne les contrôles. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['maj_identite'])) {
+    if (!csrf_verify()) {
+        $erreur = "Session expirée. Rechargez la page et réessayez.";
+    } else {
+        $r = pprofile_majIdentite($pdo, $moiId, $_POST['nom'] ?? '', $_POST['prenom'] ?? '');
+        if ($r['ok']) {
+            // La session porte le nom affiché dans l'en-tête : sans cette mise à
+            // jour, l'ancien nom resterait à l'écran jusqu'à la reconnexion.
+            $_SESSION[PAUTH_SESSION_KEY]['nom']    = trim((string) $_POST['nom']);
+            $_SESSION[PAUTH_SESSION_KEY]['prenom'] = trim((string) $_POST['prenom']);
+            $succes = $r['message'];
+        } else {
+            $erreur = $r['erreur'];
+        }
+    }
+}
+
+/* ── Changement d'adresse email, en deux temps ───────────────────────────────
+ * Être connecté prouve qu'on est le titulaire du compte ; le code reçu prouve
+ * qu'on possède la nouvelle boîte. Les deux sont nécessaires. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demander_email'])) {
+    if (!csrf_verify()) {
+        $erreur = "Session expirée. Rechargez la page et réessayez.";
+    } else {
+        $cible = fer_normalizeEmail((string) ($_POST['nouvel_email'] ?? ''));
+        $r = pprofile_demanderEmail($pdo, $moiId, $cible, 'web');
+        if ($r['ok']) {
+            $_SESSION[PAUTH_SESSION_KEY]['email_en_attente'] = $cible;
+            $emailEnAttente = $cible;
+            $succes = $r['message'];
+        } else {
+            $erreur = $r['erreur'];
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmer_email'])) {
+    if (!csrf_verify()) {
+        $erreur = "Session expirée. Rechargez la page et réessayez.";
+    } else {
+        // L'adresse vient de la session, pas du formulaire : un champ caché
+        // serait modifiable, et le code validerait alors une autre adresse que
+        // celle à laquelle il a été envoyé.
+        $cible = (string) ($_SESSION[PAUTH_SESSION_KEY]['email_en_attente'] ?? '');
+        if ($cible === '') {
+            $erreur = "Aucun changement d'adresse en cours. Recommencez.";
+        } else {
+            $r = pprofile_confirmerEmail($pdo, $moiId, $cible,
+                preg_replace('/\D+/', '', (string) ($_POST['code'] ?? '')));
+            if ($r['ok']) {
+                unset($_SESSION[PAUTH_SESSION_KEY]['email_en_attente']);
+                $_SESSION[PAUTH_SESSION_KEY]['email'] = $cible;
+                $emailEnAttente = '';
+                $succes = $r['message'];
+            } else {
+                $erreur = $r['erreur'];
+            }
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['annuler_email'])) {
+    unset($_SESSION[PAUTH_SESSION_KEY]['email_en_attente']);
+    $emailEnAttente = '';
 }
 
 /* ── Apparence : thème et couleur d'accent ───────────────────────────────────
@@ -184,23 +260,112 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   <?php if ($erreur !== ''): ?>
     <div class="alert is-danger"><i class="bi bi-exclamation-triangle"></i> <?= $h($erreur) ?></div>
   <?php endif; ?>
+  <?php if ($succes !== ''): ?>
+    <div class="alert is-ok"><i class="bi bi-check-circle"></i> <?= $h($succes) ?></div>
+  <?php endif; ?>
 
   <section class="card">
     <header>
       <div class="iconwell"><i class="bi bi-person"></i></div>
       <h2>Mes informations</h2>
     </header>
-    <dl class="ec-dl">
-      <dt>Adresse email</dt><dd><?= $h($moi['email'] ?? '') ?></dd>
-      <dt>Nom</dt><dd><?= $h($moi['nom'] ?? '') ?: '—' ?></dd>
-      <dt>Prénom</dt><dd><?= $h($moi['prenom'] ?? '') ?: '—' ?></dd>
-      <dt>Inscriptions</dt><dd><?= (int) $nb ?></dd>
-    </dl>
+
+    <form method="post">
+      <?= csrf_field() ?>
+      <div class="ec-grid2">
+        <div class="field">
+          <label for="ecPrenom">Prénom</label>
+          <input class="input" id="ecPrenom" name="prenom" type="text" required maxlength="100"
+                 autocomplete="given-name" value="<?= $h($moi['prenom'] ?? '') ?>">
+        </div>
+        <div class="field">
+          <label for="ecNom">Nom</label>
+          <input class="input" id="ecNom" name="nom" type="text" required maxlength="100"
+                 autocomplete="family-name" value="<?= $h($moi['nom'] ?? '') ?>">
+        </div>
+      </div>
+      <div class="row-actions" style="margin-top:var(--sp-4)">
+        <button class="btn btn-primary" type="submit" name="maj_identite" value="1">
+          <i class="bi bi-check2"></i> Enregistrer
+        </button>
+      </div>
+    </form>
+
     <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
       <i class="bi bi-info-circle"></i>
-      Nom et prénom proviennent de votre inscription. Pour les corriger, contactez
-      l'organisation&nbsp;: ce sont les données officielles de la course.
+      La correction est reportée sur votre inscription de l'édition en cours&nbsp;:
+      c'est ce nom qui figurera sur la liste de départ. Les éditions passées ne
+      changent pas.
     </p>
+    <dl class="ec-dl">
+      <dt>Inscriptions</dt><dd><?= (int) $nb ?></dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <header>
+      <div class="iconwell"><i class="bi bi-envelope-at"></i></div>
+      <h2>Mon adresse email</h2>
+    </header>
+
+    <dl class="ec-dl">
+      <dt>Adresse actuelle</dt><dd><?= $h($moi['email'] ?? '') ?></dd>
+    </dl>
+
+    <?php if ($emailEnAttente !== ''): ?>
+      <?php /* Étape 2 : le code est déjà parti. On ne redemande PAS l'adresse —
+               elle est en session, la saisir à nouveau n'ajouterait rien et
+               ouvrirait la porte à une confirmation sur une autre adresse. */ ?>
+      <div class="alert is-warn">
+        <i class="bi bi-hourglass-split"></i>
+        Un code de confirmation a été envoyé à <strong><?= $h($emailEnAttente) ?></strong>.
+        Tant qu'il n'est pas saisi, votre adresse actuelle reste inchangée.
+      </div>
+
+      <form method="post">
+        <?= csrf_field() ?>
+        <div class="field" style="max-width:220px">
+          <label for="ecCode">Code à 6 chiffres</label>
+          <input class="input ec-mono" id="ecCode" name="code" type="text" required
+                 inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code"
+                 placeholder="123456" style="letter-spacing:6px;font-size:1.15rem">
+        </div>
+        <div class="row-actions" style="margin-top:var(--sp-4)">
+          <button class="btn btn-primary" type="submit" name="confirmer_email" value="1">
+            <i class="bi bi-check2"></i> Confirmer le changement
+          </button>
+          <button class="btn" type="submit" name="annuler_email" value="1">Annuler</button>
+        </div>
+      </form>
+
+    <?php else: ?>
+      <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
+        Vous avez changé d'adresse&nbsp;? Indiquez la nouvelle&nbsp;: un code de
+        confirmation y sera envoyé. Le changement ne prend effet qu'une fois ce
+        code saisi — sans quoi une simple faute de frappe vous priverait de tout
+        moyen de vous reconnecter.
+      </p>
+
+      <form method="post">
+        <?= csrf_field() ?>
+        <div class="field" style="max-width:340px">
+          <label for="ecNewMail">Nouvelle adresse email</label>
+          <input class="input" id="ecNewMail" name="nouvel_email" type="email" required
+                 autocomplete="email" placeholder="vous@exemple.fr">
+        </div>
+        <div class="row-actions" style="margin-top:var(--sp-4)">
+          <button class="btn btn-primary" type="submit" name="demander_email" value="1">
+            <i class="bi bi-send"></i> Envoyer le code
+          </button>
+        </div>
+      </form>
+
+      <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
+        <i class="bi bi-shield-check"></i>
+        Votre ancienne adresse sera prévenue du changement&nbsp;: si ce n'est pas
+        vous, vous le saurez. Vos appareils connectés, eux, ne sont pas déconnectés.
+      </p>
+    <?php endif; ?>
   </section>
 
   <section class="card">

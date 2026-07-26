@@ -14,6 +14,7 @@ require '../../src/core/config.php';
 checkMaintenance();
 require_once '../../src/security/csrf.php';
 require_once '../../src/auth/participant_auth.php';
+require_once '../../src/auth/participant_profile.php';
 require_once '../../src/core/qrcode.php';
 require_once '../../src/content/transfers.php';
 
@@ -36,12 +37,28 @@ if ($annee <= 0 || $no === '' || !pauth_owns($pdo, pauth_id(), $annee, $no)) {
 $xfErreur = '';
 $xfSucces = '';
 
+/* ── Correction du sexe et de l'âge ──────────────────────────────────────── */
+$edErreur = '';
+$edSucces = '';
+
 if (!$interdit && $r !== null) {
     xfer_purge($pdo);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!csrf_verify()) {
             $xfErreur = "Session expirée. Rechargez la page et réessayez.";
+        }
+        elseif (isset($_POST['maj_detail'])) {
+            // Contrôles dans participant_profile.php, partagés avec l'API :
+            // édition archivée, course démarrée, valeurs acceptées.
+            $res = pprofile_majInscription($pdo, pauth_id(), $annee, $no,
+                (string) ($_POST['sexe'] ?? ''), (string) ($_POST['age'] ?? ''));
+            if ($res['ok']) {
+                $edSucces = $res['message'];
+                $r = regres_find($pdo, $annee, $no) ?? $r;   // relecture : on affiche l'état réel
+            } else {
+                $edErreur = $res['erreur'];
+            }
         }
         elseif (isset($_POST['transferer'])) {
             $res = xfer_creer($pdo, pauth_id(), $annee, $no, (string) ($_POST['email_cible'] ?? ''));
@@ -70,6 +87,12 @@ if ($xfEnAttente !== null) $xfEnAttente['email_cible'] = decrypt($xfEnAttente['e
 $xfEditionActive  = !$interdit && $annee === regres_activeYear($pdo);
 $xfDeadline       = $xfEditionActive ? xfer_deadline($pdo, $annee) : null;
 $xfDeadlinePassee = $xfEditionActive && xfer_deadlinePassee($pdo, $annee);
+
+/* Le formulaire de correction n'apparaît que s'il peut aboutir : proposer un
+   champ qui sera refusé à l'enregistrement est pire que ne rien proposer. */
+$edModifiable = !$interdit && $r !== null
+             && pprofile_tableModifiable($pdo, $annee) !== null
+             && !pprofile_courseDemarree($pdo, $annee);
 
 /* Titre de la barre supérieure : le nom du coureur quand la fiche est
    accessible, un intitulé neutre sinon — inutile de révéler quoi que ce soit
@@ -124,11 +147,24 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </div>
 
   <?php else: ?>
+    <?php /* Sur ordinateur, le détail et le QR code se lisent d'un seul coup
+             d'œil, côte à côte. En dessous de 900 px, la grille repasse à une
+             colonne : un QR de 200 px et une liste de champs ne tiennent pas
+             l'un à côté de l'autre sur un téléphone. */ ?>
+    <div class="ec-duo">
     <section class="card">
       <header>
         <div class="iconwell"><i class="bi bi-card-list"></i></div>
         <h2>Détail de l'inscription</h2>
       </header>
+
+      <?php if ($edErreur !== ''): ?>
+        <div class="alert is-danger"><i class="bi bi-exclamation-triangle"></i> <?= $h($edErreur) ?></div>
+      <?php endif; ?>
+      <?php if ($edSucces !== ''): ?>
+        <div class="alert is-ok"><i class="bi bi-check-circle"></i> <?= $h($edSucces) ?></div>
+      <?php endif; ?>
+
       <dl class="ec-dl">
         <dt>Numéro</dt><dd class="ec-mono"><?= $h($r['inscription_no']) ?></dd>
         <dt>Édition</dt><dd><?= (int) $annee ?></dd>
@@ -162,6 +198,48 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
           <dd><?= $h(date('d/m/Y', strtotime((string) $r['date_inscription']))) ?></dd>
         <?php endif; ?>
       </dl>
+
+      <?php if ($edModifiable): ?>
+        <?php /* Replié par défaut : la fiche se lit d'abord, on ne la corrige
+                 qu'exceptionnellement. Un formulaire ouvert en permanence
+                 donnerait à croire qu'il y a quelque chose à remplir. */ ?>
+        <details class="ec-edit">
+          <summary><i class="bi bi-pencil"></i> Corriger mon sexe ou mon âge</summary>
+
+          <form method="post">
+            <?= csrf_field() ?>
+            <div class="ec-grid2">
+              <div class="field">
+                <label for="ecSexe">Sexe</label>
+                <select class="input" id="ecSexe" name="sexe">
+                  <?php foreach (['H' => 'Homme', 'F' => 'Femme', 'Autre' => 'Autre'] as $v => $lib): ?>
+                    <option value="<?= $v ?>"<?= ($r['sexe'] ?? '') === $v ? ' selected' : '' ?>>
+                      <?= $lib ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="field">
+                <label for="ecAge">Âge</label>
+                <input class="input" id="ecAge" name="age" type="number" min="3" max="110"
+                       inputmode="numeric" value="<?= $h((string) (regres_age($r) ?? '')) ?>">
+              </div>
+            </div>
+            <div class="row-actions" style="margin-top:var(--sp-4)">
+              <button class="btn btn-primary" type="submit" name="maj_detail" value="1">
+                <i class="bi bi-check2"></i> Enregistrer
+              </button>
+            </div>
+          </form>
+
+          <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:var(--sp-3) 0 0">
+            <i class="bi bi-info-circle"></i>
+            Sexe et âge déterminent votre catégorie de classement&nbsp;: ils ne sont
+            plus modifiables une fois le départ donné. Seul l'âge est conservé, jamais
+            votre date de naissance.
+          </p>
+        </details>
+      <?php endif; ?>
     </section>
 
     <?php /* Le QR vient de src/core/qrcode.php — la MÊME fonction que pour le
@@ -188,6 +266,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         </div>
       <?php endif; ?>
     </section>
+    </div><?php /* .ec-duo */ ?>
 
     <section class="card">
       <header>
