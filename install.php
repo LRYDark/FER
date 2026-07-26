@@ -602,6 +602,14 @@ function getCreateTableStatements(): array
           /* Lot 5 — API mobile */
           `app_version_minimale` VARCHAR(20) NOT NULL DEFAULT '1.0.0',
           `app_access_token_ttl_min` SMALLINT NOT NULL DEFAULT 60,
+          /* Interrupteur de l'API mobile, distinct de celui de api.php.
+           * DÉFAUT 0 : elle est fermée tant qu'on ne l'a pas activée dans
+           * Réglages → API.
+           * Pas de « clé d'application » : elle serait livrée dans
+           * l'application installée sur chaque téléphone, donc lisible par
+           * quiconque décompile le fichier. Ce qui protège les données, c'est
+           * le jeton personnel de chaque coureur. */
+          `api_v1_enabled` TINYINT(1) NOT NULL DEFAULT 0,
           /* Lot 6 — page de téléchargement */
           `app_store_url_ios` VARCHAR(255) NULL DEFAULT NULL,
           `app_store_url_android` VARCHAR(255) NULL DEFAULT NULL,

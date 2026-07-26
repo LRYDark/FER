@@ -540,6 +540,45 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     </div>
 
     <p>Adresse de base : <span class="url-pill"><?= htmlspecialchars($baseUrl . $baseDir . '/api/v1', ENT_QUOTES, 'UTF-8') ?></span></p>
+
+    <h3>Trois barrières avant d'entrer</h3>
+    <table class="table table-sm api-params">
+      <thead><tr><th>Barrière</th><th>Contre quoi</th><th>Refus</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>HTTPS obligatoire</strong></td>
+          <td>La <strong>fuite</strong> du jeton sur le réseau. C'est la seule des trois qui empêche
+              réellement une divulgation : en clair, n'importe qui sur le même wifi lit le jeton.</td>
+          <td><code>403 https_required</code></td>
+        </tr>
+        <tr>
+          <td><strong>Interrupteur</strong></td>
+          <td>L'imprévu. Réglages → API, un clic ferme tout. L'espace coureur du <em>site web</em>
+              continue de fonctionner : les deux sont indépendants.</td>
+          <td><code>503 api_disabled</code></td>
+        </tr>
+        <tr>
+          <td><strong>Version minimale</strong></td>
+          <td>Les applications périmées. L'application annonce sa version dans
+              <code>X-App-Version</code> ; en dessous de <code>app_version_minimale</code>, le
+              <strong>serveur</strong> refuse. Relever ce numéro met une version défectueuse hors
+              service partout, d'un coup.</td>
+          <td><code>426 app_outdated</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-success"><i class="bi bi-key me-2"></i>
+      <strong>Il n'y a volontairement AUCUNE clé d'application globale.</strong>
+      Une clé unique valable pour tout le monde devrait être livrée dans l'application, donc
+      présente sur le téléphone de chaque coureur — un <code>.apk</code> se décompile en quelques
+      minutes. Un secret publié n'est pas un secret, et croire le contraire fait baisser la garde
+      là où elle compte. Ce qui protège les données, c'est le jeton <strong>personnel</strong> de
+      chaque coureur : un accès compromis se révoque seul, sans toucher aux autres. Ce qui protège
+      les envois de mail de <code>/auth/request-code</code>, c'est la limitation de débit par
+      adresse et par IP (Réglages → Espace coureur).
+    </div>
+
     <p>Toutes les réponses ont la même forme, succès comme erreur :</p>
     <?php codeBlock("{ \"ok\": true,  \"data\": { … }, \"error\": null }\n{ \"ok\": false, \"data\": null,  \"error\": { \"code\": \"invalid_code\", \"message\": \"Code incorrect.\" } }"); ?>
 
@@ -567,6 +606,8 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     </div>
 
     <h3>Se connecter</h3>
+    <p>Toute requête — sauf <code>/app/config</code> — doit porter l'en-tête de version :</p>
+    <?php codeBlock("X-App-Version: 1.2.0\nAuthorization: Bearer <jeton d'accès>   (sauf /auth/request-code et /auth/verify-code)"); ?>
     <?php codeBlock(
       "POST /api/v1/auth/request-code\n"
     . "{ \"email\": \"coureur@exemple.fr\" }\n"
@@ -630,6 +671,10 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
       <thead><tr><th>HTTP</th><th>code</th><th>Signification</th></tr></thead>
       <tbody>
         <tr><td>400</td><td><code>invalid_json</code></td><td>Corps de requête illisible.</td></tr>
+        <tr><td>400</td><td><code>missing_app_version</code></td><td>En-tête <code>X-App-Version</code> absent.</td></tr>
+        <tr><td>403</td><td><code>https_required</code></td><td>Connexion non chiffrée.</td></tr>
+        <tr><td>426</td><td><code>app_outdated</code></td><td>Version de l'application trop ancienne. L'erreur contient <code>version_minimale</code> et <code>config_url</code> : l'application sait quoi afficher sans second appel.</td></tr>
+        <tr><td>503</td><td><code>api_disabled</code> / <code>not_installed</code></td><td>API mobile désactivée dans les réglages, ou migration <code>update.php</code> non jouée.</td></tr>
         <tr><td>401</td><td><code>missing_token</code> / <code>invalid_token</code></td><td>En-tête <code>Authorization</code> absent, signature invalide ou jeton expiré.</td></tr>
         <tr><td>401</td><td><code>device_revoked</code></td><td>L'appareil a été révoqué : il faut se reconnecter.</td></tr>
         <tr><td>401</td><td><code>invalid_code</code></td><td>Code à 6 chiffres faux, expiré ou inexistant.</td></tr>
@@ -646,6 +691,8 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
 
     <div class="alert alert-secondary mb-0"><i class="bi bi-shield-check me-2"></i>
       <strong>Choix de sécurité assumés.</strong>
+      Aucune <strong>clé d'application globale</strong> : elle serait publiée dans chaque
+      téléphone (voir plus haut).
       Aucune en-tête <strong>CORS</strong> n'est émise : une application native n'en a pas besoin, et
       un <code>*</code> ouvrirait l'API à toutes les pages web du monde.
       <strong>Aucune donnée personnelle en paramètre d'URL</strong> — les adresses passent par le

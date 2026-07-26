@@ -175,6 +175,11 @@ $api_enabled = (int)($data['api_enabled'] ?? 0);
 $api_user    = $data['api_user'] ?? '';
 $api_token   = !empty($data['api_token']) ? decrypt($data['api_token']) : '';
 
+// API mobile (/api/v1) — interrupteur propre, indépendant de celui de api.php.
+// Aucune clé : elle vivrait dans l'application installée sur chaque téléphone.
+$api_v1_enabled = (int)($data['api_v1_enabled'] ?? 0);
+$api_v1_version = $data['app_version_minimale'] ?? '1.0.0';
+
 // URL absolue de l'API (api.php est à la racine du projet)
 $api_baseUrl     = getAppBaseUrl();
 $api_projectRoot = realpath(__DIR__ . '/..');
@@ -1486,6 +1491,24 @@ if (isset($_POST['regenerate_api'])) {
         addToast('success', 'Nouveaux identifiants API générés ! Pensez à les copier.');
     } catch (\Throwable $e) {
         addToast('danger', "Impossible de générer les identifiants. Exécutez update.php.");
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Onglet API — API MOBILE (/api/v1)
+   Un interrupteur PROPRE, indépendant de celui de api.php : les deux API n'ont
+   ni le même public ni les mêmes risques, couper l'une ne doit pas couper
+   l'autre. Rien d'autre à configurer — il n'y a volontairement aucune clé
+   d'application (elle vivrait dans le téléphone de chaque coureur).
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_api_v1'])) {
+    try {
+        $v1EnabledNew = !empty($_POST['api_v1_enabled']) ? 1 : 0;
+        $pdo->prepare('UPDATE setting SET api_v1_enabled = ? WHERE id = 1')->execute([$v1EnabledNew]);
+        $api_v1_enabled = $v1EnabledNew;
+        addToast('success', $v1EnabledNew ? 'API mobile activée !' : 'API mobile désactivée.');
+    } catch (\Throwable $e) {
+        addToast('danger', "Impossible de mettre à jour l'API mobile. Exécutez update.php.");
     }
 }
 
@@ -5510,6 +5533,81 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             et s'afficheront ici.
           </p>
           <a href="api-doc.php" target="_blank" rel="noopener" class="btn btn-info">
+            <i class="bi bi-book me-1"></i>Voir la documentation
+          </a>
+        <?php endif; ?>
+      </div>
+    </div>
+
+    <!-- ═══════════════ Carte : API MOBILE (/api/v1) ═══════════════════════ -->
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>API mobile — Application des coureurs</h2>
+        <p class="text-muted">
+          C'est une <strong>autre API</strong> que celle ci-dessus. L'API externe parle au nom de
+          l'<em>association</em> et voit tous les inscrits. Celle-ci parle au nom d'<em>un coureur</em> :
+          chaque requête n'accède qu'à ses propres données, après connexion par code à 6 chiffres.
+        </p>
+
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+          <div class="col-12">
+            <label class="form-label">Activer l'API mobile</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="api_v1_enabled" id="api_v1_enabled"
+                     <?= $api_v1_enabled ? 'checked' : '' ?>>
+              <label class="form-check-label" for="api_v1_enabled">
+                <?= $api_v1_enabled
+                      ? '<span class="badge bg-success">Activée</span>'
+                      : '<span class="badge bg-secondary">Désactivée</span>' ?>
+              </label>
+            </div>
+            <small class="text-muted">
+              Désactivée, l'application mobile ne peut plus rien faire — c'est le robinet à fermer
+              en cas de problème. L'espace coureur du site web, lui, continue de fonctionner
+              normalement : les deux sont indépendants.
+            </small>
+          </div>
+          <div class="col-12">
+            <button type="submit" name="save_api_v1" class="btn btn-primary">
+              <i class="bi bi-check2 me-1"></i>Enregistrer
+            </button>
+          </div>
+        </form>
+
+        <?php if ($api_v1_enabled): ?>
+          <hr class="my-4">
+
+          <div class="mb-3">
+            <label class="form-label">URL de l'API mobile</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="apiV1UrlField"
+                     value="<?= htmlspecialchars($api_baseUrl . $api_baseDir . '/api/v1', ENT_QUOTES, 'UTF-8') ?>" readonly>
+              <button class="btn btn-outline-secondary" type="button" data-copy="apiV1UrlField">
+                <i class="bi bi-clipboard"></i> Copier
+              </button>
+            </div>
+          </div>
+
+          <div class="alert alert-success">
+            <i class="bi bi-key me-2"></i>
+            <strong>Il n'y a aucun mot de passe à recopier ici, et c'est voulu.</strong>
+            Une clé unique valable pour tout le monde devrait être livrée dans l'application,
+            donc présente sur le téléphone de chaque coureur — n'importe qui pourrait l'en
+            extraire. Chaque coureur s'authentifie avec <em>son</em> code à 6 chiffres :
+            un accès compromis se révoque tout seul, sans toucher aux autres.
+          </div>
+
+          <div class="alert alert-warning">
+            <i class="bi bi-phone me-2"></i>
+            <strong>Version minimale exigée : <?= htmlspecialchars($api_v1_version, ENT_QUOTES, 'UTF-8') ?></strong>
+            — une application plus ancienne est <strong>refusée par le serveur</strong> et doit se
+            mettre à jour avant de pouvoir se connecter. C'est aussi le moyen de mettre hors
+            service une version défectueuse : relevez ce numéro, et elle s'arrête partout.
+            Réglage dans l'onglet « Application mobile ».
+          </div>
+
+          <a href="api-doc.php#mobile" target="_blank" rel="noopener" class="btn btn-info">
             <i class="bi bi-book me-1"></i>Voir la documentation
           </a>
         <?php endif; ?>

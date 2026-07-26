@@ -58,14 +58,21 @@ $pdo->prepare('INSERT INTO registrations_2024 (inscription_no, nom, prenom, emai
 @unlink(__DIR__ . '/../codes-test.txt');
 
 /* ── Appel de l'API ──────────────────────────────────────────────────────── */
-function api(string $methode, string $chemin, ?array $corps = null, string $bearer = ''): array
+function api(string $methode, string $chemin, ?array $corps = null, string $bearer = '',
+             array $env = []): array
 {
+    // Le pilote lit l'IP, le HTTPS et la version d'application dans
+    // l'environnement : c'est ce qui permet de tester le contrôle d'entrée.
+    // putenv() modifie l'environnement du processus, dont hérite l'enfant.
+    foreach ($env as $k => $v) putenv("$k=$v");
+
     $cmd = escapeshellarg(PHP) . ' ' . escapeshellarg(__DIR__ . '/test-api-v1-appel.php')
          . ' ' . escapeshellarg($methode) . ' ' . escapeshellarg($chemin)
          // base64 : escapeshellarg() supprime les guillemets doubles sous Windows.
          . ' ' . escapeshellarg($corps === null ? '' : base64_encode(json_encode($corps, JSON_UNESCAPED_UNICODE)))
          . ' ' . escapeshellarg($bearer) . ' 2>&1';
     $sortie = shell_exec($cmd) ?? '';
+    foreach ($env as $k => $v) putenv($k);          // remise à zéro pour l'appel suivant
     $http   = preg_match('/^HTTP (\d+)$/m', $sortie, $m) ? (int) $m[1] : 0;
     $json   = preg_replace('/^HTTP \d+\n/m', '', $sortie);
     $data   = json_decode(trim($json), true);
@@ -83,6 +90,44 @@ function dernierCode(string $email): ?string
     }
     return $trouve;
 }
+
+echo "\n=== 0. Contrôle d'entrée : HTTPS, interrupteur, version ===\n";
+/* L'API est FERMÉE par défaut après migration : c'est le comportement voulu. */
+$r = api('GET', '/app/config');
+verifie('API fermée par défaut → 503 api_disabled',
+    $r['http'] === 503 && ($r['json']['error']['code'] ?? '') === 'api_disabled', $r['brut']);
+
+$pdo->exec('UPDATE setting SET api_v1_enabled = 1');
+
+/* HTTPS : refusé hors boucle locale. */
+$r = api('GET', '/me', null, '', ['FER_TEST_IP' => '203.0.113.7']);
+verifie('HTTP en clair depuis l\'extérieur → 403 https_required',
+    $r['http'] === 403 && ($r['json']['error']['code'] ?? '') === 'https_required', $r['brut']);
+$r = api('GET', '/app/config', null, '', ['FER_TEST_IP' => '203.0.113.7', 'FER_TEST_HTTPS' => 'on']);
+verifie('la même requête en HTTPS passe', $r['http'] === 200, $r['brut']);
+
+/* Version minimale : imposée par le serveur, pas par la bonne volonté du client. */
+$pdo->exec("UPDATE setting SET app_version_minimale = '2.0.0'");
+$r = api('GET', '/me', null, '', ['FER_TEST_APP_VERSION' => '1.4.9']);
+verifie('application périmée → 426 app_outdated',
+    $r['http'] === 426 && ($r['json']['error']['code'] ?? '') === 'app_outdated', $r['brut']);
+verifie('le refus indique la version exigée',
+    ($r['json']['error']['version_minimale'] ?? '') === '2.0.0');
+verifie('le refus indique où se renseigner',
+    str_contains((string) ($r['json']['error']['config_url'] ?? ''), '/api/v1/app/config'));
+
+$r = api('GET', '/app/config', null, '', ['FER_TEST_APP_VERSION' => '1.4.9']);
+verifie('/app/config reste joignable pour une application périmée',
+    $r['http'] === 200 && ($r['json']['data']['version_minimale'] ?? '') === '2.0.0', $r['brut']);
+
+$r = api('GET', '/me', null, '', ['FER_TEST_APP_VERSION' => '']);
+verifie('version non annoncée → 400 missing_app_version',
+    $r['http'] === 400 && ($r['json']['error']['code'] ?? '') === 'missing_app_version', $r['brut']);
+
+$r = api('GET', '/me', null, '', ['FER_TEST_APP_VERSION' => '2.0.0']);
+verifie('version suffisante → on repasse à l\'authentification', $r['http'] === 401, $r['brut']);
+
+$pdo->exec("UPDATE setting SET app_version_minimale = '1.0.0'");
 
 echo "\n=== 1. Configuration publique (sans jeton) ===\n";
 $r = api('GET', '/app/config');
