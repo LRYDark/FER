@@ -289,6 +289,32 @@ function regcore_parseNaissance(?string $raw, int $editionYear, bool $shortAsAge
     return $none;
 }
 
+/**
+ * Colonnes de naissance dérivées d'une valeur brute, prêtes à être insérées.
+ *
+ * Appelée à CHAQUE création d'inscription : sans elle, toute nouvelle inscription
+ * arriverait avec `annee_naissance` vide et `naissance_source = 'inconnu'`, et il
+ * faudrait relancer l'outil de normalisation après chaque vague d'inscriptions.
+ *
+ * La valeur passée est la valeur BRUTE saisie (âge, année ou date complète), pas
+ * celle déjà convertie en âge : une vraie date de naissance renseigne alors aussi
+ * `date_naissance`.
+ *
+ * @return array<string,mixed> tableau colonne => valeur, vide si la migration du
+ *         lot 1 n'est pas encore passée (le code peut être déployé avant update.php)
+ */
+function regcore_naissanceColumns(PDO $pdo, $brut, ?int $editionId = null): array
+{
+    if (!fer_hasColumn($pdo, 'registrations', 'annee_naissance')) return [];
+
+    $p = regcore_parseNaissance((string) $brut, fer_editionYear($pdo, $editionId), true);
+    return [
+        'annee_naissance'  => $p['annee'],
+        'date_naissance'   => $p['date'],
+        'naissance_source' => $p['source'],
+    ];
+}
+
 /** Journalise une erreur d'import dans storage/logs/import_errors.log. */
 function regcore_logImportError(array $data, string $filename = 'import_errors.log'): void
 {
@@ -403,6 +429,11 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
         }
         if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
             $cols[] = 'email_normalise'; $phs[] = '?'; $vals[] = fer_emailHash($d['email'] ?? null);
+        }
+        // Année de naissance déduite de la valeur BRUTE saisie (avant conversion en
+        // âge) : un âge se périme, une année de naissance non.
+        foreach (regcore_naissanceColumns($pdo, $d['naissance'] ?? '', $editionId) as $c => $v) {
+            $cols[] = $c; $phs[] = '?'; $vals[] = $v;
         }
 
         // Date d'inscription : si fournie (date réelle), on l'enregistre (antidatage possible
@@ -575,10 +606,12 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
         $importCols = ['inscription_no', 'nom', 'prenom', 'tel', 'email', 'naissance', 'sexe',
                        'tshirt_size', 'ville', 'entreprise', 'origine', 'paiement_mode',
                        'prestation', 'montant_du', 'date_inscription', 'created_by'];
-        $importEditionId   = fer_activeEditionId($pdo);
+        $importEditionId    = fer_activeEditionId($pdo);
         $importHasEmailNorm = fer_hasColumn($pdo, 'registrations', 'email_normalise');
+        $importHasNaissance = fer_hasColumn($pdo, 'registrations', 'annee_naissance');
         if ($importEditionId !== null)  $importCols[] = 'edition_id';
         if ($importHasEmailNorm)        $importCols[] = 'email_normalise';
+        if ($importHasNaissance)        array_push($importCols, 'annee_naissance', 'date_naissance', 'naissance_source');
 
         $insert = $pdo->prepare(
             'INSERT INTO registrations (' . implode(', ', $importCols) . ') VALUES ('
@@ -704,6 +737,13 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
                 // Mêmes colonnes optionnelles, dans le même ordre que $importCols.
                 if ($importEditionId !== null)  $insertVals[] = $importEditionId;
                 if ($importHasEmailNorm)        $insertVals[] = fer_emailHash($v['email'] ?? null);
+                if ($importHasNaissance) {
+                    // $v['naissance'] contient déjà l'âge (converti au parsing du fichier) ;
+                    // il est rapporté à l'année de l'édition cible, pas à l'année courante.
+                    $nc = regcore_naissanceColumns($pdo, $v['naissance'] ?? '', $importEditionId);
+                    array_push($insertVals, $nc['annee_naissance'] ?? null,
+                               $nc['date_naissance'] ?? null, $nc['naissance_source'] ?? 'inconnu');
+                }
                 $insert->execute($insertVals);
                 $added++;
                 if (!empty($v['email'])) {

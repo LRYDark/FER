@@ -1921,6 +1921,11 @@ if ($route==='registrations'){
         if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
             $cols[] = 'email_normalise'; $phs[] = '?'; $vals[] = fer_emailHash($d['email'] ?? null);
         }
+        // Année de naissance déduite de la valeur BRUTE saisie (avant conversion en âge).
+        require_once __DIR__ . '/src/content/registrations_core.php';
+        foreach (regcore_naissanceColumns($pdo, $d['naissance'] ?? '', $editionIdIns) as $c => $v) {
+            $cols[] = $c; $phs[] = '?'; $vals[] = $v;
+        }
 
         // Date d'inscription (date_inscription) : antidatable UNIQUEMENT pour un admin
         // connecté (un inscrit public ne doit jamais pouvoir s'antidater). Vide → DEFAULT
@@ -2040,7 +2045,8 @@ if ($route==='registrations'){
 
         $params = ['id' => $d['id']];
         $setParts = [];
-        $emailEnClair = null;   // lot 1 : email en clair réellement écrit, s'il l'est
+        $emailEnClair   = null; // lot 1 : email en clair réellement écrit, s'il l'est
+        $naissanceBrute = null; // lot 1 : valeur de naissance saisie, avant conversion en âge
 
         if (array_key_exists('commentaire', $d) && $d['commentaire'] !== null) {
             $d['commentaire'] = mb_substr((string) $d['commentaire'], 0, 2000);
@@ -2052,9 +2058,12 @@ if ($route==='registrations'){
             // Cohérence avec POST : on stocke une chaîne vide plutôt que null
             // (les colonnes NOT NULL acceptent '' mais pas null)
             if ($raw === null) $raw = '';
-            // Naissance : on ne stocke QUE l'âge (année/date → âge).
+            // Naissance : on ne stocke QUE l'âge (année/date → âge) dans `naissance`.
+            // Lot 1 : la valeur BRUTE est conservée pour en déduire l'année de
+            // naissance, qui elle ne se périme pas.
             if ($col === 'naissance' && $raw !== '') {
                 require_once __DIR__ . '/src/content/registrations_core.php';
+                $naissanceBrute = (string) $raw;
                 $age = regcore_naissanceToAge((string) $raw);
                 $raw = ($age !== null) ? $age : '';
             }
@@ -2117,6 +2126,19 @@ if ($route==='registrations'){
         if ($emailEnClair !== null && fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
             $params['email_normalise'] = fer_emailHash($emailEnClair);
             $setParts[] = "`email_normalise` = :email_normalise";
+        }
+
+        /* Lot 1 — si la naissance change, l'année de naissance suit. Elle est
+         * calculée sur l'année de l'édition DE CETTE INSCRIPTION (une ligne d'une
+         * édition passée ne doit pas être datée sur l'année courante). */
+        if ($naissanceBrute !== null && fer_hasColumn($pdo, 'registrations', 'annee_naissance')) {
+            $edStmt = $pdo->prepare('SELECT edition_id FROM registrations WHERE id = ?');
+            $edStmt->execute([$d['id']]);
+            $edRow = $edStmt->fetchColumn();
+            foreach (regcore_naissanceColumns($pdo, $naissanceBrute, $edRow ? (int) $edRow : null) as $c => $v) {
+                $params[$c]  = $v;
+                $setParts[] = "`$c` = :$c";
+            }
         }
 
         if (empty($setParts)) {
@@ -2197,6 +2219,7 @@ if ($route === 'registrations-bulk') {
         // appliquées à chaque inscription sélectionnée).
         $setParts   = [];
         $baseParams = [];
+        $naissanceBulkBrute = null;   // lot 1 : naissance saisie, avant conversion en âge
         foreach ($fieldCols as $col => $meta) {
             if (!array_key_exists($col, $fields)) continue;
             // nom / prénom ne sont jamais modifiables en masse (jamais communs).
@@ -2205,8 +2228,10 @@ if ($route === 'registrations-bulk') {
             if ($val === null) $val = '';
             if ($col === 'commentaire') $val = mb_substr((string) $val, 0, 2000);
             // Naissance → âge (année/date convertie). ENUM assainis (anti « Data truncated »).
+            // Lot 1 : valeur brute conservée pour recalculer l'année de naissance par ligne.
             if ($col === 'naissance' && $val !== '') {
                 require_once __DIR__ . '/src/content/registrations_core.php';
+                $naissanceBulkBrute = (string) $val;
                 $age = regcore_naissanceToAge((string) $val);
                 $val = ($age !== null) ? $age : '';
             }
@@ -2238,12 +2263,24 @@ if ($route === 'registrations-bulk') {
             $setParts[] = "`paiement_mode` = :paiement_mode";
         }
 
+        /* Lot 1 — l'année de naissance suit la naissance saisie. Elle est recalculée
+         * LIGNE PAR LIGNE, sur l'année de l'édition de chaque inscription : une
+         * sélection peut mélanger plusieurs éditions, et une valeur commune y
+         * fausserait silencieusement les lignes des éditions passées. */
+        $bulkNaissance = ($naissanceBulkBrute !== null && fer_hasColumn($pdo, 'registrations', 'annee_naissance'));
+        if ($bulkNaissance) {
+            foreach (['annee_naissance', 'date_naissance', 'naissance_source'] as $c) {
+                $setParts[] = "`$c` = :$c";
+            }
+        }
+
         if (!$setParts) { echo json_encode(['ok'=>true, 'updated'=>0]); exit; }
 
         $set  = implode(',', $setParts);
         // La portée « saisie » est déjà appliquée en filtrant $ids ci-dessus.
         $sql  = "UPDATE registrations SET $set WHERE id = :id";
         $stmt = $pdo->prepare($sql);
+        $edStmt = $bulkNaissance ? $pdo->prepare('SELECT edition_id FROM registrations WHERE id = ?') : null;
 
         $updated = 0;
         $pdo->beginTransaction();
@@ -2251,6 +2288,11 @@ if ($route === 'registrations-bulk') {
             foreach ($ids as $id) {
                 $p = $baseParams;
                 $p['id'] = $id;
+                if ($bulkNaissance) {
+                    $edStmt->execute([$id]);
+                    $ed = $edStmt->fetchColumn();
+                    $p += regcore_naissanceColumns($pdo, $naissanceBulkBrute, $ed ? (int) $ed : null);
+                }
                 $stmt->execute($p);
                 $updated += $stmt->rowCount();
             }
@@ -2517,6 +2559,9 @@ if ($route === 'bulk-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (fer_hasColumn($pdo, 'registrations', 'email_normalise')) {
                 $cols[] = 'email_normalise'; $phs[] = '?'; $vals[] = fer_emailHash($row['email'] ?? null);
+            }
+            foreach (regcore_naissanceColumns($pdo, $row['naissance'] ?? '', $editionIdBulk) as $c => $v) {
+                $cols[] = $c; $phs[] = '?'; $vals[] = $v;
             }
 
             // Date d'inscription (date_inscription). Fournie par personne (champ
