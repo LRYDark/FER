@@ -2151,7 +2151,14 @@ $lot1Tables = [
           `confiance` TINYINT DEFAULT NULL,
           `retenue` TINYINT(1) NOT NULL DEFAULT 0,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX `idx_inscription` (`annee`, `inscription_no`, `point`)
+          INDEX `idx_inscription` (`annee`, `inscription_no`, `point`),
+          -- ⚠️ CETTE CLÉ EST CE QUI REND LA RÉCEPTION IDEMPOTENTE.
+          -- Le réseau tombera pendant la course : l'application renverra ses
+          -- détections, parfois plusieurs fois. Sans cet index, un même passage
+          -- devant la balise créerait dix lignes, et l'arbitrage porterait sur
+          -- des doublons. Un SELECT préalable ne suffirait pas : deux envois
+          -- simultanés passeraient tous les deux.
+          UNIQUE KEY `idx_unicite` (`annee`, `inscription_no`, `type`, `point`, `detecte_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 ];
 
@@ -2359,6 +2366,83 @@ foreach ($lot1Settings as $col => $ddl) {
     } catch (PDOException $e) {
         $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
     }
+}
+
+/* ═══════════════════ CHRONOMÉTRAGE — réception des données de course ════
+ *
+ * Deux ajouts sur des tables du lot 1 déjà créées chez les sites migrés :
+ * `CREATE TABLE IF NOT EXISTS` ne les aurait pas touchées.
+ * ───────────────────────────────────────────────────────────────────────── */
+$chronoAlters = [
+    // Sans cette clé, un même passage devant la balise renvoyé trois fois par
+    // une application qui a perdu le réseau créerait trois lignes, et
+    // l'arbitrage porterait sur des doublons.
+    ['detections', 'idx_unicite',
+     'ALTER TABLE `detections` ADD UNIQUE KEY `idx_unicite`
+        (`annee`, `inscription_no`, `type`, `point`, `detecte_at`)',
+     'Index d\'unicité des détections (réception idempotente)'],
+];
+foreach ($chronoAlters as [$table, $index, $ddl, $desc]) {
+    try {
+        if (!updTableExists($pdo, $table)) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table absente'];
+            continue;
+        }
+        $existe = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = " . $pdo->quote($table) . "
+                AND INDEX_NAME = " . $pdo->quote($index)
+        )->fetchColumn();
+        if ($existe > 0) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
+        } else {
+            // ⚠️ Des doublons préexistants feraient échouer l'ajout de la clé.
+            // On les retire d'abord, en gardant la ligne la plus ancienne (la
+            // première reçue) : c'est celle qui a servi à tout arbitrage passé.
+            $pdo->exec('DELETE d1 FROM `detections` d1
+                        INNER JOIN `detections` d2
+                        WHERE d1.id > d2.id
+                          AND d1.annee = d2.annee AND d1.inscription_no = d2.inscription_no
+                          AND d1.type = d2.type AND d1.point = d2.point
+                          AND d1.detecte_at = d2.detecte_at');
+            $pdo->exec($ddl);
+            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Index ajouté'];
+        }
+    } catch (PDOException $e) {
+        $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+    }
+}
+
+/* Consentement explicite au suivi GPS. Une trace dit où une personne se
+   trouvait minute par minute : c'est la donnée la plus sensible du site, et
+   elle ne s'enregistre pas parce que l'application l'a décidé. NULL = pas de
+   consentement, donc pas de trace — le défaut le plus protecteur. */
+$descConsent = 'Ajouter `participants`.`traces_consent_at` (consentement au suivi GPS)';
+try {
+    if (!updTableExists($pdo, 'participants')) {
+        $results[] = ['status' => 'skip', 'sql' => $descConsent, 'msg' => 'Table absente'];
+    } else {
+        $existe = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'participants'
+                AND COLUMN_NAME = 'traces_consent_at'"
+        )->fetchColumn();
+        if ($existe > 0) {
+            $results[] = ['status' => 'skip', 'sql' => $descConsent, 'msg' => 'Existe déjà'];
+        } else {
+            // AFTER `accent_custom` : c'est la position qu'a la colonne dans
+            // install.php. Sans cette précision, une base installée à neuf et
+            // une base migrée n'auraient pas le même ordre de colonnes — l'audit
+            // le détecte, et c'est le genre d'écart qui finit par mordre lors
+            // d'un INSERT sans liste de colonnes.
+            $pdo->exec('ALTER TABLE `participants`
+                        ADD COLUMN `traces_consent_at` DATETIME DEFAULT NULL AFTER `accent_custom`');
+            $results[] = ['status' => 'success', 'sql' => $descConsent,
+                          'msg' => 'Colonne ajoutée (NULL = aucun suivi GPS enregistré)'];
+        }
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => $descConsent, 'msg' => $e->getMessage()];
 }
 
 /* ═══════════════════ LOT 6 — section « app » du gabarit d'email ═════════

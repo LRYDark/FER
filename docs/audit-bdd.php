@@ -92,10 +92,25 @@ function peuplerEditions(PDO $pdo, string $src, bool $tableVientDetreCreee): voi
  */
 function jouerLot6(PDO $pdo, string $src): void {
     $results = [];   // les blocs y écrivent leur compte rendu
+
+    // Les blocs extraits appellent updTableExists() — définie dans update.php,
+    // absente ici. On la fournit à l'identique.
+    if (!function_exists('updTableExists')) {
+        eval('function updTableExists(PDO $pdo, string $t): bool {
+                try { return (int) $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = " . $pdo->quote($t))
+                        ->fetchColumn() > 0; }
+                catch (\\Throwable $e) { return false; }
+              }');
+    }
     // ⚠️ L'ancrage de fin est le DERNIER catch du bloc, pas la première
     // accolade fermante : celle-ci ferme un `if` interne et couperait le `try`
     // de son `catch` — le code extrait ne compilerait même pas.
     foreach ([
+        // Chronométrage : index d'unicité des détections, puis colonne de
+        // consentement GPS. Le premier est une boucle, d'où le double `}`.
+        '/\$chronoAlters = \[.*?\'sql\' => \$desc, \'msg\' => \$e->getMessage\(\)\];\s*\}\s*\}/s',
+        '/\$descConsent = \'Ajouter.*?\$descConsent, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
         '/\$descMtc = "Ajouter la section.*?\$descMtc, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
         '/\$descFaq = \'Ajouter les questions.*?\$descFaq, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
         '/\$descRgpd = \'Proposer un texte.*?\$descRgpd, \'msg\' => \$e->getMessage\(\)\];\s*\}/s',
@@ -402,6 +417,34 @@ foreach ($attenduDur as $k => $v) {
     if ((int) ($dur[$k] ?? 0) === $v) echo "✅ $k = $v jours\n";
     else { echo "❌ $k = " . var_export($dur[$k] ?? null, true) . " (attendu $v)\n"; $ko++; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 10. CHRONOMÉTRAGE — l'index qui rend la réception idempotente
+ * C'est la pièce qui empêche un même passage devant la balise, renvoyé par une
+ * application ayant perdu le réseau, de créer dix lignes.
+ * ───────────────────────────────────────────────────────────────────────── */
+echo "\n=== 10. Chronométrage : index d'unicité des détections ===\n";
+$idx = (int) $B->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'detections'
+                           AND INDEX_NAME = 'idx_unicite'")->fetchColumn();
+if ($idx > 0) echo "✅ Index d'unicité posé sur la base migrée\n";
+else { echo "❌ Index d'unicité absent — la réception ne serait pas idempotente\n"; $ko++; }
+
+$col = (int) $B->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'participants'
+                           AND COLUMN_NAME = 'traces_consent_at'")->fetchColumn();
+if ($col > 0) echo "✅ Consentement GPS présent (NULL par défaut = aucun suivi)\n";
+else { echo "❌ Colonne de consentement GPS absente\n"; $ko++; }
+
+// Le doublon doit être matériellement impossible.
+$jour = (new DateTimeImmutable('-2 days'))->format('Y-m-d');
+$B->exec("INSERT IGNORE INTO detections (annee, inscription_no, type, point, detecte_at)
+          VALUES (" . (int) date('Y') . ", 'S1', 'beacon', 'arrivee', '$jour 10:00:00.000')");
+$B->exec("INSERT IGNORE INTO detections (annee, inscription_no, type, point, detecte_at)
+          VALUES (" . (int) date('Y') . ", 'S1', 'beacon', 'arrivee', '$jour 10:00:00.000')");
+$n = (int) $B->query("SELECT COUNT(*) FROM detections WHERE inscription_no = 'S1'")->fetchColumn();
+if ($n === 1) echo "✅ Une détection envoyée deux fois ne crée qu'une ligne\n";
+else { echo "❌ $n ligne(s) : le doublon est passé\n"; $ko++; }
 
 printf("\n%s\n", $ko === 0 ? "✅ AUDIT PRODUCTION : AUCUNE ANOMALIE" : "❌ AUDIT : $ko ANOMALIE(S)");
 exit($ko > 0 ? 1 : 0);

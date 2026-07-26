@@ -148,7 +148,7 @@ $A = $h($apiUrl);
       <li><a href="#endpoints">Liste des points d'entrée</a></li>
       <li><a href="#modif">Ce que le coureur peut modifier lui-même</a></li>
       <li><a href="#erreurs">Codes d'erreur</a></li>
-      <li><a href="#course">Envoyer les données de course — <em>pas encore disponible</em></a></li>
+      <li><a href="#course">Envoyer les données de course — balise et GPS</a></li>
       <li><a href="#regles">Règles de sécurité, et pourquoi elles sont là</a></li>
     </ol>
   </div>
@@ -416,8 +416,11 @@ $A = $h($apiUrl);
         <tr><td><span class="endpoint-badge m-get">GET</span></td><td><code>/me/transfers</code></td><td>Demandes de transfert émises.</td></tr>
         <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/transfers</code></td><td>Nouvelle demande de transfert.</td></tr>
         <tr><td><span class="endpoint-badge m-delete">DELETE</span></td><td><code>/me/transfers/{id}</code></td><td>Annule une demande en attente.</td></tr>
+        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/detections</code></td><td>Détections balise et GPS. Voir la section 9.</td></tr>
+        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/traces</code></td><td>Lot de points GPS. Exige le consentement.</td></tr>
+        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/traces/consent</code></td><td>Donner ou retirer l’accord au suivi GPS.</td></tr>
         <tr><td><span class="endpoint-badge m-get">GET</span></td><td><code>/me/results</code></td>
-            <td>Résultats. <strong>Liste vide aujourd'hui</strong> — voir la section 9.</td></tr>
+            <td>Résultats calculés : temps, méthode, précision, statut.</td></tr>
       </tbody>
     </table>
 
@@ -519,15 +522,135 @@ $A = $h($apiUrl);
 
   <!-- ═══ 9. Données de course ═══ -->
   <div class="api-card" id="course">
-    <h2 class="mt-0">9. Envoyer les données de course
-      <span class="badge bg-warning text-dark align-middle">pas encore disponible</span></h2>
+    <h2 class="mt-0">9. Envoyer les données de course</h2>
 
-    <p>Les tables <code>traces_gps</code>, <code>detections</code> et <code>resultats</code> existent
-       et attendent leurs données, mais <strong>aucun point d'entrée ne les alimente à ce jour</strong>.
-       C'est un chantier à part entière : il produit des résultats officiels, donc des contestations
-       possibles, et il mérite ses propres tests.</p>
+    <div class="alert alert-info"><i class="bi bi-broadcast-pin me-2"></i>
+      <strong>Deux sources, toujours les deux.</strong> Chaque passage est détecté par la
+      <strong>balise Bluetooth</strong> posée sur la ligne <em>et</em> par le
+      <strong>franchissement de la zone GPS</strong>. Si l'une manque, l'autre donne le temps ;
+      si les deux sont là, c'est la balise qui fait foi. C'est le seul moyen de ne pas se
+      retrouver, le jour de la course, avec des participants sans chrono parce qu'un boîtier
+      a lâché. <strong>Envoyez systématiquement les deux</strong> — le serveur trie.
+    </div>
 
-    <p>Quatre règles sont déjà inscrites dans la structure de la base et devront être respectées :</p>
+    <h3><span class="endpoint-badge m-post">POST</span>/me/detections</h3>
+    <?php mCode(
+      "curl -X POST \"$apiUrl/me/detections\" \\\n"
+    . "  -H \"Content-Type: application/json\" -H \"X-App-Version: 1.0.0\" \\\n"
+    . "  -H \"Authorization: Bearer <access_token>\" \\\n"
+    . "  -d '{\n"
+    . "        \"annee\": 2026,\n"
+    . "        \"inscription_no\": \"FER-00123\",\n"
+    . "        \"detections\": [\n"
+    . "          { \"type\": \"beacon\",   \"point\": \"depart\",  \"detecte_at\": \"2026-10-04T10:00:01.250+02:00\", \"rssi_pic\": -52 },\n"
+    . "          { \"type\": \"geofence\", \"point\": \"depart\",  \"detecte_at\": \"2026-10-04T10:00:12.000+02:00\" },\n"
+    . "          { \"type\": \"beacon\",   \"point\": \"arrivee\", \"detecte_at\": \"2026-10-04T10:40:03.100+02:00\", \"rssi_pic\": -54 },\n"
+    . "          { \"type\": \"geofence\", \"point\": \"arrivee\", \"detecte_at\": \"2026-10-04T10:40:18.000+02:00\" }\n"
+    . "        ]\n"
+    . "      }'\n\n"
+    . "→ { \"ajoutees\": 4, \"connues\": 0, \"refusees\": [],\n"
+    . "     \"statut\": \"termine\", \"temps_s\": 2402, \"methode\": \"beacon\" }"
+    ); ?>
+    <table class="table table-sm api-params">
+      <thead><tr><th>Champ</th><th>Valeurs</th><th>Remarque</th></tr></thead>
+      <tbody>
+        <tr><td><code>type</code></td><td><code>beacon</code>, <code>geofence</code>, <code>gps_ligne</code></td>
+            <td><code>manuel</code> est <strong>refusé</strong> (403) : il est réservé à l'organisation et prime sur tout le reste. Le laisser passer permettrait de dicter son temps.</td></tr>
+        <tr><td><code>point</code></td><td><code>depart</code>, <code>arrivee</code></td><td>—</td></tr>
+        <tr><td><code>detecte_at</code></td><td>ISO-8601 <strong>avec décalage</strong></td>
+            <td>L'instant vu par le <em>téléphone</em>. Millisecondes acceptées. Une date sans fuseau est refusée : elle serait lue dans le fuseau du serveur, soit deux heures d'écart sur le chrono.</td></tr>
+        <tr><td><code>rssi_pic</code></td><td>entier négatif (dBm)</td>
+            <td>Balise uniquement. Sert à départager deux détections de balise : −50 dBm, on est passé à côté ; −95 dBm, on l'a captée de loin.</td></tr>
+      </tbody>
+    </table>
+    <p class="text-muted small">
+      200 détections par appel au maximum. Le champ <code>connues</code> compte celles déjà
+      reçues : c'est normal après un renvoi, ce n'est pas une erreur.
+    </p>
+
+    <h3><span class="endpoint-badge m-post">POST</span>/me/traces/consent</h3>
+    <p>Une trace GPS dit où quelqu'un se trouvait <strong>minute par minute</strong>. Elle ne
+       s'enregistre pas parce que l'application l'a décidé : sans consentement,
+       <code>/me/traces</code> répond <code>403 consent_required</code>.</p>
+    <?php mCode("POST $apiUrl/me/traces/consent\n{ \"consent\": true }     ← ou false pour le retirer"); ?>
+
+    <h3><span class="endpoint-badge m-post">POST</span>/me/traces</h3>
+    <?php mCode(
+      "POST $apiUrl/me/traces\n"
+    . "{\n"
+    . "  \"annee\": 2026, \"inscription_no\": \"FER-00123\",\n"
+    . "  \"points\": [\n"
+    . "    { \"lat\": 49.1903, \"lon\": 6.9002, \"at\": \"2026-10-04T10:00:03+02:00\", \"alt\": 210, \"precision_m\": 8 },\n"
+    . "    { \"lat\": 49.1904, \"lon\": 6.9004, \"at\": \"2026-10-04T10:00:06+02:00\" }\n"
+    . "  ]\n"
+    . "}\n\n"
+    . "→ { \"ajoutes\": 2, \"ignores\": 0 }"
+    ); ?>
+    <div class="alert alert-success"><i class="bi bi-arrow-repeat me-2"></i>
+      <strong>Idempotent par construction.</strong> Seuls les points <em>postérieurs</em> au dernier
+      point déjà connu sont conservés. Renvoyer un lot déjà reçu n'ajoute rien et répond
+      <code>ajoutes: 0</code> — l'application peut donc réémettre sans risque après une coupure,
+      sans tenir de comptabilité de ce qui est passé. 5000 points par appel au maximum.
+    </div>
+
+    <h3>Ce que le serveur fait de tout ça</h3>
+    <?php mFlux(
+      "détections reçues                    arbitrage                  résultat\n"
+    . "───────────────────                  ─────────                  ────────\n"
+    . " balise   départ  10:00:01  ┐\n"
+    . " zone GPS départ  10:00:12  ┤── 1. le type le plus fiable gagne :\n"
+    . " balise   arrivée 10:40:03  ┤      manuel > balise > zone GPS > GPS ligne\n"
+    . " zone GPS arrivée 10:40:18  ┘\n"
+    . "                               2. à type égal :\n"
+    . "                                  départ  → la plus TARDIVE\n"
+    . "                                            (on part en quittant la ligne)\n"
+    . "                                  arrivée → la plus PRÉCOCE\n"
+    . "                                            (on finit en la franchissant)\n"
+    . "                                                              ↓\n"
+    . "                                          temps_s     = 2402\n"
+    . "                                          methode     = beacon\n"
+    . "                                          precision_s = ±2 s\n"
+    . "                                          statut      = termine"
+    ); ?>
+    <table class="table table-sm api-params">
+      <thead><tr><th>Source retenue</th><th><code>methode</code></th><th><code>precision_s</code></th></tr></thead>
+      <tbody>
+        <tr><td>Saisie par un officiel</td><td><code>manuel</code></td><td>±1 s</td></tr>
+        <tr><td>Balise Bluetooth</td><td><code>beacon</code></td><td>±2 s</td></tr>
+        <tr><td>Zone GPS franchie</td><td><code>gps_ligne</code></td><td>±15 s</td></tr>
+        <tr><td>Reconstruction GPS</td><td><code>gps_ligne</code></td><td>±30 s</td></tr>
+      </tbody>
+    </table>
+    <p class="text-muted small">
+      <code>precision_s</code> est celle de la source la <strong>moins bonne des deux</strong> :
+      un temps ne peut pas être plus précis que sa borne la plus floue. <strong>Affichez-la
+      toujours à côté du temps</strong> — un temps GPS montré nu passerait pour une mesure à
+      la seconde.
+    </p>
+
+    <h3>Les cas particuliers, et ce que renvoie l'API</h3>
+    <table class="table table-sm api-params">
+      <thead><tr><th>Situation</th><th>Résultat</th></tr></thead>
+      <tbody>
+        <tr><td>Aucune détection de départ (départ en masse)</td>
+            <td><code>termine</code>, calculé sur <code>editions.heure_depart</code>. Le champ <code>commentaire</code> l'indique.</td></tr>
+        <tr><td>Arrivée détectée sans aucun départ possible</td><td><code>invalide</code></td></tr>
+        <tr><td>Arrivée antérieure au départ</td><td><code>invalide</code></td></tr>
+        <tr><td>Temps sous <code>temps_min_plausible_s</code></td><td><code>invalide</code> — quelqu'un n'a pas fait 7 km en 4 minutes</td></tr>
+        <tr><td>Résultat validé par un officiel</td><td>Inchangé. Une détection tardive ne défait pas la décision d'un humain.</td></tr>
+      </tbody>
+    </table>
+    <p class="text-muted small mb-0">
+      Un résultat <code>invalide</code> n'est <strong>jamais présenté comme un temps</strong> au
+      coureur : son espace affiche « à vérifier ». L'écran d'administration
+      <em>Résultats</em> les met en tête de liste, avec le détail de toutes les détections reçues.
+    </p>
+  </div>
+
+  <!-- ═══ 9 bis. Règles de conception ═══ -->
+  <div class="api-card">
+    <h2 class="mt-0">9 bis. Quatre règles à respecter dans l'application</h2>
+    <p>Elles sont inscrites dans la structure de la base, et le serveur les applique :</p>
     <table class="table table-sm api-params">
       <thead><tr><th>Règle</th><th>Ce que ça implique</th></tr></thead>
       <tbody>
@@ -559,8 +682,8 @@ $A = $h($apiUrl);
     </table>
 
     <p class="mb-0 text-muted">
-      <code>GET /me/results</code> existe et répond déjà, avec une liste vide. C'est volontaire :
-      figer le contrat maintenant évite de le casser le jour où les résultats arriveront.
+      <code>GET /me/results</code> renvoie les résultats calculés — <code>temps_s</code>, <code>methode</code>,
+      <code>precision_s</code>, <code>statut</code>. La liste reste vide tant qu'aucune détection n'a été reçue.
     </p>
   </div>
 

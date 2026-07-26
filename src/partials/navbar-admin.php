@@ -34,6 +34,7 @@ $pageTitles = [
     'api-doc.php'        => "Documentation de l'API",
     'api-doc-mobile.php' => "Documentation de l'API mobile",
     'rgpd.php'           => 'Données personnelles',
+    'resultats.php'      => 'Résultats',
     'assistant.php'     => 'Assistance',
 ];
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';
@@ -228,6 +229,10 @@ $navSections = [
         // défaut pour les rôles de consultation.
         ['comptes-coureurs.php', 'Comptes coureurs', $ico['users2'], ['page' => 'dashboard', 'action' => 'dashboard.participants']],
         ['transferts.php',       'Transferts',       $ico['send'],   ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
+        // Chronométrage : consulter, corriger, valider. Écran indispensable le
+        // jour où quelqu'un conteste son temps — il montre TOUTES les détections
+        // reçues, balise et GPS, et laquelle a servi au calcul.
+        ['resultats.php',        'Résultats',        $ico['timeline'], ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
     ],
     'Contenu' => [
         ['news.php',     'Actualités',    $ico['news'],     ['page' => 'news']],

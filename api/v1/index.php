@@ -42,6 +42,7 @@ require_once __DIR__ . '/../../src/core/qrcode.php';
 require_once __DIR__ . '/../../src/auth/participant_auth.php';
 require_once __DIR__ . '/../../src/auth/participant_profile.php';
 require_once __DIR__ . '/../../src/content/transfers.php';
+require_once __DIR__ . '/../../src/content/chrono.php';
 
 /* ═══════════════════════════ Sortie JSON ════════════════════════════════ */
 
@@ -695,6 +696,107 @@ if (($route[0] ?? '') === 'me') {
             api_ok(['message' => 'Demande de transfert annulée.']);
         }
         api_err(405, 'method_not_allowed', 'Méthode non autorisée.');
+    }
+
+    /* ─────────────────── Réception des données de course ────────────────
+     *
+     * L'application envoie des OBSERVATIONS horodatées, jamais un temps. Le
+     * calcul se fait sur le serveur (src/content/chrono.php) : une application
+     * qui enverrait « j'ai fait 42 minutes » ferait une déclaration, pas une
+     * mesure — on la croit ou on la truque, et le premier classement contesté
+     * serait indéfendable.
+     * ──────────────────────────────────────────────────────────────────── */
+
+    /* POST /me/detections — balise ET franchissement GPS, les deux.
+       C'est la redondance qui compte : si un boîtier lâche le jour J, le GPS
+       donne quand même un temps. */
+    if ($sousRoute === 'detections' && $methode === 'POST') {
+        $annee = (int) ($corps['annee'] ?? 0);
+        $no    = trim((string) ($corps['inscription_no'] ?? ''));
+        $liste = is_array($corps['detections'] ?? null) ? $corps['detections'] : [];
+
+        if ($annee <= 0 || $no === '') {
+            api_err(422, 'missing_fields', 'annee et inscription_no sont obligatoires.');
+        }
+        if (!pauth_owns($pdo, $participantId, $annee, $no)) {
+            api_err(403, 'forbidden', "Cette inscription n'est pas rattachée à votre compte.");
+        }
+        if (count($liste) > 200) {
+            api_err(422, 'too_many', 'Envoyez au plus 200 détections par appel.');
+        }
+        // L'application ne décide pas de son propre type « manuel » : celui-ci
+        // est réservé à une saisie par l'organisation, et il prime sur tout le
+        // reste. Le laisser passer permettrait de dicter son temps.
+        foreach ($liste as $d) {
+            if (($d['type'] ?? '') === 'manuel') {
+                api_err(403, 'forbidden', "Le type « manuel » est réservé à l'organisation.");
+            }
+        }
+
+        $ajoutees = 0; $connues = 0; $refus = [];
+        foreach ($liste as $d) {
+            $r = chrono_ingestDetection($pdo, $annee, $no, is_array($d) ? $d : []);
+            if (!$r['ok'])                 $refus[] = $r['erreur'];
+            elseif (!empty($r['nouvelle'])) $ajoutees++;
+            else                            $connues++;
+        }
+
+        // Recalcul immédiat : le coureur doit pouvoir consulter son temps en
+        // franchissant la ligne, pas le lendemain.
+        $res = $ajoutees > 0 ? chrono_recompute($pdo, $annee, $no) : ['statut' => null];
+
+        api_log("detections $annee/$no : $ajoutees nouvelle(s), $connues connue(s)");
+        api_ok([
+            'ajoutees'  => $ajoutees,
+            'connues'   => $connues,      // déjà reçues : l'envoi était un doublon
+            'refusees'  => $refus,
+            'statut'    => $res['statut'] ?? null,
+            'temps_s'   => $res['temps_s'] ?? null,
+            'methode'   => $res['methode'] ?? null,
+        ], 201);
+    }
+
+    /* POST /me/traces/consent — le consentement au suivi GPS, séparément.
+       Une trace dit où quelqu'un se trouvait minute par minute : elle ne
+       s'enregistre pas parce que l'application l'a décidé. */
+    if ($sousRoute === 'traces' && ($route[2] ?? '') === 'consent' && $methode === 'POST') {
+        $accord = !empty($corps['consent']);
+        $pdo->prepare('UPDATE participants SET traces_consent_at = ' . ($accord ? 'NOW()' : 'NULL')
+                    . ' WHERE id = ?')->execute([$participantId]);
+        api_log(($accord ? 'consentement GPS donne' : 'consentement GPS retire')
+              . " (compte $participantId)");
+        api_ok(['consent' => $accord, 'message' => $accord
+            ? 'Suivi GPS autorisé. Vous pouvez le retirer à tout moment.'
+            : 'Suivi GPS refusé. Aucune nouvelle trace ne sera enregistrée.']);
+    }
+
+    /* POST /me/traces — lot de points GPS.
+       Idempotent : seuls les points postérieurs au dernier point connu sont
+       retenus. Renvoyer un lot déjà reçu n'ajoute donc rien. */
+    if ($sousRoute === 'traces' && !isset($route[2]) && $methode === 'POST') {
+        $annee  = (int) ($corps['annee'] ?? 0);
+        $no     = trim((string) ($corps['inscription_no'] ?? ''));
+        $points = is_array($corps['points'] ?? null) ? $corps['points'] : [];
+
+        if ($annee <= 0 || $no === '') {
+            api_err(422, 'missing_fields', 'annee et inscription_no sont obligatoires.');
+        }
+        if (!pauth_owns($pdo, $participantId, $annee, $no)) {
+            api_err(403, 'forbidden', "Cette inscription n'est pas rattachée à votre compte.");
+        }
+
+        $st = $pdo->prepare('SELECT traces_consent_at FROM participants WHERE id = ?');
+        $st->execute([$participantId]);
+        if ($st->fetchColumn() === null) {
+            // 403 et non 422 : ce n'est pas la requête qui est mal formée, c'est
+            // le droit d'écrire qui manque. L'application doit demander l'accord.
+            api_err(403, 'consent_required',
+                'Le suivi GPS demande votre accord explicite (POST /me/traces/consent).');
+        }
+
+        $r = chrono_ingestTrace($pdo, $annee, $no, (int) $device['id'], $points);
+        if (!$r['ok']) api_err(422, 'invalid_input', $r['erreur']);
+        api_ok(['ajoutes' => $r['ajoutes'], 'ignores' => $r['ignores']], 201);
     }
 
     /* GET /me/results
