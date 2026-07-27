@@ -49,6 +49,7 @@ code de sortie 0 si tout est vert.
 | **`test-auth-coureur.php`** | La connexion des coureurs : code à 6 chiffres, expiration, tentatives, limitation de débit, cookie « se souvenir de moi ». | oui |
 | **`test-espace-coureur.php`** | Les pages de l'espace coureur : contrôle d'accès, rattachement des inscriptions. | oui |
 | **`test-config-enc.php`** | L'écriture **atomique** de `config/config.enc` : un fichier de configuration à moitié écrit rendrait le site inaccessible. | non |
+| **`test-qr-eligibilite.php`** | Qui a droit à un QR code — donc à un t-shirt. Vérifie que la règle est STRICTEMENT la même à l’envoi du mail et à l’affichage dans l’espace coureur : afficher un QR à quelqu’un qui n’y a pas droit, c’est lui promettre un t-shirt qu’il n’aura pas. 21 tests. | oui |
 | **`test-qrcode.php`** | Que le QR code du mail et celui de l'espace coureur sont **identiques** — un bénévole ne doit pas tomber sur un QR non reconnu le jour du retrait des t-shirts. | non |
 
 Les fichiers **`*-appel.php`** ne se lancent pas seuls : ce sont les pilotes qui

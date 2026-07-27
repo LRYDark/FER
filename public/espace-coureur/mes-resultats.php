@@ -225,9 +225,8 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <?php endif; ?>
 
       <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
-        Si vous l'autorisez, l'application enregistre votre position pendant la course
-        pour établir votre temps même en cas de panne de balise, et vous montrer votre
-        parcours. Sans votre accord, rien n'est enregistré.
+        Si vous l'autorisez, l'application enregistre votre position pendant la course.
+        Sans votre accord, rien n'est enregistré.
       </p>
 
       <form method="post">
@@ -249,10 +248,19 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         </div>
       </form>
 
+      <?php /* ⚠️ CETTE PRÉCISION COMPTE. La phrase disait « les traces sont
+               effacées au bout de N jours » sans distinguer ce qui l'est de ce
+               qui ne l'est pas — on pouvait comprendre que TOUT disparaissait,
+               résultats compris. C'est faux : la purge (src/content/purges.php)
+               ne touche QUE `traces_gps`, le tracé point par point. Les temps,
+               la méthode de mesure et le statut vivent dans `resultats`, que
+               rien n'efface — c'est ce qui permet de revoir ses éditions
+               passées, année après année. */ ?>
       <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
         <i class="bi bi-hourglass me-1"></i>
-        Les traces sont effacées automatiquement au bout de
-        <?= (int) $ecJoursTraces ?> jours, même si vous ne faites rien.
+        <strong>Vos temps et vos résultats sont conservés</strong> : vous les
+        retrouverez ici chaque année. Seul le <em>tracé détaillé</em> de votre
+        parcours est effacé au bout de <?= (int) $ecJoursTraces ?> jours.
       </p>
     </section>
 

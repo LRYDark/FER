@@ -215,6 +215,11 @@ body {
 }
 .jr-nav a.item:hover { color: var(--ink); background: var(--surface-2); }
 .jr-nav a.item.is-active { color: var(--accent); background: var(--accent-soft); }
+/* Déconnexion : la seule entrée du menu qui fait QUITTER l'espace. En rouge,
+   elle ne se confond plus avec les pages voisines. Employée par l'espace
+   coureur (public/espace-coureur/_layout-haut.php). */
+.jr-nav a.item.is-danger { color: var(--danger); }
+.jr-nav a.item.is-danger:hover { color: var(--danger); background: var(--danger-soft); }
 .jr-nav a.item svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .jr-nav a.item .jr-badge {
   margin-left: auto;
@@ -290,7 +295,18 @@ body {
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.jr-logout:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+/* Rouge EN PERMANENCE, pas seulement au survol : la déconnexion est la seule
+   action de cette zone qui fait quitter l'application. La distinguer d'un coup
+   d'œil évite de la confondre avec « Mon profil », juste à côté. */
+.jr-logout {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+.jr-logout:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+}
 .jr-logout svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Menu profil (s'ouvre vers le haut au-dessus du bloc) */

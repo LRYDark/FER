@@ -49,7 +49,10 @@ $ecMenu = [
         <div class="section">Le site</div>
         <a class="item" href="../accueil.php"><i class="bi bi-house"></i>Site public</a>
         <a class="item" href="../faq.php"><i class="bi bi-question-circle"></i>Questions fréquentes</a>
-        <a class="item" href="deconnexion.php" style="margin-top:var(--sp-4)">
+        <?php /* En rouge : c'est la seule entrée du menu qui fait quitter
+                 l'espace. La distinguer d'un coup d'œil évite de cliquer
+                 dessus en cherchant autre chose. */ ?>
+        <a class="item is-danger" href="deconnexion.php" style="margin-top:var(--sp-4)">
           <i class="bi bi-box-arrow-right"></i>Se déconnecter
         </a>
       <?php else: ?>

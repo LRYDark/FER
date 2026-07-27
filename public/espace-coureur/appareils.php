@@ -175,7 +175,7 @@ $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
     <i class="bi bi-info-circle"></i>
     Révoquer un appareil coupe aussi, immédiatement, l'accès de l'application mobile
     installée dessus. Un appareil révoqué reste connu de l'organisation à des fins de
-    traçabilité — il n'est simplement plus reconnu.
+    traçabilité.
   </div>
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>
