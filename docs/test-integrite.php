@@ -79,6 +79,76 @@ $adminCss = $lire('css/admin.css');
 verifie('.page-header est défini dans admin.css (et non par page)',
     str_contains($adminCss, '.page-header {'));
 
+/* ── 3 bis. Fonction appelée ⇒ fichier chargé ───────────────────────────────
+ * LE CONTRÔLE QUI MANQUAIT. Trois écrans appelaient logContentAction() sans
+ * charger src/content/content-log.php : « Call to undefined function », fatale
+ * au premier clic. Rien ne le signalait — ni la compilation, ni les tests
+ * fonctionnels, qui ne passaient pas par ce bouton.
+ *
+ * On résout les `require` de proche en proche : une page qui charge
+ * participant_auth.php obtient regres_* sans avoir à le demander, puisque
+ * participant_auth.php charge lui-même le résolveur.
+ * ──────────────────────────────────────────────────────────────────────── */
+echo "\n=== 3 bis. Fonctions appelées vs fichiers chargés ===\n";
+
+/** Fichiers requis par un fichier donné, de façon transitive. */
+function inclusionsDe(string $chemin, array $vus = []): array {
+    $chemin = str_replace('\\', '/', (string) realpath($chemin));
+    if ($chemin === '' || isset($vus[$chemin])) return $vus;
+    $vus[$chemin] = true;
+    $src = (string) @file_get_contents($chemin);
+    // require __DIR__ . '/x.php'  et  require '../x.php'
+    if (preg_match_all('#require(?:_once)?\s+(?:__DIR__\s*\.\s*)?[\'"]([^\'"]+)[\'"]#', $src, $m)) {
+        foreach ($m[1] as $rel) {
+            $cible = realpath(dirname($chemin) . '/' . ltrim($rel, '/'));
+            if ($cible) $vus = inclusionsDe($cible, $vus);
+        }
+    }
+    return $vus;
+}
+
+/* Préfixe de fonction → fichier qui la définit. config.php ne charge aucun
+   de ces fichiers : chaque page doit le demander explicitement. */
+$fournisseurs = [
+    'logContentAction' => 'src/content/content-log.php',
+    'fetchContentLogs' => 'src/content/content-log.php',
+    'pauth_'           => 'src/auth/participant_auth.php',
+    'pprofile_'        => 'src/auth/participant_profile.php',
+    'xfer_'            => 'src/content/transfers.php',
+    'regres_'          => 'src/core/registrations_resolver.php',
+    'chrono_'          => 'src/content/chrono.php',
+    'purge_'           => 'src/content/purges.php',
+    'fer_qrCode'       => 'src/core/qrcode.php',
+    'csrf_verify'      => 'src/security/csrf.php',
+    'csrf_field'       => 'src/security/csrf.php',
+];
+
+$oublis = [];
+foreach (array_merge(glob($R . 'inc/*.php') ?: [],
+                     glob($R . 'public/*.php') ?: [],
+                     glob($R . 'public/espace-coureur/*.php') ?: [],
+                     glob($R . 'api/v1/*.php') ?: []) as $f) {
+    // Les fragments (préfixe « _ ») ne sont jamais appelés directement : ils
+    // héritent des inclusions de la page qui les insère. Les compter ici
+    // produirait des alertes systématiques et sans objet — et un contrôle qui
+    // crie au loup finit par être ignoré.
+    if (str_starts_with(basename($f), '_')) continue;
+    $src = (string) file_get_contents($f);
+    $inc = null;
+    foreach ($fournisseurs as $prefixe => $definit) {
+        // Appel effectif (et non simple mention dans un commentaire)
+        if (!preg_match('/\b' . preg_quote($prefixe, '/') . '[A-Za-z_0-9]*\s*\(/', $src)) continue;
+        // La fonction peut être définie dans le fichier lui-même
+        if (preg_match('/function\s+' . preg_quote($prefixe, '/') . '/', $src)) continue;
+        $inc ??= inclusionsDe($f);
+        $attendu = str_replace('\\', '/', (string) realpath($R . $definit));
+        if ($attendu !== '' && !isset($inc[$attendu])) {
+            $oublis[] = basename(dirname($f)) . '/' . basename($f) . ' → ' . $prefixe . '*';
+        }
+    }
+}
+verifie('toute fonction appelée a son fichier chargé', empty($oublis), implode(' | ', $oublis));
+
 /* ── 4. Les pages coureur, elles, chargent bien leur feuille ────────────── */
 echo "\n=== 4. Cohérence de l'espace coureur ===\n";
 $sansStyles = [];

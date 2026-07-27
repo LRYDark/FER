@@ -14,6 +14,7 @@
 require '../src/core/config.php';
 require_once __DIR__ . '/../src/security/csrf.php';
 require __DIR__ . '/../src/partials/navbar-data.php';
+require_once __DIR__ . '/../src/content/content-log.php';   // logContentAction()
 require_once __DIR__ . '/../src/auth/participant_auth.php';
 
 requirePage('dashboard');
@@ -178,10 +179,16 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
             <td class="text-center"><?= (int) $c['nb_inscriptions'] ?></td>
             <td class="text-center"><?= (int) $c['nb_appareils'] ?></td>
             <td class="text-end">
-              <form method="post" class="d-inline">
+              <?php /* Confirmation avec l'adresse EN TOUTES LETTRES : envoyer un
+                       code, c'est écrire à quelqu'un. Sans elle, un clic de
+                       travers dans une liste de trois cents lignes envoie un mail
+                       à la mauvaise personne, et rien ne permet de le rattraper. */ ?>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Envoyer un code de connexion à <?= $h(addslashes(decrypt($c['email_chiffre']))) ?> ?');">
                 <?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-                <button class="btn btn-sm btn-outline-secondary" name="envoyer_code" value="1" title="Renvoyer un code de connexion">
+                <button class="btn btn-sm btn-outline-secondary" name="envoyer_code" value="1"
+                        title="Envoyer un code de connexion à cette personne">
                   <i class="bi bi-envelope"></i>
                 </button>
               </form>

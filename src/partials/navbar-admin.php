@@ -472,22 +472,69 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
         $ocCatchall = mailCatchallStatus();
         if ($ocCatchall['actif']):
     ?>
-      <div style="background:<?= $ocCatchall['bloquant'] ? 'var(--danger, #dc3545)' : 'var(--warn, #fd7e14)' ?>;
-                  color:#fff;padding:8px 16px;font-size:13px;font-weight:600;
-                  display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.4">
-        <i class="bi bi-exclamation-triangle-fill"></i>
-        <?php if ($ocCatchall['bloquant']): ?>
-          MODE TEST &mdash; garde-fou actif <strong>sans adresse valide</strong> :
-          <strong>aucun mail ne part</strong>.
-        <?php else: ?>
-          MODE TEST &mdash; tous les mails sortants partent vers
-          <strong><?= htmlspecialchars($ocCatchall['adresse']) ?></strong>,
-          jamais aux inscrits.
-        <?php endif; ?>
+      <?php /* Carte plutôt que bande pleine largeur : le bandeau collé au bord
+               supérieur écrasait le titre de la page et donnait un air d'alerte
+               système en panne. Ici, il se pose dans le flux comme les autres
+               cartes, garde sa couleur d'avertissement, et reste impossible à
+               manquer — c'est tout ce qu'on lui demande. */ ?>
+      <div class="jr-testmode<?= $ocCatchall['bloquant'] ? ' is-bloquant' : '' ?>">
+        <span class="jr-testmode-badge">
+          <i class="bi bi-<?= $ocCatchall['bloquant'] ? 'shield-fill-exclamation' : 'cone-striped' ?>"></i>
+          Mode test
+        </span>
+        <span class="jr-testmode-texte">
+          <?php if ($ocCatchall['bloquant']): ?>
+            Garde-fou actif <strong>sans adresse valide</strong> :
+            <strong>aucun mail ne part</strong>.
+          <?php else: ?>
+            Tous les mails sortants partent vers
+            <strong><?= htmlspecialchars($ocCatchall['adresse']) ?></strong> —
+            jamais aux inscrits.
+          <?php endif; ?>
+        </span>
         <?php if (canAccessPage('mail-settings')): ?>
-          <a href="mail-settings.php?tab=google" style="color:#fff;text-decoration:underline;font-weight:700">Modifier</a>
+          <a class="jr-testmode-lien" href="mail-settings.php?tab=google">
+            Modifier <i class="bi bi-arrow-right-short"></i>
+          </a>
         <?php endif; ?>
       </div>
+      <style>
+        .jr-testmode {
+          display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+          margin: 0 0 1.25rem; padding: .7rem 1rem;
+          border-radius: 12px; line-height: 1.5; font-size: .875rem;
+          /* Teinte douce plutôt qu'aplat saturé : l'information doit se voir,
+             pas hurler à chaque chargement de page. */
+          background: color-mix(in srgb, var(--warn, #fd7e14) 12%, var(--card, #fff));
+          border: 1px solid color-mix(in srgb, var(--warn, #fd7e14) 35%, transparent);
+          color: var(--ink, #0f172a);
+        }
+        .jr-testmode.is-bloquant {
+          background: color-mix(in srgb, var(--danger, #dc3545) 12%, var(--card, #fff));
+          border-color: color-mix(in srgb, var(--danger, #dc3545) 40%, transparent);
+        }
+        .jr-testmode-badge {
+          display: inline-flex; align-items: center; gap: .4rem; flex: none;
+          padding: .25rem .6rem; border-radius: 999px;
+          background: var(--warn, #fd7e14); color: #fff;
+          font-size: .74rem; font-weight: 700; letter-spacing: .04em;
+          text-transform: uppercase; white-space: nowrap;
+        }
+        .jr-testmode.is-bloquant .jr-testmode-badge { background: var(--danger, #dc3545); }
+        .jr-testmode-texte { flex: 1 1 260px; min-width: 0; }
+        .jr-testmode-texte strong { font-weight: 650; }
+        .jr-testmode-lien {
+          flex: none; display: inline-flex; align-items: center;
+          color: inherit; text-decoration: none; font-weight: 600;
+          padding: .25rem .6rem; border-radius: 8px;
+          border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+          transition: background .15s ease;
+        }
+        .jr-testmode-lien:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+        @media (max-width: 575px) {
+          .jr-testmode { font-size: .82rem; padding: .6rem .75rem; }
+        }
+      </style>
     <?php
         endif;
     endif;

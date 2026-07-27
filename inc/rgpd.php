@@ -16,6 +16,7 @@
 require '../src/core/config.php';
 require_once __DIR__ . '/../src/security/csrf.php';
 require __DIR__ . '/../src/partials/navbar-data.php';
+require_once __DIR__ . '/../src/content/content-log.php';   // logContentAction()
 require_once __DIR__ . '/../src/content/purges.php';
 
 requirePage('dashboard');
