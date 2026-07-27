@@ -40,6 +40,12 @@ $install = file_get_contents('W:/FER/install.php');
 preg_match('/function getCreateTableStatements\(\): array\s*\{(.*?)\n\}/s', $install, $m);
 foreach (eval($m[1]) as $sql) $pdo->exec($sql);
 $pdo->exec('INSERT INTO setting (id) VALUES (1)');
+/* ⚠️ Le DÉFAUT des traces est 0 = conservation illimitée (choix de
+   l'association : revoir son parcours d'une année sur l'autre). Les sections 1
+   à 4 testent le MÉCANISME de purge : elles doivent donc fixer explicitement
+   une durée, sinon elles ne testent rien. La section 5 vérifie, elle, le
+   comportement du défaut. */
+$pdo->exec('UPDATE setting SET traces_gps_conservation_jours = 400 WHERE id = 1');
 $pdo->exec('CREATE TABLE registrations_2024 LIKE registrations');
 
 /* Chargement du VRAI module de purge. */
@@ -143,12 +149,41 @@ verifie('un second passage n\'efface plus rien', $rap2['total'] === 0, 'total = 
 
 /* ── 5. Garde-fou : jamais de durée nulle ────────────────────────────────── */
 echo "\n=== 5. Garde-fous des durées ===\n";
+/* Sur les durées BORNÉES, 0 est forcément une erreur de saisie : on retombe sur
+   le défaut plutôt que d'effacer immédiatement. */
 $pdo->exec('UPDATE setting SET auth_codes_conservation_jours = 0');
 $d = purge_settings($pdo);
-verifie('une durée à 0 en base retombe sur le défaut, pas sur « tout effacer »',
+verifie('une durée à 0 sur les codes retombe sur le défaut, pas sur « tout effacer »',
     $d['auth_codes_conservation_jours'] === 30, (string) $d['auth_codes_conservation_jours']);
 $pdo->exec('UPDATE setting SET auth_codes_conservation_jours = 30');
 
+/* Sur les TRACES, 0 a un sens explicite : conservation illimitée. Le but est de
+   pouvoir revoir son parcours d'une année sur l'autre. Le sens choisi va dans
+   celui de la préservation — jamais l'inverse. */
+$pdo->exec('UPDATE setting SET traces_gps_conservation_jours = 0');
+$d = purge_settings($pdo);
+verifie('0 sur les traces = conservation illimitée', $d['traces_gps_conservation_jours'] === 0);
+
+$avantTraces = (int) $pdo->query('SELECT COUNT(*) FROM traces_gps')->fetchColumn();
+$pdo->exec("INSERT INTO traces_gps (annee, inscription_no, created_at)
+            VALUES (2024, 'A1', DATE_SUB(NOW(), INTERVAL 3000 DAY))");
+$r = purge_run($pdo, false);
+$apresTraces = (int) $pdo->query('SELECT COUNT(*) FROM traces_gps')->fetchColumn();
+verifie('une trace vieille de 3000 jours n\'est PAS effacée', $apresTraces === $avantTraces + 1,
+    "$avantTraces → $apresTraces");
+verifie('la purge annonce la conservation illimitée',
+    ($r['details']['traces_gps']['illimite'] ?? false) === true, json_encode($r['details']['traces_gps'] ?? null));
+
+$pdo->exec('UPDATE setting SET traces_gps_conservation_jours = 400');
+$r = purge_run($pdo, false);
+verifie('remettre une durée réactive bien la purge',
+    ($r['details']['traces_gps']['nombre'] ?? 0) > 0
+    && (int) $pdo->query('SELECT COUNT(*) FROM traces_gps
+                           WHERE created_at < DATE_SUB(NOW(), INTERVAL 400 DAY)')->fetchColumn() === 0,
+    json_encode($r['details']['traces_gps'] ?? null));
+
+// Durée non nulle conservée : sinon la tâche est ignorée avant même d'atteindre
+// la table, et l'absence de celle-ci ne produirait aucune erreur à observer.
 $pdo->exec('DROP TABLE traces_gps');
 $rap3 = purge_run($pdo, true);
 verifie('une table absente n\'interrompt pas les autres purges',

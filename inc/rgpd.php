@@ -50,15 +50,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Purge manuelle : ' . $rapport['total'] . ' ligne(s)', 'purge');
         }
     } elseif (isset($_POST['enregistrer_durees'])) {
+        /* Traces GPS : borne basse à 0, qui vaut « CONSERVATION ILLIMITÉE » —
+           le but est de pouvoir revoir son parcours d'une année sur l'autre.
+           Les autres gardent 1 : une purge immédiate n'y a aucun sens, et 0
+           serait forcément une erreur de saisie. */
         $champs = ['auth_codes_conservation_jours' => [1, 3650],
-                   'traces_gps_conservation_jours' => [1, 3650],
+                   'traces_gps_conservation_jours' => [0, 3650],
                    'devices_revoques_jours'        => [1, 3650],
                    'transferts_clos_jours'         => [1, 3650]];
         $sets = []; $args = [];
         foreach ($champs as $col => [$min, $max]) {
             $v = (int) ($_POST[$col] ?? 0);
-            // Bornage strict : une durée à 0 signifierait « effacer tout de
-            // suite », ce que personne ne veut saisir volontairement.
             if ($v < $min || $v > $max) { $erreur = "Durée invalide pour « $col » ($min à $max jours)."; break; }
             $sets[] = "`$col` = ?"; $args[] = $v;
         }
@@ -148,8 +150,10 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
                 'Codes à 6 chiffres, consommés ou périmés. Ils ne contiennent aucune adresse en clair, seulement une empreinte.'],
             'devices_revoques_jours'        => ['Appareils révoqués',
                 'Le jeton est déjà inutilisable ; ce qui reste, c\'est le modèle du téléphone et l\'IP de création.'],
-            'traces_gps_conservation_jours' => ['Traces GPS',
-                'La donnée la plus sensible du site : elle dit où une personne se trouvait, minute par minute.'],
+            'traces_gps_conservation_jours' => ['Traces GPS — le chemin suivi sur la carte (0 = illimité)',
+                'La liste des positions relevées pendant la course, de quoi redessiner le parcours. '
+              . 'La donnée la plus sensible du site : elle dit où une personne se trouvait, minute par minute. '
+              . 'Les TEMPS et les RÉSULTATS, eux, ne sont jamais purgés — ils restent consultables chaque année.'],
             'transferts_clos_jours'         => ['Demandes de transfert closes',
                 'Acceptées, annulées ou expirées. Celles EN ATTENTE ne sont jamais purgées.'],
           ] as $col => [$lib, $aide]): ?>
@@ -159,7 +163,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
             <div class="text-muted small"><?= $h($aide) ?></div>
           </div>
           <div class="d-flex align-items-center gap-2">
-            <input class="form-control form-control-sm" type="number" min="1" max="3650"
+            <input class="form-control form-control-sm" type="number" min="0" max="3650"
                    style="width:110px" name="<?= $col ?>" value="<?= (int) $durees[$col] ?>">
             <span class="text-muted small">jours</span>
           </div>
@@ -194,10 +198,21 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <?php foreach ($rapport['details'] as $d): ?>
         <tr>
           <td><?= $h($d['libelle']) ?></td>
-          <td class="text-muted small"><?= (int) $d['jours'] ?> jours</td>
+          <td class="text-muted small">
+            <?php /* Conservation illimitée : on l'affiche explicitement. Un
+                     « 0 jours » se lirait comme « effacé tout de suite », soit
+                     l'exact inverse de ce qui se passe. */ ?>
+            <?php if (!empty($d['illimite'])): ?>
+              <span class="badge bg-success">conservation illimitée</span>
+            <?php else: ?>
+              <?= (int) $d['jours'] ?> jours
+            <?php endif; ?>
+          </td>
           <td class="text-end">
             <?php if ($d['nombre'] > 0): ?>
               <strong><?= (int) $d['nombre'] ?></strong>
+            <?php elseif (!empty($d['illimite'])): ?>
+              <span class="text-muted">jamais purgé</span>
             <?php else: ?>
               <span class="text-muted">—</span>
             <?php endif; ?>

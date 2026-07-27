@@ -616,7 +616,11 @@ function getCreateTableStatements(): array
           /* Lot 7 — purges RGPD. 400 jours et non 365 : il faut couvrir une
            * édition entière PLUS la marge de publication des résultats. Ce
            * chiffre doit figurer dans la politique de confidentialité. */
-          `traces_gps_conservation_jours` SMALLINT NOT NULL DEFAULT 400,
+          /* 0 = CONSERVATION ILLIMITÉE (jamais purgé). C est le défaut : le
+           * but est de pouvoir revoir son parcours d une année sur l autre.
+           * Tenable parce que le suivi GPS est explicitement consenti et que
+           * le coureur peut supprimer ses traces lui-même à tout moment. */
+          `traces_gps_conservation_jours` SMALLINT NOT NULL DEFAULT 0,
           `auth_codes_conservation_jours` SMALLINT NOT NULL DEFAULT 30,
           /* Un appareil révoqué n'a plus de jeton valide, mais sa ligne garde
            * le modèle du téléphone et l'IP de création. Les transferts EN

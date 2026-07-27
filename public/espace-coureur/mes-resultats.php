@@ -256,11 +256,24 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
                la méthode de mesure et le statut vivent dans `resultats`, que
                rien n'efface — c'est ce qui permet de revoir ses éditions
                passées, année après année. */ ?>
+      <?php /* « Tracé détaillé » ne veut rien dire pour un coureur. On nomme la
+               chose : le chemin suivi sur la carte, par opposition au temps.
+               C'est la distinction qui compte, et elle doit se comprendre sans
+               effort — sinon on croit que tout disparaît. */ ?>
+      <?php /* Le texte suit le RÉGLAGE : annoncer un effacement qui n'a pas lieu
+               (ou l'inverse) est exactement le genre de fausse déclaration que
+               ce projet s'interdit. 0 = conservation illimitée. */ ?>
       <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
-        <i class="bi bi-hourglass me-1"></i>
-        <strong>Vos temps et vos résultats sont conservés</strong> : vous les
-        retrouverez ici chaque année. Seul le <em>tracé détaillé</em> de votre
-        parcours est effacé au bout de <?= (int) $ecJoursTraces ?> jours.
+        <i class="bi bi-clock-history me-1"></i>
+        <?php if ($ecJoursTraces > 0): ?>
+          <strong>Vos temps et vos résultats sont conservés</strong> : vous les
+          retrouverez ici chaque année. Seul <strong>le chemin que vous avez suivi
+          sur la carte</strong> est effacé au bout de <?= (int) $ecJoursTraces ?> jours.
+        <?php else: ?>
+          <strong>Tout est conservé d'une année sur l'autre</strong> : vos temps,
+          vos résultats et le chemin que vous avez suivi sur la carte. Vous pouvez
+          supprimer vos parcours vous-même à tout moment, avec le bouton ci-dessus.
+        <?php endif; ?>
       </p>
     </section>
 
