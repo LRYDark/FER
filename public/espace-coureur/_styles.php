@@ -100,9 +100,18 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      alors que la liste des champs, elle, profite de toute la place restante.
      align-items:start empêche la carte du QR de s'étirer inutilement à la
      hauteur de sa voisine. */
-  .ec-duo { display: grid; gap: var(--sp-4); align-items: start; }
+  /* Les deux cartes montent à la MÊME hauteur : `align-items: start` les
+     laissait chacune à sa taille propre, et la carte du QR s'arrêtait bien
+     au-dessus de sa voisine — deux blocs de hauteurs différentes côte à côte,
+     ça se voit tout de suite. Le défaut de la grille (stretch) suffit ; il
+     restait à faire descendre la carte jusqu'en bas et à recentrer le QR dans
+     l'espace ainsi gagné. */
+  .ec-duo { display: grid; gap: var(--sp-4); }
   @media (min-width: 900px) {
     .ec-duo { grid-template-columns: minmax(0, 1fr) 320px; }
+    .ec-duo > .card { height: 100%; }
+    /* Le QR se place au centre du vide plutôt que collé en haut. */
+    .ec-duo .ec-qr { flex: 1; align-content: center; }
   }
 
   /* Deux champs par ligne dès qu'il y a la place (prénom/nom, sexe/âge). */

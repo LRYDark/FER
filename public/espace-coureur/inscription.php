@@ -204,7 +204,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
                  qu'exceptionnellement. Un formulaire ouvert en permanence
                  donnerait à croire qu'il y a quelque chose à remplir. */ ?>
         <details class="ec-edit">
-          <summary><i class="bi bi-pencil"></i> Corriger mon sexe ou mon âge</summary>
+          <summary><i class="bi bi-pencil"></i> Changer mes informations</summary>
 
           <form method="post">
             <?= csrf_field() ?>
