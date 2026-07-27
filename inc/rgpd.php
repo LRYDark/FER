@@ -103,6 +103,11 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <body>
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
+  <div class="page-header">
+    <h1 class="mb-2 fw-bold"><i class="bi bi-shield-lock me-2"></i>Données personnelles</h1>
+    <p class="text-muted mb-0">Durées de conservation et effacement des données périmées. Les inscriptions et les archives ne sont jamais touchées.</p>
+  </div>
+
 <?php if ($erreur !== ''): ?>
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i><?= $h($erreur) ?></div>
 <?php endif; ?>
@@ -110,11 +115,10 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i><?= $h($succes) ?></div>
 <?php endif; ?>
 
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-shield-lock"></i></div>
-    <h2>Ce qui n'est jamais effacé</h2>
-  </header>
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-shield-lock me-2"></i>Ce qui n'est jamais effacé</h2>
+  </div>
   <p class="text-muted small mb-0">
     Aucune purge ne touche aux <strong>inscriptions</strong> — ni celles de l'édition en
     cours, ni les archives <code>registrations_AAAA</code>. L'association doit les
@@ -125,11 +129,10 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   </p>
 </div>
 
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-hourglass-split"></i></div>
-    <h2>Durées de conservation</h2>
-  </header>
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-hourglass-split me-2"></i>Durées de conservation</h2>
+  </div>
   <p class="text-muted small mb-0">
     Ces durées doivent correspondre à ce qu'annonce votre
     <a href="setting.php?tab=legal">politique de confidentialité</a>. Annoncer 30 jours
@@ -138,7 +141,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
   <form method="post">
     <?= csrf_field() ?>
-    <div class="rows">
+    <div class="list-group list-group-flush">
       <?php foreach ([
             'auth_codes_conservation_jours' => ['Codes de connexion',
                 'Codes à 6 chiffres, consommés ou périmés. Ils ne contiennent aucune adresse en clair, seulement une empreinte.'],
@@ -149,7 +152,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
             'transferts_clos_jours'         => ['Demandes de transfert closes',
                 'Acceptées, annulées ou expirées. Celles EN ATTENTE ne sont jamais purgées.'],
           ] as $col => [$lib, $aide]): ?>
-        <div class="row">
+        <div class="list-group-item d-flex justify-content-between align-items-center gap-3 px-0 bg-transparent">
           <div>
             <strong><?= $h($lib) ?></strong>
             <div class="text-muted small"><?= $h($aide) ?></div>
@@ -162,7 +165,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         </div>
       <?php endforeach; ?>
     </div>
-    <div class="row-actions" style="margin-top:1rem">
+    <div class="d-flex gap-2 flex-wrap mt-3">
       <button class="btn btn-primary" name="enregistrer_durees" value="1">
         <i class="bi bi-check2"></i> Enregistrer les durées
       </button>
@@ -170,12 +173,11 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   </form>
 </div>
 
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-trash3"></i></div>
-    <h2><?= $simulation ? 'Ce qui serait effacé' : 'Ce qui vient d\'être effacé' ?></h2>
-    <?php if ($simulation): ?><span class="pill no-dot">simulation</span><?php endif; ?>
-  </header>
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-trash3 me-2"></i><?= $simulation ? 'Ce qui serait effacé' : 'Ce qui vient d\'être effacé' ?></h2>
+    <?php if ($simulation): ?><span class="badge bg-secondary">simulation</span><?php endif; ?>
+  </div>
 
   <?php if ($rapport['erreurs']): ?>
     <div class="alert alert-warning">
@@ -185,7 +187,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </div>
   <?php endif; ?>
 
-  <table class="table table-sm align-middle">
+  <table class="table fer-table table-sm align-middle">
     <thead><tr><th>Donnée</th><th>Au-delà de</th><th class="text-end">Lignes</th></tr></thead>
     <tbody>
       <?php foreach ($rapport['details'] as $d): ?>
@@ -205,11 +207,11 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   </table>
 
   <?php if ($rapport['total'] === 0): ?>
-    <div class="empty"><p>Rien à effacer : tout est dans les délais.</p></div>
+    <div class="text-center text-muted py-4"><p>Rien à effacer : tout est dans les délais.</p></div>
   <?php else: ?>
     <form method="post" class="d-flex gap-2 flex-wrap align-items-end">
       <?= csrf_field() ?>
-      <div class="field" style="max-width:220px">
+      <div class="mb-2" style="max-width:220px">
         <label for="conf">Saisissez <strong>PURGER</strong> pour confirmer</label>
         <input class="form-control form-control-sm" id="conf" name="confirmation" type="text"
                autocomplete="off" placeholder="PURGER">
@@ -218,7 +220,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
               onclick="return confirm('Effacer définitivement <?= (int) $rapport['total'] ?> ligne(s) ? Cette action est irréversible.');">
         <i class="bi bi-trash3"></i> Purger maintenant
       </button>
-      <button class="btn btn-sm" name="simuler" value="1">
+      <button class="btn btn-sm btn-outline-secondary" name="simuler" value="1">
         <i class="bi bi-arrow-clockwise"></i> Recalculer
       </button>
     </form>
@@ -233,14 +235,13 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   </p>
 </div>
 
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-database"></i></div>
-    <h2>Volumes actuels</h2>
-  </header>
-  <div class="rows">
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-database me-2"></i>Volumes actuels</h2>
+  </div>
+  <div class="list-group list-group-flush">
     <?php foreach ($volumes as $lib => $n): ?>
-      <div class="row">
+      <div class="list-group-item d-flex justify-content-between align-items-center gap-3 px-0 bg-transparent">
         <div><?= $h($lib) ?></div>
         <div><?= $n === null ? '<span class="text-muted">table absente</span>' : '<strong>' . (int) $n . '</strong>' ?></div>
       </div>

@@ -35,6 +35,11 @@ $pageTitles = [
     'api-doc-mobile.php' => "Documentation de l'API mobile",
     'rgpd.php'           => 'Données personnelles',
     'resultats.php'      => 'Résultats',
+    // ⚠️ Ces deux écrans (lot 4) manquaient à la liste : leur titre s'affichait
+    // « Administration ». $pageTitle défini dans la page elle-même ne sert à
+    // rien — c'est CE tableau qui l'écrase, quelques lignes plus bas.
+    'comptes-coureurs.php' => 'Comptes coureurs',
+    'transferts.php'       => "Transferts d'inscription",
     'assistant.php'     => 'Assistance',
 ];
 $pageTitle = $pageTitles[$currentPage] ?? 'Administration';

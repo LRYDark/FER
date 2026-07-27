@@ -70,11 +70,13 @@ try {
     }
 } catch (\Throwable $e) {}
 
+/* Classes Bootstrap : côté administration, seuls tokens/base/admin.css sont
+   servis — les classes maison de l'espace coureur (.pill) n'y existent pas. */
 $libStatut = [
-    'en_attente' => ['En attente', 'is-warn'],
-    'accepte'    => ['Accepté',    'is-ok'],
-    'annule'     => ['Annulé',     'no-dot'],
-    'expire'     => ['Expiré',     'is-danger'],
+    'en_attente' => ['En attente', 'bg-warning text-dark'],
+    'accepte'    => ['Accepté',    'bg-success'],
+    'annule'     => ['Annulé',     'bg-secondary'],
+    'expire'     => ['Expiré',     'bg-danger'],
 ];
 
 $pageTitle    = "Transferts d'inscription";
@@ -94,6 +96,11 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
 <body>
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
+  <div class="page-header">
+    <h1 class="mb-2 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>Transferts d'inscription</h1>
+    <p class="text-muted mb-0">Les demandes de transfert d'une inscription d'un coureur à un autre. Les coureurs les font eux-mêmes depuis leur espace ; cet écran sert à suivre, forcer ou annuler.</p>
+  </div>
+
 <?php if ($erreur !== ''): ?>
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i><?= $h($erreur) ?></div>
 <?php endif; ?>
@@ -101,23 +108,22 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
   <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i><?= $h($succes) ?></div>
 <?php endif; ?>
 
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-arrow-left-right"></i></div>
-    <h2>Transferts</h2>
-    <div class="seg">
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-funnel me-2"></i>Demandes</h2>
+    <div class="btn-group btn-group-sm flex-wrap" role="group">
       <?php foreach (['tous' => 'Tous'] + array_map(fn($v) => $v[0], $libStatut) as $cle => $lib): ?>
-        <a class="btn btn-sm <?= $filtre === $cle ? 'btn-primary' : '' ?>"
+        <a class="btn btn-sm <?= $filtre === $cle ? 'btn-primary' : 'btn-outline-secondary' ?>"
            href="?statut=<?= $cle ?>"><?= $h($lib) ?> (<?= (int) ($compteurs[$cle] ?? 0) ?>)</a>
       <?php endforeach; ?>
     </div>
-  </header>
+  </div>
 
   <?php if (!$lignes): ?>
-    <div class="empty"><p>Aucun transfert pour ce filtre.</p></div>
+    <div class="text-center text-muted py-4"><p>Aucun transfert pour ce filtre.</p></div>
   <?php else: ?>
     <div class="table-responsive">
-      <table class="table align-middle">
+      <table class="table fer-table table-sm align-middle">
         <thead>
           <tr>
             <th>Inscription</th><th>De</th><th>Vers</th>
@@ -126,7 +132,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
         </thead>
         <tbody>
         <?php foreach ($lignes as $l): ?>
-          <?php [$lib, $cls] = $libStatut[$l['statut']] ?? ['?', 'no-dot']; ?>
+          <?php [$lib, $cls] = $libStatut[$l['statut']] ?? ['?', 'bg-secondary']; ?>
           <tr>
             <td>
               <strong><?= $h($l['inscription_no']) ?></strong>
@@ -136,7 +142,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
                      à l'affichage, comme partout ailleurs dans l'administration. */ ?>
             <td class="small"><?= $h(decrypt($l['email_source'])) ?></td>
             <td class="small"><?= $h(decrypt($l['email_cible'])) ?></td>
-            <td><span class="pill <?= $cls ?>"><?= $h($lib) ?></span></td>
+            <td><span class="badge <?= $cls ?>"><?= $h($lib) ?></span></td>
             <td class="small text-muted"><?= $h($date($l['created_at'])) ?></td>
             <td class="small text-muted">
               <?= $l['statut'] === 'en_attente' ? $h($date($l['expires_at'])) : '—' ?>

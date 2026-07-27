@@ -38,6 +38,7 @@ code de sortie 0 si tout est vert.
 
 | Fichier | Ce qu'il vérifie | Base 3399 |
 |---|---|---|
+| **`test-integrite.php`** | **Le contrôle d’ensemble.** Ne teste pas une fonctionnalité : vérifie que le tout se tient — compilation des 102 fichiers PHP, entrées de menu qui mènent quelque part, écrans admin n’employant que des classes réellement servies, permissions au catalogue, colonnes présentes dans install ET update, liens du chatbot valides, fichiers interdits intacts. 21 contrôles, aucune base requise. | non |
 | **`audit-bdd.php`** | **Le plus important avant une mise à jour de production.** Rejoue les DEUX chemins d'installation sur des bases jetables : `install.php` sur une base vierge, et `update.php` sur une base garnie de fausses inscriptions (simulation d'un site en production). Vérifie que les inscriptions survivent, que `registrations` n'est pas modifiée structurellement, que les deux chemins convergent vers le même schéma, que rejouer la migration ne change rien, et que les collations permettent les jointures. | oui |
 | **`test-api-classique.php`** | Non-régression de **`api.php`** (l'API partenaire) : ping, authentification, HTTPS, interrupteur, ajout d'inscrit, recherche, liste et filtres, statistiques, codes d'erreur. 25 tests. | oui |
 | **`test-api-v1.php`** | L'**API mobile** de bout en bout : les trois barrières d'entrée, la connexion par code, la signature des jetons, la révocation immédiate, les modifications en libre-service, les transferts, les archives en lecture seule. 71 tests. | oui |
