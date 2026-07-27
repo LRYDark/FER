@@ -1675,3 +1675,14 @@ table.DTCR_clonedTable.dataTable { display: none !important; }
   background-color: var(--accent) !important; color: #fff !important;
   border-color: var(--accent) !important;
 }
+
+/* ═══ En-tête de page ══════════════════════════════════════════════════════
+   Convention commune à tous les écrans d'administration : un titre, une phrase
+   qui dit à quoi sert la page. Elle n'était définie qu'en local dans
+   inc/logs.php — les écrans plus récents l'employaient donc sans effet.
+   Ici, elle vaut pour tout le monde. */
+.page-header { margin-bottom: 1.5rem; }
+.page-header h1,
+.page-header h2 { font-weight: 700; color: var(--ink); margin: 0; }
+.page-header h1 { font-size: clamp(1.4rem, 3vw, 1.9rem); }
+.page-header p  { color: var(--ink-dim); margin: .35rem 0 0; max-width: 90ch; line-height: 1.6; }

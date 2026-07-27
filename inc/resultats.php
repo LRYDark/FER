@@ -139,6 +139,11 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
 <body>
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
+  <div class="page-header">
+    <h1 class="mb-2 fw-bold"><i class="bi bi-stopwatch me-2"></i>Résultats</h1>
+    <p class="text-muted mb-0">Chronométrage : consulter, corriger et valider les temps. Chaque résultat peut être ouvert pour voir TOUTES les détections reçues — balise et GPS — et laquelle a servi au calcul. C'est cette page qu'on montre si quelqu'un conteste son temps.</p>
+  </div>
+
 <?php if ($erreur !== ''): ?>
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i><?= $h($erreur) ?></div>
 <?php endif; ?>
@@ -146,17 +151,16 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
   <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i><?= $h($succes) ?></div>
 <?php endif; ?>
 
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-stopwatch"></i></div>
-    <h2>Résultats <?= (int) $annee ?></h2>
-    <div class="seg">
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-stopwatch me-2"></i>Résultats <?= (int) $annee ?></h2>
+    <div class="btn-group btn-group-sm flex-wrap" role="group">
       <?php foreach ($editions as $e): ?>
-        <a class="btn btn-sm <?= (int) $e === $annee ? 'btn-primary' : '' ?>"
+        <a class="btn btn-sm <?= (int) $e === $annee ? 'btn-primary' : 'btn-outline-secondary' ?>"
            href="?annee=<?= (int) $e ?>"><?= (int) $e ?></a>
       <?php endforeach; ?>
     </div>
-  </header>
+  </div>
 
   <?php if ($nbInvalides > 0): ?>
     <div class="alert alert-warning">
@@ -168,8 +172,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
   <?php endif; ?>
 
   <?php if (!$lignes): ?>
-    <div class="empty">
-      <p>Aucun résultat pour cette édition.</p>
+    <div class="text-center text-muted py-4"><p>Aucun résultat pour cette édition.</p>
       <p class="text-muted small">
         Les résultats se créent tout seuls à la réception des détections envoyées par
         l'application (balise et GPS). Il n'y a rien à faire ici tant que la course
@@ -178,7 +181,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
     </div>
   <?php else: ?>
     <div class="table-responsive">
-      <table class="table align-middle">
+      <table class="table fer-table table-sm align-middle">
         <thead>
           <tr>
             <th>Inscription</th><th>Départ</th><th>Arrivée</th><th>Temps</th>
@@ -191,7 +194,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
             <td>
               <strong><?= $h($l['inscription_no']) ?></strong>
               <?php if ($l['valide_par'] !== null): ?>
-                <span class="pill is-ok" title="Ne sera plus recalculé automatiquement">validé</span>
+                <span class="badge bg-success" title="Ne sera plus recalculé automatiquement">validé</span>
               <?php endif; ?>
               <?php if (!empty($l['commentaire'])): ?>
                 <div class="text-muted small"><?= $h($l['commentaire']) ?></div>
@@ -208,18 +211,18 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
                 <span class="text-muted">±<?= (int) $l['precision_s'] ?> s</span>
               <?php endif; ?>
             </td>
-            <td><span class="pill <?= $l['statut'] === 'termine' ? 'is-ok'
-                                     : ($l['statut'] === 'invalide' ? 'is-danger' : 'no-dot') ?>">
+            <td><span class="badge <?= $l['statut'] === 'termine' ? 'bg-success'
+                                     : ($l['statut'] === 'invalide' ? 'bg-danger' : 'bg-secondary') ?>">
               <?= $h($l['statut']) ?></span></td>
             <td class="text-end text-nowrap">
-              <a class="btn btn-sm" href="?annee=<?= (int) $annee ?>&detail=<?= urlencode($l['inscription_no']) ?>"
+              <a class="btn btn-sm btn-outline-secondary" href="?annee=<?= (int) $annee ?>&detail=<?= urlencode($l['inscription_no']) ?>"
                  title="Voir toutes les détections reçues">
                 <i class="bi bi-list-columns"></i>
               </a>
               <form method="post" class="d-inline">
                 <?= csrf_field() ?>
                 <input type="hidden" name="inscription_no" value="<?= $h($l['inscription_no']) ?>">
-                <button class="btn btn-sm" name="recalculer" value="1" title="Recalculer">
+                <button class="btn btn-sm btn-outline-secondary" name="recalculer" value="1" title="Recalculer">
                   <i class="bi bi-arrow-clockwise"></i>
                 </button>
               </form>
@@ -248,12 +251,11 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
 </div>
 
 <?php if ($detail !== ''): ?>
-<div class="card">
-  <header>
-    <div class="iconwell"><i class="bi bi-list-columns"></i></div>
-    <h2>Détections reçues — <?= $h($detail) ?></h2>
-    <a class="btn btn-sm" href="?annee=<?= (int) $annee ?>">Fermer</a>
-  </header>
+<div class="card-dashboard">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0"><i class="bi bi-list-columns me-2"></i>Détections reçues — <?= $h($detail) ?></h2>
+    <a class="btn btn-sm btn-outline-secondary" href="?annee=<?= (int) $annee ?>">Fermer</a>
+  </div>
 
   <p class="text-muted small mb-0">
     <i class="bi bi-info-circle me-1"></i>
@@ -263,10 +265,10 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
   </p>
 
   <?php if (!$detections): ?>
-    <div class="empty"><p>Aucune détection reçue pour cette inscription.</p></div>
+    <div class="text-center text-muted py-4"><p>Aucune détection reçue pour cette inscription.</p></div>
   <?php else: ?>
     <div class="table-responsive">
-      <table class="table table-sm align-middle">
+      <table class="table fer-table table-sm align-middle">
         <thead>
           <tr><th>Point</th><th>Source</th><th>Vu à (UTC)</th><th>Reçu à</th>
               <th>Signal</th><th>Confiance</th><th></th></tr>
@@ -290,7 +292,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
               <?= $d['rssi_pic'] !== null ? (int) $d['rssi_pic'] . ' dBm' : '—' ?>
             </td>
             <td class="small"><?= $d['confiance'] !== null ? (int) $d['confiance'] . '%' : '—' ?></td>
-            <td><?= (int) $d['retenue'] === 1 ? '<span class="pill is-ok">retenue</span>' : '' ?></td>
+            <td><?= (int) $d['retenue'] === 1 ? '<span class="badge bg-success">retenue</span>' : '' ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -308,14 +310,14 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
   <form method="post" class="d-flex gap-2 flex-wrap align-items-end mt-3">
     <?= csrf_field() ?>
     <input type="hidden" name="inscription_no" value="<?= $h($detail) ?>">
-    <div class="field">
+    <div class="mb-2">
       <label for="pt">Point</label>
       <select class="form-select form-select-sm" id="pt" name="point">
         <option value="depart">Départ</option>
         <option value="arrivee" selected>Arrivée</option>
       </select>
     </div>
-    <div class="field">
+    <div class="mb-2">
       <label for="hr">Heure locale</label>
       <input class="form-control form-control-sm" id="hr" name="heure" type="text"
              placeholder="<?= date('Y-m-d') ?> 10:15:30" style="min-width:200px">

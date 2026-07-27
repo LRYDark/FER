@@ -1,0 +1,179 @@
+<?php
+/**
+ * CONTRÔLE D'INTÉGRITÉ — rien d'oublié, rien de cassé.
+ *
+ * Ce banc ne teste pas une fonctionnalité : il vérifie que l'ENSEMBLE se tient.
+ * Il attrape la classe de bug que les tests unitaires laissent passer — un
+ * écran ajouté au menu mais dont le fichier n'existe pas, une page qui emploie
+ * des classes CSS non servies, une permission référencée mais absente du
+ * catalogue, un lien mort dans une réponse du chatbot.
+ *
+ * Il ne demande aucune base de données.
+ */
+$ok = 0; $ko = 0; $avert = 0;
+function verifie(string $titre, bool $cond, string $detail = ''): void {
+    global $ok, $ko;
+    if ($cond) { $ok++; echo "  OK   $titre\n"; }
+    else       { $ko++; echo "  ECHEC $titre" . ($detail !== '' ? " — $detail" : '') . "\n"; }
+}
+function avertir(string $texte): void { global $avert; $avert++; echo "  ⚠  $texte\n"; }
+
+$R    = 'W:/FER/';
+$lire = fn(string $f) => (string) @file_get_contents($R . $f);
+
+/* ── 1. Tous les fichiers PHP compilent ─────────────────────────────────── */
+echo "\n=== 1. Compilation ===\n";
+$php = 'C:/laragon/bin/php/php-8.3.16-Win32-vs16-x64/php.exe';
+$fichiers = [];
+foreach (['', 'inc/', 'src/core/', 'src/auth/', 'src/content/', 'src/mail/', 'src/partials/',
+          'public/', 'public/espace-coureur/', 'api/v1/'] as $d) {
+    foreach (glob($R . $d . '*.php') ?: [] as $f) $fichiers[] = $f;
+}
+$casses = [];
+foreach ($fichiers as $f) {
+    $out = (string) shell_exec(escapeshellarg($php) . ' -l ' . escapeshellarg($f) . ' 2>&1');
+    if (!str_contains($out, 'No syntax errors')) $casses[] = basename($f) . ' : ' . trim($out);
+}
+verifie(count($fichiers) . ' fichiers PHP compilent', empty($casses), implode(' | ', $casses));
+
+/* ── 2. Le menu d'administration ne pointe que vers des pages existantes ── */
+echo "\n=== 2. Menu d'administration ===\n";
+$nav = $lire('src/partials/navbar-admin.php');
+preg_match_all("/\['([a-z0-9\-_]+\.php)(?:\?[^']*)?',\s*'/i", $nav, $m);
+$manquants = [];
+foreach (array_unique($m[1]) as $page) {
+    if (!is_file($R . 'inc/' . $page) && !is_file($R . $page)) $manquants[] = $page;
+}
+verifie('toutes les entrées de menu mènent à un fichier', empty($manquants), implode(', ', $manquants));
+
+/* Chaque page du menu doit avoir un titre : sinon elle s'affiche « Administration ». */
+preg_match_all("/'([a-z0-9\-_]+\.php)'\s*=>\s*['\"]/i", $nav, $mt);
+$titres = $mt[1];
+$sansTitre = array_values(array_diff(array_unique($m[1]), $titres, ['dashboard.php']));
+if ($sansTitre) avertir('pages sans titre déclaré (afficheront « Administration ») : ' . implode(', ', $sansTitre));
+else            verifie('chaque page du menu a un titre déclaré', true);
+
+/* ── 3. Les écrans admin n'emploient que des classes servies côté admin ─── */
+echo "\n=== 3. Cohérence CSS des écrans d'administration ===\n";
+/* navbar-admin.php ne sert que tokens.css, base.css et admin.css. Les classes
+   maison de l'espace coureur (components.css) n'y existent pas — et `.row` est
+   même la grille flex de Bootstrap, ce qui CASSE la mise en page au lieu de
+   simplement ne rien faire. */
+/* Chaînes EXACTES, attribut compris : chercher « row-actions » tout court
+   attrapait `.ife-row-actions`, une classe locale de setting.php qui n'a rien
+   à voir. Un contrôle qui crie au loup finit par être ignoré. */
+$interdites = ['class="iconwell"', 'class="pill', 'class="rows"', 'class="seg"',
+               'class="empty"', 'class="stat"', 'class="row-actions"'];
+$fautives = [];
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
+    $s = (string) file_get_contents($f);
+    if (!str_contains($s, 'navbar-admin.php')) continue;
+    foreach ($interdites as $cls) {
+        if (str_contains($s, $cls)) $fautives[] = basename($f) . ' → ' . $cls;
+    }
+}
+verifie('aucun écran admin n\'emploie les classes de l\'espace coureur',
+    empty($fautives), implode(' | ', $fautives));
+
+$adminCss = $lire('css/admin.css');
+verifie('.page-header est défini dans admin.css (et non par page)',
+    str_contains($adminCss, '.page-header {'));
+
+/* ── 4. Les pages coureur, elles, chargent bien leur feuille ────────────── */
+echo "\n=== 4. Cohérence de l'espace coureur ===\n";
+$sansStyles = [];
+foreach (glob($R . 'public/espace-coureur/*.php') ?: [] as $f) {
+    $b = basename($f);
+    if (str_starts_with($b, '_') || $b === 'deconnexion.php') continue;
+    $s = (string) file_get_contents($f);
+    if (!str_contains($s, '_styles.php') && !str_contains($s, 'auth-head.php')) $sansStyles[] = $b;
+}
+verifie('toutes les pages coureur chargent leur feuille de style',
+    empty($sansStyles), implode(', ', $sansStyles));
+
+/* ── 5. Permissions : référencées ⇒ présentes au catalogue ──────────────── */
+echo "\n=== 5. Permissions ===\n";
+$cfg = $lire('src/core/config.php');
+preg_match_all("/canDoAction\('([a-z0-9._]+)'\)/i", implode("\n",
+    array_map(fn($f) => (string) file_get_contents($f), glob($R . 'inc/*.php') ?: [])), $mp);
+$absentes = [];
+foreach (array_unique($mp[1]) as $perm) {
+    if (!str_contains($cfg, "'" . $perm . "'")) $absentes[] = $perm;
+}
+verifie('toute permission utilisée figure au catalogue', empty($absentes), implode(', ', $absentes));
+
+/* ── 6. install.php et update.php restent alignés ───────────────────────── */
+echo "\n=== 6. install.php ↔ update.php ===\n";
+$inst = $lire('install.php');
+$upd  = $lire('update.php');
+$colonnes = ['api_v1_enabled', 'app_version_minimale', 'app_access_token_ttl_min',
+             'traces_gps_conservation_jours', 'auth_codes_conservation_jours',
+             'devices_revoques_jours', 'transferts_clos_jours',
+             'traces_consent_at', 'idx_unicite'];
+$oubliees = [];
+foreach ($colonnes as $c) {
+    if (!str_contains($inst, $c)) $oubliees[] = "install:$c";
+    if (!str_contains($upd, $c))  $oubliees[] = "update:$c";
+}
+verifie('les colonnes des lots 5 à 7 sont dans les DEUX chemins',
+    empty($oubliees), implode(', ', $oubliees));
+
+/* ── 7. Les liens des réponses du chatbot mènent quelque part ───────────── */
+echo "\n=== 7. Liens du chatbot et des mails ===\n";
+$bot = $lire('src/content/chatbot-engine.php');
+preg_match_all('#href="(/public/[^"]+)"#', $bot, $ml);
+$morts = [];
+foreach (array_unique($ml[1]) as $u) if (!is_file($R . ltrim($u, '/'))) $morts[] = $u;
+verifie('les liens du chatbot mènent à des fichiers existants', empty($morts), implode(', ', $morts));
+
+$tpl = $lire('src/mail/mail_template.php');
+verifie('le gabarit d\'email reçoit bien l\'URL de l\'espace coureur',
+    str_contains($tpl, '$espace_url') && str_contains($lire('src/mail/googleMail.php'), "'espace_url'"));
+
+/* ── 8. Fichiers interdits : intacts ────────────────────────────────────── */
+echo "\n=== 8. Fichiers que la consigne interdit de modifier ===\n";
+foreach (['api.php', 'login.php', 'change-password.php', 'reset-password.php',
+          'src/security/totp.php', 'src/security/webauthn.php'] as $f) {
+    $d = trim((string) shell_exec('cd /d W:\FER && git diff --stat 0f50e0ce..HEAD -- '
+                                  . escapeshellarg($f) . ' 2>nul'));
+    verifie("$f intact", $d === '', $d);
+}
+
+/* ── 9. Le compte de démonstration a bien été retiré partout ────────────── */
+echo "\n=== 9. Compte de démonstration (retiré) ===\n";
+$traces = [];
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
+    $s = (string) file_get_contents($f);
+    if (str_contains($s, 'creer_demo') || str_contains($s, 'DÉMONSTRATION')) $traces[] = basename($f);
+}
+verifie('plus aucune trace du compte de démonstration', empty($traces), implode(', ', $traces));
+
+/* ── 10. Aucune donnée personnelle en clair dans une URL ────────────────── */
+echo "\n=== 10. Fuites d'URL ===\n";
+$api = $lire('api/v1/index.php');
+verifie('l\'API mobile ne lit aucune adresse depuis $_GET',
+    !preg_match('/\$_GET\[[\'"]email/i', $api));
+
+/* ── 11. Toutes les pages publiques nouvelles sont atteignables ─────────── */
+echo "\n=== 11. Accessibilité des pages publiques ===\n";
+$footer = $lire('src/partials/footer-modern.php');
+verifie('telecharger-app.php est liée depuis le pied de page',
+    str_contains($footer, 'telecharger-app'));
+verifie('la page existe', is_file($R . 'public/telecharger-app.php'));
+
+/* ── 12. Les bancs de test sont tous documentés ─────────────────────────── */
+echo "\n=== 12. Documentation des bancs ===\n";
+$readme = $lire('docs/README.md');
+$nonDoc = [];
+foreach (glob($R . 'docs/test-*.php') ?: [] as $f) {
+    $b = basename($f);
+    if (str_contains($b, '-appel.')) continue;     // pilotes, documentés en bloc
+    if ($b === 'test-integrite.php') continue;     // celui-ci
+    if (!str_contains($readme, $b)) $nonDoc[] = $b;
+}
+verifie('chaque banc figure dans docs/README.md', empty($nonDoc), implode(', ', $nonDoc));
+
+echo "\n" . str_repeat('─', 62) . "\n";
+echo ($ko === 0 ? "INTÉGRITÉ : TOUT EST VERT" : "INTÉGRITÉ : $ko ÉCHEC(S)")
+   . " — $ok contrôle(s) réussi(s)" . ($avert > 0 ? ", $avert avertissement(s)" : '') . ".\n";
+exit($ko === 0 ? 0 : 1);
