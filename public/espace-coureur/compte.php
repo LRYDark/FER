@@ -359,8 +359,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
         Vous avez changé d'adresse&nbsp;? Indiquez la nouvelle&nbsp;: un code de
         confirmation y sera envoyé. Le changement ne prend effet qu'une fois ce
-        code saisi — sans quoi une simple faute de frappe vous priverait de tout
-        moyen de vous reconnecter.
+        code saisi.
       </p>
 
       <form method="post">
