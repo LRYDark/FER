@@ -1,2 +1,14 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# ═══ Fichiers exclus des paquets de déploiement ═══════════════════════════
+# `git archive` (et les outils de déploiement qui s'appuient dessus) ignore
+# ces chemins : ils restent dans le dépôt, où ils servent au développement,
+# mais ne partent jamais sur le serveur.
+#
+# docs/ = bancs de test et notes de migration. Rien n'y est exécuté par le
+# site, et son .htaccess le bloque déjà par URL — mais autant ne pas l'envoyer
+# du tout.
+docs/                       export-ignore
+.gitattributes              export-ignore
+.gitignore                  export-ignore
