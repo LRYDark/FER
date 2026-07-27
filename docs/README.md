@@ -7,9 +7,11 @@ développe. Aucune page du site ne les inclut, aucun visiteur ne les atteint.
 Le fichier `.htaccess` de ce dossier contient `Require all denied` : même en cas
 de déploiement complet, une URL vers `docs/` renvoie 403.
 
-> **Faut-il l'envoyer en production ?** Non, ce n'est pas utile. Mais si votre
-> outil de déploiement envoie tout le dépôt, ce n'est pas grave non plus : le
-> `.htaccess` le rend inaccessible.
+> **Ce dossier ne part JAMAIS en production.** Il est marqué `export-ignore`
+> dans `.gitattributes` : `git archive` — et les outils de déploiement qui s'en
+> servent — l'excluent du paquet. Et si votre outil copie malgré tout le dépôt
+> entier, le `.htaccess` le rend inaccessible par URL. Deux barrières, aucune
+> raison de s'en priver.
 
 ---
 
@@ -63,7 +65,6 @@ processus, parce que les APIs se terminent par `exit()`.
 | Fichier | À quoi il sert |
 |---|---|
 | **`test-mail-catchall.md`** | Procédure à suivre **à la main** pour vérifier le garde-fou des mails, celui qui empêche d'envoyer un mail de test à de vrais inscrits. Ne peut pas être automatisé : il faut regarder une vraie boîte mail. |
-| **`navbar-modern.avant-bouton-espace-coureur.php`**<br>**`fer-modern.avant-bouton-espace-coureur.css`** | **Copies de sauvegarde** de la barre de navigation et de sa feuille de style, prises avant l'ajout du bouton « Espace coureur ». Conservées pour pouvoir revenir en arrière si le placement du bouton ne convient pas. À supprimer une fois le choix définitif. |
 
 ---
 
