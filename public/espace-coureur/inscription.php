@@ -293,7 +293,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
           et l'inscription reste la vôtre.
         </p>
         <form method="post"
-              onsubmit="return confirm('Annuler cette demande de transfert ?');">
+              data-confirm="Annuler cette demande de transfert ?">
           <?= csrf_field() ?>
           <div class="row-actions">
             <button class="btn btn-danger" type="submit"
@@ -334,7 +334,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         </div>
 
         <form method="post"
-              onsubmit="return confirm('Envoyer la demande de transfert ? Vous pourrez l\'annuler tant qu\'elle n\'est pas acceptée.');">
+              data-confirm="Envoyer la demande de transfert ? Vous pourrez l'annuler tant qu'elle n'est pas acceptée.">
           <?= csrf_field() ?>
           <div class="field" style="max-width:340px">
             <label for="ecCible">Adresse email du destinataire</label>

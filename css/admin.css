@@ -114,20 +114,36 @@ body {
 .jr-nav:hover > nav::-webkit-scrollbar-thumb { background: var(--border-strong); }
 .jr-nav:hover > nav::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
 
+/* ═══ Logo de la barre latérale ═══════════════════════════════════════════
+   Le logo seul, centré et agrandi. Le nom écrit à côté faisait doublon : le
+   logo porte déjà « Forbach en Rose », et l'accoler au texte donnait deux fois
+   la même information sur deux lignes, dans un espace qui n'en avait pas la
+   place. Le nom reste dans l'attribut title et dans le texte de remplacement
+   de l'image — pour les lecteurs d'écran et le survol, rien n'est perdu. */
 .jr-brand {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  justify-content: center;
   text-decoration: none;
-  padding: 0 var(--sp-2);
+  padding: var(--sp-2);
 }
-.jr-brand img { height: 34px; width: auto; }
+.jr-brand img {
+  height: 64px; width: auto;
+  max-width: 100%;
+  /* object-fit : le logo garde ses proportions quelle que soit la largeur
+     réelle du fichier fourni par l'association. */
+  object-fit: contain;
+}
+/* Conservé pour les gabarits qui affichent encore un texte (page de connexion,
+   update.php) : ils n'ont pas la contrainte de place de la barre latérale. */
 .jr-brand .name {
   font-weight: 650;
   font-size: 1.02rem;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
+/* Barre latérale repliée : le logo rétrécit avec elle. */
+.jr-nav.is-collapsed .jr-brand img { height: 38px; }
 
 .jr-nav nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 

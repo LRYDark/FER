@@ -305,7 +305,7 @@ try {
           </div>
           <div class="col-12 d-flex justify-content-between">
             <button type="submit" name="delete_faq" value="1" class="btn btn-outline-danger btn-sm"
-                    onclick="return confirm('Supprimer définitivement cette question ?')">Supprimer</button>
+                    data-confirm="Supprimer définitivement cette question ?">Supprimer</button>
             <button type="submit" name="update_faq" value="1" class="btn btn-rose btn-sm">Enregistrer</button>
           </div>
         </form>

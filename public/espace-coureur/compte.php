@@ -460,9 +460,13 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
             <span class="dot" style="background:<?= htmlspecialchars($accentCustom) ?>"></span>
             Personnalisée
             <?php /* La soumission part au choix de la couleur : pas de bouton
-                     « valider » de plus pour un simple réglage d'affichage. */ ?>
+                     « valider » de plus pour un simple réglage d'affichage.
+                     ⚠️ data-autosubmit et NON onchange : la CSP du site interdit
+                     les gestionnaires en ligne (script-src sans 'unsafe-inline').
+                     Un onchange ici ne se déclencherait jamais, en silence — la
+                     couleur choisie ne serait tout simplement pas enregistrée. */ ?>
             <input type="color" name="accent_custom" value="<?= htmlspecialchars($accentCustom) ?>"
-                   onchange="this.form.submit();">
+                   data-autosubmit="1">
           </label>
         </form>
       </div>
@@ -505,7 +509,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       compte sera créé et retrouvera vos inscriptions.
     </p>
 
-    <form method="post" onsubmit="return confirm('Supprimer définitivement votre compte en ligne ?');">
+    <form method="post" data-confirm="Supprimer définitivement votre compte en ligne ?">
       <?= csrf_field() ?>
       <div class="field" style="max-width:260px">
         <label for="ecConf">Saisissez <strong>SUPPRIMER</strong> pour confirmer</label>

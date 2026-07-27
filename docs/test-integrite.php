@@ -97,8 +97,10 @@ function inclusionsDe(string $chemin, array $vus = []): array {
     if ($chemin === '' || isset($vus[$chemin])) return $vus;
     $vus[$chemin] = true;
     $src = (string) @file_get_contents($chemin);
-    // require __DIR__ . '/x.php'  et  require '../x.php'
-    if (preg_match_all('#require(?:_once)?\s+(?:__DIR__\s*\.\s*)?[\'"]([^\'"]+)[\'"]#', $src, $m)) {
+    // require ET include : les pieds de page sont insérés avec `include`, et ne
+    // pas les suivre faisait croire que confirm-script.php n'était chargé nulle
+    // part. Les deux formes __DIR__ . '/x.php' et '../x.php' sont acceptées.
+    if (preg_match_all('#(?:require|include)(?:_once)?\s+(?:__DIR__\s*\.\s*)?[\'"]([^\'"]+)[\'"]#', $src, $m)) {
         foreach ($m[1] as $rel) {
             $cible = realpath(dirname($chemin) . '/' . ltrim($rel, '/'));
             if ($cible) $vus = inclusionsDe($cible, $vus);
@@ -148,6 +150,52 @@ foreach (array_merge(glob($R . 'inc/*.php') ?: [],
     }
 }
 verifie('toute fonction appelée a son fichier chargé', empty($oublis), implode(' | ', $oublis));
+
+/* ── 3 ter. Aucun gestionnaire d'événement en ligne ─────────────────────────
+ * LA CSP DU SITE LES BLOQUE TOUS. src/core/config.php envoie
+ *   script-src 'self' 'nonce-…'   — sans 'unsafe-inline'
+ * donc onsubmit=, onclick= et onchange= écrits dans le HTML ne s'exécutent
+ * JAMAIS. Et ils échouent en silence : aucune erreur à l'écran, juste une ligne
+ * dans la console. Un « êtes-vous sûr ? » disparaît sans que personne le voie.
+ *
+ * C'est ce qui s'est produit : l'envoi d'un code de connexion partait sans rien
+ * demander, tout comme la suppression d'une colonne de la base.
+ * ──────────────────────────────────────────────────────────────────────── */
+echo "\n=== 3 ter. Gestionnaires en ligne (bloqués par la CSP) ===\n";
+verifie('la CSP interdit bien le script en ligne (sinon ce contrôle est inutile)',
+    str_contains($cfgSrc = $lire('src/core/config.php'), "script-src 'self' 'nonce-")
+    && !preg_match("/script-src[^;]*'unsafe-inline'/", $cfgSrc));
+
+$enLigne = [];
+foreach (array_merge(glob($R . 'inc/*.php') ?: [], glob($R . 'public/*.php') ?: [],
+                     glob($R . 'public/espace-coureur/*.php') ?: [],
+                     glob($R . 'src/partials/*.php') ?: []) as $f) {
+    if (basename($f) === 'confirm-script.php') continue;          // il en parle, il n'en pose pas
+    foreach (explode("\n", (string) file_get_contents($f)) as $n => $ligne) {
+        // Attribut HTML uniquement : « el.onclick = … » en JavaScript est valide
+        // et fonctionne parfaitement — c'est l'attribut dans le balisage qui est
+        // bloqué. D'où l'exigence d'un espace ou d'un retour à la ligne devant.
+        if (preg_match('/(?:^|\s)on(?:submit|click|change|input|load)\s*=\s*["\']/', $ligne)) {
+            $enLigne[] = basename($f) . ':' . ($n + 1);
+        }
+    }
+}
+verifie('aucun gestionnaire d\'événement en ligne', empty($enLigne), implode(' | ', $enLigne));
+
+/* Le remplaçant doit être chargé partout où on s'en sert. */
+$sansScript = [];
+foreach (array_merge(glob($R . 'inc/*.php') ?: [],
+                     glob($R . 'public/espace-coureur/*.php') ?: []) as $f) {
+    $src = (string) file_get_contents($f);
+    if (!str_contains($src, 'data-confirm') && !str_contains($src, 'data-autosubmit')) continue;
+    $inc = inclusionsDe($f);
+    $attendu = str_replace('\\', '/', (string) realpath($R . 'src/partials/confirm-script.php'));
+    // Le script est inclus par les pieds de page, eux-mêmes inclus en fin de
+    // fichier : inclusionsDe() les suit.
+    if (!isset($inc[$attendu])) $sansScript[] = basename($f);
+}
+verifie('data-confirm n\'est employé que là où le script est chargé',
+    empty($sansScript), implode(', ', $sansScript));
 
 /* ── 4. Les pages coureur, elles, chargent bien leur feuille ────────────── */
 echo "\n=== 4. Cohérence de l'espace coureur ===\n";

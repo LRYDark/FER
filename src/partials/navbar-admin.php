@@ -312,9 +312,15 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
 
   <!-- ═══════ SIDEBAR ═══════ -->
   <aside class="jr-nav" id="oc-sidebar">
-    <a class="jr-brand" href="dashboard.php">
-      <?php if ($jrLogo): ?><img src="<?= htmlspecialchars($jrLogo) ?>" alt=""><?php endif; ?>
-      <span class="name">Forbach en Rose</span>
+    <?php /* Le logo seul : il porte déjà le nom. Le texte à côté faisait
+             doublon et mangeait la place. Le nom reste dans title= et alt=
+             — rien nest perdu pour les lecteurs décran. */ ?>
+    <a class="jr-brand" href="dashboard.php" title="Forbach en Rose">
+      <?php if ($jrLogo): ?>
+        <img src="<?= htmlspecialchars($jrLogo) ?>" alt="Forbach en Rose">
+      <?php else: ?>
+        <span class="name">Forbach en Rose</span>
+      <?php endif; ?>
     </a>
 
     <nav>

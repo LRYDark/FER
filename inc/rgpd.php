@@ -218,7 +218,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
                autocomplete="off" placeholder="PURGER">
       </div>
       <button class="btn btn-sm btn-danger" name="purger" value="1"
-              onclick="return confirm('Effacer définitivement <?= (int) $rapport['total'] ?> ligne(s) ? Cette action est irréversible.');">
+              data-confirm="Effacer définitivement <?= (int) $rapport['total'] ?> ligne(s) ? Cette action est irréversible.">
         <i class="bi bi-trash3"></i> Purger maintenant
       </button>
       <button class="btn btn-sm btn-outline-secondary" name="simuler" value="1">

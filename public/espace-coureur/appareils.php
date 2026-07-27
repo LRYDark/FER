@@ -146,9 +146,9 @@ $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
               </div>
             </div>
             <form method="post" style="margin:0"
-                  onsubmit="return confirm(<?= $estCourant
-                      ? "'Révoquer CET appareil vous déconnectera immédiatement. Continuer ?'"
-                      : "'Révoquer cet appareil ?'" ?>);">
+                  data-confirm="<?= $estCourant
+                      ? 'Révoquer CET appareil vous déconnectera immédiatement. Continuer ?'
+                      : 'Révoquer cet appareil ?' ?>">
               <?= csrf_field() ?>
               <input type="hidden" name="revoquer" value="<?= (int) $a['id'] ?>">
               <button class="btn btn-danger" type="submit">
@@ -161,7 +161,7 @@ $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
 
       <?php if (count($appareils) > 1): ?>
         <form method="post" class="row-actions"
-              onsubmit="return confirm('Révoquer tous les autres appareils ? Cet appareil restera connecté.');">
+              data-confirm="Révoquer tous les autres appareils ? Cet appareil restera connecté.">
           <?= csrf_field() ?>
           <button class="btn" type="submit" name="revoquer_autres" value="1">
             <i class="bi bi-shield-x"></i> Révoquer tous les autres

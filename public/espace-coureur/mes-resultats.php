@@ -239,7 +239,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
               <i class="bi bi-x-circle"></i> Retirer mon autorisation
             </button>
             <button class="btn btn-danger" type="submit" name="supprimer_traces" value="1"
-                    onclick="return confirm('Supprimer définitivement toutes vos traces GPS enregistrées ?');">
+                    data-confirm="Supprimer définitivement toutes vos traces GPS enregistrées ?">
               <i class="bi bi-trash3"></i> Supprimer mes traces (<?= (int) $ecNbTraces ?>)
             </button>
           <?php else: ?>

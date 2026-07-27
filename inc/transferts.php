@@ -150,14 +150,14 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
             <td class="text-end">
               <?php if ($l['statut'] === 'en_attente'): ?>
                 <form method="post" class="d-inline"
-                      onsubmit="return confirm('Forcer ce transfert ? L\'inscription changera de titulaire immédiatement, sans confirmation du destinataire.');">
+                      data-confirm="Forcer ce transfert ? L'inscription changera de titulaire immédiatement, sans confirmation du destinataire.">
                   <?= csrf_field() ?>
                   <button class="btn btn-sm btn-primary" name="forcer" value="<?= (int) $l['id'] ?>">
                     <i class="bi bi-check2"></i> Forcer
                   </button>
                 </form>
                 <form method="post" class="d-inline"
-                      onsubmit="return confirm('Annuler ce transfert ?');">
+                      data-confirm="Annuler ce transfert ?">
                   <?= csrf_field() ?>
                   <button class="btn btn-sm btn-outline-danger" name="annuler" value="<?= (int) $l['id'] ?>">
                     <i class="bi bi-x-lg"></i>
