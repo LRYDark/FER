@@ -145,12 +145,13 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
     <p class="text-muted mb-0">Chronométrage : consulter, corriger et valider les temps. Chaque résultat peut être ouvert pour voir TOUTES les détections reçues — balise et GPS — et laquelle a servi au calcul. C'est cette page qu'on montre si quelqu'un conteste son temps.</p>
   </div>
 
-<?php if ($erreur !== ''): ?>
-  <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i><?= $h($erreur) ?></div>
-<?php endif; ?>
-<?php if ($succes !== ''): ?>
-  <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i><?= $h($succes) ?></div>
-<?php endif; ?>
+<?php
+  /* Retours en TOAST, comme partout ailleurs dans l'administration. Le rendu se
+     fait par src/partials/toast.php, inclus par admin-footer.php — donc APRÈS
+     ces appels, ce qui suffit. */
+  if ($erreur !== '') addToast('danger', $erreur);
+  if ($succes !== '') addToast('success', $succes);
+?>
 
 <div class="card-dashboard">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">

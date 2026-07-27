@@ -99,8 +99,16 @@ foreach ($inscriptions as $r) {
         $ecNbTraces += (int) $st->fetchColumn();
     } catch (\Throwable $e) { /* table absente */ }
 }
-$ecJoursTraces = (int) ($pdo->query('SELECT traces_gps_conservation_jours FROM setting WHERE id = 1')
-                            ->fetchColumn() ?: 400);
+/* ⚠️ PAS de `?: 400` ici. L'opérateur ?: teste la FAUSSETÉ, pas l'absence — et
+   0 est faux. Le réglage « conservation illimitée » (0) retombait donc sur 400,
+   et la page annonçait un effacement qui n'avait pas lieu. C'est exactement le
+   genre de fausse déclaration que ce projet s'interdit.
+   On lit la valeur telle quelle ; le repli ne joue que si la colonne manque. */
+$ecJoursTraces = 400;
+try {
+    $v = $pdo->query('SELECT traces_gps_conservation_jours FROM setting WHERE id = 1')->fetchColumn();
+    if ($v !== false && $v !== null) $ecJoursTraces = (int) $v;
+} catch (\Throwable $e) { /* colonne absente : on garde le repli */ }
 
 /* Le chronométrage est « actif » dès qu'un résultat porte un temps : inutile
    d'afficher « pas encore actif » à quelqu'un qui a déjà son chrono sous les yeux. */

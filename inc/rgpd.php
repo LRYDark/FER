@@ -111,12 +111,13 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <p class="text-muted mb-0">Durées de conservation et effacement des données périmées. Les inscriptions et les archives ne sont jamais touchées.</p>
   </div>
 
-<?php if ($erreur !== ''): ?>
-  <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i><?= $h($erreur) ?></div>
-<?php endif; ?>
-<?php if ($succes !== ''): ?>
-  <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i><?= $h($succes) ?></div>
-<?php endif; ?>
+<?php
+  /* Retours en TOAST, comme partout ailleurs dans l'administration. Le rendu se
+     fait par src/partials/toast.php, inclus par admin-footer.php — donc APRÈS
+     ces appels, ce qui suffit. */
+  if ($erreur !== '') addToast('danger', $erreur);
+  if ($succes !== '') addToast('success', $succes);
+?>
 
 <div class="card-dashboard">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
