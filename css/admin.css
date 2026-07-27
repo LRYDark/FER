@@ -128,7 +128,7 @@ body {
   padding: var(--sp-2);
 }
 .jr-brand img {
-  height: 64px; width: auto;
+  height: 46px; width: auto;
   max-width: 100%;
   /* object-fit : le logo garde ses proportions quelle que soit la largeur
      réelle du fichier fourni par l'association. */
@@ -143,7 +143,7 @@ body {
   color: var(--ink);
 }
 /* Barre latérale repliée : le logo rétrécit avec elle. */
-.jr-nav.is-collapsed .jr-brand img { height: 38px; }
+.jr-nav.is-collapsed .jr-brand img { height: 32px; }
 
 .jr-nav nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 
