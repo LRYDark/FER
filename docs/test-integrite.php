@@ -197,6 +197,37 @@ foreach (array_merge(glob($R . 'inc/*.php') ?: [],
 verifie('data-confirm n\'est employé que là où le script est chargé',
     empty($sansScript), implode(', ', $sansScript));
 
+/* ── 3 quater. Les retours passent par les toasts, pas par des alertes ───────
+ * Le site annonce ses succès et ses erreurs par addToast(), rendu en bas de
+ * page. Quatre écrans affichaient à la place un bloc .alert en tête de page :
+ * deux façons différentes de dire « c'est enregistré » dans la même
+ * application, c'est une de trop, et ça se remarque tout de suite.
+ * ──────────────────────────────────────────────────────────────────────── */
+echo "\n=== 3 quater. Retours utilisateur : toasts ===\n";
+$alertes = [];
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
+    $src = (string) file_get_contents($f);
+    if (!str_contains($src, 'navbar-admin.php')) continue;
+    // Alerte pilotée par les variables de retour = ancien mécanisme.
+    if (preg_match('/<\?php if \(\$(erreur|succes) !== \x27\x27\): \?>\s*<div class="alert/', $src)) {
+        $alertes[] = basename($f);
+    }
+}
+verifie('aucun écran admin n\'affiche ses retours en bloc .alert',
+    empty($alertes), implode(', ', $alertes));
+
+/* addToast n'a d'effet que si toast.php est rendu — il l'est par admin-footer. */
+$sansToast = [];
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
+    $src = (string) file_get_contents($f);
+    if (!str_contains($src, 'addToast(')) continue;
+    if (!isset(inclusionsDe($f)[str_replace('\\', '/', (string) realpath($R . 'src/partials/toast.php'))])) {
+        $sansToast[] = basename($f);
+    }
+}
+verifie('addToast n\'est employé que là où toast.php est rendu',
+    empty($sansToast), implode(', ', $sansToast));
+
 /* ── 4. Les pages coureur, elles, chargent bien leur feuille ────────────── */
 echo "\n=== 4. Cohérence de l'espace coureur ===\n";
 $sansStyles = [];
