@@ -1,85 +1,119 @@
-# docs/ — outils de développement
+# docs/ — outils de vérification
 
-**Rien ici ne fait partie du site.** Ce dossier contient des bancs de test et des
-notes de migration, exécutés **à la main, en local**, par la personne qui
-développe. Aucune page du site ne les inclut, aucun visiteur ne les atteint.
-
-Le fichier `.htaccess` de ce dossier contient `Require all denied` : même en cas
-de déploiement complet, une URL vers `docs/` renvoie 403.
+**Rien ici ne fait partie du site.** Deux bancs de vérification, exécutés **à la
+main, en local**, par la personne qui développe. Aucune page ne les inclut,
+aucun visiteur ne les atteint.
 
 > **Ce dossier ne part JAMAIS en production.** Il est marqué `export-ignore`
 > dans `.gitattributes` : `git archive` — et les outils de déploiement qui s'en
 > servent — l'excluent du paquet. Et si votre outil copie malgré tout le dépôt
-> entier, le `.htaccess` le rend inaccessible par URL. Deux barrières, aucune
-> raison de s'en priver.
+> entier, le `.htaccess` (`Require all denied`) le rend inaccessible par URL.
+> Deux barrières.
 
 ---
 
-## Comment lancer un test
+## `audit-bdd.php` — à lancer AVANT toute mise à jour de production
 
-Les tests qui touchent à la base démarrent **une instance MySQL jetable sur le
-port 3399**, séparée de celle du site. Ils ne se connectent **jamais** à votre
-base réelle : ils créent leur propre base, la remplissent de fausses données,
-vérifient, et repartent sans laisser de trace.
+C'est le plus important des deux. Il rejoue **les deux chemins d'installation**
+sur des bases MySQL jetables :
+
+* `install.php` sur une base vierge — le cas d'un nouveau serveur ;
+* `update.php` sur une base garnie de fausses inscriptions et d'une archive —
+  la simulation de **votre site en production**.
+
+Puis il vérifie, dans cet ordre :
+
+1. les inscriptions existantes **survivent** à la migration ;
+2. `registrations` reste **structurellement inchangée** ;
+3. les deux chemins produisent **le même schéma** — une divergence signifierait
+   qu'une installation neuve et une installation migrée ne se comportent pas
+   pareil ;
+4. rejouer la migration **ne change rien** (idempotence) ;
+5. les éditions sont peuplées correctement ;
+6. les valeurs par défaut des réglages sont appliquées ;
+7. les **collations** permettent les jointures entre nouvelles et anciennes
+   tables ;
+8. le gabarit d'email personnalisé et la FAQ de l'association **ne sont pas
+   écrasés** ;
+9. un texte de politique de confidentialité déjà rédigé **n'est pas remplacé** ;
+10. l'index d'unicité des détections est bien posé.
+
+C'est lui qui a trouvé, **avant la production**, une différence de collation qui
+aurait fait échouer la jointure centrale de tout l'espace coureur.
+
+**Nécessite MySQL sur le port 3399** (voir plus bas).
+
+---
+
+## `test-integrite.php` — la cohérence de l'ensemble
+
+Il ne teste pas une fonctionnalité : il vérifie que le tout se tient. **Aucune
+base de données nécessaire.** 27 contrôles, dont chacun a été ajouté après un
+bug réel rencontré sur ce projet :
+
+* les fichiers PHP **compilent** tous ;
+* chaque entrée du menu d'administration **mène à un fichier existant**, et a un
+  titre déclaré — sinon la page s'affiche « Administration » ;
+* aucun écran d'administration n'emploie les **classes CSS de l'espace coureur**
+  (elles n'y sont pas servies, et `.row` y casse la mise en page) ;
+* **toute fonction appelée a son fichier chargé** — attrape le « Call to
+  undefined function » avant qu'il n'arrive à l'écran ;
+* **aucun gestionnaire d'événement en ligne** : la CSP du site les bloque tous,
+  et ils échouent en silence — un « êtes-vous sûr ? » qui ne s'affiche jamais ;
+* les retours passent par les **toasts** du site, pas par des blocs `.alert` ;
+* toute **permission** utilisée figure au catalogue ;
+* les colonnes des derniers lots sont dans **`install.php` ET `update.php`** ;
+* les **liens du chatbot** mènent à des fichiers existants ;
+* les fichiers que la consigne interdit de modifier (`api.php`, `login.php`,
+  `change-password.php`, `reset-password.php`, `totp.php`, `webauthn.php`) sont
+  **restés intacts** ;
+* l'API mobile ne lit **aucune adresse email depuis l'URL**.
+
+---
+
+## Comment les lancer
 
 ```bash
-# 1. Démarrer une instance MySQL jetable (port 3399)
+# test-integrite.php : rien à préparer
+php docs/test-integrite.php
+
+# audit-bdd.php : une instance MySQL jetable, séparée de celle du site
 mysqld --initialize-insecure --datadir=/un/dossier/temporaire/data
 mysqld --datadir=/un/dossier/temporaire/data --port=3399 --console
-
-# 2. Lancer le test
-php docs/test-api-v1.php
+php docs/audit-bdd.php
 ```
 
-Chaque test affiche `OK` / `ECHEC` ligne par ligne, puis un bilan, et renvoie un
+L'instance du port **3399** est jetable et **ne touche jamais votre base
+réelle** : l'audit crée ses propres bases, les remplit de fausses données,
+vérifie, et repart sans rien laisser.
+
+Chaque banc affiche `OK` / `ECHEC` ligne par ligne, puis un bilan, et renvoie un
 code de sortie 0 si tout est vert.
 
 ---
 
-## Les bancs de test
+## `test-mail-catchall.md`
 
-| Fichier | Ce qu'il vérifie | Base 3399 |
-|---|---|---|
-| **`test-integrite.php`** | **Le contrôle d’ensemble.** Ne teste pas une fonctionnalité : vérifie que le tout se tient — compilation des 102 fichiers PHP, entrées de menu qui mènent quelque part, écrans admin n’employant que des classes réellement servies, permissions au catalogue, colonnes présentes dans install ET update, liens du chatbot valides, fichiers interdits intacts. 21 contrôles, aucune base requise. | non |
-| **`audit-bdd.php`** | **Le plus important avant une mise à jour de production.** Rejoue les DEUX chemins d'installation sur des bases jetables : `install.php` sur une base vierge, et `update.php` sur une base garnie de fausses inscriptions (simulation d'un site en production). Vérifie que les inscriptions survivent, que `registrations` n'est pas modifiée structurellement, que les deux chemins convergent vers le même schéma, que rejouer la migration ne change rien, et que les collations permettent les jointures. | oui |
-| **`test-api-classique.php`** | Non-régression de **`api.php`** (l'API partenaire) : ping, authentification, HTTPS, interrupteur, ajout d'inscrit, recherche, liste et filtres, statistiques, codes d'erreur. 25 tests. | oui |
-| **`test-api-v1.php`** | L'**API mobile** de bout en bout : les trois barrières d'entrée, la connexion par code, la signature des jetons, la révocation immédiate, les modifications en libre-service, les transferts, les archives en lecture seule. 71 tests. | oui |
-| **`test-chrono.php`** | Le chronométrage : réception des détections, arbitrage balise/GPS, calcul du temps. Vérifie surtout la REDONDANCE — balise en panne → le GPS sauve le chrono, et inversement — plus les garde-fous (temps aberrant, horodatage sans fuseau, doublons). 35 tests. | oui |
-| **`test-lot6.php`** | Les intentions du chatbot (nouvelles ET anciennes, pour détecter les détournements), la section « app » du gabarit d'email, la page publique et les questions de FAQ. 61 tests. | non |
-| **`test-lot7.php`** | Les purges de conservation — et surtout ce quelles ne doivent JAMAIS effacer (inscriptions, archives, comptes actifs, transferts en attente) — plus la revue de sécurité : isolation des sessions, `api.php` inchangé, fichiers interdits intacts. 33 tests. | oui |
-| **`test-transferts.php`** | Le transfert d'une inscription d'un coureur à un autre, dans le scénario du terrain : une mère inscrit son fils sous sa propre adresse, le fils veut son espace. | oui |
-| **`test-auth-coureur.php`** | La connexion des coureurs : code à 6 chiffres, expiration, tentatives, limitation de débit, cookie « se souvenir de moi ». | oui |
-| **`test-espace-coureur.php`** | Les pages de l'espace coureur : contrôle d'accès, rattachement des inscriptions. | oui |
-| **`test-config-enc.php`** | L'écriture **atomique** de `config/config.enc` : un fichier de configuration à moitié écrit rendrait le site inaccessible. | non |
-| **`test-qr-eligibilite.php`** | Qui a droit à un QR code — donc à un t-shirt. Vérifie que la règle est STRICTEMENT la même à l’envoi du mail et à l’affichage dans l’espace coureur : afficher un QR à quelqu’un qui n’y a pas droit, c’est lui promettre un t-shirt qu’il n’aura pas. 21 tests. | oui |
-| **`test-qrcode.php`** | Que le QR code du mail et celui de l'espace coureur sont **identiques** — un bénévole ne doit pas tomber sur un QR non reconnu le jour du retrait des t-shirts. | non |
-
-Les fichiers **`*-appel.php`** ne se lancent pas seuls : ce sont les pilotes qui
-exécutent une requête HTTP simulée pour le test correspondant. Une requête = un
-processus, parce que les APIs se terminent par `exit()`.
+Procédure à suivre **à la main** pour vérifier le garde-fou des mails — celui
+qui empêche d'envoyer un mail de test à de vrais inscrits. Ne peut pas être
+automatisé : il faut regarder une vraie boîte mail.
 
 ---
 
-## Les autres fichiers
+## Les bancs supprimés — et comment les retrouver
 
-| Fichier | À quoi il sert |
-|---|---|
-| **`test-mail-catchall.md`** | Procédure à suivre **à la main** pour vérifier le garde-fou des mails, celui qui empêche d'envoyer un mail de test à de vrais inscrits. Ne peut pas être automatisé : il faut regarder une vraie boîte mail. |
+Treize bancs par fonctionnalité (API mobile, API partenaire, chronométrage,
+chatbot, purges, transferts, authentification coureur…) ont été retirés : ~350
+tests qui servaient au **développement** de ces parties et qui dormaient une
+fois celles-ci terminées.
 
----
+**Ils restent dans l'historique git**, et se restaurent un par un :
 
-## Pourquoi ces tests existent
+```bash
+git show d0f908ca:docs/test-api-v1.php > docs/test-api-v1.php
+```
 
-Une base de production contient les inscriptions réelles de la course. Une
-migration ratée, et ce sont des gens qui se présentent au départ sans dossard.
-Ces bancs permettent de **jouer la mise à jour pour de faux** autant de fois
-qu'il le faut, jusqu'à ce que tout soit vert — avant d'y toucher pour de vrai.
-
-C'est aussi ce qui a permis de trouver, avant la production :
-
-- une différence de **collation** entre les nouvelles tables et les anciennes,
-  qui aurait fait échouer la jointure centrale des lots 2 à 5 ;
-- trois bugs de **fuseau horaire** de la même famille (une date produite par
-  MySQL comparée en PHP) ;
-- une validation de **sexe** qui acceptait silencieusement n'importe quelle
-  valeur en la convertissant en « Autre ».
+À faire si l'on reprend le développement de l'**API mobile** ou du
+**chronométrage** — deux chantiers encore ouverts. Sans eux, une régression sur
+ces parties passerait inaperçue : c'est ainsi qu'une réponse du chatbot était
+restée fausse pendant trois lots, jusqu'à ce qu'un test la démasque.
