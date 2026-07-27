@@ -184,7 +184,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
                        travers dans une liste de trois cents lignes envoie un mail
                        à la mauvaise personne, et rien ne permet de le rattraper. */ ?>
               <form method="post" class="d-inline"
-                    onsubmit="return confirm('Envoyer un code de connexion à <?= $h(addslashes(decrypt($c['email_chiffre']))) ?> ?');">
+                    data-confirm="Envoyer un code de connexion à <?= $h(decrypt($c['email_chiffre'])) ?> ?">
                 <?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
                 <button class="btn btn-sm btn-outline-secondary" name="envoyer_code" value="1"
@@ -194,7 +194,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
               </form>
               <?php if ((int) $c['nb_appareils'] > 0): ?>
                 <form method="post" class="d-inline"
-                      onsubmit="return confirm('Révoquer tous les appareils de ce compte ?');">
+                      data-confirm="Révoquer tous les appareils de ce compte ?">
                   <?= csrf_field() ?>
                   <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
                   <button class="btn btn-sm btn-outline-secondary" name="revoquer_appareils" value="1" title="Révoquer les appareils">
@@ -203,9 +203,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
                 </form>
               <?php endif; ?>
               <form method="post" class="d-inline"
-                    onsubmit="return confirm(<?= $actif
-                        ? "'Désactiver ce compte ? La personne ne pourra plus se connecter.'"
-                        : "'Réactiver ce compte ?'" ?>);">
+                    data-confirm="<?= $actif ? 'Désactiver ce compte ? La personne ne pourra plus se connecter.' : 'Réactiver ce compte ?' ?>">
                 <?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
                 <button class="btn btn-sm <?= $actif ? 'btn-outline-danger' : 'btn-outline-success' ?>"

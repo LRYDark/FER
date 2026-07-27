@@ -3245,7 +3245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </div>
 
             <div class="col-12 d-flex justify-content-between">
-              <button type="submit" name="reset_theme" class="btn btn-outline-secondary w-auto" onclick="return confirm('Réinitialiser le thème aux valeurs par défaut ?')">
+              <button type="submit" name="reset_theme" class="btn btn-outline-secondary w-auto" data-confirm="Réinitialiser le thème aux valeurs par défaut ?">
                 <i class="bi bi-arrow-counterclockwise me-1"></i>Par défaut
               </button>
               <button type="submit" name="save_theme" class="btn btn-primary w-auto">Sauvegarder le thème</button>
@@ -3285,7 +3285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </div>
 
           <div class="col-12 d-flex justify-content-between">
-            <button type="submit" name="reset_flash_colors" class="btn btn-outline-secondary w-auto" onclick="return confirm('Réinitialiser les couleurs du bandeau ?')">
+            <button type="submit" name="reset_flash_colors" class="btn btn-outline-secondary w-auto" data-confirm="Réinitialiser les couleurs du bandeau ?">
               <i class="bi bi-arrow-counterclockwise me-1"></i>Par défaut
             </button>
             <button type="submit" name="save_flash_colors" class="btn btn-primary w-auto">Sauvegarder</button>
@@ -4594,8 +4594,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                   <td class="text-center"><small><?= htmlspecialchars($f['field_type'] ?? 'text') ?></small></td>
                   <td class="text-center">
                     <?php if (!$default): ?>
+                      <?php /* ⚠️ data-confirm et NON onclick : la CSP du site
+                               (script-src sans 'unsafe-inline') bloque les
+                               gestionnaires en ligne. Cet onclick ne s'exécutait
+                               donc PAS — et la suppression d'une colonne, avec
+                               toutes ses données, partait sans rien demander.
+                               Les &#10; sont des retours à la ligne réels. */ ?>
                       <button type="submit" name="delete_field_id" value="<?= $id ?>" class="btn btn-outline-danger btn-sm"
-                        onclick="return confirm('ATTENTION : Cela supprimera la colonne « <?= htmlspecialchars($f['label']) ?> » et toutes ses données en base.\n\nSi vous voulez juste masquer le champ, décochez-le et cliquez Sauvegarder.\n\nSupprimer définitivement ?')">
+                        data-confirm="ATTENTION : Cela supprimera la colonne « <?= htmlspecialchars($f['label']) ?> » et toutes ses données en base.&#10;&#10;Si vous voulez juste masquer le champ, décochez-le et cliquez Sauvegarder.&#10;&#10;Supprimer définitivement ?">
                         <i class="bi bi-trash"></i>
                       </button>
                     <?php endif; ?>

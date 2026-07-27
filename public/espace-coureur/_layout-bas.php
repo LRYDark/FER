@@ -39,3 +39,8 @@
   });
 })();
 </script>
+
+<?php /* Confirmations et auto-soumission, compatibles CSP.
+         La CSP du site interdit les gestionnaires en ligne : sans ce script,
+         « Révoquer cet appareil ? » ne demanderait jamais rien. */ ?>
+<?php include __DIR__ . '/../../src/partials/confirm-script.php'; ?>

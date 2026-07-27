@@ -29,11 +29,12 @@ $ecMenu = [
 <div class="jr-shell">
 
   <aside class="jr-nav" id="ecSidebar">
-    <a class="jr-brand" href="../accueil.php">
+    <a class="jr-brand" href="../accueil.php" title="Forbach en Rose">
       <?php if (is_file($ecLogo)): ?>
-        <img src="../../files/_logos/logo_fer_rose.png" alt="">
+        <img src="../../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
+      <?php else: ?>
+        <span class="name">Forbach en Rose</span>
       <?php endif; ?>
-      <span class="name">Forbach en Rose</span>
     </a>
 
     <nav>

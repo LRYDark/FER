@@ -823,3 +823,6 @@ if (($__idleMin > 0 || $__absMin > 0) && isset($_SESSION['uid'])):
 })();
 </script>
 <?php endif; ?>
+
+<?php /* Confirmations et auto-soumission, compatibles CSP (voir le fichier). */ ?>
+<?php include __DIR__ . '/confirm-script.php'; ?>
