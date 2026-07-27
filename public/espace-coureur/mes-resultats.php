@@ -227,8 +227,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
         Si vous l'autorisez, l'application enregistre votre position pendant la course
         pour établir votre temps même en cas de panne de balise, et vous montrer votre
-        parcours. <strong>C'est la donnée la plus sensible du site</strong> : elle dit où
-        vous étiez, minute par minute. Sans votre accord, rien n'est enregistré.
+        parcours. Sans votre accord, rien n'est enregistré.
       </p>
 
       <form method="post">
