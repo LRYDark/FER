@@ -160,10 +160,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['theme'])) {
     } else {
         $t = (string) $_POST['theme'];
         if (!in_array($t, PAUTH_THEMES, true)) $t = 'light';
-        $pdo->prepare('UPDATE participants SET theme = ? WHERE id = ?')->execute([$t, $moiId]);
-        $_SESSION[PAUTH_SESSION_KEY]['theme'] = $t;
-        header('Location: compte.php?apparence_ok=1');
-        exit;
+        /* ⚠️ Colonne possiblement absente : sur un site dont la migration n'a pas
+           encore été jouée, `participants.theme` n'existe pas. Sans ce filet, la
+           page meurt en erreur 500 — le coureur voit une page blanche, et le
+           journal une PDOException. Un réglage d'apparence ne vaut pas ça. */
+        try {
+            $pdo->prepare('UPDATE participants SET theme = ? WHERE id = ?')->execute([$t, $moiId]);
+            $_SESSION[PAUTH_SESSION_KEY]['theme'] = $t;
+            header('Location: compte.php?apparence_ok=1');
+            exit;
+        } catch (\Throwable $e) {
+            error_log('[EC] theme : ' . $e->getMessage());
+            $erreur = "Le choix du thème n'est pas encore disponible sur ce site. "
+                    . "Signalez-le à l'organisation.";
+        }
     }
 }
 
@@ -182,12 +192,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accent'])) {
             $erreur = "Couleur invalide. Choisissez-la avec le sélecteur.";
         } else {
             $custom = $a === 'custom' ? strtolower($custom) : null;
-            $pdo->prepare('UPDATE participants SET accent = ?, accent_custom = ? WHERE id = ?')
-                ->execute([$a, $custom, $moiId]);
-            $_SESSION[PAUTH_SESSION_KEY]['accent']        = $a;
-            $_SESSION[PAUTH_SESSION_KEY]['accent_custom'] = $custom;
-            header('Location: compte.php?apparence_ok=1');
-            exit;
+            // Même filet que pour le thème : colonne possiblement absente.
+            try {
+                $pdo->prepare('UPDATE participants SET accent = ?, accent_custom = ? WHERE id = ?')
+                    ->execute([$a, $custom, $moiId]);
+                $_SESSION[PAUTH_SESSION_KEY]['accent']        = $a;
+                $_SESSION[PAUTH_SESSION_KEY]['accent_custom'] = $custom;
+                header('Location: compte.php?apparence_ok=1');
+                exit;
+            } catch (\Throwable $e) {
+                error_log('[EC] accent : ' . $e->getMessage());
+                $erreur = "Le choix de la couleur n'est pas encore disponible sur ce site. "
+                        . "Signalez-le à l'organisation.";
+            }
         }
     }
 }

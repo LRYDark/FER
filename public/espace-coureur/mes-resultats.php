@@ -45,29 +45,51 @@ if ($inscriptions) {
  * Le retrait vaut pour l'AVENIR : il n'efface pas les traces déjà enregistrées.
  * D'où un second bouton, distinct, pour les supprimer — mélanger les deux
  * laisserait croire qu'un simple retrait suffit à tout effacer. */
+/* ⚠️ TOUT CE BLOC TOLÈRE L'ABSENCE DES COLONNES ET TABLES DU CHRONOMÉTRAGE.
+   Sur un site dont la migration n'a pas encore été jouée, `traces_consent_at`
+   et `traces_gps` n'existent pas. Sans ces gardes, la page meurt en erreur 500 :
+   le coureur voit une page blanche et n'a aucun moyen de comprendre. Ici, la
+   carte du suivi GPS disparaît simplement, et le reste de la page fonctionne. */
 $ecMsg = '';
+$ecDispo = true;   // le suivi GPS est-il installé sur ce site ?
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
     if (isset($_POST['consent'])) {
         $accord = $_POST['consent'] === '1';
-        $pdo->prepare('UPDATE participants SET traces_consent_at = ' . ($accord ? 'NOW()' : 'NULL')
-                    . ' WHERE id = ?')->execute([pauth_id()]);
-        $ecMsg = $accord
-            ? 'Suivi GPS autorisé. Vous pouvez le retirer à tout moment.'
-            : 'Autorisation retirée. Aucune nouvelle trace ne sera enregistrée.';
+        try {
+            $pdo->prepare('UPDATE participants SET traces_consent_at = ' . ($accord ? 'NOW()' : 'NULL')
+                        . ' WHERE id = ?')->execute([pauth_id()]);
+            $ecMsg = $accord
+                ? 'Suivi GPS autorisé. Vous pouvez le retirer à tout moment.'
+                : 'Autorisation retirée. Aucune nouvelle trace ne sera enregistrée.';
+        } catch (\Throwable $e) {
+            error_log('[EC] consentement GPS : ' . $e->getMessage());
+            $ecDispo = false;
+        }
     } elseif (isset($_POST['supprimer_traces']) && $inscriptions) {
         $n = 0;
-        foreach ($inscriptions as $r) {
-            $st = $pdo->prepare('DELETE FROM traces_gps WHERE annee = ? AND inscription_no = ?');
-            $st->execute([(int) $r['annee'], (string) $r['inscription_no']]);
-            $n += $st->rowCount();
+        try {
+            foreach ($inscriptions as $r) {
+                $st = $pdo->prepare('DELETE FROM traces_gps WHERE annee = ? AND inscription_no = ?');
+                $st->execute([(int) $r['annee'], (string) $r['inscription_no']]);
+                $n += $st->rowCount();
+            }
+            $ecMsg = $n > 0 ? "$n trace(s) supprimée(s) définitivement." : 'Aucune trace à supprimer.';
+        } catch (\Throwable $e) {
+            error_log('[EC] suppression traces : ' . $e->getMessage());
+            $ecDispo = false;
         }
-        $ecMsg = $n > 0 ? "$n trace(s) supprimée(s) définitivement." : 'Aucune trace à supprimer.';
     }
 }
 
-$st = $pdo->prepare('SELECT traces_consent_at FROM participants WHERE id = ?');
-$st->execute([pauth_id()]);
-$ecConsent = $st->fetchColumn() ?: null;
+$ecConsent = null;
+try {
+    $st = $pdo->prepare('SELECT traces_consent_at FROM participants WHERE id = ?');
+    $st->execute([pauth_id()]);
+    $ecConsent = $st->fetchColumn() ?: null;
+} catch (\Throwable $e) {
+    $ecDispo = false;   // colonne absente : on masquera la carte
+}
 
 $ecNbTraces = 0;
 foreach ($inscriptions as $r) {
