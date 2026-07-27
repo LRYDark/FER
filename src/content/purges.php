@@ -32,9 +32,14 @@ require_once __DIR__ . '/../core/config.php';
 /** Réglages de conservation, avec des valeurs de repli sûres. */
 function purge_settings(PDO $pdo): array
 {
+    /* traces_gps à 0 : conservation ILLIMITÉE par défaut. Choix de
+       l'association — le but est de pouvoir revoir son parcours d'une année sur
+       l'autre. Tenable parce que le suivi GPS exige un consentement explicite,
+       et que le coureur peut supprimer ses traces lui-même à tout moment depuis
+       « Mes résultats ». Les autres durées, elles, restent bornées. */
     $defauts = [
         'auth_codes_conservation_jours' => 30,
-        'traces_gps_conservation_jours' => 400,
+        'traces_gps_conservation_jours' => 0,
         'devices_revoques_jours'        => 90,
         'transferts_clos_jours'         => 365,
     ];
@@ -43,11 +48,19 @@ function purge_settings(PDO $pdo): array
                                    devices_revoques_jours, transferts_clos_jours
                               FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
         foreach ($defauts as $k => $v) {
-            if (isset($row[$k]) && (int) $row[$k] > 0) $defauts[$k] = (int) $row[$k];
+            if (!isset($row[$k])) continue;
+            $n = (int) $row[$k];
+            /* ⚠️ 0 SIGNIFIE « CONSERVATION ILLIMITÉE », JAMAIS « effacer tout de
+               suite ». La nuance est vitale : l'interprétation inverse viderait
+               la table au premier passage de la purge. Le sens choisi va
+               toujours dans le sens de la préservation — si quelqu'un se trompe
+               de valeur, il garde trop, il ne perd rien.
+               Une valeur négative est une erreur de saisie : on l'ignore. */
+            if ($n > 0)                     $defauts[$k] = $n;
+            elseif ($n === 0 && $k === 'traces_gps_conservation_jours') $defauts[$k] = 0;
         }
     } catch (\Throwable $e) {
-        // Colonnes absentes (migration pas jouée) : on garde les défauts. Ne
-        // JAMAIS retomber sur 0 — ce serait « tout effacer immédiatement ».
+        // Colonnes absentes (migration pas jouée) : on garde les défauts.
     }
     return $defauts;
 }
@@ -130,6 +143,14 @@ function purge_run(PDO $pdo, bool $simulation = false): array
 
     $total = 0;
     foreach ($taches as $cle => $t) {
+        /* Durée à 0 = conservation illimitée : on ne purge pas, et on le DIT.
+           Passer la tâche en silence laisserait croire qu'il n'y avait rien à
+           effacer, alors que c'est un choix délibéré. */
+        if ((int) $t['jours'] <= 0) {
+            $details[$cle] = ['libelle' => $t['libelle'], 'jours' => 0, 'nombre' => 0,
+                              'illimite' => true];
+            continue;
+        }
         try {
             $st = $pdo->prepare($t['compte']);
             $st->execute([$t['jours']]);

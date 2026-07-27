@@ -221,23 +221,27 @@ function chrono_ingestTrace(PDO $pdo, int $annee, string $inscriptionNo,
     $debut  = $trace['debut_at'] ?? str_replace(['T', 'Z'], [' ', ''], $tous[0]['at']);
     $fin    = str_replace(['T', 'Z'], [' ', ''], end($tous)['at']);
 
-    // purge_at : la date d'effacement automatique est posée dès l'écriture. La
-    // calculer plus tard supposerait qu'une tâche pense à le faire.
-    $jours = (int) ($pdo->query('SELECT traces_gps_conservation_jours FROM setting WHERE id = 1')
-                        ->fetchColumn() ?: 400);
+    /* purge_at : la date d'effacement automatique est posée dès l'écriture. La
+       calculer plus tard supposerait qu'une tâche pense à le faire.
+       ⚠️ 0 = conservation illimitée → purge_at reste NULL. Sans ce cas, une
+       date serait quand même inscrite et la purge effacerait la trace, alors
+       que le réglage dit exactement le contraire. */
+    $jours = (int) $pdo->query('SELECT traces_gps_conservation_jours FROM setting WHERE id = 1')
+                       ->fetchColumn();
+    $purgeAt = $jours > 0 ? date('Y-m-d', strtotime('+' . $jours . ' days')) : null;
 
     try {
         if ($trace) {
             $pdo->prepare('UPDATE traces_gps SET points = ?, nb_points = ?, debut_at = ?, fin_at = ?,
-                                                 purge_at = DATE_ADD(CURDATE(), INTERVAL ? DAY)
+                                                 purge_at = ?
                             WHERE id = ?')
-                ->execute([json_encode($tous), count($tous), $debut, $fin, $jours, (int) $trace['id']]);
+                ->execute([json_encode($tous), count($tous), $debut, $fin, $purgeAt, (int) $trace['id']]);
         } else {
             $pdo->prepare('INSERT INTO traces_gps (annee, inscription_no, device_id, source, points,
                                                    nb_points, debut_at, fin_at, purge_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(CURDATE(), INTERVAL ? DAY))')
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 ->execute([$annee, $inscriptionNo, $deviceId, 'app', json_encode($tous),
-                           count($tous), $debut, $fin, $jours]);
+                           count($tous), $debut, $fin, $purgeAt]);
         }
     } catch (\Throwable $e) {
         error_log('[CHRONO] trace : ' . $e->getMessage());

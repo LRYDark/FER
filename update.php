@@ -2335,10 +2335,14 @@ $lot1Settings = [
     'app_store_url_ios'                    => "VARCHAR(255) NULL DEFAULT NULL",
     'app_store_url_android'                => "VARCHAR(255) NULL DEFAULT NULL",
     // Lot 7 — purges RGPD.
-    // 400 jours et non 365 : il faut couvrir une édition entière PLUS la marge de
-    // publication des résultats. Ce chiffre doit figurer dans la politique de
-    // confidentialité.
-    'traces_gps_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 400",
+    // 0 = CONSERVATION ILLIMITÉE (et non « effacer tout de suite » : le sens
+    // choisi va toujours dans celui de la préservation). Le but est de pouvoir
+    // revoir son parcours d'une année sur l'autre. C'est tenable parce que le
+    // suivi GPS exige un consentement EXPLICITE et que le coureur peut supprimer
+    // ses traces lui-même à tout moment — ce sont ces deux garanties, et non une
+    // durée courte, qui rendent la conservation acceptable. Elles doivent donc
+    // figurer telles quelles dans la politique de confidentialité.
+    'traces_gps_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 0",
     'auth_codes_conservation_jours'        => "SMALLINT NOT NULL DEFAULT 30",
     // Un appareil révoqué n'a plus de jeton valide, mais sa ligne garde le
     // modèle du téléphone et l'IP de création — des données personnelles.
@@ -2587,7 +2591,10 @@ Forbach en Rose, pour l'organisation de la course et le suivi de votre inscripti
     <td>Traces GPS et résultats de course</td>
     <td>Établir votre temps, si vous utilisez l'application mobile et que vous
         y consentez explicitement.</td>
-    <td>400 jours.</td>
+    <td>Conservées d'une édition à l'autre, pour vous permettre de revoir vos
+        parcours passés. <strong>Vous pouvez les supprimer vous-même à tout
+        moment</strong> depuis « Mes résultats », et retirer votre autorisation
+        quand vous le souhaitez.</td>
   </tr>
 </table>
 

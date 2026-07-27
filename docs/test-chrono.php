@@ -212,7 +212,20 @@ $r = chrono_ingestTrace($pdo, $ANNEE, 'B1', null, $suite);
 verifie('un point postérieur est bien ajouté', $r['ajoutes'] === 1, json_encode($r));
 $tr = $pdo->query("SELECT nb_points, purge_at FROM traces_gps WHERE inscription_no='B1'")->fetch();
 verifie('11 points au total', (int) $tr['nb_points'] === 11, (string) $tr['nb_points']);
-verifie('la date d\'effacement automatique est posée dès l\'écriture', $tr['purge_at'] !== null);
+/* purge_at suit LE RÉGLAGE, et c'est le point délicat :
+     • conservation illimitée (0, le défaut) → purge_at NULL, sinon la purge
+       effacerait la trace alors que le réglage dit le contraire ;
+     • durée fixée → la date est posée dès l'écriture, pour ne pas dépendre
+       d'une tâche qui penserait à le faire plus tard. */
+verifie('conservation illimitée (défaut) → aucune date d\'effacement',
+    $tr['purge_at'] === null, (string) $tr['purge_at']);
+
+$pdo->exec('UPDATE setting SET traces_gps_conservation_jours = 400 WHERE id = 1');
+chrono_ingestTrace($pdo, $ANNEE, 'B1', null, [['lat' => 49.21, 'lon' => 6.92, 'at' => iso('10:20:00')]]);
+$tr2 = $pdo->query("SELECT purge_at FROM traces_gps WHERE inscription_no='B1'")->fetch();
+verifie('durée fixée → la date d\'effacement est posée dès l\'écriture',
+    $tr2['purge_at'] !== null, (string) $tr2['purge_at']);
+$pdo->exec('UPDATE setting SET traces_gps_conservation_jours = 0 WHERE id = 1');
 
 $r = chrono_ingestTrace($pdo, $ANNEE, 'B1', null, [['lat' => 999, 'lon' => 0, 'at' => iso('11:00:00')]]);
 verifie('coordonnée aberrante → ignorée', $r['ajoutes'] === 0 && $r['ignores'] === 1, json_encode($r));
