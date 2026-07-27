@@ -226,52 +226,14 @@ function shouldIncludeQrCode(string|int $inscriptionNo): bool
     // Override ponctuel : une inscription via un QR dont l'option « envoyer le QR
     // code » est décochée (send_qrcode = 0) force l'absence de QR code, quelle que
     // soit la config globale. Le flag est posé par register.php avant l'envoi.
+    // Propre au MAIL : c'est pourquoi il reste ici et non dans la règle partagée.
     if (!empty($GLOBALS['force_no_qrcode'])) return false;
 
-    $mode = $data['qrcode_mail_mode'] ?? 'none';
-
-    if ($mode === 'none') return false;
-    if ($mode === 'all') return true;
-
-    // mode 'first_x' : vérifier le rang chronologique de cet inscrit
-    // parmi les inscrits AYANT PAYÉ (montant_du > 0). Les non-payés (gratuit /
-    // enfant -12 ans) sont écartés du décompte et ne reçoivent pas de QR Code.
-    $limit = (int) ($data['qrcode_mail_limit'] ?? 0);
-    if ($limit <= 0) return false;
-
-    try {
-        // Le classement « X premiers payants » se fait sur la DATE D'INSCRIPTION réelle
-        // (date_inscription), PAS sur la date d'ajout au logiciel (created_at). Ainsi un
-        // inscrit antidaté (inscrit avant, ajouté après) passe bien devant. COALESCE :
-        // repli sur created_at pour toute ligne sans date_inscription (sécurité).
-        $stmtSelf = $pdo->prepare('SELECT COALESCE(date_inscription, created_at) AS dref, montant_du FROM registrations WHERE inscription_no = :no LIMIT 1');
-        $stmtSelf->execute(['no' => $inscriptionNo]);
-        $self = $stmtSelf->fetch(PDO::FETCH_ASSOC);
-
-        if (!$self || empty($self['dref'])) return false;
-
-        // Inscrit non-payé → jamais éligible en mode first_x
-        if ((float) ($self['montant_du'] ?? 0) <= 0) return false;
-
-        // Compter combien d'inscrits PAYANTS se sont inscrits AVANT ou en même temps
-        $stmtRank = $pdo->prepare(
-            'SELECT COUNT(*) FROM registrations
-             WHERE montant_du > 0
-               AND (COALESCE(date_inscription, created_at) < :dref
-                    OR (COALESCE(date_inscription, created_at) = :dref2 AND inscription_no <= :no))'
-        );
-        $stmtRank->execute([
-            'dref'  => $self['dref'],
-            'dref2' => $self['dref'],
-            'no'    => $inscriptionNo,
-        ]);
-        $rank = (int) $stmtRank->fetchColumn();
-
-        return $rank <= $limit;
-    } catch (\Throwable $e) {
-        writeLog("⚠️ Erreur vérification QR Code limit : " . $e->getMessage());
-        return false;
-    }
+    // ⚠️ LA RÈGLE VIT DANS src/core/qrcode.php, et elle est UNIQUE. L'espace
+    // coureur la consulte aussi : sans cela, il affichait un QR code — et donc
+    // promettait un t-shirt — à des gens qui n'y avaient pas droit.
+    require_once __DIR__ . '/../core/qrcode.php';
+    return fer_qrEligibilite($pdo, $data ?? [], $inscriptionNo)['ok'];
 }
 
 /**

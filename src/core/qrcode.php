@@ -26,6 +26,81 @@ const FER_QR_SIZE   = 200;
 const FER_QR_MARGIN = 8;
 
 /**
+ * Cette inscription a-t-elle DROIT à un QR code (donc à un t-shirt) ?
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * POURQUOI CETTE FONCTION VIT ICI, ET PAS DANS LE CODE DES MAILS
+ *
+ * Les t-shirts sont en nombre limité. La règle qui décide qui y a droit était
+ * enfermée dans src/mail/googleMail.php, et n'était donc consultée qu'à l'envoi
+ * du mail. L'espace coureur, lui, affichait un QR code à TOUT LE MONDE, sous un
+ * texte « Présentez-le au retrait des t-shirts » — y compris à des personnes qui
+ * n'en avaient jamais reçu et n'y avaient pas droit.
+ *
+ * Le jour J, ces personnes se présentent au comptoir avec un QR code à l'écran.
+ * Il n'y a pas de bonne façon de leur expliquer là, dans la file.
+ *
+ * La règle est donc ici, dans le module qui centralise déjà tout ce qui touche
+ * au QR — et googleMail.php s'y adresse comme tout le monde.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LA RÈGLE, telle qu'elle était déjà appliquée aux mails :
+ *   • mode « none »    → personne n'a de QR code ;
+ *   • mode « all »     → tout le monde en a un ;
+ *   • mode « first_x » → les X premières inscriptions PAYANTES, classées sur la
+ *     date d'inscription réelle (et non la date de saisie dans le logiciel, pour
+ *     qu'un inscrit antidaté garde son rang). Les inscriptions gratuites
+ *     (enfants) ne comptent pas et n'y ont pas droit.
+ *
+ * @param  array $settings la ligne `setting` (qrcode_mail_mode, qrcode_mail_limit)
+ * @return array{ok: bool, raison: string, limite: int}
+ *         raison ∈ mode_all | mode_none | hors_limite | non_payant | introuvable | erreur
+ */
+function fer_qrEligibilite(PDO $pdo, array $settings, string|int $inscriptionNo): array
+{
+    $mode   = (string) ($settings['qrcode_mail_mode'] ?? 'none');
+    $limite = (int) ($settings['qrcode_mail_limit'] ?? 0);
+
+    if ($mode === 'none') return ['ok' => false, 'raison' => 'mode_none',  'limite' => $limite];
+    if ($mode === 'all')  return ['ok' => true,  'raison' => 'mode_all',   'limite' => $limite];
+    if ($limite <= 0)     return ['ok' => false, 'raison' => 'mode_none',  'limite' => 0];
+
+    try {
+        // COALESCE : repli sur created_at pour toute ligne sans date_inscription.
+        $st = $pdo->prepare('SELECT COALESCE(date_inscription, created_at) AS dref, montant_du
+                               FROM registrations WHERE inscription_no = ? LIMIT 1');
+        $st->execute([$inscriptionNo]);
+        $self = $st->fetch(PDO::FETCH_ASSOC);
+
+        // Absente de la table vivante : édition archivée, ou inscription retirée.
+        if (!$self || empty($self['dref'])) {
+            return ['ok' => false, 'raison' => 'introuvable', 'limite' => $limite];
+        }
+        if ((float) ($self['montant_du'] ?? 0) <= 0) {
+            return ['ok' => false, 'raison' => 'non_payant', 'limite' => $limite];
+        }
+
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) FROM registrations
+              WHERE montant_du > 0
+                AND (COALESCE(date_inscription, created_at) < :dref
+                     OR (COALESCE(date_inscription, created_at) = :dref2 AND inscription_no <= :no))'
+        );
+        $st->execute(['dref' => $self['dref'], 'dref2' => $self['dref'], 'no' => $inscriptionNo]);
+        $rang = (int) $st->fetchColumn();
+
+        return $rang <= $limite
+            ? ['ok' => true,  'raison' => 'mode_all',    'limite' => $limite]
+            : ['ok' => false, 'raison' => 'hors_limite', 'limite' => $limite];
+    } catch (\Throwable $e) {
+        error_log('[QR] éligibilité : ' . $e->getMessage());
+        // En cas de doute, on n'affiche PAS de QR : mieux vaut ne rien promettre
+        // que promettre à tort.
+        return ['ok' => false, 'raison' => 'erreur', 'limite' => $limite];
+    }
+}
+
+/**
  * Octets PNG bruts du QR code, ou null en cas d'échec.
  * Destinés au mail (pièce jointe inline référencée par cid:) comme à l'écran.
  *

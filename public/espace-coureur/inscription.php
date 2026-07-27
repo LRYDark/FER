@@ -242,16 +242,53 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       <?php endif; ?>
     </section>
 
-    <?php /* Le QR vient de src/core/qrcode.php — la MÊME fonction que pour le
-             mail. Mêmes données encodées, mêmes paramètres : ce que le bénévole
-             scanne ici est identique à ce qui a été envoyé. */ ?>
+    <?php
+      /* ⚠️ LE QR CODE N'EST PAS AFFICHÉ À TOUT LE MONDE.
+       *
+       * Les t-shirts sont en nombre limité. La règle qui décide qui y a droit
+       * est celle qui régit déjà l'envoi des mails — fer_qrEligibilite(), dans
+       * src/core/qrcode.php. L'afficher ici sans la consulter revenait à
+       * promettre un t-shirt à des gens qui n'en avaient jamais reçu le QR et
+       * n'y avaient pas droit ; le jour J, ils se présentaient au comptoir avec
+       * un code à l'écran, et il n'y a pas de bonne façon de leur expliquer là,
+       * dans la file.
+       *
+       * Le QR lui-même vient de la MÊME fonction que le mail : ce que le
+       * bénévole scanne ici est identique à ce qui a été envoyé. */
+      $qrElig = fer_qrEligibilite($pdo, $data ?? [], $r['inscription_no']);
+      $qr     = $qrElig['ok'] ? fer_qrCodeDataUri($r['inscription_no']) : '';
+    ?>
     <section class="card">
       <header>
         <div class="iconwell"><i class="bi bi-qr-code"></i></div>
-        <h2>Votre QR code</h2>
+        <h2><?= $qrElig['ok'] ? 'Votre QR code' : 'Retrait des t-shirts' ?></h2>
       </header>
-      <?php $qr = fer_qrCodeDataUri($r['inscription_no']); ?>
-      <?php if ($qr !== ''): ?>
+
+      <?php if (!$qrElig['ok']): ?>
+        <?php /* On dit POURQUOI, précisément. « Pas de QR code » sans explication
+                 laisse croire à un bug, et la personne écrit à l'organisation. */ ?>
+        <div class="ec-qr">
+          <p style="font-size:var(--fs-small);color:var(--ink-dim);text-align:center;margin:0">
+            <?php if ($qrElig['raison'] === 'hors_limite'): ?>
+              Les t-shirts sont réservés aux
+              <strong><?= (int) $qrElig['limite'] ?> premières inscriptions payantes</strong>.
+              La vôtre est arrivée après&nbsp;: il n'y a donc pas de QR code.
+            <?php elseif ($qrElig['raison'] === 'non_payant'): ?>
+              Le t-shirt accompagne les inscriptions payantes. La vôtre étant
+              gratuite, il n'y a pas de QR code.
+            <?php elseif ($qrElig['raison'] === 'introuvable'): ?>
+              Cette édition est terminée&nbsp;: le QR code n'a plus d'usage.
+            <?php else: ?>
+              Les QR codes ne sont pas utilisés pour cette édition.
+            <?php endif; ?>
+          </p>
+          <p style="font-size:var(--fs-micro);color:var(--ink-faint);text-align:center;margin:0">
+            <strong>Votre inscription reste valable</strong> — vous êtes attendu au
+            départ. Votre numéro&nbsp;: <span class="ec-mono"><?= $h($no) ?></span>
+          </p>
+        </div>
+
+      <?php elseif ($qr !== ''): ?>
         <div class="ec-qr">
           <img src="<?= $qr ?>" alt="QR code de l'inscription <?= $h($no) ?>">
           <p style="font-size:var(--fs-micro);color:var(--ink-faint);text-align:center;margin:0">
