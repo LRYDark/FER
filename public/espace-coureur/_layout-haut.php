@@ -12,11 +12,16 @@
  *
  * Le préfixe underscore signale un fragment : ce n'est pas une page à ouvrir.
  */
+require_once dirname(__DIR__, 2) . '/src/content/chrono.php';   // chrono_actif()
+
 $ecLogo     = dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png';
 $ecConnecte = function_exists('pauth_isLogged') && pauth_isLogged();
 $ecPage     = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $ecTitre    = $ecTitre ?? 'Espace coureur';
 $ecSurtitre = $ecSurtitre ?? '';
+
+/* Chronométrage fermé : l'espace coureur ne sert qu'aux inscriptions. */
+$ecChronoOuvert = $ecChronoOuvert ?? chrono_actif($pdo);
 
 /** Entrées du menu : fichier => [libellé, icône Bootstrap]. */
 $ecMenu = [
@@ -25,6 +30,13 @@ $ecMenu = [
     'appareils.php'     => ['Mes appareils',    'bi-phone'],
     'compte.php'        => ['Mon compte',       'bi-person-gear'],
 ];
+
+/* « Mes résultats » disparaît du menu quand le chronométrage est fermé.
+   « Mes appareils » RESTE : révoquer un téléphone perdu n'a rien à voir avec
+   la course, et c'est justement hors période qu'on y pense. */
+if (!$ecChronoOuvert) {
+    unset($ecMenu['mes-resultats.php']);
+}
 ?>
 <div class="jr-shell">
 
@@ -78,6 +90,18 @@ $ecMenu = [
           <h1><?= htmlspecialchars($ecTitre) ?></h1>
         </div>
       </div>
+
+      <?php /* Actions de la page, EN FACE du titre : .jr-topbar est déjà en
+               `justify-content: space-between` (css/admin.css), un second enfant
+               se range donc à droite tout seul, et repasse sous le titre quand
+               l'écran devient étroit (flex-wrap). Aucun style à inventer.
+
+               ⚠️ HTML BRUT, VOLONTAIREMENT NON ÉCHAPPÉ. Cette variable est écrite
+               par la page elle-même — jamais par une saisie. Toute donnée qu'on y
+               place doit être passée par htmlspecialchars() AVANT d'y arriver. */ ?>
+      <?php if (($ecTopbarActions ?? '') !== ''): ?>
+        <div class="row-actions" style="margin:0"><?= $ecTopbarActions ?></div>
+      <?php endif; ?>
     </div>
 
     <div class="ec-stack">

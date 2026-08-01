@@ -358,7 +358,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         <p style="font-size:var(--fs-small);color:var(--ink-dim);margin:0">
           Si cette inscription concerne quelqu'un d'autre — un membre de votre famille
           inscrit sous votre adresse — basculez-la sur sa propre adresse email, pour
-          qu'il ait son espace et son chronométrage.
+          qu'il ait son espace<?= !empty($ecChronoOuvert) ? ' et son chronométrage' : '' ?>.
         </p>
 
         <?php /* La conséquence est annoncée AVANT la demande, pas après : c'est le

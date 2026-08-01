@@ -23,6 +23,7 @@ if (!isset($_SESSION['uid']) || currentRole() !== 'admin') {
 }
 $role = currentRole();
 require __DIR__ . '/../src/partials/navbar-data.php';
+require_once __DIR__ . '/../src/content/chrono.php';   // chrono_actif()
 
 /* ── URL absolue de l'API mobile ──────────────────────────────────────────
  * getAppBaseUrl() ne rend que le schéma et le domaine : si le site vit dans un
@@ -395,8 +396,9 @@ $A = $h($apiUrl);
         <tr><td><span class="endpoint-badge m-get">GET</span></td><td><code>/app/config</code></td>
             <td><strong>Sans aucune authentification.</strong> Version minimale exigée, liens des
                 magasins, URL de la politique de confidentialité, textes modifiables sans
-                republier l'application. Une application trop ancienne doit pouvoir l'interroger —
-                elle n'a justement pas de jeton valide.</td></tr>
+                republier l'application, et <code>chrono_actif</code> — l'état du chronométrage.
+                Une application trop ancienne doit pouvoir l'interroger — elle n'a justement pas
+                de jeton valide.</td></tr>
         <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/auth/request-code</code></td><td>Sans jeton. Envoie le code à 6 chiffres.</td></tr>
         <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/auth/verify-code</code></td><td>Sans jeton. Valide le code, émet les deux jetons.</td></tr>
         <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/auth/refresh</code></td><td>Avec le <code>device_token</code> dans le corps.</td></tr>
@@ -416,11 +418,11 @@ $A = $h($apiUrl);
         <tr><td><span class="endpoint-badge m-get">GET</span></td><td><code>/me/transfers</code></td><td>Demandes de transfert émises.</td></tr>
         <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/transfers</code></td><td>Nouvelle demande de transfert.</td></tr>
         <tr><td><span class="endpoint-badge m-delete">DELETE</span></td><td><code>/me/transfers/{id}</code></td><td>Annule une demande en attente.</td></tr>
-        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/detections</code></td><td>Détections balise et GPS. Voir la section 9.</td></tr>
-        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/traces</code></td><td>Lot de points GPS. Exige le consentement.</td></tr>
-        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/traces/consent</code></td><td>Donner ou retirer l’accord au suivi GPS.</td></tr>
+        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/detections</code></td><td>Détections balise et GPS. Voir la section 9. <strong>Fermé si <code>chrono_actif</code> vaut <code>false</code>.</strong></td></tr>
+        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/traces</code></td><td>Lot de points GPS. Exige le consentement. <strong>Fermé si <code>chrono_actif</code> vaut <code>false</code>.</strong></td></tr>
+        <tr><td><span class="endpoint-badge m-post">POST</span></td><td><code>/me/traces/consent</code></td><td>Donner ou retirer l’accord au suivi GPS. <strong>Fermé si <code>chrono_actif</code> vaut <code>false</code>.</strong></td></tr>
         <tr><td><span class="endpoint-badge m-get">GET</span></td><td><code>/me/results</code></td>
-            <td>Résultats calculés : temps, méthode, précision, statut.</td></tr>
+            <td>Résultats calculés : temps, méthode, précision, statut. <strong>Fermé si <code>chrono_actif</code> vaut <code>false</code>.</strong></td></tr>
       </tbody>
     </table>
 
@@ -504,6 +506,7 @@ $A = $h($apiUrl);
         <tr><td>403</td><td><code>account_disabled</code></td><td>Compte désactivé par l'administration.</td><td>Inviter à contacter l'organisation.</td></tr>
         <tr><td>403</td><td><code>forbidden</code></td><td>Ressource valide, mais qui n'appartient pas à ce compte.</td><td>Ne devrait pas arriver — bug de navigation.</td></tr>
         <tr><td>403</td><td><code>no_registration</code></td><td>Aucune inscription pour cette adresse.</td><td>Expliquer qu'il faut d'abord s'inscrire à la course.</td></tr>
+        <tr><td>403</td><td><code>chrono_disabled</code></td><td>Le chronométrage n'est pas ouvert : <code>/me/detections</code>, <code>/me/traces</code> et <code>/me/results</code> sont fermés.</td><td><strong>Masquer les écrans de course</strong> — l'état est donné à l'avance par <code>chrono_actif</code> dans <code>/app/config</code>. Ne pas réessayer.</td></tr>
         <tr><td>404</td><td><code>not_found</code><br><code>unknown_endpoint</code></td><td>Ressource ou chemin inconnu.</td><td>—</td></tr>
         <tr><td>405</td><td><code>method_not_allowed</code></td><td>Mauvaise méthode HTTP sur un chemin valide.</td><td>Bug côté application.</td></tr>
         <tr><td>422</td><td><code>invalid_email</code>, <code>missing_fields</code>,<br><code>invalid_key</code>, <code>invalid_input</code></td><td>Données de la requête incorrectes.</td><td>Afficher le message à l'utilisateur.</td></tr>
@@ -523,6 +526,26 @@ $A = $h($apiUrl);
   <!-- ═══ 9. Données de course ═══ -->
   <div class="api-card" id="course">
     <h2 class="mt-0">9. Envoyer les données de course</h2>
+
+    <?php /* Placé EN TÊTE de la section : c'est la condition d'existence de tout
+             ce qui suit. Le découvrir après avoir codé l'écran de course serait
+             le découvrir trop tard. */ ?>
+    <div class="alert <?= chrono_actif($pdo) ? 'alert-success' : 'alert-secondary' ?>">
+      <i class="bi bi-toggles me-2"></i>
+      <strong>Toute cette section dépend d'un interrupteur :
+        <?= chrono_actif($pdo)
+              ? 'le chronométrage est actuellement <span class="badge bg-success">ouvert</span>.'
+              : 'le chronométrage est actuellement <span class="badge bg-secondary">fermé</span>.' ?>
+      </strong>
+      Fermé, <code>/me/detections</code>, <code>/me/traces</code>, <code>/me/traces/consent</code>
+      et <code>/me/results</code> répondent <code>403 chrono_disabled</code>, et l'espace coureur
+      du site masque les mêmes écrans. L'application doit lire <code>chrono_actif</code> dans
+      <code>/app/config</code> et masquer ses écrans de course en conséquence — plutôt que de
+      découvrir le refus sur la ligne d'arrivée. Réglage&nbsp;: administration →
+      <a href="resultats.php">Résultats</a>.
+      <br><strong>Fermer ne supprime rien</strong> : les temps et les traces déjà enregistrés
+      restent en base et redeviennent lisibles dès la réouverture.
+    </div>
 
     <div class="alert alert-info"><i class="bi bi-broadcast-pin me-2"></i>
       <strong>Deux sources, toujours les deux.</strong> Chaque passage est détecté par la

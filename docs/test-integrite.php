@@ -197,6 +197,26 @@ foreach (array_merge(glob($R . 'inc/*.php') ?: [],
 verifie('data-confirm n\'est employé que là où le script est chargé',
     empty($sansScript), implode(', ', $sansScript));
 
+/* UN SEUL gestionnaire, jamais deux.
+ * admin-footer.php posait ses propres écouteurs data-confirm ALORS QU'IL INCLUT
+ * confirm-script.php : la question était posée deux fois, et il fallait valider
+ * deux fois pour un seul clic. Le contrôle porte sur tous les pieds de page et
+ * partials — un second gestionnaire ajouté ailleurs referait le même effet. */
+$doublons = [];
+foreach (array_merge(glob($R . 'src\partials\*.php') ?: [],
+                     glob($R . 'js\*.js') ?: []) as $f) {
+    if (basename($f) === 'confirm-script.php') continue;    // l'implémentation officielle
+    if (basename($f) === 'ui.js') continue;                 // non chargé par les pages (cf. update.php)
+    $src = (string) file_get_contents($f);
+    // Un écouteur qui LIT data-confirm pour poser une question, et non un
+    // simple balisage qui en porte l'attribut.
+    if (preg_match('/addEventListener\s*\(\s*["\'](?:submit|click)["\'][\s\S]{0,240}?data-?[Cc]onfirm/', $src)) {
+        $doublons[] = basename($f);
+    }
+}
+verifie('un seul gestionnaire de confirmation dans tout le site',
+    empty($doublons), implode(', ', $doublons));
+
 /* ── 3 quater. Les retours passent par les toasts, pas par des alertes ───────
  * Le site annonce ses succès et ses erreurs par addToast(), rendu en bas de
  * page. Quatre écrans affichaient à la place un bloc .alert en tête de page :
@@ -258,7 +278,7 @@ $upd  = $lire('update.php');
 $colonnes = ['api_v1_enabled', 'app_version_minimale', 'app_access_token_ttl_min',
              'traces_gps_conservation_jours', 'auth_codes_conservation_jours',
              'devices_revoques_jours', 'transferts_clos_jours',
-             'traces_consent_at', 'idx_unicite'];
+             'traces_consent_at', 'idx_unicite', 'chrono_enabled'];
 $oubliees = [];
 foreach ($colonnes as $c) {
     if (!str_contains($inst, $c)) $oubliees[] = "install:$c";
@@ -321,6 +341,46 @@ foreach (glob($R . 'docs/test-*.php') ?: [] as $f) {
     if (!str_contains($readme, $b)) $nonDoc[] = $b;
 }
 verifie('chaque banc figure dans docs/README.md', empty($nonDoc), implode(', ', $nonDoc));
+
+/* ── 13. L'interrupteur du chronométrage est honoré partout ──────────────────
+ * Le risque n'est pas qu'il ne marche pas : c'est qu'il ne marche qu'à MOITIÉ.
+ * Un menu qui masque « Mes résultats » pendant que l'API continue d'accepter des
+ * positions GPS donnerait une fausse impression de fermeture — et la collecte
+ * de données de géolocalisation est précisément ce qu'on ne veut pas laisser
+ * ouvert par inadvertance. Les quatre lecteurs sont donc vérifiés ensemble.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 13. Interrupteur du chronométrage ===\n";
+verifie('chrono_actif() existe et refuse par défaut',
+    str_contains($lire('src/content/chrono.php'), 'function chrono_actif('));
+
+$lecteurs = [
+    'menu de l\'espace coureur' => 'public/espace-coureur/_layout-haut.php',
+    'page Mes résultats'        => 'public/espace-coureur/mes-resultats.php',
+    'API mobile'                => 'api/v1/index.php',
+];
+$sourds = [];
+foreach ($lecteurs as $quoi => $f) {
+    if (!str_contains($lire($f), 'chrono_actif(')) $sourds[] = $quoi;
+}
+verifie('le menu, la page et l\'API lisent tous l\'interrupteur',
+    empty($sourds), implode(', ', $sourds));
+
+// L'API doit refuser les TROIS sous-routes, pas seulement l'envoi de détections :
+// laisser /me/traces ouvert continuerait d'enregistrer des positions.
+$api = $lire('api/v1/index.php');
+verifie('l\'API ferme detections, traces ET results',
+    str_contains($api, 'chrono_disabled')
+    && preg_match("/in_array\(\\\$sousRoute,\s*\['detections',\s*'traces',\s*'results'\]/", $api) === 1);
+
+// Et l'application doit pouvoir l'apprendre AVANT d'essayer.
+verifie('/app/config annonce l\'état à l\'application',
+    str_contains($api, "'chrono_actif'"));
+
+// L'écran qui porte l'interrupteur ne doit jamais se masquer lui-même : sinon
+// on ferme le chronométrage et plus personne ne peut le rouvrir.
+$adm = $lire('inc/resultats.php');
+verifie('l\'écran d\'administration reste accessible dans les deux états',
+    str_contains($adm, 'basculer_chrono') && !preg_match('/chrono_actif\([^)]*\)\s*\)?\s*\{?\s*(exit|die|header)/', $adm));
 
 echo "\n" . str_repeat('─', 62) . "\n";
 echo ($ko === 0 ? "INTÉGRITÉ : TOUT EST VERT" : "INTÉGRITÉ : $ko ÉCHEC(S)")

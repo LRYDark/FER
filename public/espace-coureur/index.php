@@ -120,7 +120,8 @@ function ec_pillPaiement(array $r): string
           <p style="font-size:var(--fs-micro);color:var(--ink-faint);margin:0">
             <i class="bi bi-info-circle"></i>
             Ces personnes partagent votre adresse email. Pour que l'une d'elles ait son
-            propre chronométrage, transférez son inscription depuis sa fiche.
+            <?= !empty($ecChronoOuvert) ? 'propre chronométrage' : 'propre espace' ?>,
+            transférez son inscription depuis sa fiche.
           </p>
         <?php endif; ?>
       </section>

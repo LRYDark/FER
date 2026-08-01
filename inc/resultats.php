@@ -36,13 +36,37 @@ $erreur = '';
 $succes = '';
 $annee  = (int) ($_GET['annee'] ?? regres_activeYear($pdo));
 
+/* Ouvrir ou fermer le chronométrage engage tout le site — l'espace coureur et
+   l'API mobile en dépendent. C'est donc réservé à l'administrateur, alors que
+   corriger un temps reste ouvert à qui tient le chronométrage le jour J. */
+$peutBasculer = $role === 'admin';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $erreur = 'Session expirée. Rechargez la page et réessayez.';
     } else {
         $no = trim((string) ($_POST['inscription_no'] ?? ''));
 
-        if (isset($_POST['recalculer']) && $no !== '') {
+        if (isset($_POST['basculer_chrono'])) {
+            if (!$peutBasculer) {
+                $erreur = "Seul un administrateur peut ouvrir ou fermer le chronométrage.";
+            } else {
+                $actif = !empty($_POST['chrono_enabled']) ? 1 : 0;
+                try {
+                    $pdo->prepare('UPDATE setting SET chrono_enabled = ? WHERE id = 1')->execute([$actif]);
+                    $succes = $actif
+                        ? 'Chronométrage ouvert : « Mes résultats » et le suivi GPS apparaissent dans l\'espace coureur.'
+                        : 'Chronométrage fermé. Rien n\'est supprimé : les temps et les traces sont conservés.';
+                    logContentAction($pdo, 'resultats', 'update', null,
+                        'Chronométrage ' . ($actif ? 'activé' : 'désactivé'), 'chrono');
+                } catch (\Throwable $e) {
+                    // Colonne absente : la migration n'a pas été jouée. Le dire
+                    // franchement plutôt que d'afficher un succès mensonger.
+                    $erreur = 'Réglage indisponible : lancez update.php pour ajouter la colonne « chrono_enabled ».';
+                }
+            }
+        }
+        elseif (isset($_POST['recalculer']) && $no !== '') {
             // forcer = true : on passe outre la garde « résultat validé », parce
             // qu'ici c'est un humain qui le demande explicitement.
             $r = chrono_recompute($pdo, $annee, $no, true);
@@ -123,6 +147,10 @@ if ($detail !== '') {
 
 $nbInvalides = count(array_filter($lignes, fn($l) => $l['statut'] === 'invalide'));
 
+/* Lu APRÈS l'éventuelle bascule ci-dessus : sinon la page afficherait encore
+   l'ancien état juste après le clic. */
+$chronoOuvert = chrono_actif($pdo);
+
 $pageTitle    = 'Résultats';
 $pageSubtitle = 'Résultats';
 $h    = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
@@ -152,6 +180,65 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
   if ($erreur !== '') addToast('danger', $erreur);
   if ($succes !== '') addToast('success', $succes);
 ?>
+
+<?php /* ═══════════ Interrupteur du chronométrage ═══════════════════════════
+         Placé ICI et nulle part ailleurs : c'est la page de celui qui tient le
+         chronométrage. Le mettre dans Réglages obligerait à changer d'écran
+         pour ouvrir la fonction qu'on vient consulter — même choix que
+         l'interrupteur du chatbot, qui vit sur la page du chatbot. */ ?>
+<div class="card-dashboard mb-3">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+      <h2 class="h5 fw-bold mb-1">
+        <i class="bi bi-toggles me-2"></i>Chronométrage
+        <?= $chronoOuvert
+              ? '<span class="badge bg-success align-middle">Activé</span>'
+              : '<span class="badge bg-secondary align-middle">Désactivé</span>' ?>
+      </h2>
+      <p class="text-muted small mb-0">
+        <?php if ($chronoOuvert): ?>
+          Les coureurs voient <strong>« Mes résultats »</strong>, leur temps et la demande
+          d'autorisation du suivi GPS. L'application mobile peut envoyer ses détections.
+        <?php else: ?>
+          L'espace coureur ne sert qu'aux <strong>inscriptions</strong> : « Mes résultats »,
+          le chrono et le suivi GPS sont masqués, et l'application mobile ne peut plus envoyer
+          de détections. C'est le réglage à garder hors période de course.
+        <?php endif; ?>
+      </p>
+    </div>
+
+    <?php if ($peutBasculer): ?>
+      <form method="post" class="d-flex align-items-center gap-2">
+        <?= csrf_field() ?>
+        <?php /* Un seul bouton qui dit ce qu'il va faire, plutôt qu'un
+                 interrupteur à basculer puis enregistrer : ici on n'ouvre pas
+                 le chronométrage par distraction. */ ?>
+        <input type="hidden" name="chrono_enabled" value="<?= $chronoOuvert ? '0' : '1' ?>">
+        <button type="submit" name="basculer_chrono" value="1"
+                class="btn <?= $chronoOuvert ? 'btn-outline-danger' : 'btn-success' ?>"
+                data-confirm="<?= $chronoOuvert
+                    ? 'Fermer le chronométrage ? Les coureurs ne verront plus leurs résultats ni le suivi GPS. Rien n’est supprimé.'
+                    : 'Ouvrir le chronométrage ? Les coureurs verront « Mes résultats » et pourront autoriser le suivi GPS.' ?>">
+          <i class="bi <?= $chronoOuvert ? 'bi-pause-circle' : 'bi-play-circle' ?> me-1"></i>
+          <?= $chronoOuvert ? 'Désactiver' : 'Activer' ?>
+        </button>
+      </form>
+    <?php else: ?>
+      <span class="text-muted small">
+        <i class="bi bi-lock me-1"></i>Seul un administrateur peut le modifier.
+      </span>
+    <?php endif; ?>
+  </div>
+
+  <?php /* Le rappel qui évite la panique : « désactivé » ne veut pas dire
+           « effacé ». Sans lui, on n'ose pas toucher au bouton. */ ?>
+  <p class="text-muted small mb-0 mt-3">
+    <i class="bi bi-info-circle me-1"></i>
+    Désactiver <strong>ne supprime rien</strong> : les temps déjà calculés et les traces GPS
+    restent en base et réapparaissent à l'identique dès la réactivation. Cet écran, lui, reste
+    accessible dans les deux cas — c'est d'ici qu'on rouvre.
+  </p>
+</div>
 
 <div class="card-dashboard">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">

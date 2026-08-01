@@ -68,6 +68,26 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      composants de components.css. */
   .ec-stack { display: flex; flex-direction: column; gap: var(--sp-4); }
 
+  /* ⚠️ SANS CETTE LIGNE, LA FENÊTRE MODALE SERAIT VISIBLE EN PERMANENCE.
+     .modal-backdrop (components.css) est en `display: grid` ; une règle de
+     classe l'emporte sur le style par défaut de l'attribut [hidden], qui ne
+     masquerait donc plus rien. */
+  .modal-backdrop[hidden] { display: none; }
+  /* La fenêtre porte À LA FOIS .modal et .card : .modal donne la largeur,
+     l'ombre et l'animation, .card donne l'espacement vertical et l'en-tête
+     (.card > header) — exactement le même rythme que les cartes de la page.
+     Rien de nouveau n'est dessiné. */
+
+  /* Ancrée EN HAUT, pas au centre. Centrée, elle se déplaçait verticalement
+     selon son contenu — un message de confirmation en plus, un bouton de moins,
+     et elle n'était jamais au même endroit d'une ouverture à l'autre. Le
+     défilement passe sur le FOND : la fenêtre peut ainsi dépasser la vue sans
+     être rognée en haut, là où se trouvent son titre et sa croix de fermeture. */
+  .ec-modal-haut { align-items: start; padding-top: var(--sp-6); overflow-y: auto; }
+  /* Un peu plus large que les 540 px du composant : la fenêtre porte deux
+     paragraphes et deux boutons côte à côte, qui passaient à la ligne pour rien. */
+  .ec-modal-haut > .modal.card { width: min(720px, 100%); }
+
   /* Choix de la couleur d'accent — calqué sur .accent-option du profil admin. */
   .ec-accents { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
   .ec-accent {

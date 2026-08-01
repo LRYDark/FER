@@ -473,6 +473,12 @@ if (($route[0] ?? '') === 'app' && ($route[1] ?? '') === 'config' && $methode ==
         'version_minimale'   => $s['app_version_minimale'] ?? '1.0.0',
         'store_ios'          => $s['app_store_url_ios'] ?? null,
         'store_android'      => $s['app_store_url_android'] ?? null,
+        /* Le chronométrage est-il ouvert ? SERVI ICI, sur le point d'entrée
+         * joignable sans jeton, pour que l'application sache masquer ses écrans
+         * de course AVANT la connexion. Sans ce champ, elle ne l'apprendrait
+         * qu'en essuyant un 403 au premier envoi de détection — c'est-à-dire au
+         * pire moment, sur la ligne d'arrivée. */
+        'chrono_actif'       => chrono_actif($pdo),
         'url_confidentialite' => api_siteUrl('public/politique-confidentialite.php'),
         'url_faq'            => api_siteUrl('public/faq.php'),
         'code_ttl_minutes'   => (int) $settings['participant_code_ttl_min'],
@@ -710,6 +716,22 @@ if (($route[0] ?? '') === 'me') {
     /* POST /me/detections — balise ET franchissement GPS, les deux.
        C'est la redondance qui compte : si un boîtier lâche le jour J, le GPS
        donne quand même un temps. */
+    /* ── Barrière commune aux quatre points d'entrée du chronométrage ────────
+     * Chronométrage fermé : on refuse l'écriture ET la lecture. Renvoyer une
+     * liste vide de résultats serait pire qu'un refus — l'application afficherait
+     * « aucun temps » à quelqu'un qui en a un, ce qui se lit comme une perte de
+     * données. Un code d'erreur explicite lui permet de dire la bonne chose.
+     *
+     * 403 et non 503 : le serveur va parfaitement bien, c'est la fonction qui
+     * est fermée. Un 503 déclencherait les logiques de réessai de l'application,
+     * qui marteleraient le serveur pour rien.
+     * ──────────────────────────────────────────────────────────────────────── */
+    if (in_array($sousRoute, ['detections', 'traces', 'results'], true) && !chrono_actif($pdo)) {
+        api_err(403, 'chrono_disabled',
+            "Le chronométrage n'est pas ouvert pour le moment. Les temps et le suivi du "
+            . "parcours ne sont proposés qu'autour de la course.");
+    }
+
     if ($sousRoute === 'detections' && $methode === 'POST') {
         $annee = (int) ($corps['annee'] ?? 0);
         $no    = trim((string) ($corps['inscription_no'] ?? ''));

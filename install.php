@@ -627,6 +627,21 @@ function getCreateTableStatements(): array
            * ATTENTE ne sont jamais purgés, quel que soit ce délai. */
           `devices_revoques_jours` SMALLINT NOT NULL DEFAULT 90,
           `transferts_clos_jours` SMALLINT NOT NULL DEFAULT 365,
+          /* Chronométrage — interrupteur unique, lu par chrono_actif().
+           *
+           * ⚠️ EN DERNIÈRE POSITION, ET CE N'EST PAS UN DÉTAIL. update.php ne
+           * peut qu'AJOUTER une colonne, donc à la fin. Placée ailleurs ici, la
+           * base d'un nouveau serveur et celle d'un site migré n'auraient pas le
+           * même schéma — c'est exactement ce que docs/audit-bdd.php compare, et
+           * ce qu'il a refusé la première fois. Toute nouvelle colonne se met à
+           * la suite, des deux côtés.
+           *
+           * DÉFAUT 0 : hors période de course, l'espace coureur ne sert qu'aux
+           * inscriptions. Un onglet « Mes résultats » vide et une demande
+           * d'autorisation GPS onze mois sur douze ne servent personne.
+           * Désactiver ne supprime RIEN : les temps et les traces restent en
+           * base et réapparaissent à la réactivation. */
+          `chrono_enabled` TINYINT(1) NOT NULL DEFAULT 0,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
