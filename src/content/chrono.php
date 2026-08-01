@@ -42,6 +42,49 @@
 require_once __DIR__ . '/../core/config.php';
 require_once __DIR__ . '/../core/registrations_resolver.php';
 
+/**
+ * Le chronométrage est-il ouvert sur ce site ?
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * UN SEUL INTERRUPTEUR, LU PARTOUT — C'EST TOUT L'INTÉRÊT.
+ *
+ * Le chronométrage n'est utile qu'autour du jour de la course. Le reste de
+ * l'année, l'espace coureur sert aux inscriptions : afficher « Mes résultats »,
+ * une demande d'autorisation GPS et un chrono vide onze mois sur douze donne
+ * l'impression d'un site à moitié fini, et fait poser des questions auxquelles
+ * personne n'a envie de répondre.
+ *
+ * Cette fonction est la SEULE source de vérité. Le menu de l'espace coureur, la
+ * page des résultats et l'API mobile la lisent tous : il ne peut pas y avoir de
+ * site où le menu propose une page que l'API refuse de servir.
+ *
+ * ⚠️ FERMÉ EN CAS DE DOUTE. Colonne absente (migration non jouée), base
+ * inaccessible : on répond « désactivé ». L'inverse ouvrirait la collecte de
+ * positions GPS sur un site que personne n'a configuré pour ça.
+ *
+ * ⚠️ CE QUI EST DÉJÀ ENREGISTRÉ N'EST PAS TOUCHÉ. Désactiver ferme les écrans
+ * et refuse les nouveaux envois ; les temps et les traces restent en base et
+ * réapparaissent à l'identique dès la réactivation. Pour effacer, il y a les
+ * purges (src/content/purges.php) et le bouton du coureur — pas cet
+ * interrupteur, qui serait alors une trappe à perte de données.
+ *
+ * Le cache statique évite une requête par appel : le menu, la page et le pied
+ * de page interrogeraient sinon `setting` trois fois pour la même réponse.
+ */
+function chrono_actif(PDO $pdo): bool
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    try {
+        $v = $pdo->query('SELECT chrono_enabled FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
+        $cache = ($v !== false && $v !== null) && (int) $v === 1;
+    } catch (\Throwable $e) {
+        $cache = false;
+    }
+    return $cache;
+}
+
 /** Types de détection, du plus fiable au moins fiable. L'ORDRE EST LA RÈGLE. */
 const CHRONO_PRIORITE = ['manuel', 'beacon', 'geofence', 'gps_ligne'];
 

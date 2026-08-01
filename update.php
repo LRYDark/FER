@@ -2351,6 +2351,19 @@ $lot1Settings = [
     // effacer une demande en cours la ferait disparaître sous le nez des deux
     // personnes concernées.
     'transferts_clos_jours'                => "SMALLINT NOT NULL DEFAULT 365",
+    // Chronométrage — interrupteur unique, lu par chrono_actif().
+    //
+    // DÉFAUT 0, MÊME SUR UN SITE OÙ LE CHRONOMÉTRAGE TOURNAIT DÉJÀ. Avant cette
+    // colonne, il n'y avait rien à activer : les écrans étaient toujours là,
+    // vides le reste de l'année. Une migration ne peut pas deviner qu'on est en
+    // période de course, et ouvrir la collecte de positions GPS « au cas où »
+    // serait exactement l'inverse de ce que ce projet s'impose. On l'active
+    // depuis l'écran Résultats, en un clic, quand on en a besoin.
+    //
+    // ⚠️ Désactivé ne veut PAS dire effacé : les temps (`resultats`) et les
+    // traces (`traces_gps`) restent en base et réapparaissent à l'identique dès
+    // la réactivation. Seules les purges effacent.
+    'chrono_enabled'                       => "TINYINT(1) NOT NULL DEFAULT 0",
 ];
 
 foreach ($lot1Settings as $col => $ddl) {

@@ -102,15 +102,19 @@ document.addEventListener('DOMContentLoaded', function() {
       if (dropdown) dropdown.classList.remove('show');
     });
   }
-  // ── Confirmation dialogs CSP-compatible (data-confirm) ──
-  document.addEventListener('submit', function(e) {
-    var form = e.target.closest('form[data-confirm]');
-    if (form && !confirm(form.dataset.confirm)) e.preventDefault();
-  });
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('button[data-confirm]');
-    if (btn && !confirm(btn.dataset.confirm)) e.preventDefault();
-  });
+  /* ⚠️ LES CONFIRMATIONS (data-confirm) NE SONT PLUS TRAITÉES ICI.
+   *
+   * Ce fichier posait ses propres écouteurs `submit` et `click` sur
+   * data-confirm, ALORS QU'IL INCLUT DÉJÀ confirm-script.php plus bas, qui fait
+   * exactement le même travail. Les deux se déclenchaient : la question était
+   * posée DEUX FOIS, et il fallait valider deux fois pour un seul clic.
+   *
+   * La copie retirée est celle-ci, et pas l'autre : confirm-script.php écoute en
+   * phase de CAPTURE (il passe donc avant tout gestionnaire tiers qui
+   * soumettrait le formulaire lui-même) et couvre aussi les liens, les champs
+   * data-autosubmit et les <input>. Il est le seul et unique endroit où une
+   * confirmation se décide, pour tout le site.
+   */
 
   // ── Open profile modal from toast or any data-action="open-profile" ──
   document.addEventListener('click', function(e) {
