@@ -170,7 +170,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
 
   <div class="page-header">
     <h1 class="mb-2 fw-bold"><i class="bi bi-stopwatch me-2"></i>Résultats</h1>
-    <p class="text-muted mb-0">Chronométrage : consulter, corriger et valider les temps. Chaque résultat peut être ouvert pour voir TOUTES les détections reçues — balise et GPS — et laquelle a servi au calcul. C'est cette page qu'on montre si quelqu'un conteste son temps.</p>
+    <p class="text-muted mb-0">Consulter, corriger et valider les temps. Ouvrez un résultat pour voir toutes ses détections.</p>
   </div>
 
 <?php
@@ -186,7 +186,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
          chronométrage. Le mettre dans Réglages obligerait à changer d'écran
          pour ouvrir la fonction qu'on vient consulter — même choix que
          l'interrupteur du chatbot, qui vit sur la page du chatbot. */ ?>
-<div class="card-dashboard mb-3">
+<div class="card-dashboard mb-3" id="carteChrono">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
     <div>
       <h2 class="h5 fw-bold mb-1">
@@ -197,12 +197,9 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
       </h2>
       <p class="text-muted small mb-0">
         <?php if ($chronoOuvert): ?>
-          Les coureurs voient <strong>« Mes résultats »</strong>, leur temps et la demande
-          d'autorisation du suivi GPS. L'application mobile peut envoyer ses détections.
+          Les coureurs voient leurs temps et le suivi GPS ; l'application envoie ses détections.
         <?php else: ?>
-          L'espace coureur ne sert qu'aux <strong>inscriptions</strong> : « Mes résultats »,
-          le chrono et le suivi GPS sont masqués, et l'application mobile ne peut plus envoyer
-          de détections. C'est le réglage à garder hors période de course.
+          « Mes résultats » et le suivi GPS sont masqués. À garder ainsi hors période de course.
         <?php endif; ?>
       </p>
     </div>
@@ -230,13 +227,11 @@ $date = fn($d) => $d ? date('d/m/Y H:i:s', strtotime((string) $d . ' UTC')) : '�
     <?php endif; ?>
   </div>
 
-  <?php /* Le rappel qui évite la panique : « désactivé » ne veut pas dire
-           « effacé ». Sans lui, on n'ose pas toucher au bouton. */ ?>
+  <?php /* Conservé : « désactivé » ne veut pas dire « effacé ». Sans ce
+           rappel, on n'ose pas toucher au bouton. */ ?>
   <p class="text-muted small mb-0 mt-3">
     <i class="bi bi-info-circle me-1"></i>
-    Désactiver <strong>ne supprime rien</strong> : les temps déjà calculés et les traces GPS
-    restent en base et réapparaissent à l'identique dès la réactivation. Cet écran, lui, reste
-    accessible dans les deux cas — c'est d'ici qu'on rouvre.
+    Désactiver <strong>ne supprime rien</strong> — temps et traces sont conservés.
   </p>
 </div>
 

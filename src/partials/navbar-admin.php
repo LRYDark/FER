@@ -35,6 +35,7 @@ $pageTitles = [
     'api-doc-mobile.php' => "Documentation de l'API mobile",
     'rgpd.php'           => 'Données personnelles',
     'resultats.php'      => 'Résultats',
+    'applications.php'   => 'Applications',
     // ⚠️ Ces deux écrans (lot 4) manquaient à la liste : leur titre s'affichait
     // « Administration ». $pageTitle défini dans la page elle-même ne sert à
     // rien — c'est CE tableau qui l'écrase, quelques lignes plus bas.
@@ -238,6 +239,10 @@ $navSections = [
         // jour où quelqu'un conteste son temps — il montre TOUTES les détections
         // reçues, balise et GPS, et laquelle a servi au calcul.
         ['resultats.php',        'Résultats',        $ico['timeline'], ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
+        // Applications mobiles : notifications et réveil avant la course. Rangé
+        // ici, avec les écrans du coureur, plutôt que dans Réglages — c'est un
+        // écran qu'on ouvre le jour J, pas un réglage qu'on pose une fois.
+        ['applications.php',     'Applications',     $ico['chat'],     ['page' => 'setting']],
     ],
     'Contenu' => [
         ['news.php',     'Actualités',    $ico['news'],     ['page' => 'news']],
@@ -256,6 +261,10 @@ $navSections = [
     ],
     'Réglages' => [
         ['setting.php?tab=personnalisation', 'Personnalisation', $ico['palette'], ['page' => 'setting', 'action' => 'settings.tab.personnalisation']],
+        // ⚠️ Course manquait à cette liste : l'onglet n'était atteignable que
+        // par la barre d'onglets de Réglages, ou par le lien depuis
+        // Applications. Un onglet invisible dans le menu passe pour absent.
+        ['setting.php?tab=course',           'Course',           $ico['timeline'], ['page' => 'setting', 'action' => 'settings.tab.course']],
         ['setting.php?tab=inscription',      'Inscription',      $ico['form'],    ['page' => 'setting', 'action' => 'settings.tab.inscription']],
         ['setting.php?tab=import_auto',      'AssoConnect',      $ico['sync'],    ['page' => 'setting', 'action' => 'settings.tab.import_auto']],
         ['setting.php?tab=parcours',         'Parcours',         $ico['map'],     ['page' => 'setting', 'action' => 'settings.tab.parcours']],
@@ -322,6 +331,11 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
         <span class="name">Forbach en Rose</span>
       <?php endif; ?>
     </a>
+
+    <?php /* La recherche AVANT le menu : c'est le raccourci quand on sait ce
+             qu'on veut mais pas où c'est rangé. Elle a besoin de $jrCanSee,
+             défini plus haut dans ce fichier. */ ?>
+    <?php include __DIR__ . '/recherche-admin.php'; ?>
 
     <nav>
       <?php // ── « Tableau de bord » : seul, tout en haut, hors sections ── ?>

@@ -1,0 +1,101 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  À FUSIONNER dans android/app/src/main/AndroidManifest.xml APRÈS avoir    ║
+  ║  lancé `flutter create`. Ce fichier n'est PAS utilisé tel quel : il liste ║
+  ║  ce qu'il faut ajouter au manifeste généré, avec la raison de chaque      ║
+  ║  ligne. Copier le manifeste entier écraserait la configuration produite   ║
+  ║  par Flutter (activité principale, thème de démarrage, requêtes).         ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ════════════════════ Réseau ════════════════════════════════════════ -->
+    <!-- Indispensable : toute l'application parle à l'API. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sert à savoir quand le réseau revient, pour vider la file d'envoi. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ════════════════════ Position ══════════════════════════════════════ -->
+    <!--
+      FINE et COARSE : Android exige de déclarer les deux. Refuser la position
+      précise laisse la grossière, avec laquelle un franchissement de ligne
+      n'est pas détectable — l'application le dit alors clairement au lieu de
+      faire semblant de suivre.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!--
+      ⚠️ POSITION EN ARRIÈRE-PLAN : NON DEMANDÉE, ET C'EST UN CHOIX.
+      Elle exige une justification vidéo auprès de Google, et surtout elle
+      permettrait de suivre quelqu'un application fermée. Le suivi ne tourne que
+      pendant la course, écran allumé ou service au premier plan — voir
+      FOREGROUND_SERVICE_LOCATION ci-dessous.
+      NE PAS ajouter ACCESS_BACKGROUND_LOCATION.
+    -->
+
+    <!-- ════════════════════ Service de premier plan ═══════════════════════ -->
+    <!--
+      Sans lui, Android suspend l'application dès que l'écran s'éteint, et le
+      suivi s'arrête au milieu de la course sans prévenir. Le service affiche
+      une notification permanente : c'est le contrat — on suit la position, et
+      ça se voit.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- ════════════════════ Bluetooth (balises) ═══════════════════════════ -->
+    <!--
+      `neverForLocation` : on déclare explicitement ne PAS se servir du scan
+      Bluetooth pour déduire une position. C'est vrai — la position vient du
+      GPS — et cela évite d'avoir à demander la localisation pour scanner sur
+      Android 12+.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Anciennes versions (Android 11 et avant). -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+    <!-- ════════════════════ Rappel avant la course ════════════════════════ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      ⚠️ SANS SCHEDULE_EXACT_ALARM, LE RAPPEL PEUT ARRIVER APRÈS LE DÉPART.
+      Android regroupe les alarmes inexactes pour économiser la batterie, avec
+      des dérives de plusieurs dizaines de minutes. Pour « départ dans 2 h »,
+      c'est un rappel qui ne sert plus à rien.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Reposer les rappels après un redémarrage du téléphone. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- ════════════════════ Matériel : souhaité, pas exigé ════════════════ -->
+    <!--
+      `required="false"` sur les deux : une tablette sans Bluetooth ni GPS doit
+      pouvoir installer l'application pour consulter son inscription et son QR
+      code. `true` la ferait disparaître du magasin pour ces appareils.
+    -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <application>
+        <!-- À ajouter dans la balise <activity android:name=".MainActivity"> :
+             android:launchMode="singleTop"
+             pour que toucher la notification de rappel réveille l'instance
+             existante au lieu d'en ouvrir une seconde. -->
+
+        <!-- Reposer les rappels au redémarrage. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,15 @@
+﻿include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    # Une donnée reçue de l'API ne change jamais après construction.
+    prefer_final_fields: true
+    prefer_const_constructors: true
+    # Un `catch` muet masquerait une panne réseau en pleine course.
+    avoid_catches_without_on_clauses: false
+    avoid_print: true

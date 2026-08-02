@@ -1,0 +1,57 @@
+﻿# Cœur partagé des applications Forbach en Rose.
+#
+# Ce paquet ne se compile pas seul : il est consommé par les coques
+# ../android, ../android_watch et ../mac via une dépendance `path`.
+# Tout ce qui parle à l'API, tout ce qui s'affiche, vit ICI — une correction
+# faite une fois vaut pour les six cibles.
+name: fer_shared
+description: Client de l'API mobile Forbach en Rose et écrans communs.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Appels HTTP. Volontairement `http` et non `dio` : l'API tient en une
+  # douzaine de routes, une pile d'intercepteurs n'apporterait rien.
+  http: ^1.2.0
+
+  # Le jeton d'appareil est un secret de longue durée : Keychain sur iOS,
+  # EncryptedSharedPreferences sur Android. JAMAIS SharedPreferences nu.
+  flutter_secure_storage: ^9.2.2
+
+  # File d'attente des détections et des points GPS, et préférences non
+  # sensibles (adresse du serveur, dernière inscription suivie).
+  shared_preferences: ^2.2.3
+
+  # Position pendant la course.
+  geolocator: ^12.0.0
+
+  # Balise Bluetooth de la ligne d'arrivée.
+  flutter_blue_plus: ^1.32.0
+
+  # Modèle et libellé de l'appareil, envoyés à /auth/verify-code pour que le
+  # coureur reconnaisse ses appareils dans la liste.
+  device_info_plus: ^10.1.0
+
+  # Numéro de version envoyé dans X-App-Version — lu du binaire, jamais écrit
+  # en dur : une constante oubliée ferait mentir l'application au serveur.
+  package_info_plus: ^8.0.0
+
+  # Réseau présent ou non : c'est ce qui déclenche la vidange de la file.
+  connectivity_plus: ^6.0.3
+
+  # Partage de la carte de résultat vers les réseaux et la messagerie. L'image
+  # est fabriquée sur l'appareil ; ce paquet ne fait que la remettre au système.
+  share_plus: ^10.0.2
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

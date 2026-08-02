@@ -1,0 +1,247 @@
+import 'package:flutter/material.dart';
+
+import '../../models/course_app.dart';
+import '../portee.dart';
+import '../theme.dart';
+import 'compte.dart';
+import 'course.dart';
+import 'inscriptions.dart';
+import 'messages.dart';
+import 'resultats.dart';
+
+/// Coquille de l'application connectée.
+///
+/// ═════════════════════════════════════════════════════════════════════════════
+/// UNE SEULE MISE EN PAGE, DEUX FORMATS — ET LE MÊME CONTENU.
+///
+/// Sous 720 px (téléphone, montre en mode étendu) : barre de navigation en bas,
+/// à portée du pouce. Au-delà (tablette, iPad) : rail latéral, qui laisse toute
+/// la largeur au contenu.
+///
+/// ⚠️ AUCUNE FONCTION N'EST RETIRÉE SUR PETIT ÉCRAN. Une tablette et un
+/// téléphone donnent accès aux mêmes choses : c'est la disposition qui change,
+/// pas ce qu'on peut faire. Un écran « allégé » finit toujours par manquer de
+/// ce qu'on cherche précisément ce jour-là.
+library;
+
+class EcranAccueil extends StatefulWidget {
+  const EcranAccueil({super.key});
+
+  @override
+  State<EcranAccueil> createState() => _EcranAccueilState();
+}
+
+class _EcranAccueilState extends State<EcranAccueil>
+    with WidgetsBindingObserver {
+  int _onglet = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Retour au premier plan : on relit les messages de l'organisation et la
+    // configuration. C'est le mécanisme qui remplace le push — sans lui, une
+    // consigne écrite ce matin n'arriverait jamais.
+    if (state == AppLifecycleState.resumed) {
+      final session = PorteeSession.action(context);
+      session.rafraichirConfig();
+      session.rafraichirNotifications();
+      session.file.vidange();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = PorteeSession.de(context);
+    final large = MediaQuery.sizeOf(context).width >= 720;
+
+    // L'onglet Course disparaît quand le chronométrage est fermé : c'est le
+    // cas onze mois sur douze, et un onglet vide donne l'impression d'un site
+    // à moitié fini.
+    final chrono = session.chronoOuvert;
+
+    final nonLus = session.messagesNonLus;
+
+    final pages = <Widget>[
+      const EcranInscriptions(),
+      if (chrono) const EcranCourse(),
+      if (chrono) const EcranResultats(),
+      const EcranMessages(),
+      const EcranCompte(),
+    ];
+    final destinations = <_Destination>[
+      const _Destination('Inscriptions', Icons.list_alt_outlined, Icons.list_alt),
+      if (chrono)
+        const _Destination('Course', Icons.directions_walk_outlined,
+            Icons.directions_walk),
+      if (chrono)
+        const _Destination('Résultats', Icons.emoji_events_outlined,
+            Icons.emoji_events),
+      // La pastille remplace les bandeaux : elle signale sans occuper la place
+      // du contenu, et c'est un signe que tout le monde sait déjà lire.
+      _Destination('Messages', Icons.mail_outline, Icons.mail, badge: nonLus),
+      const _Destination('Compte', Icons.person_outline, Icons.person),
+    ];
+
+    // Le chronométrage a pu se fermer pendant qu'on était sur son onglet.
+    final index = _onglet.clamp(0, pages.length - 1);
+
+    final corps = Column(
+      children: <Widget>[
+        const _BandeauNotifications(),
+        Expanded(child: pages[index]),
+      ],
+    );
+
+    if (large) {
+      return Scaffold(
+        appBar: AppBar(title: Text(destinations[index].libelle)),
+        body: Row(
+          children: <Widget>[
+            NavigationRail(
+              selectedIndex: index,
+              onDestinationSelected: (i) => setState(() => _onglet = i),
+              labelType: NavigationRailLabelType.all,
+              destinations: <NavigationRailDestination>[
+                for (final d in destinations)
+                  NavigationRailDestination(
+                    icon: d.icoineAvecBadge(false),
+                    selectedIcon: d.icoineAvecBadge(true),
+                    label: Text(d.libelle),
+                  ),
+              ],
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: corps),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(destinations[index].libelle)),
+      body: corps,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: index,
+        onDestinationSelected: (i) => setState(() => _onglet = i),
+        destinations: <NavigationDestination>[
+          for (final d in destinations)
+            NavigationDestination(
+              icon: d.icoineAvecBadge(false),
+              selectedIcon: d.icoineAvecBadge(true),
+              label: d.libelle,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Destination {
+  const _Destination(this.libelle, this.icone, this.iconePleine,
+      {this.badge = 0});
+
+  final String libelle;
+  final IconData icone;
+  final IconData iconePleine;
+
+  /// Nombre affiché en pastille, 0 = aucune.
+  final int badge;
+
+  Widget icoineAvecBadge(bool selectionnee) {
+    final ico = Icon(selectionnee ? iconePleine : icone);
+    if (badge <= 0) return ico;
+    return Badge(label: Text('$badge'), child: ico);
+  }
+}
+
+/// Les messages ÉPINGLÉS, en tête de tous les onglets.
+///
+/// ═════════════════════════════════════════════════════════════════════════════
+/// SEULEMENT LES ÉPINGLÉS — LE RESTE VIT DANS L'ONGLET MESSAGES.
+///
+/// La version précédente empilait ici tous les messages récents : trois annonces
+/// et le contenu de l'application disparaissait sous les bandeaux. Ne restent
+/// que les épinglés, ceux que l'organisation a explicitement désignés comme
+/// « à relire » — rendez-vous, parking, retrait des dossards.
+///
+/// Ils suivent les dates de publication et de fin comme les autres : ils
+/// apparaissent à l'heure dite et disparaissent tout seuls.
+class _BandeauNotifications extends StatelessWidget {
+  const _BandeauNotifications();
+
+  @override
+  Widget build(BuildContext context) {
+    final epingles = PorteeSession.de(context)
+        .notifications
+        // Le serveur ne sert déjà que les messages destinés à l'application :
+        // un envoi ponctuel sur les téléphones n'arrive jamais jusqu'ici.
+        .where((n) => n.epingle)
+        .toList();
+    if (epingles.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      // Deux au maximum. Au-delà, on repousserait le contenu hors de l'écran,
+      // et personne ne lit le troisième bandeau.
+      children: <Widget>[
+        for (final n in epingles.take(2)) _Epingle(notification: n),
+      ],
+    );
+  }
+}
+
+class _Epingle extends StatelessWidget {
+  const _Epingle({required this.notification});
+
+  final NotificationCourse notification;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final couleur = couleurDe(notification.type, theme);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(marge, marge, marge, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        // ignore: deprecated_member_use
+        color: couleur.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: couleur.withAlpha(60)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.push_pin, color: couleur, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(notification.titre,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: couleur, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(notification.message,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

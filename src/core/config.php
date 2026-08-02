@@ -425,6 +425,10 @@ function permCatalog(): array
             // un rôle de consultation. Le rôle `admin` y accède de toute façon,
             // canAccessPage()/canDoAction() court-circuitant sur lui.
             'dashboard.participants','dashboard.transfers',
+            // Donner, corriger ou annuler le départ de la course. Droit à part
+            // et non emprunté à `dashboard.transfers` : un appui déclenche le
+            // recalcul de TOUS les temps et fait sonner tous les téléphones.
+            'dashboard.depart',
             // Contenus — granularité par page
             'news.create','news.edit','news.trash','news.delete',
             'timeline.create','timeline.edit','timeline.trash','timeline.delete',
@@ -442,6 +446,7 @@ function permCatalog(): array
             'settings.tab.personnalisation','settings.tab.accueil','settings.tab.inscription',
             'settings.tab.parcours','settings.tab.reglementation','settings.tab.legal','settings.tab.formulaire',
             'settings.tab.import','settings.tab.import_auto','settings.tab.maintenance',
+            'settings.tab.api','settings.tab.course',
             // Cartes de l'onglet Accueil
             'settings.accueil.params','settings.accueil.custom',
             // Cartes de l'onglet Inscription

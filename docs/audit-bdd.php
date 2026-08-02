@@ -68,6 +68,83 @@ function sqlUpdate(string $src): array {
 }
 
 /**
+ * Rejoue les colonnes ajoutées APRÈS coup à des tables déjà existantes.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ⚠️ SANS CECI, TOUT UN PAN DE LA MIGRATION N'EST PAS TESTÉ.
+ *
+ * `sqlUpdate()` ne rejoue que `$migrations`, `$lot1Tables` et `$lot1Settings`.
+ * Or `CREATE TABLE IF NOT EXISTS` ne touche PAS une table déjà présente : sur un
+ * site qui a déjà migré, `editions` et `participant_devices` existent, et leurs
+ * nouvelles colonnes ne peuvent venir que de `$colonnesTardives`.
+ *
+ * C'est précisément la situation de la production. La sauter reviendrait à
+ * déclarer la migration bonne sur le seul cas d'un serveur neuf.
+ */
+function jouerColonnesTardives(PDO $pdo, string $src): array {
+    if (!preg_match('/\$colonnesTardives = (\[.*?\n\]);/s', $src, $m)) {
+        throw new RuntimeException('Bloc $colonnesTardives introuvable dans update.php');
+    }
+    $liste = eval('return ' . $m[1] . ';');
+    $erreurs = [];
+    foreach ($liste as [$table, $colonne, $def, $apres, $desc]) {
+        try {
+            $existeTable = (int) $pdo->query(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = " . $pdo->quote($table)
+            )->fetchColumn();
+            if ($existeTable === 0) continue;
+
+            $existe = (int) $pdo->query(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = " . $pdo->quote($table) . "
+                    AND COLUMN_NAME = " . $pdo->quote($colonne)
+            )->fetchColumn();
+            if ($existe > 0) continue;
+
+            $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$colonne` $def AFTER `$apres`");
+        } catch (PDOException $e) {
+            $erreurs[] = "$table.$colonne : " . $e->getMessage();
+        }
+    }
+    return $erreurs;
+}
+
+/**
+ * Rejoue les RETRAITS de colonnes.
+ *
+ * Une colonne abandonnée mais laissée en place fait diverger les deux chemins :
+ * la base neuve ne l'a pas, la base migrée si. C'est exactement ce que la
+ * comparaison des schémas refuse — et à juste titre.
+ */
+function jouerRetraits(PDO $pdo, string $src): array {
+    $erreurs = [];
+    // Les colonnes listées dans le foreach de retrait, plus l'ancien « canal ».
+    $aRetirer = [['setting', 'theme_dark_enabled'], ['app_notifications', 'canal']];
+    foreach ($aRetirer as [$table, $colonne]) {
+        // On ne retire que ce que update.php retire réellement : si le nom
+        // n'apparaît pas dans un DROP du fichier, on ne fait rien.
+        if (!preg_match('/DROP COLUMN `' . preg_quote($colonne, '/') . '`/', $src)
+            && !str_contains($src, "'" . $colonne . "'")) {
+            continue;
+        }
+        try {
+            $existe = (int) $pdo->query(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME = " . $pdo->quote($table) . "
+                    AND COLUMN_NAME = " . $pdo->quote($colonne)
+            )->fetchColumn();
+            if ($existe > 0) $pdo->exec("ALTER TABLE `$table` DROP COLUMN `$colonne`");
+        } catch (PDOException $e) {
+            $erreurs[] = "$table.$colonne : " . $e->getMessage();
+        }
+    }
+    return $erreurs;
+}
+
+/**
  * Rejoue le peuplement de `editions` de update.php — le VRAI code, extrait du
  * fichier, pas une réécriture : c'est justement son idempotence qu'on teste.
  */
@@ -220,6 +297,37 @@ $B->prepare('UPDATE setting SET mail_template_config = ? WHERE id = 1')
 $B->exec("INSERT INTO chatbot_faq (id, question, answer, position, active)
           VALUES (1, 'Question de l''association', 'Réponse maison.', 1, 1)");
 
+/* ⚠️ ON SIMULE UN SITE QUI A DÉJÀ MIGRÉ UNE FOIS.
+ *
+ * C'est la situation réelle de la production : `editions` et
+ * `participant_devices` existent depuis une migration précédente, SANS les
+ * colonnes ajoutées ensuite. On les crée donc dans leur ancienne forme, pour
+ * que `CREATE TABLE IF NOT EXISTS` les saute et que les colonnes ne puissent
+ * venir que de `$colonnesTardives`.
+ *
+ * Sans cette mise en scène, les tables seraient créées neuves, avec toutes
+ * leurs colonnes, et le chemin de rattrapage ne serait jamais emprunté — on
+ * validerait une migration qui échouerait chez vous. */
+$B->exec("CREATE TABLE `editions` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `annee` SMALLINT NOT NULL,
+    `libelle` VARCHAR(120) NOT NULL,
+    `date_course` DATE DEFAULT NULL,
+    `distance_km` DECIMAL(5,2) DEFAULT NULL,
+    `heure_depart` DATETIME DEFAULT NULL,
+    `lat_depart` DECIMAL(10,7) DEFAULT NULL,
+    `lon_depart` DECIMAL(10,7) DEFAULT NULL,
+    `lat_arrivee` DECIMAL(10,7) DEFAULT NULL,
+    `lon_arrivee` DECIMAL(10,7) DEFAULT NULL,
+    `temps_min_plausible_s` INT DEFAULT NULL,
+    `transferts_deadline` DATETIME DEFAULT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `idx_annee` (`annee`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+$B->exec("INSERT INTO editions (annee, libelle, is_active)
+          VALUES (" . (int) date('Y') . ", 'Forbach en Rose', 1)");
+
 /* ─────────────────────────────────────────────────────────────────────────
  * MIGRATION — les instructions de update.php
  * ───────────────────────────────────────────────────────────────────────── */
@@ -228,8 +336,30 @@ echo "\n=== MIGRATION de la base B (" . count($SQL_UPDATE) . " instructions) ===
 $errM = jouer($B, $SQL_UPDATE, 'update.php', true);
 peuplerEditions($B, $srcUpdate, true);   // 1er passage : la table vient d'être créée
 jouerLot6($B, $srcUpdate);               // migrations PHP du lot 6 (gabarit d'email, FAQ)
+
+/* ⚠️ CES DEUX APPELS SONT AUSSI IMPORTANTS QUE LES PRÉCÉDENTS. Ils rejouent ce
+   que `sqlUpdate()` ne voit pas : les colonnes ajoutées à des tables déjà
+   existantes, et les colonnes retirées. Sans eux, la migration serait déclarée
+   bonne sur le seul cas d'un serveur neuf — c'est-à-dire pas sur la production. */
+$errM = array_merge($errM,
+    jouerColonnesTardives($B, $srcUpdate),
+    jouerRetraits($B, $srcUpdate));
+
 if ($errM) { echo "❌ Erreurs de migration :\n   - " . implode("\n   - ", $errM) . "\n"; $ko += count($errM); }
 else echo "✅ Migration sans erreur\n";
+
+/* La table `editions` existait AVANT la migration, sans `depart_reel_at` : sa
+   présence prouve que le chemin de rattrapage a bien été emprunté, et pas
+   seulement la création d'une table neuve. */
+$rattrape = (int) $B->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'editions'
+                                AND COLUMN_NAME = 'depart_reel_at'")->fetchColumn();
+if ($rattrape > 0) {
+    echo "✅ Rattrapage : colonne ajoutée à une table qui existait déjà\n";
+} else {
+    echo "❌ Rattrapage : `editions.depart_reel_at` manque sur une table préexistante\n";
+    $ko++;
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
  * CONTRÔLES
@@ -450,6 +580,249 @@ $B->exec("INSERT IGNORE INTO detections (annee, inscription_no, type, point, det
 $n = (int) $B->query("SELECT COUNT(*) FROM detections WHERE inscription_no = 'S1'")->fetchColumn();
 if ($n === 1) echo "✅ Une détection envoyée deux fois ne crée qu'une ligne\n";
 else { echo "❌ $n ligne(s) : le doublon est passé\n"; $ko++; }
+
+/* ── 11. Pont des informations de course : setting ⇄ editions ────────────────
+ *
+ * La date, la distance et le point de départ vivent dans les DEUX tables :
+ * `setting` pour le site public, `editions` pour le chronométrage. Avant ce
+ * pont, update.php copiait la date une seule fois, à la création de la table,
+ * puis plus jamais — on corrigeait la date sur l'accueil et le chronométrage
+ * continuait de travailler avec l'ancienne, sans que rien ne le signale.
+ *
+ * C'est un contrôle de BASE et non de code : on rejoue les deux sens sur la
+ * base migrée, et on vérifie ce qui s'y trouve réellement.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 11. Pont des informations de course (setting ⇄ editions) ===\n";
+
+// Les fonctions du pont ne travaillent que sur le PDO qu'on leur passe ; les
+// deux require servent au contexte applicatif, inutile ici. On charge donc le
+// code de production tel quel, sans ses inclusions.
+$pontSrc = preg_replace('/^require_once .*$/m', '',
+    (string) file_get_contents(dirname(__DIR__) . '/src/content/course.php'));
+if (!function_exists('course_enregistrer')) {
+    eval('?>' . $pontSrc);
+}
+
+$anneeP = course_anneeActive($B);
+
+// Sens 1 — saisie côté site (onglets Accueil / Inscription).
+$B->prepare('UPDATE setting SET date_course = ?, course_km = ?, start_point_coords = ?
+              WHERE id = 1')
+  ->execute(["$anneeP-10-04 00:00:00", 12, '49.1897,6.8987']);
+course_pousserDepuisSetting($B, ['date_course', 'course_km', 'start_point_coords']);
+
+$eP = $B->query("SELECT date_course, distance_km, lat_depart FROM editions
+                  WHERE annee = $anneeP")->fetch(PDO::FETCH_ASSOC) ?: [];
+if (($eP['date_course'] ?? '') === "$anneeP-10-04"
+    && (float) ($eP['distance_km'] ?? 0) === 12.0
+    && abs((float) ($eP['lat_depart'] ?? 0) - 49.1897) < 0.00001) {
+    echo "✅ Site → chronométrage : date, distance et ligne de départ suivent\n";
+} else {
+    echo "❌ Site → chronométrage : " . json_encode($eP) . "\n";
+    $ko++;
+}
+
+// Sens 2 — saisie depuis l'onglet Course.
+$rP = course_enregistrer($B, [
+    'date_course'  => "$anneeP-10-11",
+    'distance_km'  => 7.5,
+    'lat_depart'   => 49.2,
+    'lon_depart'   => 6.9,
+    'heure_depart' => course_heureDepartUtc("$anneeP-10-11 10:00"),
+    'lieu_rdv'     => 'Parvis de l\'hôtel de ville',
+]);
+$sP = $B->query('SELECT date_course, course_km, start_point_coords, course_rdv
+                   FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+if (($rP['ok'] ?? false)
+    && substr((string) ($sP['date_course'] ?? ''), 0, 10) === "$anneeP-10-11"
+    && (int) ($sP['course_km'] ?? 0) === 8
+    && ($sP['start_point_coords'] ?? '') === '49.2,6.9') {
+    echo "✅ Onglet Course → site : la valeur revient sur l'accueil et l'inscription\n";
+} else {
+    echo "❌ Onglet Course → site : " . json_encode($sP) . "\n";
+    $ko++;
+}
+
+// ⏱️ Le piège à deux heures : saisie en heure locale, stockage en UTC.
+$hP = (string) $B->query("SELECT heure_depart FROM editions WHERE annee = $anneeP")
+                 ->fetchColumn();
+if (str_contains($hP, '08:00:00')
+    && course_heureDepartLocale($hP)?->format('H:i') === '10:00') {
+    echo "✅ Heure de départ : 10 h annoncés, 08 h stockés en UTC, 10 h relus\n";
+} else {
+    echo "❌ Heure de départ mal convertie : $hP\n";
+    $ko++;
+}
+
+// Une date d'une AUTRE année ne doit pas écraser l'édition : elle ne la décrit pas.
+$avantP = (string) $B->query("SELECT date_course FROM editions WHERE annee = $anneeP")
+                     ->fetchColumn();
+$B->prepare('UPDATE setting SET date_course = ? WHERE id = 1')
+  ->execute(['1999-01-01 00:00:00']);
+course_pousserDepuisSetting($B, ['date_course']);
+$apresP = (string) $B->query("SELECT date_course FROM editions WHERE annee = $anneeP")
+                     ->fetchColumn();
+if ($avantP === $apresP) {
+    echo "✅ Une date d'une autre année n'écrase pas l'édition\n";
+} else {
+    echo "❌ L'édition a été écrasée par une date hors année : $apresP\n";
+    $ko++;
+}
+
+// Coordonnées aberrantes : refusées, sinon le chrono viserait un point du globe.
+if (!(course_enregistrer($B, ['lat_arrivee' => 999, 'lon_arrivee' => 0])['ok'] ?? true)) {
+    echo "✅ Des coordonnées hors limites sont refusées\n";
+} else {
+    echo "❌ Des coordonnées hors limites ont été acceptées\n";
+    $ko++;
+}
+
+/* ── 12. Notifications de l'application ─────────────────────────────────── */
+echo "\n=== 12. Notifications de l'application ===\n";
+$tblN = (int) $B->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                          WHERE TABLE_SCHEMA = DATABASE()
+                            AND TABLE_NAME = 'app_notifications'")->fetchColumn();
+if ($tblN > 0) echo "✅ Table `app_notifications` créée par la migration\n";
+else { echo "❌ Table `app_notifications` absente\n"; $ko++; }
+
+// Le push est une ACTION : une notification créée n'est pas « envoyée ».
+// Si `envoye_at` était rempli à la création, l'écran afficherait « déjà
+// envoyée » pour un message que personne n'a reçu.
+if ($tblN > 0) {
+    $B->exec("INSERT INTO app_notifications (titre, message) VALUES ('Test', 'Test')");
+    $n = $B->query("SELECT afficher_dans_app, envoye_at, active FROM app_notifications
+                     ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC) ?: [];
+    if ((int) ($n['afficher_dans_app'] ?? 0) === 1
+        && $n['envoye_at'] === null
+        && (int) ($n['active'] ?? 0) === 1) {
+        echo "✅ Message créé : visible dans l'app, actif, et PAS marqué envoyé\n";
+    } else {
+        echo "❌ Défauts inattendus : " . json_encode($n) . "\n";
+        $ko++;
+    }
+    $B->exec("DELETE FROM app_notifications WHERE titre = 'Test'");
+}
+
+/* ── 13. Le départ de la course : les quatre niveaux d'arbitrage ─────────────
+ *
+ * C'est LA mécanique du jour J. Une erreur ici ne se voit pas à l'écran : elle
+ * se voit sur le classement, après la course, quand il est trop tard.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 13. Départ : arbitrage à quatre niveaux ===\n";
+
+if (!function_exists('chrono_recompute')) {
+    // Comme pour le pont : on charge le code de production sans ses inclusions,
+    // les fonctions ne travaillant que sur le PDO qu'on leur passe.
+    eval('?>' . preg_replace('/^require_once .*$/m', '',
+        (string) file_get_contents(dirname(__DIR__) . '/src/content/chrono.php')));
+}
+
+$anneeD = (int) date('Y');
+$noD    = 'DEP-1';
+$B->exec("DELETE FROM detections WHERE inscription_no = '$noD'");
+$B->exec("DELETE FROM resultats  WHERE inscription_no = '$noD'");
+
+// Une arrivée, et rien d'autre : ni détection de départ, ni top, ni heure prévue.
+$arrivee = (new DateTimeImmutable('-30 minutes'))->format('Y-m-d H:i:s.v');
+$B->exec("INSERT INTO detections (annee, inscription_no, type, point, detecte_at, confiance)
+          VALUES ($anneeD, '$noD', 'beacon', 'arrivee', '$arrivee', 95)");
+$B->exec("UPDATE editions SET heure_depart = NULL, depart_reel_at = NULL WHERE annee = $anneeD");
+
+chrono_recompute($B, $anneeD, $noD);
+$r = $B->query("SELECT statut, temps_s, commentaire FROM resultats
+                 WHERE inscription_no = '$noD'")->fetch(PDO::FETCH_ASSOC) ?: [];
+if (($r['statut'] ?? '') === 'invalide' && $r['temps_s'] === null) {
+    echo "✅ Niveau 4 — sans départ d'aucune sorte : aucun temps publié\n";
+} else {
+    echo "❌ Niveau 4 : " . json_encode($r) . "\n";
+    $ko++;
+}
+
+// Heure prévue il y a 2 h, délai de grâce écoulé : le filet doit servir.
+$prevu = (new DateTimeImmutable('-2 hours'))->format('Y-m-d H:i:s');
+$B->exec("UPDATE editions SET heure_depart = '$prevu' WHERE annee = $anneeD");
+$B->exec("UPDATE setting SET depart_grace_min = 10 WHERE id = 1");
+chrono_recompute($B, $anneeD, $noD);
+$r = $B->query("SELECT statut, temps_s, commentaire FROM resultats
+                 WHERE inscription_no = '$noD'")->fetch(PDO::FETCH_ASSOC) ?: [];
+if (($r['statut'] ?? '') === 'termine'
+    && str_contains((string) $r['commentaire'], 'heure prévue')) {
+    echo "✅ Niveau 3 — délai de grâce écoulé : le filet prend l'heure prévue\n";
+} else {
+    echo "❌ Niveau 3 : " . json_encode($r) . "\n";
+    $ko++;
+}
+
+// ⚠️ Le cas qui compte : heure prévue dans 5 min, grâce non écoulée. Aucun
+// temps ne doit sortir — sinon on publierait un chrono de quelques secondes.
+$B->exec("DELETE FROM resultats WHERE inscription_no = '$noD'");
+$bientot = (new DateTimeImmutable('+5 minutes'))->format('Y-m-d H:i:s');
+$B->exec("UPDATE editions SET heure_depart = '$bientot' WHERE annee = $anneeD");
+chrono_recompute($B, $anneeD, $noD);
+$r = $B->query("SELECT statut, temps_s FROM resultats
+                 WHERE inscription_no = '$noD'")->fetch(PDO::FETCH_ASSOC) ?: [];
+if ($r === [] || $r['temps_s'] === null) {
+    echo "✅ Délai de grâce non écoulé : rien n'est publié\n";
+} else {
+    echo "❌ Un temps a été publié avant le départ : " . json_encode($r) . "\n";
+    $ko++;
+}
+
+// Le top réel : il l'emporte sur l'heure prévue.
+$top = (new DateTimeImmutable('-90 minutes'))->format('Y-m-d H:i:s.v');
+$B->exec("UPDATE editions SET heure_depart = '$prevu', depart_reel_at = '$top'
+           WHERE annee = $anneeD");
+chrono_recompute($B, $anneeD, $noD);
+$r = $B->query("SELECT statut, temps_s, commentaire FROM resultats
+                 WHERE inscription_no = '$noD'")->fetch(PDO::FETCH_ASSOC) ?: [];
+if (($r['statut'] ?? '') === 'termine'
+    && str_contains((string) $r['commentaire'], 'top officiel')
+    && abs((float) $r['temps_s'] - 3600) < 5) {   // 90 min - 30 min = 60 min
+    echo "✅ Niveau 2 — le top réel l'emporte sur l'heure prévue (1 h)\n";
+} else {
+    echo "❌ Niveau 2 : " . json_encode($r) . "\n";
+    $ko++;
+}
+
+// La détection du coureur l'emporte sur tout : parti 10 min après le peloton.
+$sien = (new DateTimeImmutable('-80 minutes'))->format('Y-m-d H:i:s.v');
+$B->exec("INSERT INTO detections (annee, inscription_no, type, point, detecte_at, confiance)
+          VALUES ($anneeD, '$noD', 'beacon', 'depart', '$sien', 95)");
+chrono_recompute($B, $anneeD, $noD);
+$r = $B->query("SELECT temps_s FROM resultats WHERE inscription_no = '$noD'")
+        ->fetch(PDO::FETCH_ASSOC) ?: [];
+if (abs((float) ($r['temps_s'] ?? 0) - 3000) < 5) {   // 80 min - 30 min = 50 min
+    echo "✅ Niveau 1 — un départ retardé garde SON temps, pas celui du peloton\n";
+} else {
+    echo "❌ Niveau 1 : " . json_encode($r) . "\n";
+    $ko++;
+}
+
+// Un résultat validé par un officiel ne se défait pas tout seul.
+$B->exec("UPDATE resultats SET valide_par = 1, temps_s = 9999
+           WHERE inscription_no = '$noD'");
+chrono_recompute($B, $anneeD, $noD);
+$fige = (float) $B->query("SELECT temps_s FROM resultats WHERE inscription_no = '$noD'")
+                  ->fetchColumn();
+if ((int) $fige === 9999) {
+    echo "✅ Un résultat validé n'est pas recalculé\n";
+} else {
+    echo "❌ Un résultat validé a été écrasé : $fige\n";
+    $ko++;
+}
+
+$B->exec("DELETE FROM detections WHERE inscription_no = '$noD'");
+$B->exec("DELETE FROM resultats  WHERE inscription_no = '$noD'");
+
+$regN = $B->query('SELECT app_notifications_actives, app_reveil_avant_min
+                     FROM setting WHERE id = 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+if ((int) ($regN['app_notifications_actives'] ?? -1) === 1
+    && (int) ($regN['app_reveil_avant_min'] ?? -1) === 120) {
+    echo "✅ Réglages par défaut : notifications actives, réveil à 120 min\n";
+} else {
+    echo "❌ Réglages de notification inattendus : " . json_encode($regN) . "\n";
+    $ko++;
+}
 
 printf("\n%s\n", $ko === 0 ? "✅ AUDIT PRODUCTION : AUCUNE ANOMALIE" : "❌ AUDIT : $ko ANOMALIE(S)");
 exit($ko > 0 ? 1 : 0);

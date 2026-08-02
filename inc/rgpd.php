@@ -123,13 +123,11 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <h2 class="h5 fw-bold mb-0"><i class="bi bi-shield-lock me-2"></i>Ce qui n'est jamais effacé</h2>
   </div>
+  <?php /* Texte volontairement court : cette page se relit en diagonale avant
+           de lancer une purge. Le détail vit dans src/content/purges.php. */ ?>
   <p class="text-muted small mb-0">
-    Aucune purge ne touche aux <strong>inscriptions</strong> — ni celles de l'édition en
-    cours, ni les archives <code>registrations_AAAA</code>. L'association doit les
-    conserver pour sa comptabilité, et les archives sont la mémoire de l'événement.
-    Les <strong>comptes coureurs actifs</strong> ne sont pas purgés non plus : un compte
-    ne disparaît que si la personne le demande elle-même, et même alors son inscription
-    reste valable — c'est l'accès en ligne qui s'arrête, pas la participation.
+    Les <strong>inscriptions</strong> (édition en cours et archives) et les
+    <strong>comptes coureurs actifs</strong> ne sont jamais purgés.
   </p>
 </div>
 
@@ -137,10 +135,11 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <h2 class="h5 fw-bold mb-0"><i class="bi bi-hourglass-split me-2"></i>Durées de conservation</h2>
   </div>
+  <?php /* La seule phrase conservée de tout ce bloc : c'est celle qui évite une
+           déclaration inexacte, et elle est vérifiable de l'extérieur. */ ?>
   <p class="text-muted small mb-0">
-    Ces durées doivent correspondre à ce qu'annonce votre
-    <a href="setting.php?tab=legal">politique de confidentialité</a>. Annoncer 30 jours
-    et en conserver 400 est une déclaration inexacte, et elle est vérifiable.
+    À garder cohérent avec votre
+    <a href="setting.php?tab=legal">politique de confidentialité</a>.
   </p>
 
   <form method="post">
@@ -148,15 +147,15 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <div class="list-group list-group-flush">
       <?php foreach ([
             'auth_codes_conservation_jours' => ['Codes de connexion',
-                'Codes à 6 chiffres, consommés ou périmés. Ils ne contiennent aucune adresse en clair, seulement une empreinte.'],
+                'Codes à 6 chiffres consommés ou périmés.'],
             'devices_revoques_jours'        => ['Appareils révoqués',
-                'Le jeton est déjà inutilisable ; ce qui reste, c\'est le modèle du téléphone et l\'IP de création.'],
-            'traces_gps_conservation_jours' => ['Traces GPS — le chemin suivi sur la carte (0 = illimité)',
-                'La liste des positions relevées pendant la course, de quoi redessiner le parcours. '
-              . 'La donnée la plus sensible du site : elle dit où une personne se trouvait, minute par minute. '
-              . 'Les TEMPS et les RÉSULTATS, eux, ne sont jamais purgés — ils restent consultables chaque année.'],
+                'Modèle du téléphone et IP de création.'],
+            // La seule aide qu'on garde en entier : sans elle, on lit « traces
+            // GPS » et on croit que les temps disparaissent aussi.
+            'traces_gps_conservation_jours' => ['Traces GPS — le chemin sur la carte (0 = illimité)',
+                'Les temps et les résultats, eux, ne sont jamais purgés.'],
             'transferts_clos_jours'         => ['Demandes de transfert closes',
-                'Acceptées, annulées ou expirées. Celles EN ATTENTE ne sont jamais purgées.'],
+                'Celles en attente ne sont jamais purgées.'],
           ] as $col => [$lib, $aide]): ?>
         <div class="list-group-item d-flex justify-content-between align-items-center gap-3 px-0 bg-transparent">
           <div>
@@ -245,9 +244,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
   <p class="text-muted small mb-0">
     <i class="bi bi-info-circle me-1"></i>
-    La purge s'exécute aussi <strong>automatiquement, une fois par jour</strong>, déclenchée
-    par la première visite. Ce bouton sert à la déclencher tout de suite, ou à vérifier
-    qu'elle fonctionne. Chaque exécution est tracée dans
+    Purge <strong>automatique une fois par jour</strong> ; tracée dans
     <a href="logs.php">Journaux système</a>.
   </p>
 </div>

@@ -271,6 +271,29 @@ foreach (array_unique($mp[1]) as $perm) {
 }
 verifie('toute permission utilisée figure au catalogue', empty($absentes), implode(', ', $absentes));
 
+/* ⚠️ LE CATALOGUE NE SUFFIT PAS. Une permission absente de l'ÉDITEUR reste
+ * invisible dans « Utilisateurs & Droits » : impossible à accorder à un rôle
+ * autre qu'administrateur, et rien à l'écran ne l'explique. Il y a DEUX listes
+ * dans inc/utilisateurs.php — une PHP, une JavaScript — et il faut les deux. */
+$util = $lire('inc/utilisateurs.php');
+preg_match_all("/'(settings\.tab\.[a-z_]+|dashboard\.[a-z_]+)'/", $cfg, $mCat);
+$horsEditeur = [];
+foreach (array_unique($mCat[1]) as $perm) {
+    $dansPhp = preg_match("/'" . preg_quote($perm, '/') . "'\s*=>/", $util) === 1;
+    $dansJs  = preg_match("/key:\s*'" . preg_quote($perm, '/') . "'/", $util) === 1;
+    if (!$dansPhp || !$dansJs) {
+        $horsEditeur[] = $perm . (!$dansPhp ? ' (liste PHP)' : '') . (!$dansJs ? ' (liste JS)' : '');
+    }
+}
+verifie('toute permission du catalogue est éditable dans « Utilisateurs & Droits »',
+    empty($horsEditeur), implode(' | ', $horsEditeur));
+
+// Le départ a son propre droit : un appui recalcule tous les temps et fait
+// sonner tous les téléphones. L'emprunter aux transferts serait un abus.
+verifie('donner le départ demande son propre droit',
+    str_contains($lire('inc/dashboard.php'), "canDoAction('dashboard.depart')")
+    && str_contains($cfg, "'dashboard.depart'"));
+
 /* ── 6. install.php et update.php restent alignés ───────────────────────── */
 echo "\n=== 6. install.php ↔ update.php ===\n";
 $inst = $lire('install.php');
@@ -381,6 +404,260 @@ verifie('/app/config annonce l\'état à l\'application',
 $adm = $lire('inc/resultats.php');
 verifie('l\'écran d\'administration reste accessible dans les deux états',
     str_contains($adm, 'basculer_chrono') && !preg_match('/chrono_actif\([^)]*\)\s*\)?\s*\{?\s*(exit|die|header)/', $adm));
+
+/* ── 14. Informations de course : une seule valeur, plusieurs portes ─────────
+ * La date, la distance et le point de départ vivent dans DEUX tables (`setting`
+ * pour le site, `editions` pour le chronométrage). Le pont de
+ * src/content/course.php les tient synchronisées dans les deux sens.
+ *
+ * Le risque n'est pas qu'il ne marche pas : c'est qu'un écran écrive dans
+ * `setting` SANS appeler le pont. Rien ne casserait, rien ne s'afficherait — et
+ * le chronométrage travaillerait des mois avec une date périmée.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 14. Pont des informations de course ===\n";
+$pont = $lire('src/content/course.php');
+verifie('les deux sens du pont existent',
+    str_contains($pont, 'function course_pousserDepuisSetting(')
+    && str_contains($pont, 'function course_enregistrer('));
+
+// Tout écran qui écrit une des trois colonnes appariées doit appeler le pont.
+$appariees = ['date_course', 'course_km', 'start_point_coords'];
+$sansPont = [];
+foreach (glob($R . 'inc\*.php') ?: [] as $f) {
+    $src = (string) file_get_contents($f);
+    // Un UPDATE de `setting` touchant une colonne appariée.
+    if (!preg_match('/UPDATE\s+setting\s+SET[^;\']*(' . implode('|', $appariees) . ')/i', $src)) {
+        continue;
+    }
+    if (!str_contains($src, 'course_pousserDepuisSetting')
+        && !str_contains($src, 'course_enregistrer')) {
+        $sansPont[] = basename($f);
+    }
+}
+verifie('tout écran qui écrit la date, la distance ou le départ appelle le pont',
+    empty($sansPont), implode(', ', $sansPont));
+
+// L'onglet Course écrit les DEUX tables, sinon il devient une copie de plus.
+verifie('l\'onglet Course renvoie bien vers setting',
+    preg_match('/UPDATE setting SET.*implode/s', $pont) === 1
+    || str_contains($pont, "'`date_course` = ?'"));
+
+// L'heure de départ est le piège à deux heures : la conversion doit exister.
+verifie('l\'heure de départ est convertie en UTC à l\'enregistrement',
+    str_contains($pont, 'function course_heureDepartUtc(')
+    && str_contains($lire('inc/setting.php'), 'course_heureDepartUtc('));
+
+/* Tout onglet de Réglages doit figurer dans $allTabs, sinon `?tab=` est rejeté
+ * en silence et le lien retombe sur « personnalisation ». C'est exactement ce
+ * qui est arrivé à l'onglet Course : le bouton « Modifier ces informations »
+ * menait ailleurs, sans le moindre message. */
+$set = $lire('inc/setting.php');
+preg_match('/\$allTabs\s*=\s*\[(.*?)\]/s', $set, $mTabs);
+preg_match_all('/data-tab="([a-z_]+)"/', $set, $mDeclares);
+$horsListe = [];
+foreach (array_unique($mDeclares[1] ?? []) as $onglet) {
+    if (!str_contains($mTabs[1] ?? '', "'$onglet'")) $horsListe[] = $onglet;
+}
+verifie('tout onglet de Réglages figure dans $allTabs',
+    empty($horsListe), implode(', ', $horsListe));
+
+// Et son bouton d'enregistrement doit y ramener après le POST, sinon on est
+// renvoyé sur un autre onglet en croyant que rien n'a été enregistré.
+verifie('l\'onglet Course est rouvert après enregistrement',
+    str_contains($set, "isset(\$_POST['save_course'])) \$activeTab = 'course'"));
+
+/* ── 15. Notifications de l'application ─────────────────────────────────── */
+echo "\n=== 15. Notifications de l'application ===\n";
+verifie('la table est dans les DEUX chemins d\'installation',
+    str_contains($inst, 'app_notifications') && str_contains($upd, 'app_notifications'));
+
+$notif = $lire('src/content/notifications.php');
+
+/* Le push est une ACTION, pas une propriété du message. L'ancien champ « canal »
+ * mélangeait les deux : un push n'a pas de date de fin, un message ne sonne pas.
+ * Le contrôle vérifie que le modèle n'y revient pas par inadvertance. */
+// ⚠️ Ciblé sur LE canal des notifications : `participant_auth_codes` a un
+// `canal` ENUM('web','app') parfaitement légitime, qui dit d'où vient un code.
+verifie('aucune trace de l\'ancien « canal » des notifications',
+    !str_contains($inst, "ENUM('app','systeme','les_deux')")
+    && !str_contains($notif, 'NOTIF_CANAUX'));
+
+// La colonne est retirée des bases qui l'avaient reçue, sinon les deux chemins
+// d'installation divergent et l'audit refuse.
+verifie('l\'ancien « canal » est retiré des bases qui l\'ont',
+    str_contains($upd, "DROP COLUMN `canal`"));
+
+// Les six colonnes de ce lot doivent être dans les DEUX chemins.
+$colonnesLot = ['afficher_dans_app', 'envoye_at', 'envoye_a',
+                'depart_reel_at', 'push_token', 'push_maj_at',
+                'fcm_project_id', 'fcm_service_account', 'depart_grace_min'];
+$manquantes = [];
+foreach ($colonnesLot as $c) {
+    if (!str_contains($inst, $c)) $manquantes[] = "install:$c";
+    if (!str_contains($upd, $c))  $manquantes[] = "update:$c";
+}
+verifie('les colonnes du push et du départ sont dans les deux chemins',
+    empty($manquantes), implode(', ', $manquantes));
+
+/* ⚠️ LA CLÉ PRIVÉE NE DOIT JAMAIS SORTIR. `fcm_service_account` permet
+ * d'envoyer des notifications au nom de l'association : elle est chiffrée, et
+ * elle ne doit être ni réaffichée dans un champ, ni servie par l'API. */
+$app = $lire('inc/applications.php');
+verifie('le compte de service est chiffré et jamais réaffiché',
+    str_contains($lire('src/content/push.php'), 'encrypt($jsonBrut)')
+    && !preg_match('/value="[^"]*fcm_service_account/', $app)
+    && !str_contains($lire('api/v1/index.php'), 'fcm_service_account'));
+
+/* ── 16. Le départ de la course ─────────────────────────────────────────────
+ * Le top réel fait foi ; l'heure prévue est un filet. Le risque est qu'une
+ * correction d'heure laisse des temps calculés sur l'ancienne base — deux
+ * groupes de coureurs chronométrés différemment sur la même course.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 16. Départ de la course ===\n";
+$chr = $lire('src/content/chrono.php');
+verifie('les quatre niveaux d\'arbitrage sont là',
+    str_contains($chr, "\$sourceDep = 'top'")
+    && str_contains($chr, "\$sourceDep = 'prevu'")
+    && str_contains($chr, 'depart_grace_min'));
+
+// Donner, corriger ou annuler le départ DOIT recalculer : sans cela, les
+// arrivées déjà traitées gardent l'ancienne heure.
+$sansRecalcul = [];
+foreach (['chrono_donnerDepart', 'chrono_annulerDepart', 'chrono_decalerPrevu'] as $f) {
+    if (preg_match('/function ' . $f . '\(.*?\n\}/s', $chr, $m)
+        && !str_contains($m[0], 'chrono_recomputeEdition')) {
+        $sansRecalcul[] = $f;
+    }
+}
+verifie('toute action sur le départ recalcule l\'édition',
+    empty($sansRecalcul), implode(', ', $sansRecalcul));
+
+// Un résultat validé par un officiel ne se défait pas parce qu'on a corrigé
+// l'heure : c'est ce qui rend le bouton « recalculer » utilisable sans crainte.
+verifie('le recalcul global épargne les résultats validés',
+    preg_match('/function chrono_recomputeEdition\(.*?chrono_recompute\(\$pdo, \$annee, \(string\) \$no\)/s', $chr) === 1);
+
+verifie('l\'annulation du départ existe',
+    str_contains($lire('src/partials/depart-course.php'), "value=\"annuler\""));
+
+// Aucune donnée personnelle : une notification vise une ÉDITION, pas des gens.
+verifie('aucune liste de destinataires nominatifs',
+    !preg_match('/participant_id|email_cible|destinataires/i', $notif));
+
+// L'API doit servir les notifications MÊME chronométrage fermé : une annonce de
+// l'organisation n'a rien à voir avec les temps.
+$apiSrc = $lire('api/v1/index.php');
+$posNotif  = strpos($apiSrc, "\$sousRoute === 'notifications'");
+$posGarde  = strpos($apiSrc, "in_array(\$sousRoute, ['detections'");
+verifie('les notifications passent même chronométrage fermé',
+    $posNotif !== false && $posGarde !== false && $posNotif < $posGarde);
+
+/* ── 16 bis. Les boutons ont tous la même forme ─────────────────────────────
+ *
+ * `css/gmail-settings.css` redéfinissait `.btn`, `.btn-primary`, `.btn-success`,
+ * `.btn-danger` et `.btn-warning` — des classes GÉNÉRALES dans une feuille
+ * propre à une page. Les boutons de mail-settings.php avaient donc une marge et
+ * une bordure que personne d'autre n'avait, et des couleurs écrites en dur qui
+ * ignoraient le thème sombre.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 16 bis. Uniformité des boutons ===\n";
+
+/* ⚠️ ON NE REGARDE QUE LES FEUILLES CHARGÉES CÔTÉ ADMINISTRATION.
+   `css/fer-modern.css` définit ses propres `.btn` — en pilule, pour le site
+   public — et c'est parfaitement légitime : elle n'est jamais chargée ici. Un
+   contrôle qui balaierait tout le dossier css/ signalerait ce faux positif à
+   chaque passage, et on finirait par ne plus le lire. */
+/* Un écran d'administration = un fichier qui inclut navbar-admin.php, lequel
+   charge admin.css. `src/partials/auth-head.php` sert les pages de CONNEXION,
+   qui ont leur propre système (components.css) — les mêler ici signalerait un
+   faux positif permanent. */
+$feuillesAdmin = [];
+$sourcesAdmin  = [$R . 'src/partials/navbar-admin.php'];
+foreach (glob($R . 'inc\*.php') ?: [] as $f) {
+    if (str_contains((string) file_get_contents($f), 'navbar-admin.php')) $sourcesAdmin[] = $f;
+}
+foreach ($sourcesAdmin as $f) {
+    if (!is_file($f)) continue;
+    preg_match_all('#css/([a-z0-9_-]+\.css)#i', (string) file_get_contents($f), $mCss);
+    foreach ($mCss[1] as $c) $feuillesAdmin[$c] = true;
+}
+unset($feuillesAdmin['admin.css']);   // la référence : c'est elle qui doit styler
+
+$feuillesPage = [];
+foreach (array_keys($feuillesAdmin) as $c) {
+    if (!is_file($R . 'css/' . $c)) continue;
+    // Une règle qui vise `.btn` sans être préfixée par une classe à soi.
+    if (preg_match('/^\s*\.btn(-[a-z]+)?\s*[,{]/m', (string) file_get_contents($R . 'css/' . $c))) {
+        $feuillesPage[] = $c;
+    }
+}
+verifie('aucune feuille chargée en admin ne redéfinit les boutons',
+    empty($feuillesPage), implode(', ', $feuillesPage));
+
+// Une couleur en dur sur un bouton ne suit pas le thème : elle reste claire en
+// sombre, et le bouton se distingue de tous les autres.
+$dur = [];
+foreach (glob($R . 'inc\*.php') ?: [] as $f) {
+    if (preg_match('/class="btn[^"]*"[^>]*style="[^"]*#[0-9a-fA-F]{3,6}/', (string) file_get_contents($f))) {
+        $dur[] = basename($f);
+    }
+}
+verifie('aucun bouton n\'a de couleur écrite en dur',
+    empty($dur), implode(', ', $dur));
+
+/* ── 17. La recherche de l'administration ───────────────────────────────────
+ *
+ * ⚠️ UN INDEX QUI DÉRIVE EST PIRE QUE PAS D'INDEX. Si un réglage est ajouté
+ * sans être indexé, la recherche répond « aucun résultat » et on en conclut que
+ * la fonction n'existe pas — on va la chercher ailleurs, ou on la recrée.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 17. Recherche de l'administration ===\n";
+$rech = $lire('src/partials/recherche-admin.php');
+
+// Tout onglet de Réglages doit être atteignable par la recherche.
+preg_match_all('/data-tab="([a-z_]+)"/', $set, $mOnglets);
+$nonIndexes = [];
+foreach (array_unique($mOnglets[1]) as $onglet) {
+    if (!str_contains($rech, 'tab=' . $onglet)) $nonIndexes[] = $onglet;
+}
+verifie('tout onglet de Réglages est dans l\'index de recherche',
+    empty($nonIndexes), implode(', ', $nonIndexes));
+
+// Toute page d'administration listée au menu doit l'être aussi.
+$nav = $lire('src/partials/navbar-admin.php');
+preg_match_all("/\['([a-z_-]+\.php)(?:\?[^']*)?',\s*'/", $nav, $mPages);
+$pagesNonIndexees = [];
+foreach (array_unique($mPages[1]) as $page) {
+    if (!str_contains($rech, $page)) $pagesNonIndexees[] = $page;
+}
+verifie('toute page du menu est dans l\'index de recherche',
+    empty($pagesNonIndexees), implode(', ', $pagesNonIndexees));
+
+/* Une ancre qui ne correspond à aucun id mène à l'onglet sans surligner quoi
+   que ce soit : la recherche a l'air de fonctionner, et elle laisse chercher. */
+preg_match_all("/'ancre' => '([a-zA-Z]+)'/", $rech, $mAncres);
+$ancresMortes = [];
+$toutHtml = '';
+foreach (array_merge(glob($R . 'inc\*.php') ?: [], glob($R . 'src\partials\*.php') ?: []) as $f) {
+    $toutHtml .= (string) file_get_contents($f);
+}
+foreach (array_unique(array_filter($mAncres[1])) as $ancre) {
+    if (!str_contains($toutHtml, 'id="' . $ancre . '"')) $ancresMortes[] = $ancre;
+}
+verifie('chaque ancre de l\'index existe dans une page',
+    empty($ancresMortes), implode(', ', $ancresMortes));
+
+/* ⚠️ LE FILTRAGE PAR DROITS DOIT ÊTRE CÔTÉ SERVEUR. Envoyer l'index complet au
+   navigateur puis le filtrer en JavaScript révélerait l'existence d'écrans à qui
+   n'y a pas accès — il suffirait de lire la source de la page. */
+verifie('l\'index est filtré par les droits avant d\'être envoyé',
+    str_contains($rech, '$jrCanSee($e[\'droit\'])')
+    && str_contains($rech, '$rechercheVisible'));
+
+// Le libellé doit dire ce qu'on cherche : le tableau de bord a déjà une
+// recherche, qui porte sur les inscrits.
+verifie('la barre annonce qu\'elle cherche un réglage',
+    str_contains($rech, 'Rechercher un réglage'));
 
 echo "\n" . str_repeat('─', 62) . "\n";
 echo ($ko === 0 ? "INTÉGRITÉ : TOUT EST VERT" : "INTÉGRITÉ : $ko ÉCHEC(S)")
