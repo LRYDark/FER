@@ -1,0 +1,37 @@
+﻿# Coque Wear OS — montre Android.
+#
+# Contrairement à watchOS, Wear OS EST de l'Android : Flutter y compile
+# normalement. Cette coque réutilise donc tout le cœur (../shared) — API, file
+# d'attente, suivi de course — et n'en change que l'affichage.
+#
+# ⚠️ ELLE NE RÉUTILISE PAS LES ÉCRANS DU TÉLÉPHONE. Une barre de navigation à
+# quatre onglets sur un écran de 45 mm est illisible ; on écrit deux écrans
+# dédiés, qui appellent le même code métier.
+name: fer_wear
+description: Forbach en Rose — compagnon de course (Wear OS).
+publish_to: none
+
+# ⚠️ Alignée sur les deux autres coques : le serveur ne compare qu'une seule
+# `app_version_minimale`.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  fer_shared:
+    path: ../shared
+
+  # Écran rond, mode ambiant, forme de l'appareil. Sans lui, l'interface est
+  # rognée aux quatre coins sur les montres rondes — c'est-à-dire la plupart.
+  wear_plus: ^1.1.0
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

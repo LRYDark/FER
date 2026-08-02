@@ -43,6 +43,8 @@ require_once __DIR__ . '/../../src/auth/participant_auth.php';
 require_once __DIR__ . '/../../src/auth/participant_profile.php';
 require_once __DIR__ . '/../../src/content/transfers.php';
 require_once __DIR__ . '/../../src/content/chrono.php';
+require_once __DIR__ . '/../../src/content/course.php';         // course_lire()
+require_once __DIR__ . '/../../src/content/notifications.php';  // notif_pourCoureur()
 
 /* ═══════════════════════════ Sortie JSON ════════════════════════════════ */
 
@@ -469,6 +471,7 @@ if (($route[0] ?? '') === 'app' && ($route[1] ?? '') === 'config' && $methode ==
     $s = $pdo->query('SELECT app_version_minimale, app_store_url_ios, app_store_url_android,
                              traces_gps_conservation_jours
                         FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+    $reglagesApp = notif_reglages($pdo);
     api_ok([
         'version_minimale'   => $s['app_version_minimale'] ?? '1.0.0',
         'store_ios'          => $s['app_store_url_ios'] ?? null,
@@ -479,6 +482,14 @@ if (($route[0] ?? '') === 'app' && ($route[1] ?? '') === 'config' && $methode ==
          * qu'en essuyant un 403 au premier envoi de détection — c'est-à-dire au
          * pire moment, sur la ligne d'arrivée. */
         'chrono_actif'       => chrono_actif($pdo),
+        /* Réveil avant la course, en minutes (0 = aucun).
+         *
+         * ⚠️ SERVI ICI, ET NON DANS UNE ROUTE AUTHENTIFIÉE. L'application doit
+         * pouvoir (re)programmer sa notification locale au lancement, avant même
+         * que le jeton soit rafraîchi — et surtout après un redémarrage du
+         * téléphone, qui efface les alarmes programmées. */
+        'reveil_avant_min'   => $reglagesApp['reveil_avant_min'],
+        'notifications'      => $reglagesApp['notifications_actives'],
         'url_confidentialite' => api_siteUrl('public/politique-confidentialite.php'),
         'url_faq'            => api_siteUrl('public/faq.php'),
         'code_ttl_minutes'   => (int) $settings['participant_code_ttl_min'],
@@ -488,6 +499,56 @@ if (($route[0] ?? '') === 'app' && ($route[1] ?? '') === 'config' && $methode ==
             'connexion_aide' => "Saisissez l'adresse email utilisée lors de votre inscription. "
                               . "Un code à 6 chiffres vous sera envoyé.",
         ],
+    ]);
+}
+
+/* ─────────────────────────────── /course ─────────────────────────────────
+ * Informations pratiques de l'édition en cours : date, heure, lieu, horaires,
+ * retrait des dossards, inscriptions sur place.
+ *
+ * ⚠️ SANS JETON, ET C'EST ASSUMÉ. Tout ce qui est ici figure déjà sur le site
+ * public — la date de la course et le lieu de rendez-vous ne sont pas des
+ * secrets, ils sont sur l'affiche. Exiger une connexion empêcherait
+ * l'application d'afficher l'essentiel à quelqu'un qui vient de l'installer,
+ * sans rien protéger de plus.
+ *
+ * C'est la MÊME lecture que l'administration et le site : course_lire() est la
+ * source unique. Une seconde requête écrite ici finirait par diverger.
+ * ──────────────────────────────────────────────────────────────────────── */
+if (($route[0] ?? '') === 'course' && $methode === 'GET') {
+    $annee = isset($route[1]) ? (int) $route[1] : null;
+    $c = course_lire($pdo, $annee);
+
+    api_ok([
+        'annee'        => $c['annee'],
+        'libelle'      => $c['libelle'],
+        'date_course'  => $c['date_course'],
+        // ⏱️ Stockée en UTC, servie en ISO-8601 avec décalage explicite. Une
+        // date nue serait relue dans le fuseau du téléphone — et le rappel
+        // « départ dans 2 h » tomberait deux heures à côté.
+        'heure_depart' => api_date($c['heure_depart']),
+        /* Le top réel. `null` tant que le départ n'a pas été donné.
+         *
+         * ⚠️ C'EST LUI QUE L'APPLICATION DOIT AFFICHER dès qu'il existe : son
+         * chrono doit compter depuis le départ réel, pas depuis l'heure prévue.
+         * Sinon un départ retardé de cinq minutes se voit sur tous les
+         * téléphones, et personne ne comprend pourquoi. */
+        'depart_reel'  => api_date($c['depart_reel']),
+        'distance_km'  => $c['distance_km'],
+        'depart'  => $c['lat_depart'] !== null
+            ? ['lat' => $c['lat_depart'], 'lon' => $c['lon_depart']] : null,
+        'arrivee' => $c['lat_arrivee'] !== null
+            ? ['lat' => $c['lat_arrivee'], 'lon' => $c['lon_arrivee']] : null,
+        'adresse'               => $c['lieu_adresse'],
+        'lieu_rdv'              => $c['lieu_rdv'],
+        'horaires'              => $c['horaires'],
+        'retrait_tshirt'        => $c['retrait_tshirt'],
+        'inscription_sur_place' => $c['inscription_sur_place'],
+        'inscriptions_ouvrent'  => api_date($c['inscriptions_ouvrent']),
+        'inscriptions_ferment'  => api_date($c['inscriptions_ferment']),
+        // Ce qui manque encore pour que le chronométrage puisse fonctionner.
+        // Servi à l'application pour qu'elle n'annonce pas un suivi impossible.
+        'chrono_pret'  => chrono_actif($pdo) && course_manques($pdo, $annee) === [],
     ]);
 }
 
@@ -716,6 +777,76 @@ if (($route[0] ?? '') === 'me') {
     /* POST /me/detections — balise ET franchissement GPS, les deux.
        C'est la redondance qui compte : si un boîtier lâche le jour J, le GPS
        donne quand même un temps. */
+    /* POST /me/push-token — l'application déclare son jeton de notification.
+     *
+     * ⚠️ APPELÉ À CHAQUE LANCEMENT, PAS SEULEMENT À LA CONNEXION. Google
+     * renouvelle ce jeton tout seul : après une réinstallation, une restauration
+     * de sauvegarde, ou simplement au bout d'un moment. Ne l'envoyer qu'une fois
+     * garantit qu'un jour les notifications cessent d'arriver, sans que rien ne
+     * l'explique.
+     *
+     * Un corps vide retire le jeton — c'est ce que fait l'application quand les
+     * notifications sont refusées sur l'appareil. */
+    if ($sousRoute === 'push-token' && $methode === 'POST') {
+        require_once __DIR__ . '/../../src/content/push.php';
+        $token = isset($corps['token']) ? (string) $corps['token'] : null;
+
+        if (!push_enregistrerJeton($pdo, (int) $device['id'], $token)) {
+            api_err(503, 'not_installed',
+                'Enregistrement impossible : mise à jour de la base requise.');
+        }
+        api_ok(['enregistre' => $token !== null && trim($token) !== '']);
+    }
+
+    /* GET /me/notifications — messages de l'organisation.
+     *
+     * ⚠️ CE N'EST PAS DU PUSH. L'application INTERROGE ce point d'entrée à son
+     * ouverture et à son réveil, puis affiche localement ce qu'elle n'a pas
+     * encore vu. Aucun appareil n'est déclaré chez Google ou Apple, donc aucune
+     * liste de porteurs de l'application n'est exportée — voir l'en-tête de
+     * src/content/notifications.php.
+     *
+     * `depuis` permet de ne recevoir que ce qui est nouveau. Les notifications
+     * ÉPINGLÉES échappent à ce filtre : elles portent les informations pratiques
+     * qu'on relit la veille, les masquer parce qu'elles ont déjà été vues
+     * viderait la page où l'on va justement les chercher.
+     *
+     * Volontairement HORS de la barrière du chronométrage ci-dessous : une
+     * annonce de l'organisation doit passer que le chrono soit ouvert ou non.
+     */
+    if ($sousRoute === 'notifications' && $methode === 'GET') {
+        if (!notif_reglages($pdo)['notifications_actives']) api_ok([]);
+
+        $inscriptions = pauth_registrations($pdo, $participantId);
+        $annees = array_values(array_unique(
+            array_map(fn($r) => (int) $r['annee'], $inscriptions)
+        ));
+        $depuis = isset($_GET['depuis']) ? (int) $_GET['depuis'] : null;
+
+        // Une notification par édition à laquelle le coureur est inscrit, plus
+        // celles qui ne visent aucune édition en particulier. Dédoublonnées :
+        // une notification « toutes éditions » ressortirait sinon autant de
+        // fois que le coureur a d'inscriptions.
+        $vues = [];
+        foreach ($annees ?: [null] as $a) {
+            foreach (notif_pourCoureur($pdo, $a, $depuis) as $n) {
+                $vues[(int) $n['id']] = $n;
+            }
+        }
+        krsort($vues);
+
+        api_ok(array_values(array_map(fn($n) => [
+            'id'        => (int) $n['id'],
+            'annee'     => $n['annee'] === null ? null : (int) $n['annee'],
+            'type'      => $n['type'],
+            'titre'     => $n['titre'],
+            'message'   => $n['message'],
+            'epingle'   => (int) $n['epingle'] === 1,
+            'publie_le' => api_date($n['publie_at']),
+            'expire_le' => api_date($n['expire_at']),
+        ], $vues)));
+    }
+
     /* ── Barrière commune aux quatre points d'entrée du chronométrage ────────
      * Chronométrage fermé : on refuse l'écriture ET la lecture. Renvoyer une
      * liste vide de résultats serait pire qu'un refus — l'application afficherait

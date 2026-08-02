@@ -1,0 +1,36 @@
+﻿# Coque Apple — iPhone et iPad.
+#
+# Le nom du dossier dit où on la compile, pas ce qu'elle vise : il faut un Mac
+# et Xcode pour produire un binaire iOS. L'application Apple Watch, elle, n'est
+# PAS écrite en Dart — Flutter ne sait pas compiler pour watchOS. Ses sources
+# SwiftUI sont dans ./watchos.
+name: fer_ios
+description: Forbach en Rose — application du coureur (iPhone, iPad).
+publish_to: none
+
+# ⚠️ Ce numéro part dans X-App-Version et doit RESTER ALIGNÉ sur celui de la
+# coque Android : le serveur ne compare qu'une seule version minimale pour les
+# deux plateformes. Deux numéros divergents feraient refuser l'une des deux
+# sans qu'on comprenne pourquoi.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  fer_shared:
+    path: ../shared
+
+  # Le même paquet de rappels que la coque Android — voir ../rappels.
+  fer_rappels:
+    path: ../rappels
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

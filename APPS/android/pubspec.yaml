@@ -1,0 +1,37 @@
+﻿# Coque Android — téléphone et tablette.
+#
+# Ce projet ne contient presque pas de code : tout vit dans ../shared. Il porte
+# la configuration Android (permissions, version minimale du SDK) et branche
+# l'implémentation des notifications locales.
+name: fer_android
+description: Forbach en Rose — application du coureur (Android).
+publish_to: none
+
+# ⚠️ CE NUMÉRO EST ENVOYÉ AU SERVEUR dans X-App-Version, et c'est lui que
+# compare `app_version_minimale` (Réglages → API). Le relever ici puis publier
+# est ce qui permet de mettre une version défectueuse hors service partout.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Le cœur : API, modèles, écrans, suivi de course.
+  fer_shared:
+    path: ../shared
+
+  # Rappel avant la course. Paquet à part, partagé avec ../mac : le même code
+  # sert aux deux plateformes, et le cœur (../shared) reste compilable sans ce
+  # greffon — la montre et watchOS ont d'autres mécanismes.
+  fer_rappels:
+    path: ../rappels
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

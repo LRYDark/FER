@@ -32,54 +32,23 @@
     color: var(--danger);
 }
 
-.btn {
-    display: inline-block;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 5px;
-    text-decoration: none;
-    text-align: center;
-    cursor: pointer;
-    font-size: 14px;
-    margin: 5px;
-    transition: background-color 0.3s;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠️ LES STYLES DE BOUTONS ONT ÉTÉ RETIRÉS D'ICI — NE PAS LES REMETTRE.
 
-.btn-primary {
-    background-color: var(--accent);
-    color: white;
-}
+   Cette feuille redéfinissait `.btn`, `.btn-primary`, `.btn-success`,
+   `.btn-danger` et `.btn-warning`. Or ce sont des classes GÉNÉRALES : chargée
+   après admin.css, elle donnait aux boutons de cette seule page
+   (mail-settings.php) une forme différente de tout le reste de
+   l'administration — 12 px de remplissage au lieu de 8, un rayon de 5 px au
+   lieu du rayon du thème, une marge de 5 px parasite, et des couleurs écrites
+   en dur (#28a745, #dc3545, #ffc107) qui ignoraient la palette et ne suivaient
+   donc pas le thème sombre.
 
-.btn-primary:hover {
-    background-color: var(--accent-strong);
-}
+   css/admin.css définit déjà toutes ces variantes à partir des jetons
+   (--accent, --ok, --danger, --warn, --radius-m). C'est la seule référence.
 
-.btn-success {
-    background-color: #28a745;
-    color: white;
-}
-
-.btn-success:hover {
-    background-color: #1e7e34;
-}
-
-.btn-danger {
-    background-color: #dc3545;
-    color: white;
-}
-
-.btn-danger:hover {
-    background-color: #c82333;
-}
-
-.btn-warning {
-    background-color: #ffc107;
-    color: #1e293b;
-}
-
-.btn-warning:hover {
-    background-color: #e0a800;
-}
+   Une feuille propre à une page ne doit styler que SES classes à elle.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .message {
     padding: 15px;
@@ -123,12 +92,16 @@
     vertical-align: middle;
 }
 
-@media (max-width: 600px) {            
+@media (max-width: 600px) {
     .actions {
         flex-direction: column;
     }
-    
-    .btn {
+
+    /* Portée limitée à `.actions` : sans ce préfixe, la règle s'appliquait à
+       TOUS les boutons de la page sur petit écran — y compris ceux des barres
+       d'outils et des modales, qui devenaient pleine largeur avec une marge
+       parasite. Une feuille propre à une page ne doit toucher que ses classes. */
+    .actions .btn {
         width: 100%;
         margin: 5px 0;
     }

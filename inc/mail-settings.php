@@ -999,7 +999,7 @@ $jsConfig = json_encode([
   <?php if ($canWrite): ?>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='template'?'active':'' ?>" href="#" data-pane="paneTemplate">Template email</a></li>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='google'?'active':'' ?>" href="#" data-pane="paneGoogle">Google / Email</a></li>
-  <li class="nav-item"><a class="nav-link <?= $activeSubTab==='notifications'?'active':'' ?>" href="#" data-pane="paneNotifications">Notifications</a></li>
+  <li class="nav-item"><a class="nav-link <?= $activeSubTab==='notifications'?'active':'' ?>" href="#" data-pane="paneNotifications">Alertes par email</a></li>
   <?php endif; ?>
   <?php if ($canNewsletter): ?>
   <li class="nav-item"><a class="nav-link <?= $activeSubTab==='newsletter'?'active':'' ?>" href="#" data-pane="paneNewsletter">Abonnés newsletter</a></li>
@@ -1196,7 +1196,7 @@ $jsConfig = json_encode([
         <span style="font-weight:600">Nouvel article (newsletter)</span><br><span style="font-size:11px;color: var(--ink-faint)">Mail envoyé aux abonnés à la publication</span>
       </button>
       <hr style="margin:16px 0;border-color:var(--border)">
-      <p style="font-size:12px;font-weight:700;color: var(--ink-dim);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px"><i class="bi bi-bell me-1"></i>Notifications admin</p>
+      <p style="font-size:12px;font-weight:700;color: var(--ink-dim);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px"><i class="bi bi-bell me-1"></i>Alertes par email</p>
       <button type="button" class="preview-btn" data-preview="notif_mention" style="width:100%;margin-bottom:8px">
         <span style="font-weight:600">Mention @forbachenrose</span><br><span style="font-size:11px;color: var(--ink-faint)">Identification dans un commentaire</span>
       </button>
@@ -1449,9 +1449,13 @@ $jsConfig = json_encode([
           <?php /* Onglet « logs_mail_catchall » : la clé est dérivée du NOM DU
                    FICHIER (logs_mail_catchall.log), pas du libellé affiché. */ ?>
           <?php /* Fond gris clair permanent (et non au seul survol) : le bouton
-                   doit se voir sans avoir à le chercher. */ ?>
+                   doit se voir sans avoir à le chercher.
+                   ⚠️ EN JETONS ET NON EN HEXA. Les valeurs #e9ecef / #495057
+                   qui étaient écrites ici ne suivaient pas la palette : le
+                   bouton gardait un fond clair et un texte sombre en thème
+                   sombre, illisible, et se distinguait de tous les autres. */ ?>
           <a class="btn btn-sm w-auto ms-auto" href="logs.php?log=logs_mail_catchall"
-             style="background:#e9ecef;border:0;color:#495057"
+             style="background:var(--surface-2);border:0;color:var(--ink-dim)"
              title="Voir les redirections de mails enregistrées">
             <i class="bi bi-journal-text me-1"></i>Journal
           </a>
@@ -1621,7 +1625,7 @@ $jsConfig = json_encode([
   <div class="row g-4">
     <div class="col-12 col-lg-8">
       <div class="setting-card">
-        <h2><i class="bi bi-bell me-2"></i>Notifications admin</h2>
+        <h2><i class="bi bi-bell me-2"></i>Alertes par email</h2>
         <p class="text-muted mb-3">Choisissez les notifications a envoyer et les destinataires.</p>
         <form action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">

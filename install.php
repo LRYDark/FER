@@ -534,7 +534,11 @@ function getCreateTableStatements(): array
           `mail_template_config` TEXT DEFAULT NULL,
           `theme_primary_color` VARCHAR(7) DEFAULT '#db2777',
           `theme_secondary_color` VARCHAR(7) DEFAULT '#0f172a',
-          `theme_dark_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          /* ⚠️ `theme_dark_enabled` a été retiré : écrit nulle part, lu nulle
+           * part. Le thème sombre est piloté par les couleurs dédiées
+           * (`theme_dark_primary_color`, `theme_dark_secondary_color`) et par la
+           * préférence du navigateur, pas par cet interrupteur — qui n'a jamais
+           * été branché. Ne pas le remettre « au cas où ». */
           `flash_bg_color` VARCHAR(7) DEFAULT '#db2777',
           `flash_text_color` VARCHAR(7) DEFAULT '#ffffff',
           `theme_dark_primary_color` VARCHAR(7) DEFAULT '#f472b6',
@@ -642,6 +646,31 @@ function getCreateTableStatements(): array
            * Désactiver ne supprime RIEN : les temps et les traces restent en
            * base et réapparaissent à la réactivation. */
           `chrono_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+          /* Notifications de l'application mobile.
+           * Les colonnes se mettent À LA SUITE — cf. le commentaire de
+           * `chrono_enabled` ci-dessus : update.php ne sait qu'ajouter à la fin,
+           * et docs/audit-bdd.php compare les deux schémas colonne par colonne. */
+          `app_notifications_actives` TINYINT(1) NOT NULL DEFAULT 1,
+          /* Réveil de l'application avant la course, en minutes.
+           * L'application programme une notification locale à
+           * `heure_depart - ce délai`, pour rappeler de la lancer et d'activer
+           * le suivi. 120 = deux heures : le temps de se préparer et de venir.
+           * 0 = pas de réveil. */
+          `app_reveil_avant_min` SMALLINT NOT NULL DEFAULT 120,
+          /* Firebase Cloud Messaging — l'unique voie pour faire sonner un
+           * téléphone. Android et iOS bloquent tout le reste.
+           *
+           * ⚠️ `fcm_service_account` EST UNE CLÉ PRIVÉE, stockée chiffrée par
+           * encrypt(). Quiconque la lit peut envoyer des notifications au nom de
+           * l'association. Elle ne doit jamais être réaffichée en clair dans
+           * l'administration, ni journalisée. */
+          `fcm_project_id` VARCHAR(120) DEFAULT NULL,
+          `fcm_service_account` TEXT DEFAULT NULL,
+          /* Délai de grâce après l'heure PRÉVUE, en minutes.
+           * Passé ce délai sans que le départ ait été donné, le calcul retombe
+           * sur l'heure prévue plutôt que de laisser tout le monde sans temps.
+           * Avant, on ne publie rien : mieux vaut « en course » qu'un temps faux. */
+          `depart_grace_min` SMALLINT NOT NULL DEFAULT 10,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -1120,6 +1149,16 @@ function getCreateTableStatements(): array
           `lon_arrivee` DECIMAL(10,7) DEFAULT NULL,
           `temps_min_plausible_s` INT DEFAULT NULL,
           `transferts_deadline` DATETIME DEFAULT NULL,
+          /* ⏱️ LE TOP DE DÉPART RÉEL, en UTC. Vide tant que personne n'a appuyé.
+           *
+           * `heure_depart` est l'heure PRÉVUE ; celle-ci est l'instant où le
+           * départ a effectivement été donné. Les deux sont nécessaires : la
+           * première sert au rappel et de filet, la seconde fait foi.
+           *
+           * Une course part rarement à l'heure. Sans cette colonne, corriger un
+           * départ retardé de cinq minutes obligerait à modifier l'heure prévue
+           * — et on perdrait au passage l'information « c'était prévu à 11 h ». */
+          `depart_reel_at` DATETIME(3) DEFAULT NULL,
           `is_active` TINYINT(1) NOT NULL DEFAULT 0,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_annee` (`annee`)
@@ -1222,6 +1261,18 @@ function getCreateTableStatements(): array
           `derniere_utilisation` DATETIME DEFAULT NULL,
           `expires_at` DATETIME DEFAULT NULL,
           `revoque_at` DATETIME DEFAULT NULL,
+          /* Jeton de notification poussée (Firebase Cloud Messaging).
+           *
+           * ⚠️ RANGÉ SUR L'APPAREIL, ET NON DANS UNE TABLE À PART. C'est ce qui
+           * fait qu'une révocation coupe les notifications sans une ligne de
+           * code de plus : l'envoi ne lit que les appareils dont `revoque_at`
+           * est nul. Une table séparée aurait fallu la purger à la main, et on
+           * aurait fini par notifier un téléphone rendu ou perdu.
+           *
+           * Ce jeton n'est PAS un secret du coureur : il identifie une
+           * installation auprès de Google, et se renouvelle tout seul. */
+          `push_token` VARCHAR(255) DEFAULT NULL,
+          `push_maj_at` DATETIME DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_participant` (`participant_id`),
           UNIQUE KEY `idx_token` (`token_hash`),
@@ -1254,6 +1305,53 @@ function getCreateTableStatements(): array
           INDEX `idx_inscription` (`annee`, `inscription_no`),
           INDEX `idx_statut` (`statut`),
           UNIQUE KEY `idx_token` (`token_hash`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+        // Notifications poussées vers l'application mobile.
+        //
+        // ⚠️ PAS DE DESTINATAIRES NOMMÉS ICI, ET C'EST DÉLIBÉRÉ. Une
+        // notification s'adresse à une ÉDITION (`annee`), donc à ses inscrits.
+        // Stocker une liste de participants ferait de cette table un fichier de
+        // ciblage — une donnée personnelle de plus à protéger, à purger et à
+        // justifier, pour un besoin que « tous les inscrits de l'année » couvre.
+        //
+        // `publie_at` : une notification se prépare à l'avance et sort à l'heure
+        // dite. Sans cette colonne, il faudrait être devant l'écran à 6 h du
+        // matin le jour de la course pour annoncer un changement de départ.
+        //
+        // `epingle` : reste affichée dans « Mes inscriptions » au lieu de
+        // défiler. C'est ce qui porte les informations pratiques — heure de
+        // rendez-vous, parking — qu'on relit trois fois la veille.
+        "CREATE TABLE IF NOT EXISTS `app_notifications` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT DEFAULT NULL,
+          `type` ENUM('info','course','urgent') NOT NULL DEFAULT 'info',
+          /* ⚠️ LE PUSH N'EST PAS UNE PROPRIÉTÉ DU MESSAGE, C'EST UNE ACTION.
+           *
+           * La première version portait un « canal » (app / système / les deux),
+           * et c'était une erreur de modèle : un message est du CONTENU qu'on
+           * relit, un push est un ÉVÉNEMENT qui sonne une fois. Un push n'a pas
+           * de date de fin, un message ne sonne pas.
+           *
+           * D'où deux choses distinctes :
+           *   `afficher_dans_app` — le message vit-il dans la boîte du coureur ;
+           *   `envoye_at` / `envoye_a` — TRACE d'un envoi qui a eu lieu, écrite
+           *   par le bouton « Envoyer sur les téléphones ». On ne programme pas
+           *   un push : on l'envoie, et on sait quand et à combien. */
+          `afficher_dans_app` TINYINT(1) NOT NULL DEFAULT 1,
+          `envoye_at` DATETIME DEFAULT NULL,
+          `envoye_a` INT DEFAULT NULL,
+          `titre` VARCHAR(120) NOT NULL,
+          `message` TEXT NOT NULL,
+          `publie_at` DATETIME DEFAULT NULL,
+          `expire_at` DATETIME DEFAULT NULL,
+          `epingle` TINYINT(1) NOT NULL DEFAULT 0,
+          `active` TINYINT(1) NOT NULL DEFAULT 1,
+          `cree_par` INT DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX `idx_diffusion` (`active`, `publie_at`, `expire_at`),
+          INDEX `idx_annee` (`annee`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
         // Chronométrage — alimenté plus tard par l'application mobile, mais créé

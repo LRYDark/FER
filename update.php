@@ -520,7 +520,10 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `theme_secondary_color` VARCHAR(7) DEFAULT '#0f172a'",
     "ALTER TABLE `setting` ADD COLUMN `theme_border_radius` INT DEFAULT 12",
     "ALTER TABLE `setting` ADD COLUMN `theme_font_family` VARCHAR(100) DEFAULT 'Inter'",
-    "ALTER TABLE `setting` ADD COLUMN `theme_dark_enabled` TINYINT(1) NOT NULL DEFAULT 0",
+    // `theme_dark_enabled` : la ligne d'ajout a été retirée — jamais écrit,
+    // jamais lu. Le retrait des bases qui l'ont se fait plus bas, sous
+    // condition : un DROP inconditionnel échouerait à chaque passage sur une
+    // base neuve, et polluerait le rapport de migration d'une erreur permanente.
     "ALTER TABLE `setting` ADD COLUMN `flash_bg_color` VARCHAR(7) DEFAULT '#db2777'",
     "ALTER TABLE `setting` ADD COLUMN `flash_text_color` VARCHAR(7) DEFAULT '#ffffff'",
     "ALTER TABLE `setting` ADD COLUMN `theme_dark_primary_color` VARCHAR(7) DEFAULT '#f472b6'",
@@ -1976,6 +1979,35 @@ try {
 // ⏱️ Toutes les colonnes DATETIME(3) sont stockées EN UTC, sans exception.
 // ─────────────────────────────────────────────────────────────────────
 $lot1Tables = [
+    // Notifications poussées vers l'application mobile.
+    // Aucun destinataire nommé : une notification s'adresse à une ÉDITION, donc
+    // à ses inscrits. Une liste de participants ferait de cette table un fichier
+    // de ciblage — une donnée personnelle de plus à protéger et à purger, pour
+    // un besoin que « tous les inscrits de l'année » couvre déjà.
+    'app_notifications' =>
+        "CREATE TABLE IF NOT EXISTS `app_notifications` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `annee` SMALLINT DEFAULT NULL,
+          `type` ENUM('info','course','urgent') NOT NULL DEFAULT 'info',
+          -- ⚠️ Le push est une ACTION, pas une propriété du message : voir
+          -- install.php. `afficher_dans_app` dit si le message vit dans la
+          -- boîte du coureur ; `envoye_at`/`envoye_a` tracent un envoi effectué.
+          `afficher_dans_app` TINYINT(1) NOT NULL DEFAULT 1,
+          `envoye_at` DATETIME DEFAULT NULL,
+          `envoye_a` INT DEFAULT NULL,
+          `titre` VARCHAR(120) NOT NULL,
+          `message` TEXT NOT NULL,
+          `publie_at` DATETIME DEFAULT NULL,
+          `expire_at` DATETIME DEFAULT NULL,
+          `epingle` TINYINT(1) NOT NULL DEFAULT 0,
+          `active` TINYINT(1) NOT NULL DEFAULT 1,
+          `cree_par` INT DEFAULT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX `idx_diffusion` (`active`, `publie_at`, `expire_at`),
+          INDEX `idx_annee` (`annee`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
     'editions' =>
         "CREATE TABLE IF NOT EXISTS `editions` (
           `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -1990,6 +2022,9 @@ $lot1Tables = [
           `lon_arrivee` DECIMAL(10,7) DEFAULT NULL,
           `temps_min_plausible_s` INT DEFAULT NULL,
           `transferts_deadline` DATETIME DEFAULT NULL,
+          -- ⏱️ Le top de départ RÉEL, en UTC. Vide tant que personne n'a appuyé.
+          -- `heure_depart` est l'heure prévue ; celle-ci fait foi.
+          `depart_reel_at` DATETIME(3) DEFAULT NULL,
           `is_active` TINYINT(1) NOT NULL DEFAULT 0,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE KEY `idx_annee` (`annee`)
@@ -2071,6 +2106,11 @@ $lot1Tables = [
           `derniere_utilisation` DATETIME DEFAULT NULL,
           `expires_at` DATETIME DEFAULT NULL,
           `revoque_at` DATETIME DEFAULT NULL,
+          -- Jeton de notification poussée. Rangé ICI et non dans une table à
+          -- part : révoquer un appareil coupe ses notifications sans une ligne
+          -- de code de plus, l'envoi ne lisant que `revoque_at IS NULL`.
+          `push_token` VARCHAR(255) DEFAULT NULL,
+          `push_maj_at` DATETIME DEFAULT NULL,
           `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX `idx_participant` (`participant_id`),
           UNIQUE KEY `idx_token` (`token_hash`),
@@ -2364,6 +2404,19 @@ $lot1Settings = [
     // traces (`traces_gps`) restent en base et réapparaissent à l'identique dès
     // la réactivation. Seules les purges effacent.
     'chrono_enabled'                       => "TINYINT(1) NOT NULL DEFAULT 0",
+    // Notifications poussées vers l'application mobile. Actives par défaut :
+    // contrairement au chronométrage, une notification ne collecte rien et ne
+    // part que si quelqu'un en écrit une.
+    'app_notifications_actives'            => "TINYINT(1) NOT NULL DEFAULT 1",
+    // Réveil de l'application avant la course, en minutes (0 = aucun).
+    'app_reveil_avant_min'                 => "SMALLINT NOT NULL DEFAULT 120",
+    // Firebase — la seule voie pour faire sonner un téléphone.
+    // ⚠️ `fcm_service_account` est une CLÉ PRIVÉE : stockée chiffrée, jamais
+    // réaffichée en clair, jamais journalisée.
+    'fcm_project_id'                       => "VARCHAR(120) DEFAULT NULL",
+    'fcm_service_account'                  => "TEXT DEFAULT NULL",
+    // Délai de grâce après l'heure prévue, avant que le calcul n'y retombe.
+    'depart_grace_min'                     => "SMALLINT NOT NULL DEFAULT 10",
 ];
 
 foreach ($lot1Settings as $col => $ddl) {
@@ -2399,6 +2452,115 @@ $chronoAlters = [
         (`annee`, `inscription_no`, `type`, `point`, `detecte_at`)',
      'Index d\'unicité des détections (réception idempotente)'],
 ];
+
+/* ═══════ Colonnes ajoutées à des tables qui existent peut-être déjà ═══════
+ *
+ * `CREATE TABLE IF NOT EXISTS` ne touche pas une table présente : ces colonnes
+ * doivent donc être ajoutées séparément pour les bases déjà migrées.
+ *
+ * ⚠️ LA POSITION (`AFTER`) N'EST PAS COSMÉTIQUE. Les deux chemins d'installation
+ * doivent produire le MÊME schéma, ordre des colonnes compris — c'est
+ * exactement ce que compare docs/audit-bdd.php, et il a déjà refusé une colonne
+ * posée au mauvais endroit.
+ * ───────────────────────────────────────────────────────────────────────── */
+$colonnesTardives = [
+    // [table, colonne, définition, après, description]
+    ['app_notifications', 'afficher_dans_app',
+     "TINYINT(1) NOT NULL DEFAULT 1", 'type',
+     'Notifications : affichage dans l\'application'],
+    ['app_notifications', 'envoye_at',
+     "DATETIME DEFAULT NULL", 'afficher_dans_app',
+     'Notifications : date d\'envoi sur les téléphones'],
+    ['app_notifications', 'envoye_a',
+     "INT DEFAULT NULL", 'envoye_at',
+     'Notifications : nombre d\'appareils touchés'],
+
+    // Le top de départ réel — la pièce maîtresse du bouton START.
+    ['editions', 'depart_reel_at',
+     "DATETIME(3) DEFAULT NULL", 'transferts_deadline',
+     'Éditions : instant réel du départ (UTC)'],
+
+    // Jeton de notification poussée, porté par l'appareil : une révocation
+    // coupe les notifications sans code supplémentaire.
+    ['participant_devices', 'push_token',
+     "VARCHAR(255) DEFAULT NULL", 'revoque_at',
+     'Appareils : jeton de notification poussée'],
+    ['participant_devices', 'push_maj_at',
+     "DATETIME DEFAULT NULL", 'push_token',
+     'Appareils : date du jeton de notification'],
+];
+
+foreach ($colonnesTardives as [$table, $colonne, $def, $apres, $desc]) {
+    try {
+        if (!updTableExists($pdo, $table)) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Table absente'];
+            continue;
+        }
+        $existe = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = " . $pdo->quote($table) . "
+                AND COLUMN_NAME = " . $pdo->quote($colonne)
+        )->fetchColumn();
+
+        if ($existe > 0) {
+            $results[] = ['status' => 'skip', 'sql' => $desc, 'msg' => 'Existe déjà'];
+            continue;
+        }
+        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$colonne` $def AFTER `$apres`");
+        $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Colonne ajoutée'];
+    } catch (PDOException $e) {
+        $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+    }
+}
+
+/* Colonnes retirées du schéma : on les supprime des bases qui les portent
+ * encore, sinon les deux chemins d'installation divergent et l'audit refuse.
+ * Sous condition d'existence — un DROP inconditionnel échouerait à chaque
+ * passage sur une base neuve. */
+foreach ([
+    // Interrupteur de thème sombre jamais branché : ni écrit, ni lu. Le thème
+    // sombre est piloté par ses couleurs dédiées et la préférence du navigateur.
+    ['setting', 'theme_dark_enabled', 'Réglages : interrupteur de thème sombre inutilisé'],
+] as [$tbl, $col, $desc]) {
+    try {
+        if (!updTableExists($pdo, $tbl)) continue;
+        $existe = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = " . $pdo->quote($tbl) . "
+                AND COLUMN_NAME = " . $pdo->quote($col)
+        )->fetchColumn();
+        if ($existe > 0) {
+            $pdo->exec("ALTER TABLE `$tbl` DROP COLUMN `$col`");
+            $results[] = ['status' => 'success', 'sql' => $desc, 'msg' => 'Colonne retirée'];
+        }
+    } catch (PDOException $e) {
+        $results[] = ['status' => 'error', 'sql' => $desc, 'msg' => $e->getMessage()];
+    }
+}
+
+/* `canal` a existé brièvement, puis a été remplacé par `afficher_dans_app` et
+ * la trace d'envoi — le push est une action, pas une propriété du message. On
+ * retire la colonne si elle traîne : la laisser ferait diverger les deux
+ * chemins d'installation, ce que l'audit refuse. */
+try {
+    if (updTableExists($pdo, 'app_notifications')) {
+        $vieux = (int) $pdo->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_notifications'
+                AND COLUMN_NAME = 'canal'"
+        )->fetchColumn();
+        if ($vieux > 0) {
+            $pdo->exec("ALTER TABLE `app_notifications` DROP COLUMN `canal`");
+            $results[] = ['status' => 'success', 'sql' => 'Notifications : ancien « canal » retiré',
+                          'msg' => 'Colonne supprimée'];
+        }
+    }
+} catch (PDOException $e) {
+    $results[] = ['status' => 'error', 'sql' => 'Notifications : ancien « canal »',
+                  'msg' => $e->getMessage()];
+}
 foreach ($chronoAlters as [$table, $index, $ddl, $desc]) {
     try {
         if (!updTableExists($pdo, $table)) {

@@ -10,6 +10,12 @@ try {
     error_log('googleMail load error: ' . $e->getMessage());
 }
 
+// Pont entre `setting` et `editions` : la date, la distance et le point de
+// départ vivent dans les deux tables. Écrire d'un côté doit écrire de l'autre,
+// sinon le chronométrage travaille avec des valeurs périmées.
+require_once __DIR__ . '/../src/content/course.php';
+require_once __DIR__ . '/../src/content/content-log.php';   // logContentAction()
+
 requirePage('setting');
 $role = currentRole();
 $canWrite     = canDoAction('settings.write');
@@ -93,12 +99,16 @@ require __DIR__ . '/../src/partials/navbar-data.php';
 /* ── Onglet actif (calculé TÔT pour que la sidebar/topbar le reflète) ──────
  * Déterminé par le bouton soumis (POST), sinon par ?tab=, sinon défaut.
  * v2 : la navigation d'onglets se fait depuis la sidebar (navbar-admin). */
-$allTabs   = ['personnalisation','accueil','inscription','parcours','reglementation','legal','formulaire','import','import_auto','maintenance','api'];
+// ⚠️ TOUT ONGLET AJOUTÉ DOIT FIGURER ICI. Absent de cette liste, `?tab=` est
+// rejeté en silence et la page retombe sur « personnalisation » — un lien qui
+// mène ailleurs sans jamais dire pourquoi.
+$allTabs   = ['personnalisation','accueil','course','inscription','parcours','reglementation','legal','formulaire','import','import_auto','maintenance','api'];
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance']) || isset($_POST['save_session'])) $activeTab = 'maintenance';
     elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
+    elseif (isset($_POST['save_course'])) $activeTab = 'course';
     elseif (isset($_POST['save_header']) || isset($_POST['save_inscription_params']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
     elseif (isset($_POST['parcours']) || isset($_POST['uploadGalerie']) || isset($_POST['delete_picture_parcours']) || isset($_POST['delete_picture_gradient'])) $activeTab = 'parcours';
     elseif (isset($_POST['reglementation'])) $activeTab = 'reglementation';
@@ -393,6 +403,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_start_point'])) 
         } else {
             $pdo->prepare('UPDATE setting SET start_point_coords = :v, start_point_address = NULL WHERE id = 1')
                 ->execute(['v' => $value !== '' ? $value : null]);
+            // Pont vers `editions` : les coordonnées posées ici sont AUSSI la
+            // ligne de départ du chronométrage. Sans cette ligne, on déplacerait
+            // le point sur la carte de l'accueil et le chrono continuerait de
+            // viser l'ancien endroit.
+            course_pousserDepuisSetting($pdo, ['start_point_coords']);
             echo json_encode(['ok' => true, 'address' => '', 'coords' => $value]);
         }
     } catch (\Throwable $e) {
@@ -1119,6 +1134,50 @@ if (isset($_POST['reset_theme'])) {
 }
 
 /* --------------------------------------------------------------------------
+   Course — la source unique des informations de l'édition.
+
+   ⚠️ CET ÉCRAN NE REMPLACE PAS LES AUTRES, IL LES REJOINT. La date reste
+   modifiable depuis l'onglet Accueil, la distance depuis Inscription : écrire
+   ici écrit là-bas, et écrire là-bas écrit ici. C'est course_enregistrer() qui
+   tient les deux bouts, dans une seule transaction.
+
+   ⚠️ L'HEURE DE DÉPART EST SAISIE EN HEURE LOCALE ET STOCKÉE EN UTC. Sans la
+   conversion, un départ annoncé à 10 h serait enregistré comme 10 h UTC, soit
+   12 h locales en été — et TOUS les chronos seraient faux de deux heures, sans
+   le moindre message d'erreur. C'est le piège le plus coûteux de ce projet.
+-------------------------------------------------------------------------- */
+if (isset($_POST['save_course'])) {
+    $lat = fn(string $c): ?string =>
+        trim((string) ($_POST[$c] ?? '')) === '' ? null : trim((string) $_POST[$c]);
+
+    $r = course_enregistrer($pdo, [
+        'libelle'      => trim((string) ($_POST['course_libelle'] ?? '')),
+        'date_course'  => $lat('course_date'),
+        'distance_km'  => $lat('course_distance'),
+        'heure_depart' => course_heureDepartUtc($lat('course_heure')),
+        'lat_depart'   => $lat('course_lat_depart'),
+        'lon_depart'   => $lat('course_lon_depart'),
+        'lat_arrivee'  => $lat('course_lat_arrivee'),
+        'lon_arrivee'  => $lat('course_lon_arrivee'),
+        'temps_min_plausible_s' => $lat('course_temps_min'),
+        'lieu_adresse'          => $lat('course_adresse'),
+        'lieu_rdv'              => $lat('course_rdv'),
+        'horaires'              => $lat('course_horaires'),
+        'retrait_tshirt'        => $lat('course_retrait'),
+        'inscription_sur_place' => $lat('course_sur_place'),
+    ]);
+
+    if ($r['ok']) {
+        addToast('success', 'Informations de course enregistrées — '
+            . "l'accueil, l'inscription, le chatbot et l'application suivent.");
+        logContentAction($pdo, 'course', 'update', null,
+            'Informations de course modifiées', 'course');
+    } else {
+        addToast('danger', $r['erreur'] ?? "L'enregistrement a échoué.");
+    }
+}
+
+/* --------------------------------------------------------------------------
    Inscription — Paramètres (montant, nb premiers inscrits, activation)
 -------------------------------------------------------------------------- */
 if (isset($_POST['save_inscription_params'])) {
@@ -1152,6 +1211,10 @@ if (isset($_POST['save_inscription_params'])) {
         'auto_open' => $registration_auto_open,
         'auto_close' => $registration_auto_close,
     ]);
+
+    // Pont vers `editions` : la distance annoncée à l'inscription est celle que
+    // l'application affiche et celle qui sert au calcul de l'allure.
+    course_pousserDepuisSetting($pdo, ['course_km']);
 
     addToast('success', 'Paramètres d\'inscription enregistrés !');
 }
@@ -1373,6 +1436,11 @@ if (isset($_POST['save_accueil_params'])) {
     } catch (\Throwable $e) {
         addToast('warning', "Planification du bandeau non enregistrée (colonnes absentes) : lancez update.php.");
     }
+
+    // Pont vers `editions` : la date saisie ici est celle que lisent le
+    // chronométrage, l'API mobile et l'application. Modifier d'un côté modifie
+    // de l'autre — c'est le principe, et il vaut dans les deux sens.
+    course_pousserDepuisSetting($pdo, ['date_course']);
 
     addToast('success', 'Paramètres enregistrés !');
     $picture_partner = $newPicturePartner;
@@ -3017,6 +3085,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
   <?php if ($canTab('personnalisation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" href="#" data-tab="personnalisation">Personnalisation</a></li><?php endif; ?>
   <?php if ($canTab('accueil')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'accueil' ? 'active' : '' ?>" href="#" data-tab="accueil">Accueil</a></li><?php endif; ?>
   <?php if ($canTab('inscription')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'inscription' ? 'active' : '' ?>" href="#" data-tab="inscription">Inscription</a></li><?php endif; ?>
+  <?php /* Placé juste après Accueil : c'est l'onglet qu'on ouvre en premier
+           quand on prépare une édition, avant même de toucher à la mise en page. */ ?>
+  <?php if ($canTab('course')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'course' ? 'active' : '' ?>" href="#" data-tab="course">Course</a></li><?php endif; ?>
   <?php if ($canTab('parcours')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'parcours' ? 'active' : '' ?>" href="#" data-tab="parcours">Parcours</a></li><?php endif; ?>
   <?php if ($canTab('reglementation')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'reglementation' ? 'active' : '' ?>" href="#" data-tab="reglementation">Reglementation</a></li><?php endif; ?>
   <?php if ($canTab('legal')): ?><li class="nav-item"><a class="nav-link <?= $activeTab === 'legal' ? 'active' : '' ?>" href="#" data-tab="legal">Pages légales</a></li><?php endif; ?>
@@ -3095,7 +3166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 
     <!-- Carte : Thème -->
     <div class="col-12">
-      <div class="setting-card">
+      <div class="setting-card" id="carteTheme">
         <h2>Thème du site</h2>
         <form action="" method="post" class="needs-validation" id="themeForm">
           <?= csrf_field() ?>
@@ -3255,10 +3326,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
       </div>
     </div><!-- /col-12 -->
 
-    <!-- Carte : Flash Info -->
+    <?php /* Le bandeau Flash Info se règle une fois pour toutes, et ses deux
+             couleurs n'ont rien à voir avec le thème du site. Le replier libère
+             la carte du thème, qui est celle qu'on vient modifier. */ ?>
     <div class="col-12">
+      <button type="button" class="btn btn-outline-secondary"
+              data-bs-toggle="modal" data-bs-target="#modalFlashCouleurs">
+        <i class="bi bi-palette me-1"></i>Couleurs du bandeau Flash Info
+      </button>
+    </div>
+
+    <!-- Carte : Flash Info -->
+    <div class="modal fade" id="modalFlashCouleurs" tabindex="-1">
+     <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+       <div class="modal-header">
+         <h5 class="modal-title">Couleurs du bandeau Flash Info</h5>
+         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+       </div>
+       <div class="modal-body">
       <div class="setting-card">
-        <h2>Couleurs du bandeau Flash Info</h2>
         <form action="" method="post" class="row g-3 needs-validation">
           <?= csrf_field() ?>
 
@@ -3292,7 +3379,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </div>
         </form>
       </div>
-    </div><!-- /col-12 -->
+       </div><!-- /modal-body -->
+      </div>
+     </div>
+    </div><!-- /modalFlashCouleurs -->
 
   </div><!-- /row -->
 </div><!-- /tab-personnalisation -->
@@ -3303,15 +3393,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
   <div class="row g-4">
 
-    <!-- Assistant virtuel (chatbot) : déplacé dans la page dédiée Contenu → Assistant / FAQ -->
-    <?php if (canAccessPage('assistant')): ?>
-    <div class="col-12">
-      <div class="alert alert-light border d-flex align-items-center justify-content-between flex-wrap gap-2 mb-0">
-        <span><i class="bi bi-chat-heart me-2"></i>Les réglages de l'<strong>assistant virtuel</strong> et la <strong>FAQ</strong> ont déménagé dans leur propre page.</span>
-        <a href="assistant.php" class="btn btn-sm btn-outline-secondary">Ouvrir Assistant / FAQ</a>
-      </div>
-    </div>
-    <?php endif; ?>
+    <?php /* Le bandeau « l'assistant virtuel a déménagé » a été retiré : il
+             annonçait un déplacement fait depuis longtemps, et occupait la
+             première place de l'onglet Accueil à chaque ouverture. La page est
+             dans le menu (Contenu → Assistant / FAQ) et dans la recherche —
+             plus personne ne la cherche ici. */ ?>
 
     <!-- Carte 1 : Titre / Image sur la vidéo (SUPPRIMÉE — édition désormais via l'éditeur visuel "Mise en page de l'accueil" plus bas) -->
 
@@ -4019,7 +4105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
   <div class="row g-4">
     <?php if ($canCard('inscription', 'header')): ?>
     <div class="col-12">
-      <div class="setting-card">
+      <div class="setting-card" id="carteInscriptionHeader">
         <h2>En-tête du site d'inscription</h2>
         <?php $headerSubTab = $_POST['header_subtab'] ?? 'headerPC'; ?>
         <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
@@ -4086,7 +4172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 
     <?php if ($canCard('inscription', 'params')): ?>
     <div class="col-12 col-lg-6">
-      <div class="setting-card">
+      <div class="setting-card" id="carteInscriptionParams">
         <h2>Paramètres d'inscription</h2>
         <form action="" method="post" class="row g-3 needs-validation">
           <?= csrf_field() ?>
@@ -4151,7 +4237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     </div><!-- /col-lg-6 -->
 
     <div class="col-12 col-lg-6">
-      <div class="setting-card">
+      <div class="setting-card" id="carteInscriptionFermee">
         <h2>Message « inscriptions fermées »</h2>
         <form action="" method="post" class="row g-3 needs-validation">
           <?= csrf_field() ?>
@@ -4172,6 +4258,199 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
   </div><!-- /row -->
 </div><!-- /tab-inscription -->
 <?php endif; // canTab('inscription') ?>
+
+<!-- ═══ TAB: Course ═══════════════════════════════════════════════════════
+     La source unique des informations de l'édition. Ce qui est saisi ici part
+     vers l'accueil, l'inscription, le chatbot, l'API mobile et l'application —
+     et ce qui est saisi là-bas revient ici. Un seul jeu de valeurs, plusieurs
+     endroits pour le modifier : c'était ça, le besoin.
+════════════════════════════════════════════════════════════════════════ -->
+<?php if ($canTab('course')):
+  $co  = course_lire($pdo);
+  $coH = course_heureDepartLocale($co['heure_depart']);
+  $coManques = course_manques($pdo);
+?>
+<div class="settings-section <?= $activeTab === 'course' ? 'active' : '' ?>" id="tab-course">
+  <div class="row g-4">
+
+    <?php /* Le diagnostic AVANT le formulaire. Un interrupteur « chronométrage
+             activé » posé sur une édition sans heure de départ ni ligne
+             d'arrivée ne produit aucun temps — et personne ne saurait pourquoi
+             le jour de la course. On le dit ici, tant qu'il est temps. */ ?>
+    <?php if ($coManques): ?>
+      <div class="col-12">
+        <div class="alert alert-warning mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Le chronométrage ne peut pas fonctionner en l'état.</strong>
+          Il manque <?= htmlspecialchars(implode(', ', $coManques), ENT_QUOTES, 'UTF-8') ?>.
+          Sans ces valeurs, aucun franchissement n'est détecté et aucun temps n'est calculé.
+        </div>
+      </div>
+    <?php else: ?>
+      <div class="col-12">
+        <div class="alert alert-success mb-0">
+          <i class="bi bi-check2-circle me-2"></i>
+          Tout ce dont le chronométrage a besoin est renseigné pour l'édition <?= (int) $co['annee'] ?>.
+        </div>
+      </div>
+    <?php endif; ?>
+
+    <div class="col-12">
+      <div class="setting-card" id="carteCourse">
+        <h2><i class="bi bi-calendar-event me-2"></i>Édition <?= (int) $co['annee'] ?></h2>
+        <p class="text-muted">
+          Ces informations sont <strong>partagées</strong> : la date et la distance
+          apparaissent aussi dans les onglets <em>Accueil</em> et <em>Inscription</em>,
+          les horaires et le lieu de rendez-vous dans l'écran du <em>Chatbot</em>.
+          Les modifier ici les modifie partout, et inversement — il n'y a plus qu'une
+          seule valeur pour chaque information.
+        </p>
+
+        <form action="" method="post" class="row g-3">
+          <?= csrf_field() ?>
+
+          <div class="col-md-6">
+            <label class="form-label" for="course_libelle">Nom de l'édition</label>
+            <input type="text" class="form-control" id="course_libelle" name="course_libelle"
+                   maxlength="120"
+                   value="<?= htmlspecialchars((string) ($co['libelle'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="course_date">Date de la course</label>
+            <input type="date" class="form-control" id="course_date" name="course_date"
+                   value="<?= htmlspecialchars((string) ($co['date_course'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+            <small class="text-muted">Aussi dans Accueil.</small>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="course_distance">Distance (km)</label>
+            <input type="number" step="0.01" min="0" max="999" class="form-control"
+                   id="course_distance" name="course_distance"
+                   value="<?= $co['distance_km'] !== null ? htmlspecialchars((string) $co['distance_km'], ENT_QUOTES, 'UTF-8') : '' ?>">
+            <small class="text-muted">Aussi dans Inscription.</small>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label" for="course_heure">
+              Heure de départ <span class="badge bg-secondary">heure locale</span>
+            </label>
+            <input type="datetime-local" class="form-control" id="course_heure" name="course_heure"
+                   value="<?= $coH !== null ? htmlspecialchars($coH->format('Y-m-d\TH:i'), ENT_QUOTES, 'UTF-8') : '' ?>">
+            <?php /* ⚠️ LE PIÈGE LE PLUS COÛTEUX DU PROJET. La colonne est en UTC ;
+                     la saisie est en heure de Paris et convertie à
+                     l'enregistrement. Le rappeler ici évite qu'on « corrige »
+                     un jour l'écart de deux heures en décalant la saisie. */ ?>
+            <small class="text-muted">
+              Saisissez l'heure telle qu'elle est annoncée aux coureurs. Elle est
+              convertie et stockée en UTC — c'est ce qui garantit que les chronos
+              restent justes au changement d'heure.
+            </small>
+          </div>
+          <div class="col-12"><hr class="my-2"></div>
+
+          <div class="col-12">
+            <label class="form-label" for="course_adresse">Adresse du rendez-vous</label>
+            <input type="text" class="form-control" id="course_adresse" name="course_adresse"
+                   maxlength="255"
+                   value="<?= htmlspecialchars((string) ($co['lieu_adresse'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+            <small class="text-muted">Affichée sur l'accueil et dans l'application.</small>
+          </div>
+
+          <?php /* Les quatre coordonnées et le temps minimum se saisissent une
+                   fois par édition, souvent des mois avant. Les laisser au
+                   milieu du formulaire noyait la date et l'heure de départ,
+                   qu'on vient corriger le jour même.
+
+                   ⚠️ ILS RESTENT DANS LE MÊME <form> : le bouton
+                   « Enregistrer » du bas les envoie avec le reste. Un modal
+                   séparé aurait exigé un second enregistrement, et on aurait
+                   fermé la fenêtre en croyant avoir sauvegardé. */ ?>
+          <div class="col-12">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    data-bs-toggle="collapse" data-bs-target="#coursePosition">
+              <i class="bi bi-geo-alt me-1"></i>Lignes de départ et d'arrivée
+            </button>
+            <span class="text-muted small ms-2">
+              Coordonnées GPS et temps minimum plausible — réglés une fois par édition.
+            </span>
+          </div>
+
+          <div class="col-12 collapse<?= $coManques ? ' show' : '' ?>" id="coursePosition">
+           <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label" for="course_lat_depart">Latitude départ</label>
+            <input type="number" step="0.0000001" min="-90" max="90" class="form-control"
+                   id="course_lat_depart" name="course_lat_depart"
+                   value="<?= $co['lat_depart'] !== null ? htmlspecialchars((string) $co['lat_depart'], ENT_QUOTES, 'UTF-8') : '' ?>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="course_lon_depart">Longitude départ</label>
+            <input type="number" step="0.0000001" min="-180" max="180" class="form-control"
+                   id="course_lon_depart" name="course_lon_depart"
+                   value="<?= $co['lon_depart'] !== null ? htmlspecialchars((string) $co['lon_depart'], ENT_QUOTES, 'UTF-8') : '' ?>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="course_lat_arrivee">Latitude arrivée</label>
+            <input type="number" step="0.0000001" min="-90" max="90" class="form-control"
+                   id="course_lat_arrivee" name="course_lat_arrivee"
+                   value="<?= $co['lat_arrivee'] !== null ? htmlspecialchars((string) $co['lat_arrivee'], ENT_QUOTES, 'UTF-8') : '' ?>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="course_lon_arrivee">Longitude arrivée</label>
+            <input type="number" step="0.0000001" min="-180" max="180" class="form-control"
+                   id="course_lon_arrivee" name="course_lon_arrivee"
+                   value="<?= $co['lon_arrivee'] !== null ? htmlspecialchars((string) $co['lon_arrivee'], ENT_QUOTES, 'UTF-8') : '' ?>">
+          </div>
+          <div class="col-12">
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>
+              Les coordonnées de <strong>départ</strong> sont celles du point posé sur la
+              carte de l'onglet Accueil — les deux sont liées. Celles d'<strong>arrivée</strong>
+              n'existent qu'ici : ce sont elles qui déclenchent le chrono au passage de la ligne.
+            </small>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label" for="course_temps_min">Temps minimum plausible (s)</label>
+            <input type="number" min="0" class="form-control" id="course_temps_min" name="course_temps_min"
+                   value="<?= $co['temps_min_plausible_s'] !== null ? (int) $co['temps_min_plausible_s'] : '' ?>">
+            <small class="text-muted">En dessous, le temps est marqué « à vérifier ».</small>
+          </div>
+           </div><!-- /row interne -->
+          </div><!-- /coursePosition -->
+
+          <div class="col-12"><hr class="my-2"></div>
+
+          <div class="col-md-6">
+            <label class="form-label" for="course_rdv">Lieu de rendez-vous</label>
+            <textarea class="form-control" id="course_rdv" name="course_rdv" rows="2"><?= htmlspecialchars((string) ($co['lieu_rdv'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+            <small class="text-muted">Aussi dans Chatbot.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="course_horaires">Horaires du village</label>
+            <textarea class="form-control" id="course_horaires" name="course_horaires" rows="2"><?= htmlspecialchars((string) ($co['horaires'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+            <small class="text-muted">Aussi dans Chatbot.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="course_retrait">Retrait des T-shirts et dossards</label>
+            <textarea class="form-control" id="course_retrait" name="course_retrait" rows="2"><?= htmlspecialchars((string) ($co['retrait_tshirt'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="course_sur_place">Inscriptions sur place</label>
+            <textarea class="form-control" id="course_sur_place" name="course_sur_place" rows="2"><?= htmlspecialchars((string) ($co['inscription_sur_place'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+          </div>
+
+          <div class="col-12">
+            <button type="submit" name="save_course" class="btn btn-primary">
+              <i class="bi bi-check2 me-1"></i>Enregistrer les informations de course
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+</div><!-- /tab-course -->
+<?php endif; // canTab('course') ?>
 
 <!-- ═══ TAB: Parcours ═══ -->
 <?php if ($canTab('parcours')): ?>
@@ -4690,7 +4969,7 @@ if ($canTab('import_auto') || $canImportXlsManual
   <!-- Carte : import manuel (bouton) — droit dashboard.import_excel -->
   <div class="row g-4 mb-1">
     <div class="col-12">
-      <div class="setting-card">
+      <div class="setting-card" id="carteImportManuel">
         <h2><i class="bi bi-file-earmark-excel me-2"></i>Import manuel d'un fichier Excel</h2>
         <p class="text-muted" style="font-size:14px">
           Importez un fichier Excel AssoConnect téléchargé manuellement. Mêmes règles que l'import automatique :
@@ -4852,8 +5131,38 @@ if ($canTab('import_auto') || $canImportXlsManual
 
   </div><!-- /row -->
 
-  <!-- Carte : automatisation (tâche Cron de l'hébergeur) -->
+  <?php /* ═══════════ CE QUI SE RÈGLE UNE FOIS PASSE DANS UN MODAL ══════════
+           Cron, liaison AssoConnect, domaines autorisés, correspondance des
+           colonnes : on y touche à l'installation, puis plus jamais. Les
+           laisser empilés sous le statut noyait les DEUX cartes qu'on vient
+           réellement consulter — l'import manuel et le dernier résultat.
+
+           ⚠️ LES GARDES DE DROITS SONT INCHANGÉES. Chaque carte conserve son
+           `canTab` / `canCard` à l'intérieur du modal : replier n'est pas
+           ouvrir, et quelqu'un sans le droit ne voit toujours rien. */ ?>
   <div class="row g-4 mt-1">
+    <div class="col-12">
+      <button type="button" class="btn btn-outline-secondary"
+              data-bs-toggle="modal" data-bs-target="#modalConfigImport">
+        <i class="bi bi-gear me-1"></i>Configuration de l'import
+      </button>
+      <span class="text-muted small ms-2">
+        Automatisation, liaison AssoConnect, domaines autorisés, correspondance des colonnes.
+      </span>
+    </div>
+  </div>
+
+<div class="modal fade" id="modalConfigImport" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Configuration de l'import</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+  <!-- Carte : automatisation (tâche Cron de l'hébergeur) -->
+  <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
         <h2><i class="bi bi-clock-history me-2"></i>Automatisation (tâche Cron)</h2>
@@ -5039,6 +5348,17 @@ if ($canTab('import_auto') || $canImportXlsManual
   </div><!-- /row -->
 
 <?php endif; // canTab('import') ?>
+
+      </div><!-- /modal-body -->
+      <div class="modal-footer">
+        <?php /* Aucun bouton « Enregistrer » global ici : chaque carte a le
+                 sien, et elles ne s'enregistrent pas ensemble. Un bouton unique
+                 laisserait croire qu'il sauve tout. */ ?>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div><!-- /modalConfigImport -->
 </div><!-- /tab-import_auto -->
 
 <?php if ($canImportXlsManual): ?>
@@ -5453,7 +5773,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 
     <!-- Carte : activation -->
     <div class="col-12">
-      <div class="setting-card">
+      <div class="setting-card" id="carteApiExterne">
         <h2>API — Connexion d'applications externes</h2>
         <p class="text-muted">
           L'API permet à d'autres logiciels de se connecter au site de manière sécurisée :
@@ -5547,7 +5867,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 
     <!-- ═══════════════ Carte : API MOBILE (/api/v1) ═══════════════════════ -->
     <div class="col-12">
-      <div class="setting-card">
+      <div class="setting-card" id="carteApiMobile">
         <h2>API mobile — Application des coureurs</h2>
         <p class="text-muted">
           C'est une <strong>autre API</strong> que celle ci-dessus. L'API externe parle au nom de

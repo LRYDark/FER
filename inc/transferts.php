@@ -98,7 +98,7 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
 
   <div class="page-header">
     <h1 class="mb-2 fw-bold"><i class="bi bi-arrow-left-right me-2"></i>Transferts d'inscription</h1>
-    <p class="text-muted mb-0">Les demandes de transfert d'une inscription d'un coureur à un autre. Les coureurs les font eux-mêmes depuis leur espace ; cet écran sert à suivre, forcer ou annuler.</p>
+    <p class="text-muted mb-0">Suivre, forcer ou annuler les demandes de transfert.</p>
   </div>
 
 <?php
@@ -178,11 +178,11 @@ $date = fn($d) => $d ? date('d/m/Y H:i', strtotime((string) $d)) : '—';
     </div>
   <?php endif; ?>
 
+  <?php /* Raccourci, mais pas supprimé : « Forcer » saute le consentement du
+           destinataire. Personne ne doit cliquer dessus sans le savoir. */ ?>
   <p class="text-muted small mb-0">
     <i class="bi bi-info-circle me-1"></i>
-    <strong>Forcer</strong> applique le transfert sans la confirmation du destinataire :
-    l'inscription change de titulaire et l'ancien perd son accès. À réserver aux cas
-    tranchés sur place, le jour de la course.
+    <strong>Forcer</strong> applique le transfert sans l'accord du destinataire.
   </p>
 </div>
 

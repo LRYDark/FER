@@ -20,6 +20,102 @@ $canTshirtMode = $canScanQr || $canEditReg;
 // Charger les données pour la navbar
 require __DIR__ . '/../src/partials/navbar-data.php';
 
+/* ══════════════════ LE DÉPART DE LA COURSE ══════════════════════════════════
+ *
+ * Traité ICI, avant le moindre octet de sortie : chaque action se termine par
+ * une redirection, ce qui évite qu'un rafraîchissement de page redonne le
+ * départ. Le jour J, une double soumission accidentelle ne pardonnerait pas.
+ *
+ * L'affichage, lui, est dans src/partials/depart-course.php.
+ * ───────────────────────────────────────────────────────────────────────── */
+require_once __DIR__ . '/../src/content/chrono.php';
+require_once __DIR__ . '/../src/content/course.php';
+require_once __DIR__ . '/../src/content/content-log.php';
+
+/* Droit dédié, et non emprunté aux transferts : un appui recalcule TOUS les
+   temps de l'édition et fait sonner tous les téléphones. Ce n'est pas le même
+   geste que corriger un transfert. */
+$departPeutAgir = canDoAction('dashboard.depart') || currentRole() === 'admin';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_depart'])) {
+    if (!csrf_verify()) {
+        addToast('danger', 'Session expirée. Rechargez la page et réessayez.');
+    } elseif (!$departPeutAgir) {
+        addToast('danger', "Vous n'avez pas le droit de donner le départ.");
+    } else {
+        $annee  = course_anneeActive($pdo);
+        $action = (string) $_POST['action_depart'];
+
+        if ($action === 'donner' || $action === 'corriger') {
+            // « corriger » fournit un instant précis (heure locale saisie) ;
+            // « donner » prend l'instant du clic.
+            $quand = null;
+            if ($action === 'corriger' && !empty($_POST['depart_instant'])) {
+                $quand = course_heureDepartUtc((string) $_POST['depart_instant']);
+                if ($quand === null) addToast('danger', 'Heure illisible.');
+            }
+            if ($action === 'donner' || $quand !== null) {
+                $r = chrono_donnerDepart($pdo, $annee, $quand);
+                if ($r['ok']) {
+                    addToast('success', ($action === 'donner' ? 'Départ donné' : 'Départ corrigé')
+                        . ' — ' . (int) ($r['recalcules'] ?? 0) . ' résultat(s) recalculé(s).');
+                    logContentAction($pdo, 'chrono', 'update', null,
+                        'Départ ' . $action . ' : ' . $r['instant'], 'chrono');
+
+                    /* La notification part avec le départ, pas séparément : on
+                       n'a pas le temps de faire deux gestes au coup de sifflet.
+                       Uniquement au VRAI départ — corriger l'heure a posteriori
+                       ne doit pas refaire sonner tous les téléphones. */
+                    if ($action === 'donner') {
+                        require_once __DIR__ . '/../src/content/notifications.php';
+                        $n = notif_enregistrer($pdo, [
+                            'annee'             => $annee,
+                            'type'              => 'course',
+                            'titre'             => 'La course est partie !',
+                            'message'           => 'Bonne marche à toutes et à tous. '
+                                                 . 'Gardez l\'application ouverte pour que '
+                                                 . 'votre temps soit enregistré.',
+                            'afficher_dans_app' => 1,
+                            'epingle'           => 0,
+                        ], null, currentUserId());
+
+                        if (!empty($n['ok']) && isset($n['id'])) {
+                            $p = notif_envoyerPush($pdo, (int) $n['id']);
+                            addToast($p['ok'] ? 'success' : 'warning',
+                                $p['ok']
+                                    ? 'Notification envoyée à ' . $p['envoyes'] . ' appareil(s).'
+                                    : ($p['erreur'] ?? "La notification n'est pas partie."));
+                        }
+                    }
+                } else {
+                    addToast('danger', $r['erreur'] ?? 'Échec.');
+                }
+            }
+        }
+        elseif ($action === 'annuler') {
+            $r = chrono_annulerDepart($pdo, $annee);
+            addToast($r['ok'] ? 'success' : 'danger', $r['ok']
+                ? 'Départ annulé — ' . (int) ($r['recalcules'] ?? 0) . ' résultat(s) recalculé(s).'
+                : ($r['erreur'] ?? 'Échec.'));
+            if ($r['ok']) {
+                logContentAction($pdo, 'chrono', 'update', null, 'Départ annulé', 'chrono');
+            }
+        }
+        elseif ($action === 'decaler') {
+            $r = chrono_decalerPrevu($pdo, (int) ($_POST['decalage_min'] ?? 0), $annee);
+            addToast($r['ok'] ? 'success' : 'danger', $r['ok']
+                ? 'Heure prévue décalée — ' . (int) ($r['recalcules'] ?? 0) . ' résultat(s) recalculé(s).'
+                : ($r['erreur'] ?? 'Échec.'));
+        }
+        elseif ($action === 'recalculer') {
+            $n = chrono_recomputeEdition($pdo, $annee);
+            addToast('success', "$n résultat(s) recalculé(s).");
+        }
+    }
+    header('Location: dashboard.php');
+    exit;
+}
+
 /* ── Purge quotidienne des données périmées (lot 7) ──────────────────────────
  * Déclenchée par la première ouverture du tableau de bord de la journée, et au
  * plus une fois par jour (verrou atomique par fichier).
@@ -600,6 +696,11 @@ table.bulk-table td.col-actions, table.bulk-table th.col-actions { width: 44px; 
 
 <!-- ═════════ MAIN ═════════ -->
   <div>
+
+    <?php /* Le départ, tout en haut et impossible à manquer — mais seulement
+             dans la fenêtre où il sert. Le partial se retire lui-même le reste
+             de l'année. */ ?>
+    <?php include __DIR__ . '/../src/partials/depart-course.php'; ?>
 
     <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center mb-3 gap-3">
       <h1 class="mb-0 fw-bold"><i class="bi bi-house me-2"></i>Inscriptions</h1>

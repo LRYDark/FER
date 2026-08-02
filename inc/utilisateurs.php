@@ -237,6 +237,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             // appareils de confiance des coureurs.
             'dashboard.participants'        => 'Comptes coureurs (voir, désactiver, révoquer les appareils)',
             'dashboard.transfers'           => 'Transferts d\'inscription (forcer ou annuler)',
+            'dashboard.depart'              => 'Donner le départ de la course (recalcule tous les temps, notifie les coureurs)',
           ];
           foreach ($dashActions as $k => $label): ?>
           <tr>
@@ -348,6 +349,11 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
           $settingsTabActions = [
             'settings.tab.personnalisation' => 'Personnalisation',
             'settings.tab.accueil'          => 'Accueil',
+            // ⚠️ TOUT ONGLET AJOUTÉ DOIT FIGURER DANS LES DEUX LISTES DE CE
+            // FICHIER : celle-ci et celle du script, plus bas. Absent, il reste
+            // invisible dans l'éditeur de droits — donc impossible à accorder à
+            // un rôle autre qu'administrateur, sans que rien ne l'explique.
+            'settings.tab.course'           => 'Course (date, lieu, horaires, chronométrage)',
             'settings.tab.inscription'      => 'Inscription',
             'settings.tab.parcours'         => 'Parcours',
             'settings.tab.reglementation'   => 'Reglementation',
@@ -357,6 +363,7 @@ function permCell(string $role, string $type, string $key, array $rolePermsDefau
             'settings.tab.import_auto'      => 'Import AssoConnect (onglet + automatisation)',
             'dashboard.import_excel'        => 'Import AssoConnect : import manuel (bouton)',
             'settings.tab.maintenance'      => 'Maintenance',
+            'settings.tab.api'              => 'API et application mobile',
           ];
           foreach ($settingsTabActions as $k => $label): ?>
           <tr>
@@ -722,6 +729,9 @@ const ALL_ACTIONS = [
   { key: 'dashboard.archive',             label: 'Archiver l\u0027ann\u00e9e',group: 'dashboard' },
   { key: 'dashboard.export_excel',        label: 'Exporter Excel',            group: 'dashboard' },
   { key: 'dashboard.scan_qr',             label: 'Scanner QR + remise T-shirts', group: 'dashboard' },
+  { key: 'dashboard.participants',        label: 'Comptes coureurs',          group: 'dashboard' },
+  { key: 'dashboard.transfers',           label: 'Transferts d\u0027inscription', group: 'dashboard' },
+  { key: 'dashboard.depart',              label: 'Donner le départ de la course', group: 'dashboard' },
   // Timeline
   { key: 'timeline.create',               label: 'Timeline : cr\u00e9er',     group: 'timeline' },
   { key: 'timeline.edit',                 label: 'Timeline : modifier',       group: 'timeline' },
@@ -761,6 +771,7 @@ const ALL_ACTIONS = [
   // Sous-onglets des Réglages
   { key: 'settings.tab.personnalisation', label: 'Réglages : Personnalisation', group: 'settings' },
   { key: 'settings.tab.accueil',          label: 'Réglages : Accueil',           group: 'settings' },
+  { key: 'settings.tab.course',           label: 'Réglages : Course',            group: 'settings' },
   { key: 'settings.tab.inscription',      label: 'Réglages : Inscription',       group: 'settings' },
   { key: 'settings.tab.parcours',         label: 'Réglages : Parcours',          group: 'settings' },
   { key: 'settings.tab.reglementation',   label: 'Réglages : Reglementation',    group: 'settings' },
@@ -770,6 +781,7 @@ const ALL_ACTIONS = [
   { key: 'settings.tab.import_auto',      label: 'Réglages : Import AssoConnect (onglet + auto)', group: 'settings' },
   { key: 'dashboard.import_excel',        label: 'Réglages : Import AssoConnect — bouton manuel', group: 'settings' },
   { key: 'settings.tab.maintenance',      label: 'Réglages : Maintenance',       group: 'settings' },
+  { key: 'settings.tab.api',              label: 'Réglages : API et application mobile', group: 'settings' },
   // Cartes de l'onglet Accueil
   { key: 'settings.accueil.params',       label: 'Accueil : Paramètres page',    group: 'settings' },
   { key: 'settings.accueil.custom',       label: 'Accueil : Mise en page (éditeur visuel)', group: 'settings' },

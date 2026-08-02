@@ -1,0 +1,45 @@
+﻿# Rappels locaux — l'implémentation Android et iOS de PoseurDeRappel.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# POURQUOI UN QUATRIÈME PAQUET POUR UN SEUL FICHIER
+#
+# `flutter_local_notifications` couvre Android ET iOS avec la même API. Les deux
+# coques ont donc exactement le même code de rappel. Le dupliquer garantirait
+# qu'elles divergent au premier correctif — et un rappel qui ne sonne que sur
+# l'une des deux plateformes ne se remarque qu'après une course.
+#
+# Il ne vit pas dans ../shared parce que le cœur doit rester compilable sans ce
+# greffon : la montre Wear OS et watchOS ont leurs propres mécanismes.
+name: fer_rappels
+description: Notifications — rappel local avant la course, et réception des push.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Pour l'interface PoseurDeRappel, et rien d'autre.
+  fer_shared:
+    path: ../shared
+
+  flutter_local_notifications: ^17.2.2
+  # Indispensable : zonedSchedule exige une date dans un fuseau connu. Sans lui,
+  # le rappel part une à deux heures à côté selon la saison.
+  timezone: ^0.9.4
+
+  # Réception des notifications poussées. C'est la SEULE voie pour qu'un
+  # téléphone sonne : Android et iOS n'en acceptent pas d'autre, et Firebase
+  # relaie lui-même vers APNs pour les iPhone.
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

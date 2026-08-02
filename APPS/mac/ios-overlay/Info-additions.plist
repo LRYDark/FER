@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════╗
+  ║  À FUSIONNER dans ios/Runner/Info.plist APRÈS `flutter create`.           ║
+  ║  Ce fichier n'est pas utilisé tel quel : il liste les clés à AJOUTER,     ║
+  ║  avec la raison de chacune. Remplacer l'Info.plist entier effacerait la   ║
+  ║  configuration produite par Flutter (nom du bundle, orientations,         ║
+  ║  écran de lancement).                                                    ║
+  ║                                                                          ║
+  ║  ⚠️ LES TEXTES D'AUTORISATION SONT LUS PAR APPLE À CHAQUE SOUMISSION.     ║
+  ║  Une phrase vague — « cette app utilise votre position » — est un motif   ║
+  ║  de rejet documenté. Chacune ci-dessous dit CE QU'ON FAIT et POURQUOI.    ║
+  ╚══════════════════════════════════════════════════════════════════════════╝
+-->
+<plist version="1.0">
+<dict>
+
+    <!-- ═══════════════════════ Position ═══════════════════════════════════ -->
+    <!--
+      « When in use » UNIQUEMENT. La variante « Always » permettrait de suivre
+      quelqu'un application fermée : on ne la demande pas, et le suivi ne tourne
+      que pendant la course, application ouverte ou en arrière-plan actif.
+    -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Votre position sert à détecter votre passage sur les lignes de départ et d'arrivée, et à enregistrer le tracé de votre parcours si vous l'autorisez. Elle n'est utilisée que pendant la course.</string>
+
+    <!--
+      Nécessaire pour que le suivi continue écran éteint pendant l'épreuve.
+      Sans ce mode, iOS suspend l'application et le chrono s'arrête au milieu de
+      la marche, sans prévenir.
+    -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+        <!-- La balise émet en continu : l'écoute doit survivre à l'écran éteint. -->
+        <string>bluetooth-central</string>
+    </array>
+
+    <!-- ═══════════════════════ Bluetooth ══════════════════════════════════ -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Le Bluetooth sert à détecter la balise posée sur les lignes de départ et d'arrivée. C'est la mesure la plus précise de votre temps ; sans elle, seul le GPS est utilisé.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Le Bluetooth sert à détecter la balise posée sur les lignes de départ et d'arrivée.</string>
+
+    <!-- ═══════════════════════ Réseau ═════════════════════════════════════ -->
+    <!--
+      ⚠️ NE PAS AJOUTER NSAllowsArbitraryLoads. Le serveur refuse le HTTP en 403
+      `https_required` : autoriser le trafic non chiffré côté application
+      n'ouvrirait rien, et affaiblirait la protection du jeton personnel de
+      chaque coureur. Les réglages par défaut d'App Transport Security
+      conviennent.
+    -->
+
+    <!-- ═══════════════════════ Divers ═════════════════════════════════════ -->
+    <!-- L'application n'a rien à faire à l'envers sur iPhone. -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+</dict>
+</plist>
