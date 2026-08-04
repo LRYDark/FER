@@ -97,8 +97,11 @@ class DebugBar
         if (PHP_SAPI === 'cli') return;
         // Admin uniquement.
         if (($_SESSION['role'] ?? null) !== 'admin') return;
-        // Jamais sur l'API/JSON, une redirection, un téléchargement ou un contenu non-HTML.
-        if (basename($_SERVER['SCRIPT_NAME'] ?? '') === 'api.php') return;
+        /* Jamais sur l'API/JSON, une redirection, un téléchargement ou un
+           contenu non-HTML. ⚠️ « v1.php » et non « api.php » : l'API des
+           logiciels tiers a déménagé en api/v1.php. Injecter la barre de
+           débogage dans une réponse JSON la rendrait illisible pour le client. */
+        if (basename($_SERVER['SCRIPT_NAME'] ?? '') === 'v1.php') return;
         // Uniquement sur une vraie navigation de page (pas un fetch/XHR/sous-ressource) :
         // évite d'injecter la barre dans une réponse récupérée en JavaScript.
         $dest = $_SERVER['HTTP_SEC_FETCH_DEST'] ?? '';

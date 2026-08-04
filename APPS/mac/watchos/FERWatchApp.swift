@@ -9,9 +9,9 @@
 //  n'annonce le contraire. Une application Apple Watch s'écrit en SwiftUI, dans
 //  une cible Xcode distincte de l'application iPhone.
 //
-//  Ce fichier parle donc DIRECTEMENT à l'API `/api/v1`, avec le même contrat
+//  Ce fichier parle donc DIRECTEMENT à l'API `/api/mobile`, avec le même contrat
 //  que le client Dart : mêmes routes, même en-tête X-App-Version, même jeton
-//  personnel. Voir ../../shared/lib/src/api/api_client.dart pour la référence.
+//  personnel. Voir ../../bibliotheque/fer_shared/lib/src/api/api_client.dart pour la référence.
 //
 //  ═══════════════════════════════════════════════════════════════════════════
 //  CE QUE FAIT LA MONTRE — ET CE QU'ELLE NE FAIT PAS

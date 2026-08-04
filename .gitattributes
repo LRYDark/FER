@@ -9,6 +9,11 @@
 # docs/ = bancs de test et notes de migration. Rien n'y est exécuté par le
 # site, et son .htaccess le bloque déjà par URL — mais autant ne pas l'envoyer
 # du tout.
+# APPS/ = sources des applications mobiles (Flutter et Swift). Le serveur web
+# n'en exécute pas une ligne : c'est du code compilé ailleurs, pour des
+# téléphones. L'envoyer alourdirait chaque déploiement de plusieurs milliers de
+# fichiers sans le moindre usage.
+APPS/                       export-ignore
 docs/                       export-ignore
 .gitattributes              export-ignore
 .gitignore                  export-ignore

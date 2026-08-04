@@ -1,8 +1,14 @@
 # ── Routage de l'API mobile ─────────────────────────────────────────────────
 # Le .htaccess de la racine réécrit « /x » en « /x.php » UNIQUEMENT si le
-# fichier existe. Pour « /api/v1/auth/request-code », aucun fichier ne
+# fichier existe. Pour « /api/mobile/auth/request-code », aucun fichier ne
 # correspond : sa règle ne s'applique donc pas et la requête arrive ici intacte.
 # On dirige alors tout vers index.php, qui lit le chemin et route lui-même.
+#
+# ⚠️ PAS DE VERSION DANS CE CHEMIN, CONTRAIREMENT À api/v1. C'est délibéré : ce
+# service n'est appelé QUE par nos propres applications. Quand le contrat change,
+# on relève `app_version_minimale` et le serveur refuse proprement les versions
+# trop anciennes — plutôt que de maintenir deux chemins en parallèle. Les
+# logiciels tiers, eux, ne se mettent pas à jour sur commande : d'où leur v1.
 #
 # Pas de RewriteBase : il dépendrait du dossier d'installation du site, et
 # casserait dès que le projet change de place.

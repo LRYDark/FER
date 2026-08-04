@@ -1,8 +1,11 @@
 ﻿# Coque Android — téléphone et tablette.
 #
-# Ce projet ne contient presque pas de code : tout vit dans ../shared. Il porte
-# la configuration Android (permissions, version minimale du SDK) et branche
-# l'implémentation des notifications locales.
+# Ce projet ne contient presque pas de code : tout vit dans
+# ../bibliotheque/fer_shared. Il porte la configuration Android (permissions,
+# version minimale du SDK) et branche l'implémentation des notifications locales.
+#
+# Deux points d'entrée dans lib/ : main.dart (téléphone et tablette) et
+# main_montre.dart (Wear OS). Il n'y a plus de projet séparé pour la montre.
 name: fer_android
 description: Forbach en Rose — application du coureur (Android).
 publish_to: none
@@ -22,13 +25,18 @@ dependencies:
 
   # Le cœur : API, modèles, écrans, suivi de course.
   fer_shared:
-    path: ../shared
+    path: ../bibliotheque/fer_shared
 
-  # Rappel avant la course. Paquet à part, partagé avec ../mac : le même code
-  # sert aux deux plateformes, et le cœur (../shared) reste compilable sans ce
-  # greffon — la montre et watchOS ont d'autres mécanismes.
+  # Rappel avant la course et réception des push. Paquet à part du cœur : celui-ci
+  # doit rester compilable sans les greffons de notification, que la montre
+  # n'utilise pas.
   fer_rappels:
-    path: ../rappels
+    path: ../bibliotheque/fer_rappels
+
+  # Écran rond, mode ambiant, forme de l'appareil — pour le point d'entrée
+  # `lib/main_montre.dart`. Sans lui, l'interface est rognée aux quatre coins
+  # sur les montres rondes, c'est-à-dire la plupart.
+  wear_plus: ^1.1.0
 
 dev_dependencies:
   flutter_lints: ^4.0.0

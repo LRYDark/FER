@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Forbach en Rose — Installer et tester les applications</title>
+<style>
+  :root{
+    --rose:#db2777; --encre:#1e293b; --gris:#64748b; --trait:#e2e8f0;
+    --fond-code:#f8fafc; --alerte:#b45309; --alerte-fond:#fffbeb;
+    --ok:#15803d; --ok-fond:#f0fdf4;
+  }
+  *{box-sizing:border-box}
+  body{
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    color:var(--encre); max-width:820px; margin:0 auto; padding:32px 28px 64px;
+  }
+  h1{font-size:26px;margin:0 0 4px;color:var(--rose)}
+  .sous{color:var(--gris);margin:0 0 28px;font-size:14px}
+  h2{
+    font-size:20px;margin:38px 0 14px;padding:10px 14px;
+    background:var(--rose);color:#fff;border-radius:6px;
+  }
+  h3{font-size:16px;margin:26px 0 8px;padding-bottom:5px;border-bottom:2px solid var(--trait)}
+  h4{font-size:14px;margin:18px 0 6px;color:var(--gris);text-transform:uppercase;letter-spacing:.04em}
+  p,li{margin:6px 0}
+  code{background:var(--fond-code);padding:1px 5px;border-radius:3px;
+       font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--trait)}
+  pre{
+    background:var(--fond-code);border:1px solid var(--trait);border-left:3px solid var(--rose);
+    border-radius:5px;padding:11px 13px;overflow-x:auto;
+    font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;margin:8px 0;
+  }
+  pre code{background:none;border:0;padding:0}
+  .avert,.note,.bien{
+    border-radius:5px;padding:11px 14px;margin:12px 0;font-size:14px;
+    border-left:3px solid;
+  }
+  .avert{background:var(--alerte-fond);border-color:var(--alerte)}
+  .avert strong{color:var(--alerte)}
+  .bien{background:var(--ok-fond);border-color:var(--ok)}
+  .bien strong{color:var(--ok)}
+  .note{background:var(--fond-code);border-color:var(--gris)}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--trait);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--fond-code);font-weight:600}
+  .etape{
+    display:inline-block;background:var(--rose);color:#fff;width:24px;height:24px;
+    border-radius:50%;text-align:center;line-height:24px;font-size:13px;
+    font-weight:700;margin-right:8px;
+  }
+  .coche{list-style:none;padding-left:0}
+  .coche li{padding-left:26px;position:relative;margin:7px 0}
+  .coche li::before{
+    content:"";position:absolute;left:0;top:3px;width:15px;height:15px;
+    border:2px solid var(--gris);border-radius:3px;
+  }
+  .duree{float:right;font-size:12px;color:var(--gris);font-weight:400}
+  hr{border:0;border-top:1px solid var(--trait);margin:32px 0}
+  .impr{
+    background:var(--rose);color:#fff;padding:10px 14px;border-radius:5px;
+    font-size:13px;margin-bottom:26px;
+  }
+  .impr code{background:rgba(255,255,255,.2);border-color:transparent;color:#fff}
+
+  @media print{
+    body{max-width:none;padding:0;font-size:11pt}
+    .impr{display:none}
+    h2{break-before:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    h2:first-of-type{break-before:auto}
+    h3,h4{break-after:avoid}
+    pre,table,.avert,.note,.bien{break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    a{color:inherit;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="impr">
+  <strong>Pour en faire un PDF :</strong> ouvrez ce fichier dans un navigateur, puis
+  <code>Ctrl</code>+<code>P</code> (ou <code>⌘</code>+<code>P</code> sur Mac) →
+  <em>Destination : Enregistrer au format PDF</em>.
+</div>
+
+<h1>Installer et tester les applications</h1>
+<p class="sous">Forbach en Rose — guide complet, en partant de zéro.
+Partie A : le Mac (iPhone, iPad, Apple Watch). Partie B : Windows (Android, Wear OS).</p>
+
+<div class="note">
+  <strong>Par quoi commencer ?</strong> Par <strong>Android</strong>, même si votre cible
+  est l'iPhone. Plus de 90 % du code est commun, et la boucle « modifier / relancer »
+  y est bien plus rapide. Ce qui fonctionne sur Android fonctionnera sur iOS,
+  à la signature près.
+</div>
+
+<h3>Ce qu'il faut avoir sous la main</h3>
+<ul class="coche">
+  <li>Le dossier <code>APPS</code> du projet</li>
+  <li><strong>Mac</strong> : identifiant Apple, et le compte Apple Developer (99 €/an) pour tester sur un vrai iPhone</li>
+  <li><strong>Android</strong> : un téléphone avec le <em>débogage USB</em> activé, et son câble</li>
+  <li>Une bonne connexion — les téléchargements pèsent plusieurs gigaoctets</li>
+</ul>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2>Partie A — Le Mac</h2>
+
+<p>Votre Mac n'a ni <code>brew</code> ni <code>flutter</code>. On part donc
+vraiment de zéro. Comptez <strong>1 h 30 à 2 h</strong>, dont l'essentiel en
+téléchargement.</p>
+
+<h3><span class="etape">1</span>Xcode <span class="duree">30 à 60 min</span></h3>
+
+<p>Ouvrez l'<strong>App Store</strong> → cherchez <strong>Xcode</strong> → <em>Obtenir</em>.
+C'est gros (~15 Go). Lancez-le maintenant et faites la suite pendant qu'il télécharge.</p>
+
+<p>Une fois installé, <strong>ouvrez Xcode une première fois</strong> : il installe des
+composants supplémentaires et demande d'accepter la licence. Puis, dans le Terminal :</p>
+
+<pre><code>sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -license accept</code></pre>
+
+<div class="avert">
+  <strong>⚠ Ne sautez pas l'ouverture d'Xcode.</strong> Sans elle, les commandes
+  ci-dessus échouent avec un message qui ne parle pas de licence, et on cherche
+  longtemps.
+</div>
+
+<h3><span class="etape">2</span>Homebrew <span class="duree">10 min</span></h3>
+
+<p>C'est le <code>brew: command not found</code> que vous avez rencontré : Homebrew
+n'est pas fourni avec macOS, il faut l'installer.</p>
+
+<p>Ouvrez le <strong>Terminal</strong> (⌘+Espace → « Terminal ») et collez :</p>
+
+<pre><code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code></pre>
+
+<p>Il demande votre mot de passe de session (rien ne s'affiche pendant la frappe,
+c'est normal), puis travaille quelques minutes.</p>
+
+<div class="avert">
+  <strong>⚠ LE PIÈGE : à la fin, <code>brew</code> reste introuvable.</strong>
+  Sur les Mac Apple Silicon (M1, M2, M3, M4), Homebrew s'installe dans
+  <code>/opt/homebrew</code>, qui n'est pas dans le PATH. Le script vous l'écrit
+  dans ses dernières lignes — mais on ne les lit jamais. Exécutez :
+
+  <pre><code>echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' &gt;&gt; ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"</code></pre>
+
+  <p style="margin:6px 0 0">Sur un Mac Intel, remplacez <code>/opt/homebrew</code> par
+  <code>/usr/local</code>.</p>
+</div>
+
+<p>Vérifiez :</p>
+<pre><code>brew --version</code></pre>
+
+<div class="bien">
+  <strong>✓ Attendu :</strong> <code>Homebrew 4.x.x</code>. Si c'est encore
+  « command not found », fermez le Terminal et rouvrez-le.
+</div>
+
+<h3><span class="etape">3</span>Flutter et CocoaPods <span class="duree">15 min</span></h3>
+
+<pre><code>brew install --cask flutter
+sudo gem install cocoapods</code></pre>
+
+<div class="note">
+  <strong>Sans Homebrew ?</strong> C'est possible : téléchargez l'archive sur
+  <code>flutter.dev/docs/get-started/install/macos</code>, dézippez-la dans votre
+  dossier personnel, puis ajoutez-la au PATH :
+  <pre><code>echo 'export PATH="$HOME/flutter/bin:$PATH"' &gt;&gt; ~/.zprofile
+source ~/.zprofile</code></pre>
+</div>
+
+<p>Le contrôle général :</p>
+<pre><code>flutter doctor</code></pre>
+
+<div class="bien">
+  <strong>✓ Attendu :</strong> <code>Xcode</code> et <code>CocoaPods</code> en vert.
+  « Android toolchain » et « Chrome » peuvent rester rouges — vous ne compilez pas
+  Android sur ce Mac.
+</div>
+
+<h3><span class="etape">4</span>Copier le projet — <em>deux dossiers</em> <span class="duree">5 min</span></h3>
+
+<div class="avert">
+  <strong>⚠ C'est LE piège du transfert.</strong> Il faut <code>mac/</code>
+  <em>et</em> <code>bibliotheque/</code>, côte à côte :
+
+  <pre><code>QuelqueDossier/
+├── mac/
+└── bibliotheque/</code></pre>
+
+  <p style="margin:6px 0 0"><code>mac/pubspec.yaml</code> déclare
+  <code>path: ../bibliotheque/fer_shared</code>. Sans le voisin,
+  <code>flutter pub get</code> s'arrête sur <em>« path does not exist »</em>.</p>
+</div>
+
+<p>Clé USB, AirDrop, <code>scp</code>, dépôt git : peu importe, tant que les deux
+voyagent ensemble.</p>
+
+<h3><span class="etape">5</span>Générer le projet iOS <span class="duree">5 min</span></h3>
+
+<pre><code>cd ~/QuelqueDossier/mac
+flutter create --platforms=ios --org fr.forbachenrose --project-name fer_ios .
+flutter pub get</code></pre>
+
+<div class="avert">
+  <strong>⚠ <code>flutter create</code> conserve <code>lib/</code> et
+  <code>pubspec.yaml</code>.</strong> S'il propose de les écraser, arrêtez tout :
+  vous n'êtes pas dans le bon dossier.
+</div>
+
+<h3><span class="etape">6</span>Fusionner l'Info.plist <span class="duree">5 min</span></h3>
+
+<p>Ouvrez <code>ios/Runner/Info.plist</code> et <strong>ajoutez</strong> les clés du
+fichier <code>ios-overlay/Info-additions.plist</code> — chacune y est expliquée.</p>
+
+<div class="avert">
+  <strong>⚠ N'écrasez pas le fichier.</strong> Vous perdriez le nom du bundle, les
+  orientations et l'écran de lancement générés par Flutter.
+</div>
+
+<p>Ces clés sont les textes qu'iOS montre à la personne quand l'application demande
+sa position ou le Bluetooth. <strong>Apple les lit à chaque soumission</strong> :
+une phrase vague est un motif de rejet documenté.</p>
+
+<h3><span class="etape">7</span>Signer dans Xcode <span class="duree">10 min</span></h3>
+
+<pre><code>open ios/Runner.xcworkspace</code></pre>
+
+<div class="avert">
+  <strong>⚠ <code>.xcworkspace</code>, jamais <code>.xcodeproj</code>.</strong>
+  Avec le second, les greffons CocoaPods ne sont pas liés et la compilation échoue
+  sur des symboles introuvables — un message qui ne dit jamais « vous avez ouvert
+  le mauvais fichier ».
+</div>
+
+<p>Dans Xcode, sélectionnez la cible <strong>Runner</strong> :</p>
+
+<ul class="coche">
+  <li>Onglet <strong>Signing &amp; Capabilities</strong></li>
+  <li>Cocher <strong>Automatically manage signing</strong></li>
+  <li>Choisir votre <strong>Team</strong> (votre compte Apple Developer)</li>
+  <li><strong>Bundle Identifier</strong> : <code>fr.forbachenrose.coureur</code></li>
+  <li><strong>+ Capability</strong> → <strong>Background Modes</strong> → cocher
+      <em>Location updates</em> et <em>Uses Bluetooth LE accessories</em></li>
+  <li><strong>+ Capability</strong> → <strong>Push Notifications</strong></li>
+</ul>
+
+<h3><span class="etape">8</span>Lancer <span class="duree">5 min</span></h3>
+
+<pre><code>flutter devices     # liste ce qui est disponible
+flutter run         # lance sur l'appareil trouvé</code></pre>
+
+<h4>Ce qui marche, et où</h4>
+<table>
+  <tr><th>Fonction</th><th>Simulateur</th><th>iPhone réel</th></tr>
+  <tr><td>Écrans, connexion, inscriptions, QR code</td><td>oui</td><td>oui</td></tr>
+  <tr><td>GPS</td><td>oui <em>(position simulée)</em></td><td>oui</td></tr>
+  <tr><td>Balise Bluetooth</td><td><strong>non</strong></td><td>oui</td></tr>
+  <tr><td>Notifications poussées</td><td><strong>jamais</strong></td><td>oui</td></tr>
+  <tr><td>Live Activity / Dynamic Island</td><td>écran verrouillé seulement</td><td>oui</td></tr>
+</table>
+
+<p><strong>Commencez par le simulateur</strong> : il valide l'essentiel sans profil de
+provisionnement. Le reste demande un iPhone branché.</p>
+
+<h3>Si ça coince</h3>
+<table>
+  <tr><th>Message</th><th>Cause</th></tr>
+  <tr><td><code>zsh: command not found: brew</code></td><td>Le PATH d'Homebrew n'a pas été ajouté — voir l'étape 2</td></tr>
+  <tr><td><code>path does not exist: ../bibliotheque/fer_shared</code></td><td>Vous n'avez copié que <code>mac/</code></td></tr>
+  <tr><td><code>Undefined symbols … _FlutterLocalNotifications</code></td><td><code>.xcodeproj</code> ouvert au lieu de <code>.xcworkspace</code></td></tr>
+  <tr><td><code>No profiles for 'fr.forbachenrose…' were found</code></td><td>Team non sélectionnée, ou Bundle ID déjà pris</td></tr>
+  <tr><td><code>CocoaPods not installed</code></td><td><code>sudo gem install cocoapods</code></td></tr>
+  <tr><td>Le suivi s'arrête écran éteint</td><td>Background Modes → <em>Location updates</em> non coché</td></tr>
+</table>
+
+<h3>Ensuite : la montre et le chrono vivant</h3>
+<p>L'<strong>Apple Watch</strong> et la <strong>Live Activity</strong> sont deux cibles
+Xcode supplémentaires, en SwiftUI. Gardez-les pour un second temps, quand l'iPhone
+tournera. Voir <code>README/03-apple-watch.md</code> et
+<code>README/07-chrono-vivant.md</code>.</p>
+
+<div class="avert">
+  <strong>⚠ Ce sont les deux seules parties qui n'ont jamais été compilées</strong>
+  — il n'y a pas de Mac sur la machine de développement. Attendez-vous à une ou deux
+  corrections à faire ensemble.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2>Partie B — Windows et Android</h2>
+
+<p>Comptez <strong>1 h</strong>. C'est ici qu'il faut développer au quotidien :
+la boucle est bien plus rapide que sur Mac.</p>
+
+<h3><span class="etape">1</span>Android Studio <span class="duree">30 min</span></h3>
+
+<p>Téléchargez sur <code>developer.android.com/studio</code>, installez, puis lancez-le
+une fois : il télécharge le SDK Android. Acceptez tout ce qu'il propose.</p>
+
+<h3><span class="etape">2</span>Flutter <span class="duree">15 min</span></h3>
+
+<p>Le plus simple passe par VS Code, où l'extension Flutter est déjà installée :</p>
+
+<ul class="coche">
+  <li><code>Ctrl</code>+<code>Maj</code>+<code>P</code> → <strong>Flutter: New Project</strong></li>
+  <li>VS Code répond « Flutter SDK not found » → cliquez <strong>Download SDK</strong></li>
+  <li>Choisissez un dossier <strong>sans espace ni accent</strong> : <code>C:\flutter</code> convient</li>
+</ul>
+
+<div class="avert">
+  <strong>⚠ Le chemin compte vraiment.</strong> Un dossier comme
+  <code>C:\Users\joris.reinert\Mes documents\flutter</code> casse la compilation
+  Android, avec des messages qui ne parlent jamais du chemin.
+</div>
+
+<p>Puis, dans un terminal :</p>
+<pre><code>flutter doctor
+flutter doctor --android-licenses</code></pre>
+
+<div class="bien">
+  <strong>✓ Attendu :</strong> tout en vert sauf « Xcode » — normal sous Windows.
+</div>
+
+<h3><span class="etape">3</span>Générer le projet Android <span class="duree">5 min</span></h3>
+
+<pre><code>cd W:\FER\APPS\android
+flutter create --platforms=android --org fr.forbachenrose --project-name fer_android .
+flutter pub get</code></pre>
+
+<h3><span class="etape">4</span>Fusionner le manifeste <span class="duree">10 min</span></h3>
+
+<p>Ouvrez <code>android/app/src/main/AndroidManifest.xml</code> et <strong>ajoutez</strong>
+ce que contient <code>android-overlay/AndroidManifest.xml</code> — chaque permission
+y est expliquée.</p>
+
+<ul class="coche">
+  <li>Les blocs <code>&lt;uses-permission&gt;</code> et <code>&lt;uses-feature&gt;</code>, <strong>avant</strong> <code>&lt;application&gt;</code></li>
+  <li>Le <code>&lt;receiver&gt;</code> de redémarrage, <strong>dans</strong> <code>&lt;application&gt;</code></li>
+  <li><code>android:launchMode="singleTop"</code> sur <code>&lt;activity android:name=".MainActivity"&gt;</code></li>
+</ul>
+
+<div class="avert">
+  <strong>⚠ Deux lignes à ne pas manquer.</strong>
+  <code>SCHEDULE_EXACT_ALARM</code> : sans elle, Android peut décaler le rappel de
+  plusieurs dizaines de minutes — pour « départ dans 2 h », il arrive après le départ.
+  Et <strong>n'ajoutez jamais</strong> <code>ACCESS_BACKGROUND_LOCATION</code> :
+  elle permettrait de suivre quelqu'un application fermée, et Google exige une
+  justification vidéo.
+</div>
+
+<p>Enfin, dans <code>android/app/build.gradle.kts</code> :</p>
+<pre><code>defaultConfig {
+    minSdk = 26          // Android 8.0
+    targetSdk = 34
+}</code></pre>
+
+<p><code>minSdk = 26</code> et pas moins : en dessous, le Bluetooth ne fonctionne pas,
+et il ne reste plus qu'une source de chronométrage au lieu de deux.</p>
+
+<h3><span class="etape">5</span>Lancer <span class="duree">5 min</span></h3>
+
+<p>Sur le téléphone : <em>Paramètres → À propos → toucher 7 fois « Numéro de build »</em>,
+puis <em>Options pour développeurs → Débogage USB</em>. Branchez-le et acceptez la
+demande d'autorisation qui s'affiche.</p>
+
+<pre><code>flutter devices                            # le téléphone doit apparaître
+flutter run                                # téléphone et tablette
+flutter run -t lib/main_montre.dart        # Wear OS</code></pre>
+
+<div class="note">
+  <strong>Deux points d'entrée, un seul projet.</strong> Le téléphone démarre sur
+  <code>lib/main.dart</code>, la montre sur <code>lib/main_montre.dart</code>. Même
+  dossier, même cœur — seuls les écrans changent.
+</div>
+
+<h3><span class="etape">6</span>Ce qu'il faut essayer <span class="duree">20 min</span></h3>
+
+<ul class="coche">
+  <li><strong>Connexion</strong> : saisir son adresse, recevoir le code à 6 chiffres, entrer</li>
+  <li><strong>Mes inscriptions</strong> : la liste s'affiche, le QR code se charge</li>
+  <li><strong>Sans réseau</strong> : mode avion → déclarer un passage → réactiver → vérifier que la file part</li>
+  <li><strong>Le rappel</strong> : régler l'heure de départ à ~10 min, fermer l'application, attendre</li>
+  <li><strong>Le chrono</strong> : démarrer le suivi, éteindre l'écran, vérifier que la notification compte toujours</li>
+</ul>
+
+<div class="avert">
+  <strong>⚠ Le test « sans réseau » est le plus important.</strong> C'est la situation
+  réelle du jour de la course : trois mille personnes sur la même antenne, un téléphone
+  au fond d'une poche. Si la file ne repart pas, quelqu'un franchit la ligne sans chrono.
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2>Avant tout essai : le serveur</h2>
+
+<p>Inutile de compiler quoi que ce soit tant que l'API ne répond pas. Dans un
+navigateur :</p>
+
+<pre><code>https://jr.zerobug-57.fr/FER/api/mobile/app/config</code></pre>
+
+<table>
+  <tr><th>Réponse</th><th>Que faire</th></tr>
+  <tr><td><code>"ok":true</code></td><td>Tout va bien</td></tr>
+  <tr><td><code>503 api_disabled</code></td><td>Activer l'API mobile dans <em>Réglages → API</em></td></tr>
+  <tr><td><code>503 not_installed</code></td><td>Lancer <code>update.php</code> : la base n'est pas à jour</td></tr>
+  <tr><td><code>403 https_required</code></td><td>Vous avez appelé en <code>http://</code></td></tr>
+</table>
+
+<div class="note">
+  <strong><code>"chrono_actif": false</code> est normal</strong> hors période de course.
+  Les écrans de course sont alors masqués dans l'application — c'est voulu.
+</div>
+
+<h3>Et pour que les téléphones sonnent</h3>
+<p>Les notifications poussées demandent un projet Firebase et, pour l'iPhone, une clé
+APNs. La procédure complète est dans <code>README/06-notifications-push.md</code>.</p>
+
+<p><strong>Ce n'est pas nécessaire pour essayer l'application</strong> : sans Firebase,
+tout fonctionne, seules les sonneries manquent.</p>
+
+<hr>
+<p style="font-size:12px;color:var(--gris)">
+Forbach en Rose — les guides détaillés sont dans <code>APPS/README/</code>.
+Ce document en est le résumé pratique, à imprimer.
+</p>
+
+</body>
+</html>

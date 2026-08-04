@@ -67,7 +67,7 @@ class Session extends ChangeNotifier {
 
     final url = prefs.getString(_cleUrl) ??
         urlParDefaut ??
-        'https://jr.zerobug-57.fr/FER/api/v1';
+        'https://jr.zerobug-57.fr/FER/api/mobile';
 
     final jetons = Jetons();
     final api = ApiClient(

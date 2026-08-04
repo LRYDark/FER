@@ -1,0 +1,51 @@
+# ── Le dossier des API : ce à quoi un LOGICIEL se connecte ──────────────────
+#
+#   api/v1        → logiciels tiers        (fichier v1.php)
+#   api/mobile/   → applications coureurs  (dossier, routage interne)
+#
+# ⚠️ NE JAMAIS RECRÉER UN DOSSIER `api/v1/`. Il prendrait le pas sur `v1.php`
+# (la réécriture ci-dessous ne s'applique que si le chemin n'est NI un fichier NI
+# un dossier) : l'API des logiciels tiers deviendrait injoignable, sans erreur
+# parlante, en renvoyant un 403 de listing interdit. Une v2 est un FICHIER.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # ⚠️ `/api/v1/…` PROVOQUAIT UNE BOUCLE, ET CETTE RÈGLE EXISTE POUR ÇA.
+    #
+    # `v1` était un DOSSIER (l'ancienne API mobile) ; c'est aujourd'hui le
+    # fichier `v1.php`. Une requête vers `/api/v1/auth/request-code` — ce que
+    # font les applications déjà installées — ne trouve plus de dossier : Apache
+    # prend `v1` pour le fichier et `/auth/request-code` pour du chemin
+    # résiduel, la règle « ajoute .php » se redéclenche sur le résultat, et le
+    # serveur s'arrête après dix redirections internes en renvoyant 500.
+    #
+    # 500 est un mauvais message : il dit « le serveur est cassé » alors que la
+    # bonne réponse est « cette adresse n'existe plus ». On répond donc 410
+    # (Gone), en une fois, sans détour. Vérifié sous Apache 2.4.
+    #
+    # Le motif exige la barre oblique : `/api/v1` et `/api/v1.php` ne matchent
+    # pas, seul le SOUS-chemin est refusé.
+    RewriteRule ^v1/ - [G]
+
+    # ⚠️ ON RÉTABLIT ICI LA RÈGLE DE LA RACINE. `RewriteEngine On` annule les
+    # règles héritées pour tout ce dossier — dont « /x » → « /x.php », qui est
+    # exactement ce qui fait répondre « /api/v1 » sans extension. Sans ces
+    # quatre lignes, l'API des logiciels tiers ne serait plus joignable que par
+    # son nom de fichier complet.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME}.php -f
+    RewriteRule ^(.+)$ $1.php [L,QSA]
+</IfModule>
+
+# api/mobile/ a son propre .htaccess : il assume la même annulation et la
+# remplace par son routage interne.
+
+# Une API ne sert que du JSON : rien à indexer, rien à mettre en cache.
+<IfModule mod_headers.c>
+    Header always set X-Robots-Tag "noindex, nofollow"
+    Header always set Cache-Control "no-store"
+</IfModule>
+
+Options -Indexes

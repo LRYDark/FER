@@ -23,11 +23,13 @@ dependencies:
     sdk: flutter
 
   fer_shared:
-    path: ../shared
+    path: ../bibliotheque/fer_shared
 
-  # Le même paquet de rappels que la coque Android — voir ../rappels.
+  # ⚠️ EMPORTEZ `bibliotheque/` AVEC `mac/` SUR LE MAC. Ce sont les deux seuls
+  # dossiers nécessaires — mais il en faut bien DEUX, sinon `flutter pub get`
+  # échoue sur « path does not exist ».
   fer_rappels:
-    path: ../rappels
+    path: ../bibliotheque/fer_rappels
 
 dev_dependencies:
   flutter_lints: ^4.0.0

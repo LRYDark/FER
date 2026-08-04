@@ -185,12 +185,12 @@ $api_enabled = (int)($data['api_enabled'] ?? 0);
 $api_user    = $data['api_user'] ?? '';
 $api_token   = !empty($data['api_token']) ? decrypt($data['api_token']) : '';
 
-// API mobile (/api/v1) — interrupteur propre, indépendant de celui de api.php.
+// API mobile (/api/mobile) — interrupteur propre, indépendant de celui de api/v1.
 // Aucune clé : elle vivrait dans l'application installée sur chaque téléphone.
 $api_v1_enabled = (int)($data['api_v1_enabled'] ?? 0);
 $api_v1_version = $data['app_version_minimale'] ?? '1.0.0';
 
-// URL absolue de l'API (api.php est à la racine du projet)
+// URL absolue de l'API externe — dans api/, comme tout ce qui vient du dehors.
 $api_baseUrl     = getAppBaseUrl();
 $api_projectRoot = realpath(__DIR__ . '/..');
 $api_docRoot     = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
@@ -199,7 +199,7 @@ if ($api_projectRoot === $api_docRoot || $api_projectRoot === false || $api_docR
 } else {
     $api_baseDir = str_replace('\\', '/', substr($api_projectRoot, strlen($api_docRoot)));
 }
-$api_url = $api_baseUrl . $api_baseDir . '/api.php';
+$api_url = $api_baseUrl . $api_baseDir . '/api/v1';
 $titleAccueil_mobile = $data['titleAccueil_mobile'] ?? '';
 $subtitle_accueil = $data['subtitle_accueil'] ?? '';
 $subtitle_accueil_mobile = $data['subtitle_accueil_mobile'] ?? '';
@@ -1563,7 +1563,7 @@ if (isset($_POST['regenerate_api'])) {
 }
 
 /* --------------------------------------------------------------------------
-   Onglet API — API MOBILE (/api/v1)
+   Onglet API — API MOBILE (/api/mobile)
    Un interrupteur PROPRE, indépendant de celui de api.php : les deux API n'ont
    ni le même public ni les mêmes risques, couper l'une ne doit pas couper
    l'autre. Rien d'autre à configurer — il n'y a volontairement aucune clé
@@ -5771,10 +5771,51 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 <div class="settings-section <?= $activeTab === 'api' ? 'active' : '' ?>" id="tab-api">
   <div class="row g-4">
 
-    <!-- Carte : activation -->
+    <!-- Carte : vue d'ensemble des trois points d'entrée -->
+    <div class="col-12">
+      <?php /* ⚠️ CETTE CARTE RÉPOND À UNE VRAIE CONFUSION : quatre points
+               d'entrée JSON existent et rien ne disait lequel servait à quoi.
+               ⚠️ ELLE DOIT RESTER COURTE — un tableau qu'on lit d'un coup
+               d'œil. Le « pourquoi » (périmètres de sécurité séparés, migration
+               de api.php) vit dans les en-têtes des fichiers concernés, pas ici :
+               étalé sur cet écran, il noyait les trois lignes qu'on vient
+               réellement y chercher. */ ?>
+      <div class="setting-card" id="carteApiVueEnsemble">
+        <h2><i class="bi bi-diagram-3 me-2"></i>Vue d'ensemble</h2>
+        <div class="table-responsive">
+          <table class="table fer-table table-sm align-middle mb-2">
+            <thead>
+              <tr><th>Adresse</th><th>Pour qui</th><th>Authentification</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>api/v1</code><br><span class="small text-muted">v2 possible à côté</span></td>
+                <td>Logiciels tiers</td>
+                <td>Le <strong>secret de l'association</strong></td>
+              </tr>
+              <tr>
+                <td><code>api/mobile/</code><br><span class="small text-muted">version gérée par l'appli</span></td>
+                <td>Applications des coureurs</td>
+                <td>Un <strong>jeton personnel</strong> par coureur</td>
+              </tr>
+              <tr class="text-muted">
+                <td><code>admin-api.php</code><br><code>public/chatbot-api.php</code></td>
+                <td>Le JavaScript du site</td>
+                <td>Votre session, un captcha ou un code — rien à régler ici</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted small mb-0">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          L'ancienne adresse <code>api.php</code> <strong>ne répond plus</strong> (404).
+        </p>
+      </div>
+    </div>
+
     <div class="col-12">
       <div class="setting-card" id="carteApiExterne">
-        <h2>API — Connexion d'applications externes</h2>
+        <h2>API externe — Connexion d'applications tierces</h2>
         <p class="text-muted">
           L'API permet à d'autres logiciels de se connecter au site de manière sécurisée :
           importer un fichier Excel, ajouter un inscrit ou consulter les statistiques,
@@ -5865,15 +5906,13 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       </div>
     </div>
 
-    <!-- ═══════════════ Carte : API MOBILE (/api/v1) ═══════════════════════ -->
+    <!-- ═══════════════ Carte : API MOBILE (/api/mobile) ═══════════════════════ -->
     <div class="col-12">
       <div class="setting-card" id="carteApiMobile">
         <h2>API mobile — Application des coureurs</h2>
-        <p class="text-muted">
-          C'est une <strong>autre API</strong> que celle ci-dessus. L'API externe parle au nom de
-          l'<em>association</em> et voit tous les inscrits. Celle-ci parle au nom d'<em>un coureur</em> :
-          chaque requête n'accède qu'à ses propres données, après connexion par code à 6 chiffres.
-        </p>
+        <?php /* Pas de rappel ici de ce qui la distingue de l'API externe : le
+                 tableau « Vue d'ensemble », en haut de l'onglet, le dit déjà. Le
+                 répéter allongeait l'écran sans rien apprendre. */ ?>
 
         <form action="" method="post" class="row g-3">
           <?= csrf_field() ?>
@@ -5889,9 +5928,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
               </label>
             </div>
             <small class="text-muted">
-              Désactivée, l'application mobile ne peut plus rien faire — c'est le robinet à fermer
-              en cas de problème. L'espace coureur du site web, lui, continue de fonctionner
-              normalement : les deux sont indépendants.
+              Le robinet à fermer en cas de problème. L'espace coureur du site web
+              continue de fonctionner : les deux sont indépendants.
             </small>
           </div>
           <div class="col-12">
@@ -5908,30 +5946,30 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             <label class="form-label">URL de l'API mobile</label>
             <div class="input-group">
               <input type="text" class="form-control" id="apiV1UrlField"
-                     value="<?= htmlspecialchars($api_baseUrl . $api_baseDir . '/api/v1', ENT_QUOTES, 'UTF-8') ?>" readonly>
+                     value="<?= htmlspecialchars($api_baseUrl . $api_baseDir . '/api/mobile', ENT_QUOTES, 'UTF-8') ?>" readonly>
               <button class="btn btn-outline-secondary" type="button" data-copy="apiV1UrlField">
                 <i class="bi bi-clipboard"></i> Copier
               </button>
             </div>
           </div>
 
-          <div class="alert alert-success">
-            <i class="bi bi-key me-2"></i>
-            <strong>Il n'y a aucun mot de passe à recopier ici, et c'est voulu.</strong>
-            Une clé unique valable pour tout le monde devrait être livrée dans l'application,
-            donc présente sur le téléphone de chaque coureur — n'importe qui pourrait l'en
-            extraire. Chaque coureur s'authentifie avec <em>son</em> code à 6 chiffres :
-            un accès compromis se révoque tout seul, sans toucher aux autres.
-          </div>
-
-          <div class="alert alert-warning">
-            <i class="bi bi-phone me-2"></i>
-            <strong>Version minimale exigée : <?= htmlspecialchars($api_v1_version, ENT_QUOTES, 'UTF-8') ?></strong>
-            — une application plus ancienne est <strong>refusée par le serveur</strong> et doit se
-            mettre à jour avant de pouvoir se connecter. C'est aussi le moyen de mettre hors
-            service une version défectueuse : relevez ce numéro, et elle s'arrête partout.
-            Réglage dans l'onglet « Application mobile ».
-          </div>
+          <?php /* ⚠️ DEUX POINTS QUI SURPRENNENT, RAMENÉS À UNE LIGNE CHACUN.
+                   L'absence de clé à recopier passe pour un oubli si on ne dit
+                   rien ; la version minimale est le seul moyen d'arrêter une
+                   application défectueuse à distance. Le raisonnement complet
+                   est dans la documentation, pas sur cet écran. */ ?>
+          <p class="text-muted small mb-2">
+            <i class="bi bi-key me-1"></i>
+            <strong>Aucune clé à recopier ici, c'est voulu</strong> — chaque coureur
+            s'authentifie avec son propre code à 6 chiffres.
+          </p>
+          <p class="text-muted small mb-3">
+            <i class="bi bi-phone me-1"></i>
+            <strong>Version minimale exigée :
+            <?= htmlspecialchars($api_v1_version, ENT_QUOTES, 'UTF-8') ?></strong> —
+            une application plus ancienne est refusée. Relevez ce numéro pour arrêter
+            partout une version défectueuse (onglet « Application mobile »).
+          </p>
 
           <a href="api-doc-mobile.php" target="_blank" rel="noopener" class="btn btn-info">
             <i class="bi bi-book me-1"></i>Documentation de l'API mobile

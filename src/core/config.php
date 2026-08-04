@@ -258,9 +258,13 @@ do {
     // 1. Exclusions par chemin pour éviter les boucles + préserver l'API JSON
     $__reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
     $__reqBase = basename($__reqPath);
+    /* ⚠️ « v1 » et « v1.php » remplacent « api.php » : l'API des logiciels
+       tiers a déménagé en api/v1.php, et l'URL propre (sans .php) donne l'un ou
+       l'autre selon la réécriture. Rediriger une API vers une page HTML lui
+       donnerait une réponse qu'elle ne sait pas interpréter. */
     if (in_array($__reqBase, [
         'ip-banned.php', '403.php', '404.php', '500.php', '503.php',
-        'maintenance.php', 'api.php',
+        'maintenance.php', 'v1.php', 'v1',
     ], true)) break;
 
     // 2. Détecter le nom de la colonne IP dans login_banned_ips (compat ancien schéma)

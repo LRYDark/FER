@@ -335,12 +335,12 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
               ? '<span class="badge bg-success">configuré</span>'
               : '<span class="badge bg-secondary">non configuré</span>' ?>
       </h3>
-      <?php /* La seule voie possible : Android et iOS bloquent tout le reste.
-               Le dire évite qu'on cherche une solution « sans Google » qui
-               n'existe pas. */ ?>
+      <?php /* ⚠️ NE PAS ÉCRIRE « le seul moyen » : c'est faux pour l'iPhone,
+               où le service obligatoire est APNs, celui d'Apple, que Firebase
+               ne fait que relayer. La phrase précédente le prétendait. */ ?>
       <p class="text-muted small">
-        Firebase est le seul moyen de faire sonner un téléphone — Android et iOS
-        n'en acceptent pas d'autre. Il relaie aussi vers les iPhone.
+        Obligatoire pour Android. Pour l'iPhone, Firebase relaie vers le service
+        d'Apple — c'est un raccourci, pas une obligation.
       </p>
 
       <?php if ($fcm['pret']): ?>

@@ -1,15 +1,15 @@
 ﻿# Rappels locaux — l'implémentation Android et iOS de PoseurDeRappel.
 #
 # ═══════════════════════════════════════════════════════════════════════════════
-# POURQUOI UN QUATRIÈME PAQUET POUR UN SEUL FICHIER
+# POURQUOI UN PAQUET SÉPARÉ POUR UN SEUL FICHIER
 #
 # `flutter_local_notifications` couvre Android ET iOS avec la même API. Les deux
 # coques ont donc exactement le même code de rappel. Le dupliquer garantirait
 # qu'elles divergent au premier correctif — et un rappel qui ne sonne que sur
 # l'une des deux plateformes ne se remarque qu'après une course.
 #
-# Il ne vit pas dans ../shared parce que le cœur doit rester compilable sans ce
-# greffon : la montre Wear OS et watchOS ont leurs propres mécanismes.
+# Il ne vit pas dans fer_shared parce que le cœur doit rester compilable sans ce
+# greffon : Wear OS et watchOS ont leurs propres mécanismes.
 name: fer_rappels
 description: Notifications — rappel local avant la course, et réception des push.
 publish_to: none
@@ -25,7 +25,7 @@ dependencies:
 
   # Pour l'interface PoseurDeRappel, et rien d'autre.
   fer_shared:
-    path: ../shared
+    path: ../fer_shared
 
   flutter_local_notifications: ^17.2.2
   # Indispensable : zonedSchedule exige une date dans un fuseau connu. Sans lui,

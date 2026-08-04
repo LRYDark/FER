@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     if (allIps.size === 0) return;
 
-    // Récupérer le token CSRF (nécessaire pour les POST vers api.php)
+    // Récupérer le token CSRF (nécessaire pour les POST vers admin-api.php)
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
 

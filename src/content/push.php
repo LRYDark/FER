@@ -3,17 +3,35 @@
  * push.php — Faire sonner les téléphones (Firebase Cloud Messaging).
  *
  * ═════════════════════════════════════════════════════════════════════════════
- * POURQUOI FIREBASE, ET PAS AUTRE CHOSE
+ * POURQUOI FIREBASE — ET CE QUI EST VRAIMENT OBLIGATOIRE
  *
- * Android et iOS n'acceptent AUCUN autre moyen de réveiller une application
- * fermée. Ni un serveur qu'on appelle, ni une connexion maintenue ouverte : le
- * système coupe tout au bout de quelques minutes en arrière-plan. Firebase
- * Cloud Messaging est la seule voie, et il relaie lui-même vers APNs pour les
- * iPhone — une seule intégration pour les deux plateformes.
+ * Aucune application ne peut se réveiller seule : ni un serveur qu'on appelle,
+ * ni une connexion maintenue ouverte ne survivent à quelques minutes
+ * d'arrière-plan. Il faut passer par le service de notification du système. Mais
+ * ce service n'est PAS le même des deux côtés :
  *
- * ⚠️ CE QUE ÇA IMPLIQUE, ET QU'IL FAUT ASSUMER : chaque installation de
- * l'application est déclarée auprès de Google. C'est le prix de la sonnerie ; il
- * n'y a pas de version « sans tiers » de cette fonction.
+ *   • ANDROID — Firebase Cloud Messaging est incontournable en pratique. Google
+ *     a supprimé l'ancien GCM, et les solutions tierces (OneSignal, Leanplum…)
+ *     repassent toutes par FCM. Seul UnifiedPush y échappe, au prix d'une
+ *     application distributrice à installer — impensable pour une course
+ *     ouverte au public.
+ *
+ *   • iPHONE — c'est APNs, le service d'APPLE, qui est obligatoire. Firebase ne
+ *     fait que le RELAYER. On pourrait s'adresser directement à APNs, en
+ *     HTTP/2, avec un jeton JWT signé par la clé .p8 (la bibliothèque
+ *     firebase/php-jwt, déjà présente, sait signer en ES256).
+ *
+ * ⚠️ NE PAS ÉCRIRE QUE FIREBASE EST « LE SEUL MOYEN ». C'est faux pour iOS, et
+ * cette phrase a déjà induit en erreur.
+ *
+ * Le choix fait ici est celui d'UN SEUL chemin d'envoi plutôt que deux. Le coût
+ * d'un second chemin — APNs direct — n'est pas le code, c'est la dépendance à un
+ * curl compilé avec HTTP/2 sur l'hébergement mutualisé : s'il manque, les
+ * iPhone cessent de recevoir sans que rien ne le signale.
+ *
+ * ⚠️ CE QUE ÇA IMPLIQUE, ET QU'IL FAUT ASSUMER : avec ce choix, chaque
+ * installation — iPhone compris — est déclarée auprès de Google. C'est le prix
+ * du chemin unique, pas une fatalité technique.
  *
  * ═════════════════════════════════════════════════════════════════════════════
  * AUCUNE NOUVELLE DÉPENDANCE

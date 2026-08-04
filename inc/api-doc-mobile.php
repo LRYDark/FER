@@ -1,14 +1,17 @@
 <?php
 /**
- * api-doc-mobile.php — Documentation de l'API des coureurs (/api/v1).
+ * api-doc-mobile.php — Documentation de l'API des coureurs (/api/mobile).
  *
  * PAGE SÉPARÉE DE api-doc.php, ET C'EST VOLONTAIRE. Les deux APIs n'ont ni le
  * même public, ni le même mécanisme d'authentification :
- *   • api.php   → UN jeton pour toute l'association, créé par un administrateur,
- *                 qui donne accès à TOUS les inscrits.
- *   • /api/v1   → UN jeton PAR COUREUR, qu'il obtient lui-même avec son adresse
- *                 email et un code à 6 chiffres, et qui ne donne accès qu'à ses
- *                 propres données.
+ *   • api/v1     → UN jeton pour toute l'association, créé par un administrateur,
+ *                  qui donne accès à TOUS les inscrits. Versionné, parce qu'un
+ *                  partenaire ne met pas son logiciel à jour sur commande.
+ *   • api/mobile → UN jeton PAR COUREUR, qu'il obtient lui-même avec son adresse
+ *                  email et un code à 6 chiffres, et qui ne donne accès qu'à ses
+ *                  propres données. Pas de version dans le chemin : c'est
+ *                  `app_version_minimale` qui écarte les applications trop
+ *                  anciennes.
  * Les documenter ensemble amenait à confondre les deux mécanismes — et un
  * développeur qui confond deux modèles d'authentification écrit une faille.
  *
@@ -37,7 +40,7 @@ if ($projectRoot === $docRoot || $projectRoot === false || $docRoot === false) {
 } else {
     $baseDir = str_replace('\\', '/', substr($projectRoot, strlen($docRoot)));
 }
-$apiUrl = $baseUrl . $baseDir . '/api/v1';
+$apiUrl = $baseUrl . $baseDir . '/api/mobile';
 
 try {
     $cfg = $pdo->query('SELECT api_v1_enabled, app_version_minimale, app_access_token_ttl_min,
@@ -123,7 +126,7 @@ $A = $h($apiUrl);
 
     <div class="alert alert-info"><i class="bi bi-signpost-split me-2"></i>
       <strong>Ce n'est pas l'API décrite dans l'autre page.</strong>
-      <code>api.php</code> parle au nom de l'<em>association</em> : un seul jeton, créé par un
+      <code>api/v1</code> parle au nom de l'<em>association</em> : un seul jeton, créé par un
       administrateur, qui voit tous les inscrits. Ici, chaque requête parle au nom d'<strong>un
       coureur</strong> et n'accède qu'à ses propres données. Les deux ne partagent aucun
       identifiant et ne se remplacent pas.
