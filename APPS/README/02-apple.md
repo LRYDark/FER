@@ -5,20 +5,37 @@ aucun contournement ne produit un binaire iOS signé.
 
 ## 1. Emporter le code
 
-Copiez **le dossier `APPS` entier**, pas seulement `mac/`.
+⚠️ **DEUX DOSSIERS, PAS UN.**
 
 ```
-APPS/
-├── shared/     ← indispensable : mac/ en dépend par `path: ../shared`
-├── rappels/    ← indispensable aussi
-└── mac/
+mac/  +  bibliotheque/
 ```
 
-`mac/pubspec.yaml` déclare `fer_shared: path: ../shared`. Sans le dossier
-parent, `flutter pub get` échoue avec « path does not exist » — et c'est le
-premier écueil de ce transfert.
+```
+mac/
+├── lib/main.dart          iPhone et iPad
+├── ios-overlay/           clés Info.plist
+├── ios-liveactivity/      Live Activity (SwiftUI)
+└── watchos/               Apple Watch (SwiftUI)
 
-Clé USB, `scp`, dépôt git : peu importe, tant que l'arborescence reste entière.
+bibliotheque/
+├── fer_shared/            le cœur — API, modèles, écrans
+└── fer_rappels/           notifications
+```
+
+`mac/pubspec.yaml` déclare `path: ../bibliotheque/fer_shared`. Sans le dossier
+voisin, `flutter pub get` échoue sur *« path does not exist »* — c'est le seul
+piège de ce transfert.
+
+Rangez-les côte à côte sur le Mac, comme ici :
+
+```
+Quelque part/
+├── mac/
+└── bibliotheque/
+```
+
+Clé USB, `scp`, dépôt git : peu importe, tant que les deux voyagent ensemble.
 
 ## 2. Préparer le Mac
 
@@ -122,7 +139,7 @@ d'un format à l'autre.
 
 | Message | Cause |
 |---|---|
-| `path does not exist: ../shared` | Vous n'avez copié que `mac/` |
+| `path does not exist: ../bibliotheque/fer_shared` | Vous n'avez copié que `mac/` — il faut `bibliotheque/` à côté |
 | `Undefined symbols … _FlutterLocalNotifications` | Ouvert `.xcodeproj` au lieu de `.xcworkspace` |
 | `No profiles for 'fr.forbachenrose…' were found` | Bundle ID déjà pris, ou Team non sélectionnée |
 | `CocoaPods not installed` | `sudo gem install cocoapods` |

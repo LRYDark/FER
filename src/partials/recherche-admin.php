@@ -91,6 +91,19 @@ $rechercheIndex = [
      'mots' => 'reveil rappel alarme avant depart minutes notification locale',
      'droit' => ['page' => 'setting']],
 
+    /* ⚠️ Cette entrée existe parce que la question posée n'est pas « où est le
+       réglage » mais « lequel fait quoi ». Sans elle, chercher « api.php » ou
+       « point d'entrée » ne renvoie que des cartes de réglage.
+       « api.php » et « externe » restent dans les mots-clés : ce sont les
+       anciens noms, et c'est justement en les cherchant qu'on découvre qu'ils
+       ont changé. */
+    ['titre' => 'Vue d\'ensemble des API (lequel fait quoi)',
+     'ou' => 'Réglages → API', 'url' => 'setting.php?tab=api', 'ancre' => 'carteApiVueEnsemble',
+     'mots' => 'api point entree difference json admin-api chatbot-api api.php externe
+                v1 v2 mobile version authentification jeton token session comparaison
+                lequel logiciel tiers partenaire',
+     'droit' => ['page' => 'setting', 'action' => 'settings.tab.api']],
+
     ['titre' => 'API mobile et documentation',
      'ou' => 'Réglages → API', 'url' => 'setting.php?tab=api', 'ancre' => 'carteApiMobile',
      'mots' => 'api mobile v1 application token jeton version minimale documentation

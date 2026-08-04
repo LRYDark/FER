@@ -1,17 +1,56 @@
 ﻿# Faire sonner les téléphones (Firebase)
 
-## Pourquoi Firebase, et rien d'autre
+## Pourquoi Firebase — et ce qui est vraiment obligatoire
 
-Android et iOS n'acceptent **aucun** autre moyen de réveiller une application
-fermée. Ni un serveur qu'on appelle, ni une connexion maintenue ouverte : le
-système coupe tout au bout de quelques minutes en arrière-plan.
+Aucune application ne peut se réveiller seule : ni un serveur qu'on appelle, ni
+une connexion maintenue ouverte ne survivent à quelques minutes d'arrière-plan.
+Il faut passer par le service de notification du système.
 
-Firebase Cloud Messaging est la seule voie, et il relaie lui-même vers APNs pour
-les iPhone — **une seule intégration pour les deux plateformes**.
+**Mais ce service n'est pas le même des deux côtés :**
 
-⚠️ **Ce que ça implique** : chaque installation de l'application est déclarée
-auprès de Google. C'est le prix de la sonnerie ; il n'existe pas de version
-« sans tiers » de cette fonction.
+| | Service obligatoire | Firebase est-il nécessaire ? |
+|---|---|---|
+| **Android** | FCM *(Google)* | **Oui, en pratique.** Google a supprimé l'ancien GCM, et les solutions tierces *(OneSignal, Leanplum…)* repassent toutes par FCM |
+| **iPhone** | **APNs** *(Apple)* | **Non.** Firebase ne fait que **relayer** vers APNs |
+
+⚠️ **Une version antérieure de ce guide affirmait que Firebase était « la seule
+voie » pour les deux plateformes. C'est faux pour l'iPhone.**
+
+On peut s'adresser **directement** à APNs, en HTTP/2, avec un jeton JWT signé
+par la clé `.p8` — celle qu'il faut de toute façon. La bibliothèque
+`firebase/php-jwt`, déjà présente dans `vendor/`, signe en ES256, et des clients
+PHP dédiés existent *(voir [edamov/pushok](https://github.com/edamov/pushok))*.
+
+### Pourquoi on ne l'a pas fait
+
+**Un seul chemin d'envoi plutôt que deux.** Le coût d'un second chemin n'est pas
+le code — c'est la dépendance à un **curl compilé avec HTTP/2** sur
+l'hébergement mutualisé. S'il manque, les iPhone cessent de recevoir **sans que
+rien ne le signale**.
+
+Pour savoir si c'est jouable chez vous, déposez ce fichier à la racine et
+ouvrez-le :
+
+```php
+<?php $v = curl_version();
+echo (CURL_VERSION_HTTP2 & $v['features']) ? 'HTTP/2 : OUI' : 'HTTP/2 : NON';
+```
+
+**OUI** → l'option « APNs direct pour iOS » devient réaliste : aucun iPhone ne
+serait alors déclaré chez Google. Il faut en contrepartie un second chemin
+d'envoi côté serveur et une vingtaine de lignes de Swift pour récupérer le jeton
+APNs.
+
+⚠️ **Ce que le choix actuel implique, et qu'il faut assumer** : chaque
+installation — iPhone compris — est déclarée auprès de Google. C'est le prix du
+chemin unique, **pas une fatalité technique**.
+
+### Une chose ne change pas
+
+Dans les deux cas, il vous faut la **clé APNs `.p8`** de votre compte Apple
+Developer. Avec Firebase vous la lui confiez ; en direct vous la gardez. Passer
+en direct ne vous demanderait **rien de plus** — cela retirerait seulement le
+projet Firebase du chemin iPhone.
 
 ## 1. Créer le projet Firebase
 

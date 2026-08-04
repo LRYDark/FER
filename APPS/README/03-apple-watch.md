@@ -7,7 +7,7 @@ rien n'annonce le contraire. Une application Apple Watch s'écrit en SwiftUI,
 dans une cible Xcode distincte de l'application iPhone.
 
 C'est la seule des six cibles qui ne partage pas le code Dart. Elle parle
-**directement** à `/api/v1`, avec le même contrat : mêmes routes, même en-tête
+**directement** à `/api/mobile`, avec le même contrat : mêmes routes, même en-tête
 `X-App-Version`, même jeton personnel.
 
 ⚠️ **Toute évolution de l'API doit donc être répercutée à deux endroits** :

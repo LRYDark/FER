@@ -26,7 +26,7 @@ echo "\n=== 1. Compilation ===\n";
 $php = 'C:/laragon/bin/php/php-8.3.16-Win32-vs16-x64/php.exe';
 $fichiers = [];
 foreach (['', 'inc/', 'src/core/', 'src/auth/', 'src/content/', 'src/mail/', 'src/partials/',
-          'public/', 'public/espace-coureur/', 'api/v1/'] as $d) {
+          'public/', 'public/espace-coureur/', 'api/mobile/'] as $d) {
     foreach (glob($R . $d . '*.php') ?: [] as $f) $fichiers[] = $f;
 }
 $casses = [];
@@ -129,7 +129,7 @@ $oublis = [];
 foreach (array_merge(glob($R . 'inc/*.php') ?: [],
                      glob($R . 'public/*.php') ?: [],
                      glob($R . 'public/espace-coureur/*.php') ?: [],
-                     glob($R . 'api/v1/*.php') ?: []) as $f) {
+                     glob($R . 'api/mobile/*.php') ?: []) as $f) {
     // Les fragments (préfixe « _ ») ne sont jamais appelés directement : ils
     // héritent des inclusions de la page qui les insère. Les compter ici
     // produirait des alertes systématiques et sans objet — et un contrôle qui
@@ -322,14 +322,97 @@ $tpl = $lire('src/mail/mail_template.php');
 verifie('le gabarit d\'email reçoit bien l\'URL de l\'espace coureur',
     str_contains($tpl, '$espace_url') && str_contains($lire('src/mail/googleMail.php'), "'espace_url'"));
 
-/* ── 8. Fichiers interdits : intacts ────────────────────────────────────── */
+/* ── 8. Fichiers interdits : intacts ─────────────────────────────────────
+ *
+ * ⚠️ `api.php` A QUITTÉ CETTE LISTE, ET CE N'EST PAS UN RELÂCHEMENT. Le fichier
+ * a été déplacé en `api/v1.php` — le dossier `api/` regroupe désormais tout
+ * ce qui vient de l'extérieur. Le gel le suit à sa nouvelle adresse, juste en
+ * dessous : son CORPS est comparé ligne à ligne à la version d'origine, et seuls
+ * l'en-tête et les chemins `__DIR__` ont le droit d'avoir changé.
+ *
+ * C'est un contrôle plus fort que l'ancien, pas plus faible : un `git diff` vide
+ * prouvait qu'on n'avait pas touché au fichier, celui-ci prouve qu'un
+ * déplacement n'a rien modifié à ce qu'il fait.
+ * ──────────────────────────────────────────────────────────────────────────── */
 echo "\n=== 8. Fichiers que la consigne interdit de modifier ===\n";
-foreach (['api.php', 'login.php', 'change-password.php', 'reset-password.php',
+foreach (['login.php', 'change-password.php', 'reset-password.php',
           'src/security/totp.php', 'src/security/webauthn.php'] as $f) {
     $d = trim((string) shell_exec('cd /d W:\FER && git diff --stat 0f50e0ce..HEAD -- '
                                   . escapeshellarg($f) . ' 2>nul'));
     verifie("$f intact", $d === '', $d);
 }
+
+/* Le gel d'api.php, à sa nouvelle adresse. On compare le CORPS du fichier à la
+   version d'origine : seules deux différences sont tolérées, et elles sont la
+   conséquence mécanique du déplacement —
+     • l'en-tête de documentation (avant le premier `require`) ;
+     • les chemins `__DIR__`, qui doivent remonter d'un cran.
+   Toute autre ligne modifiée est un changement de comportement déguisé. */
+$avant = (string) shell_exec('cd /d W:\FER && git show 0f50e0ce:api.php 2>nul');
+$apres = $lire('api/v1.php');
+if ($avant === '') {
+    avertir('impossible de relire api.php d\'origine (git indisponible ?) — gel non vérifié');
+} else {
+    // On coupe l'en-tête : il a le droit d'avoir changé, il ne s'exécute pas.
+    $corps = fn(string $s) => ($p = strpos($s, "\nrequire ")) !== false ? substr($s, $p) : $s;
+    $lignesAvant = explode("\n", str_replace("\r", '', $corps($avant)));
+    $lignesApres = explode("\n", str_replace("\r", '', $corps($apres)));
+
+    $differences = [];
+    if (count($lignesAvant) !== count($lignesApres)) {
+        $differences[] = 'nombre de lignes : ' . count($lignesAvant) . ' → ' . count($lignesApres);
+    } else {
+        foreach ($lignesAvant as $i => $ligne) {
+            if ($ligne === $lignesApres[$i]) continue;
+            // Seul un `__DIR__` remonté d'un cran est acceptable.
+            if (str_contains($ligne, '__DIR__')
+                && str_replace("__DIR__ . '/", "__DIR__ . '/../", $ligne) === $lignesApres[$i]) continue;
+            $differences[] = 'ligne ' . ($i + 1) . ' : ' . trim($lignesApres[$i]);
+        }
+    }
+    verifie('api/v1.php : le déplacement n\'a rien changé au comportement',
+        empty($differences), implode(' | ', array_slice($differences, 0, 3)));
+}
+
+/* ⚠️ L'ANCIEN FICHIER NE DOIT PAS RÉAPPARAÎTRE À LA RACINE. Deux copies d'une
+   API divergent toujours, et c'est celle qu'on ne teste pas qui garde la faille
+   corrigée d'un seul côté. Rétablir l'ancienne ADRESSE se fait par une ligne de
+   réécriture dans le .htaccess, jamais en recopiant le fichier. */
+verifie('aucun api.php n\'a repoussé à la racine', !is_file($R . 'api.php'));
+
+/* ⚠️ ET SUR LE SERVEUR, IL FAUT L'EFFACER. Un déploiement qui envoie des
+   fichiers n'en supprime aucun : l'ancien api.php resterait à la racine du
+   serveur, toujours fonctionnel, figé à la version du jour du déplacement.
+   C'est update.php qui doit s'en charger. */
+verifie('update.php supprime l\'ancien api.php du serveur',
+    str_contains($lire('update.php'), 'function updSupprimerAncienApi('));
+
+/* ⚠️ UN DOSSIER `api/v1/` RENDRAIT `api/v1.php` INJOIGNABLE. La réécriture
+   « /x » → « /x.php » de la racine ne s'applique que si le chemin n'est NI un
+   fichier NI un dossier : un dossier de ce nom gagne, et l'API des logiciels
+   tiers répond 403 sans que rien ne l'explique. */
+verifie('aucun dossier api/v1/ ne masque api/v1.php', !is_dir($R . 'api/v1'));
+
+/* ⚠️ DEUX RÈGLES D'api/.htaccess QUI ONT L'AIR SUPERFLUES ET NE LE SONT PAS.
+   Elles ont été écrites après avoir vu le vrai Apache se comporter autrement
+   que prévu ; les retirer « pour simplifier » casse deux choses différentes.
+
+   • `^v1/ - [G]` : `v1` était un DOSSIER, c'est maintenant `v1.php`. Sans cette
+     règle, /api/v1/auth/request-code — ce qu'appellent les applications déjà
+     installées — part en BOUCLE DE REDIRECTION et le serveur répond 500 après
+     dix tours. On répond 410 (Gone), une fois, sans détour.
+
+   • Le bloc `!-f / !-d / .php -f` : `RewriteEngine On` annule les règles
+     héritées de la racine pour tout le dossier. Sans le rétablir ici, l'adresse
+     /api/v1 sans extension ne répond plus du tout. */
+$htApi = $lire('api/.htaccess');
+verifie('api/.htaccess referme la boucle sur l\'ancien sous-chemin v1/',
+    str_contains($htApi, '^v1/ - [G]'));
+verifie('api/.htaccess rétablit la réécriture « /x » → « /x.php »',
+    str_contains($htApi, '%{REQUEST_FILENAME}.php -f')
+    && str_contains($htApi, 'RewriteRule ^(.+)$ $1.php'));
+verifie('update.php efface l\'ancien dossier api/v1/ du serveur',
+    str_contains($lire('update.php'), 'function updSupprimerAncienDossierV1('));
 
 /* ── 9. Le compte de démonstration a bien été retiré partout ────────────── */
 echo "\n=== 9. Compte de démonstration (retiré) ===\n";
@@ -342,7 +425,7 @@ verifie('plus aucune trace du compte de démonstration', empty($traces), implode
 
 /* ── 10. Aucune donnée personnelle en clair dans une URL ────────────────── */
 echo "\n=== 10. Fuites d'URL ===\n";
-$api = $lire('api/v1/index.php');
+$api = $lire('api/mobile/index.php');
 verifie('l\'API mobile ne lit aucune adresse depuis $_GET',
     !preg_match('/\$_GET\[[\'"]email/i', $api));
 
@@ -379,7 +462,7 @@ verifie('chrono_actif() existe et refuse par défaut',
 $lecteurs = [
     'menu de l\'espace coureur' => 'public/espace-coureur/_layout-haut.php',
     'page Mes résultats'        => 'public/espace-coureur/mes-resultats.php',
-    'API mobile'                => 'api/v1/index.php',
+    'API mobile'                => 'api/mobile/index.php',
 ];
 $sourds = [];
 foreach ($lecteurs as $quoi => $f) {
@@ -390,7 +473,7 @@ verifie('le menu, la page et l\'API lisent tous l\'interrupteur',
 
 // L'API doit refuser les TROIS sous-routes, pas seulement l'envoi de détections :
 // laisser /me/traces ouvert continuerait d'enregistrer des positions.
-$api = $lire('api/v1/index.php');
+$api = $lire('api/mobile/index.php');
 verifie('l\'API ferme detections, traces ET results',
     str_contains($api, 'chrono_disabled')
     && preg_match("/in_array\(\\\$sousRoute,\s*\['detections',\s*'traces',\s*'results'\]/", $api) === 1);
@@ -506,7 +589,7 @@ $app = $lire('inc/applications.php');
 verifie('le compte de service est chiffré et jamais réaffiché',
     str_contains($lire('src/content/push.php'), 'encrypt($jsonBrut)')
     && !preg_match('/value="[^"]*fcm_service_account/', $app)
-    && !str_contains($lire('api/v1/index.php'), 'fcm_service_account'));
+    && !str_contains($lire('api/mobile/index.php'), 'fcm_service_account'));
 
 /* ── 16. Le départ de la course ─────────────────────────────────────────────
  * Le top réel fait foi ; l'heure prévue est un filet. Le risque est qu'une
@@ -546,7 +629,7 @@ verifie('aucune liste de destinataires nominatifs',
 
 // L'API doit servir les notifications MÊME chronométrage fermé : une annonce de
 // l'organisation n'a rien à voir avec les temps.
-$apiSrc = $lire('api/v1/index.php');
+$apiSrc = $lire('api/mobile/index.php');
 $posNotif  = strpos($apiSrc, "\$sousRoute === 'notifications'");
 $posGarde  = strpos($apiSrc, "in_array(\$sousRoute, ['detections'");
 verifie('les notifications passent même chronométrage fermé',
@@ -605,6 +688,15 @@ foreach (glob($R . 'inc\*.php') ?: [] as $f) {
 verifie('aucun bouton n\'a de couleur écrite en dur',
     empty($dur), implode(', ', $dur));
 
+/* ⚠️ CE BANC NE REGARDE QUE LE SITE — VOLONTAIREMENT.
+ *
+ * Il a un temps contrôlé le code des applications mobiles (`APPS/`). C'était une
+ * erreur de périmètre : `APPS/` n'est pas déployé, et lancer ce banc sur le
+ * serveur signalait alors des manques qui n'en sont pas.
+ *
+ * Le code des applications se contrôle avec `flutter analyze`, depuis APPS/.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
 /* ── 17. La recherche de l'administration ───────────────────────────────────
  *
  * ⚠️ UN INDEX QUI DÉRIVE EST PIRE QUE PAS D'INDEX. Si un réglage est ajouté
@@ -658,6 +750,252 @@ verifie('l\'index est filtré par les droits avant d\'être envoyé',
 // recherche, qui porte sur les inscrits.
 verifie('la barre annonce qu\'elle cherche un réglage',
     str_contains($rech, 'Rechercher un réglage'));
+
+/* ── 18. Les points d'entrée JSON ───────────────────────────────────────────
+ *
+ * LA RÈGLE : `api/` regroupe ce à quoi un LOGICIEL se connecte, avec un jeton.
+ * Ce qui est dehors sert le JavaScript de nos propres pages.
+ *
+ *   • api/v1.php           → logiciels tiers, secret de l'association
+ *                                 (l'ancien api.php, déplacé — voir § 8)
+ *   • api/mobile/index.php          → applications des coureurs, jeton personnel
+ *   • admin-api.php             → DEHORS : le JavaScript des écrans du site,
+ *                                 administration ET formulaires publics
+ *   • public/chatbot-api.php    → DEHORS : le widget de discussion, anonyme
+ *
+ * ⚠️ ILS RESTENT SÉPARÉS EXPRÈS. Ce sont des périmètres de sécurité distincts :
+ * les réunir derrière un aiguilleur commun ferait d'une erreur d'aiguillage une
+ * faille — une route d'administration atteignable avec un jeton de partenaire,
+ * ou les données d'un coureur lisibles par un autre.
+ *
+ * ⚠️ CE QUI SE PERD, EN REVANCHE, C'EST DE SAVOIR LEQUEL FAIT QUOI. C'est
+ * exactement ce qui s'est produit. La carte « Vue d'ensemble » de Réglages → API
+ * y répond, et ce contrôle existe pour qu'un QUATRIÈME point d'entrée ajouté plus
+ * tard ne puisse pas rester invisible : il devra être décrit, ou le banc rougit.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 18. Points d'entrée JSON ===\n";
+
+/* La carte, isolée : un nom cité ailleurs dans l'onglet ne prouverait rien. */
+$carte = '';
+if (preg_match('/Carte : vue d\'ensemble.*?carteApiExterne/s', $set, $mCarte)) {
+    $carte = $mCarte[0];
+}
+verifie('la carte « Vue d\'ensemble » est présente dans Réglages → API',
+    $carte !== '');
+
+/* Tout point d'entrée PARTAGÉ doit y figurer :
+     • tout ce qui est dans `api/` — c'est la définition du dossier ;
+     • tout fichier nommé `*-api.php`, où qu'il soit.
+
+   ⚠️ CE CONTRÔLE NE VOIT PAS TOUT, ET C'EST ASSUMÉ. Une vingtaine de pages
+   répondent aussi en JSON (inc/albums.php, public/news.php…), mais chacune ne
+   sert QUE son propre écran : les lister ici noierait la carte sous du bruit et
+   ferait perdre ce qu'on vient y chercher. La règle porte donc sur les points
+   d'entrée que PLUSIEURS pages appellent — ceux qu'on peut confondre. Nommer un
+   nouveau `…-api.php` suffit à le rendre visible du banc. */
+$entrees = array_merge(
+    glob($R . 'api/*.php') ?: [],
+    glob($R . 'api/*/index.php') ?: [],
+    glob($R . '*-api.php') ?: [],
+    glob($R . '*/*-api.php') ?: []
+);
+$nonDecrits = [];
+foreach ($entrees as $f) {
+    $nom = str_replace('\\', '/', substr($f, strlen($R)));
+    /* Dans `api/`, on cite l'ADRESSE, pas le fichier : « api/v1 » et
+       « api/mobile/ » sont ce que lit un partenaire. À la racine, le nom complet. */
+    $forme = $nom;
+    if (str_starts_with($nom, 'api/')) {
+        $forme = str_ends_with($nom, '/index.php')
+            ? substr($nom, 0, -strlen('/index.php'))   // api/mobile/index.php → api/mobile
+            : substr($nom, 0, -4);                     // api/v1.php  → api/v1
+    }
+    if (!str_contains($carte, $forme)) $nonDecrits[] = $nom;
+}
+verifie('chaque point d\'entrée JSON est décrit dans la vue d\'ensemble',
+    empty($nonDecrits), implode(', ', $nonDecrits));
+
+/* Décrire ne suffit pas : sans le mode d'authentification, la carte ne dit pas
+   ce qui les distingue — c'est la seule chose qu'on vient y chercher. */
+verifie('la vue d\'ensemble donne le mode d\'authentification de chacun',
+    str_contains($carte, 'secret de l\'association')
+    && str_contains($carte, 'jeton personnel')
+    && str_contains($carte, 'session'));
+
+/* ⚠️ LA DISPARITION DE L'ANCIENNE ADRESSE DOIT ÊTRE ANNONCÉE, PAS TUE. Un
+   partenaire branché sur `api.php` ne lit pas nos notes de version : il
+   découvrira la panne un jour de course. La carte doit dire noir sur blanc
+   qu'elle ne répond plus, pour qu'on pense à le prévenir avant de déployer. */
+verifie('la vue d\'ensemble avertit que api.php ne répond plus',
+    str_contains($carte, 'api.php') && str_contains($carte, 'ne répond plus'));
+
+/* Le déplacement n'a de sens que s'il est complet : un chemin oublié afficherait
+   à l'administrateur une adresse qui renvoie 404. */
+verifie('l\'onglet API affiche la nouvelle adresse',
+    str_contains($set, "'/api/v1'") && !str_contains($set, "'/api.php'"));
+verifie('la documentation externe montre la nouvelle adresse',
+    str_contains($lire('inc/api-doc.php'), "'/api/v1'"));
+
+/* ⚠️ DEUX ENDROITS TESTENT LE NOM DU FICHIER, ET LES DEUX CASSENT EN SILENCE.
+   `debug.php` empêche la barre de débogage de s'injecter dans du JSON ;
+   `config.php` évite qu'une IP bannie reçoive une redirection HTML au lieu
+   d'une réponse d'API. Un `api.php` oublié là et la panne n'apparaît que chez
+   le partenaire, sous forme de JSON illisible. */
+verifie('la barre de débogage épargne toujours l\'API des logiciels tiers',
+    str_contains($lire('src/core/debug.php'), "=== 'v1.php'"));
+verifie('le bannissement d\'IP épargne toujours l\'API des logiciels tiers',
+    str_contains($lire('src/core/config.php'), "'v1.php', 'v1'"));
+
+/* La même carte, dans le code : celui qui ouvre le fichier ne passe pas par
+   l'administration. api.php est exclu — la consigne interdit d'y toucher. */
+foreach (['admin-api.php', 'api/mobile/index.php', 'api/v1.php',
+          'public/chatbot-api.php'] as $f) {
+    /* mb_strtolower : la phrase est écrite en capitales dans certains en-têtes,
+       et strtolower() ne sait pas replier le « É ». Les espaces sont aplatis :
+       sinon un simple retour à la ligne dans le commentaire ferait échouer le
+       contrôle, ce qui n'apprendrait rien à personne. */
+    $plat = preg_replace('/[\s*]+/u', ' ', mb_strtolower($lire($f)));
+    verifie("$f dit ce qui le distingue des autres",
+        str_contains((string) $plat, 'type de client'));
+}
+
+/* ── 19. Les routes ouvertes d'admin-api.php ────────────────────────────────
+ *
+ * ⚠️⚠️ LE NOM DU FICHIER MENT, ET C'EST LE PIÈGE. « admin-api.php » n'a AUCUN
+ * verrou global : chaque route porte le sien. Sur ses 48 routes, onze répondent
+ * sans session — les unes parce qu'on ne peut pas exiger une session pour se
+ * connecter, les autres parce qu'elles servent le site public.
+ *
+ * ⚠️ UNE ROUTE AJOUTÉE SANS GARDE EST OUVERTE À TOUT INTERNET, EN SILENCE. Elle
+ * fonctionnera parfaitement pendant les essais, puisqu'on les fait connecté.
+ * D'où cette liste figée : toute nouvelle route sans garde fait rougir le banc,
+ * et il faut alors l'inscrire ici À LA MAIN, en sachant ce qu'on écrit.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 19. Routes ouvertes d'admin-api.php ===\n";
+
+$ouvertesAttendues = [
+    // Connexion — anonymes par nécessité, protégées autrement (mot de passe,
+    // 2FA, jeton de réinitialisation, limitation de débit).
+    'login-check-email', 'resend-2fa', 'switch-2fa-method', 'webauthn-direct-options',
+    'forgot-password', 'reset-password-confirm', 'logout',
+    // Site public — chacune a sa propre protection.
+    'partner-captcha-init',   // captcha Turnstile
+    'partner-request',        // formulaire partenaire, derrière le captcha
+    'validate-qr-token',      // le jeton du dossard fait foi, il n'est pas devinable
+    'tshirt-access-request',  // demande le code d'accès bénévole : forcément
+                              // anonyme, mais _tshirtOpen() la ferme hors période
+];
+
+$srcAdmin = $lire('admin-api.php');
+preg_match_all('/\$route\s*===\s*\'([a-z0-9_-]+)\'/', $srcAdmin, $mRoutes, PREG_OFFSET_CAPTURE);
+$nbRoutes = count($mRoutes[0]);
+$gardes = ['$_SESSION[\'uid\']', '$_SESSION[\'role\']', 'canAccessPage', 'canDoAction',
+           'currentRole', 'requireAction(', 'requireRole(', '_tshirtScanAuth('];
+
+$ouvertes = [];
+for ($i = 0; $i < $nbRoutes; $i++) {
+    $debut = $mRoutes[0][$i][1];
+    $fin   = ($i + 1 < $nbRoutes) ? $mRoutes[0][$i + 1][1] : strlen($srcAdmin);
+    $bloc  = substr($srcAdmin, $debut, $fin - $debut);
+    foreach ($gardes as $g) if (str_contains($bloc, $g)) continue 2;
+    $ouvertes[] = $mRoutes[1][$i][0];
+}
+
+$nouvelles = array_diff($ouvertes, $ouvertesAttendues);
+verifie('aucune route sans garde n\'a été ajoutée à admin-api.php',
+    empty($nouvelles), implode(', ', $nouvelles));
+
+/* L'inverse compte aussi : une route qui gagne une garde doit sortir de la
+   liste, sinon celle-ci finit par décrire un fichier qui n'existe plus. */
+$disparues = array_diff($ouvertesAttendues, $ouvertes);
+verifie('la liste des routes ouvertes ne décrit rien de périmé',
+    empty($disparues), implode(', ', $disparues));
+
+/* ⚠️ Et l'en-tête doit prévenir. Un fichier nommé « admin- » que l'on croit
+   réservé aux administrateurs est exactement la manière dont on ajoute une
+   route sensible sans y mettre de verrou. */
+verifie('l\'en-tête d\'admin-api.php dément son propre nom',
+    str_contains($srcAdmin, 'SON NOM MENT'));
+
+/* ── 20. Le ménage de la mise à jour, rejoué pour de vrai ───────────────────
+ *
+ * ⚠️⚠️ CES DEUX FONCTIONS NE S'EXÉCUTENT QU'UNE FOIS, SUR LE VRAI SERVEUR, le
+ * jour de la mise à jour. Personne n'est là pour rattraper une erreur — et une
+ * erreur ici, c'est soit deux API vivantes servant le même secret, soit une
+ * adresse `/api/v1` qui ne répond plus. Aucun autre banc ne les couvre :
+ * `audit-bdd.php` n'extrait d'update.php que le SQL.
+ *
+ * On les extrait donc du fichier et on les rejoue sur un dossier jetable, avec
+ * les quatre situations qui comptent — dont les deux REFUS, qui sont la partie
+ * la plus importante : effacer par erreur coûte plus cher que ne pas effacer.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 20. Ménage de la mise à jour (rejoué) ===\n";
+
+$srcUpd = $lire('update.php');
+$blocs  = '';
+foreach (['updSupprimerAncienApi', 'updSupprimerAncienDossierV1'] as $fn) {
+    // La fonction va de sa déclaration à la première accolade fermante en colonne 1.
+    if (preg_match('/^function ' . $fn . '\(.*?^\}/ms', $srcUpd, $m)) $blocs .= $m[0] . "\n";
+}
+if (substr_count($blocs, 'function ') !== 2) {
+    verifie('les deux fonctions de ménage sont extractibles d\'update.php', false,
+        'signature modifiée ? le banc ne sait plus les retrouver');
+} else {
+    eval($blocs);   // définit les deux fonctions, hors de tout contexte d'update.php
+
+    $bac = sys_get_temp_dir() . '/fer_menage_' . getmypid();
+    $poser = function (array $fichiers) use ($bac) {
+        // Remise à zéro complète entre deux situations.
+        $vider = function (string $d) use (&$vider) {
+            foreach (array_diff(scandir($d) ?: [], ['.', '..']) as $e) {
+                is_dir("$d/$e") ? $vider("$d/$e") : @unlink("$d/$e");
+            }
+            @rmdir($d);
+        };
+        if (is_dir($bac)) $vider($bac);
+        foreach ($fichiers as $rel) {
+            $chemin = $bac . '/' . $rel;
+            @mkdir(dirname($chemin), 0777, true);
+            file_put_contents($chemin, '<?php // fictif');
+        }
+    };
+
+    // 1. Le cas nominal : l'ancien part, le nouveau reste.
+    $poser(['api.php', 'api/v1.php', 'api/v1/index.php', 'api/v1/.htaccess', 'api/mobile/index.php']);
+    $r1 = updSupprimerAncienApi($bac);
+    $r2 = updSupprimerAncienDossierV1($bac);
+    verifie('mise à jour : api.php est supprimé, api/v1.php survit',
+        $r1['status'] === 'success' && !is_file($bac . '/api.php') && is_file($bac . '/api/v1.php'),
+        $r1['msg']);
+    verifie('mise à jour : le dossier api/v1/ est supprimé, api/mobile/ survit',
+        $r2['status'] === 'success' && !is_dir($bac . '/api/v1') && is_file($bac . '/api/mobile/index.php'),
+        $r2['msg']);
+
+    /* 2. ⚠️ LE REFUS QUI SAUVE LE SITE : si le remplaçant n'a pas été déployé,
+          supprimer l'ancien couperait l'API pour de bon. On garde. */
+    $poser(['api.php', 'api/v1/index.php', 'api/v1/.htaccess']);
+    $r3 = updSupprimerAncienApi($bac);
+    $r4 = updSupprimerAncienDossierV1($bac);
+    verifie('remplaçant absent : api.php est CONSERVÉ, pas effacé',
+        $r3['status'] === 'error' && is_file($bac . '/api.php'));
+    verifie('remplaçant absent : api/v1/ est CONSERVÉ, pas effacé',
+        $r4['status'] === 'error' && is_dir($bac . '/api/v1'));
+
+    /* 3. Un fichier qu'on n'a pas écrit dans api/v1/ : on ne touche à rien. */
+    $poser(['api/mobile/index.php', 'api/v1/index.php', 'api/v1/notes-perso.txt']);
+    $r5 = updSupprimerAncienDossierV1($bac);
+    verifie('fichier étranger dans api/v1/ : rien n\'est supprimé',
+        $r5['status'] === 'error' && is_file($bac . '/api/v1/notes-perso.txt')
+        && str_contains($r5['msg'], 'notes-perso.txt'));
+
+    // 4. Rejouer la mise à jour ne doit plus rien faire ni rien casser.
+    $poser(['api/v1.php', 'api/mobile/index.php']);
+    verifie('rejeu : plus rien à supprimer, aucune erreur',
+        updSupprimerAncienApi($bac)['status'] === 'skip'
+        && updSupprimerAncienDossierV1($bac)['status'] === 'skip');
+
+    $poser([]);   // le bac à sable ne survit pas au banc
+}
 
 echo "\n" . str_repeat('─', 62) . "\n";
 echo ($ko === 0 ? "INTÉGRITÉ : TOUT EST VERT" : "INTÉGRITÉ : $ko ÉCHEC(S)")

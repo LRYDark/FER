@@ -1,10 +1,43 @@
 <?php
 /**
- * api/v1/index.php — API de l'application mobile (lot 5).
+ * api/mobile/index.php — API des applications des coureurs.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * ⚠️ api.php (API machine-to-machine, token global) RESTE STRICTEMENT INCHANGÉ.
- * Cette API vit dans son propre espace de noms, avec sa propre authentification.
+ * ═════════════════════════════════════════════════════════════════════════════
+ * LE DOSSIER `api/` REGROUPE CE À QUOI UN LOGICIEL SE CONNECTE, avec un jeton.
+ * C'est le TYPE DE CLIENT qui sépare ces points d'entrée, pas « interne » et
+ * « externe ».
+ *
+ *   ┌───────────────────┬───────────────────┬─────────────────────────────────┐
+ *   │ api/mobile/       │ NOS applications  │ JETON PERSONNEL de chaque       │
+ *   │ (ce fichier)      │ (4 appareils)     │ coureur — chacun ne voit que    │
+ *   │                   │                   │ ses propres données             │
+ *   ├───────────────────┼───────────────────┼─────────────────────────────────┤
+ *   │ api/v1            │ des logiciels     │ SECRET DE L'ASSOCIATION         │
+ *   │                   │ tiers, serveur à  │ (X-Api-User + X-Api-Token) —    │
+ *   │                   │ serveur           │ un seul secret pour tous        │
+ *   ├───────────────────┼───────────────────┼─────────────────────────────────┤
+ *   │ admin-api.php     │ le JavaScript des │ VARIABLE SELON LA ROUTE :       │
+ *   │ HORS du dossier   │ pages du site —   │ session, captcha ou code        │
+ *   │ ⚠️ pas réservé    │ administration ET │ d'accès. Aucun jeton d'API,     │
+ *   │ aux admins        │ site public       │ aucun verrou global.            │
+ *   └───────────────────┴───────────────────┴─────────────────────────────────┘
+ *
+ * ⚠️ PAS DE VERSION DANS CE CHEMIN, ET C'EST VOULU. Ce service n'est appelé que
+ * par nos propres applications : quand son contrat change, on relève
+ * `app_version_minimale` et le serveur refuse proprement les versions trop
+ * anciennes — plutôt que de maintenir deux chemins en parallèle. Les logiciels
+ * tiers ne se mettent pas à jour sur commande, d'où leur `api/v1`, à côté
+ * duquel un `api/v2` pourra naître sans rien casser.
+ *
+ * ⚠️ PÉRIMÈTRES DE SÉCURITÉ DISTINCTS, D'OÙ DES FICHIERS DISTINCTS. Les
+ * fusionner demanderait un aiguilleur commun : une erreur d'aiguillage y
+ * rendrait une route d'administration atteignable avec un jeton de partenaire,
+ * ou les données d'un coureur lisibles par un autre. La séparation physique est
+ * la garantie la plus simple — et la seule qu'on ne contourne pas par erreur.
+ *
+ * ⚠️ CE FICHIER ÉTAIT `api/v1/index.php`. Le nom `api/v1` désigne désormais
+ * l'API des logiciels tiers : un dossier `api/v1/` qui survivrait sur un
+ * serveur la rendrait injoignable. C'est `update.php` qui l'efface.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * DEUX NIVEAUX DE JETON, ET POURQUOI
@@ -84,14 +117,14 @@ function api_date(?string $sqlDate): ?string
  *
  * ⚠️ getAppBaseUrl() ne rend QUE le schéma et le domaine : si le site est
  * installé dans un sous-répertoire, le concaténer directement produit un lien
- * mort. La racine se déduit de SCRIPT_NAME en retirant « /api/v1 » — pas de
+ * mort. La racine se déduit de SCRIPT_NAME en retirant « /api/mobile » — pas de
  * DOCUMENT_ROOT à interroger, et le projet reste déplaçable.
  */
 function api_siteUrl(string $chemin): string
 {
     $base = function_exists('getAppBaseUrl') ? rtrim(getAppBaseUrl(), '/') : '';
     $dir  = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
-    if (str_ends_with($dir, '/api/v1')) $dir = substr($dir, 0, -strlen('/api/v1'));
+    if (str_ends_with($dir, '/api/mobile')) $dir = substr($dir, 0, -strlen('/api/mobile'));
     return $base . $dir . '/' . ltrim($chemin, '/');
 }
 
@@ -198,7 +231,7 @@ function api_gate(PDO $pdo, array $route): void
             // Servis DANS l'erreur : l'application n'a pas à faire un second
             // appel pour savoir vers quoi diriger la personne.
             'version_minimale' => $minimale,
-            'config_url'       => api_siteUrl('api/v1/app/config'),
+            'config_url'       => api_siteUrl('api/mobile/app/config'),
         ]]);
     }
 }
@@ -751,7 +784,7 @@ if (($route[0] ?? '') === 'me') {
             // Le lien du mail pointe vers la page web : c'est là que la cible
             // confirme, elle n'a pas forcément l'application. On ne peut pas
             // utiliser xfer_lienBase(), qui déduit le dossier de SCRIPT_NAME —
-            // il vaudrait « /api/v1 » ici.
+            // il vaudrait « /api/mobile » ici.
             xfer_mailCible($pdo, $t, $r['token'], api_siteUrl('public/espace-coureur/transfert.php'));
             xfer_mailSource($pdo, $t);
             api_ok(['id' => $r['id'], 'statut' => 'en_attente'], 201);

@@ -32,7 +32,7 @@ Future<void> main() async {
   }
 
   final session = await Session.ouvrir(
-    urlParDefaut: 'https://jr.zerobug-57.fr/FER/api/v1',
+    urlParDefaut: 'https://jr.zerobug-57.fr/FER/api/mobile',
     poseur: poseur,
     affichageChrono: chrono,
   );

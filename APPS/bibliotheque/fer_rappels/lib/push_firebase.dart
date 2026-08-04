@@ -6,11 +6,15 @@ import 'package:flutter/foundation.dart';
 /// Réception des notifications poussées (Firebase Cloud Messaging).
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
-/// C'EST LA SEULE VOIE POUR QU'UN TÉLÉPHONE SONNE.
+/// UN SEUL CHEMIN POUR LES DEUX PLATEFORMES — PAS LA SEULE VOIE POSSIBLE.
 ///
-/// Android et iOS n'acceptent aucun autre moyen de réveiller une application
-/// fermée. Firebase relaie lui-même vers APNs pour les iPhone : une seule
-/// intégration pour les deux plateformes.
+/// Aucune application ne peut se réveiller seule : il faut passer par le service
+/// de notification du système. Sur ANDROID c'est FCM, incontournable en
+/// pratique. Sur iPHONE c'est APNs, celui d'Apple, que Firebase se contente de
+/// RELAYER — on pourrait s'y adresser directement.
+///
+/// ⚠️ Ne pas écrire que Firebase est « obligatoire pour les deux ». C'est faux
+/// pour iOS, et c'est ce qui a été corrigé ici.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// LE JETON SE RENOUVELLE TOUT SEUL

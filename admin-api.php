@@ -1,4 +1,71 @@
 <?php
+/**
+ * admin-api.php — Le dos de l'interface d'administration.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️ SON NOM MENT : CE FICHIER N'EST PAS RÉSERVÉ AUX ADMINISTRATEURS.
+ *
+ * Sur ses 48 routes, 11 répondent SANS AUCUNE SESSION, et quatre d'entre elles
+ * servent des pages du SITE PUBLIC. Quiconque ajoute une route ici en croyant
+ * que « admin- » la protège écrit une faille.
+ *
+ *   ┌──────────────────────────────┬──────────────────────────────────────────┐
+ *   │ Routes d'administration      │ session + CSRF + permissions.            │
+ *   │ (~35)                        │ Le gros du fichier.                      │
+ *   ├──────────────────────────────┼──────────────────────────────────────────┤
+ *   │ Routes de connexion (7)      │ ANONYMES PAR NÉCESSITÉ — on ne peut pas  │
+ *   │ login-check-email,           │ exiger une session pour se connecter.    │
+ *   │ resend-2fa, switch-2fa-      │ Protégées par le mot de passe, la 2FA,   │
+ *   │ method, webauthn-direct-     │ le jeton de réinitialisation et la       │
+ *   │ options, forgot-password,    │ limitation de débit.                     │
+ *   │ reset-password-confirm,      │                                          │
+ *   │ logout                       │                                          │
+ *   ├──────────────────────────────┼──────────────────────────────────────────┤
+ *   │ Routes du SITE PUBLIC (4)    │ CHACUNE A SA PROPRE PROTECTION :         │
+ *   │ partner-captcha-init,        │  • captcha Turnstile (formulaire         │
+ *   │ partner-request,             │    partenaire d'accueil et contact)      │
+ *   │ validate-qr-token,           │  • jeton imprimé sur le dossard, non     │
+ *   │ tshirt-access-request        │    devinable (QR)                        │
+ *   │                              │  • _tshirtOpen() : fermée hors période   │
+ *   └──────────────────────────────┴──────────────────────────────────────────┘
+ *
+ * Appelées depuis public/accueil.php, public/contact.php, public/register.php,
+ * public/remise-tshirts.php et le widget du chatbot.
+ *
+ * Les autres routes t-shirt (`tshirt-lookup`, `tshirt-assign`) sont elles aussi
+ * appelées depuis le site public, mais derrière `_tshirtScanAuth()` : le
+ * bénévole a d'abord échangé un code d'accès, à durée limitée.
+ *
+ * ⚠️ IL N'Y A AUCUN VERROU GLOBAL EN HAUT DE CE FICHIER. Chaque route porte le
+ * sien. Une route ajoutée sans garde est ouverte à tout Internet, en silence :
+ * elle marchera parfaitement pendant les essais, puisqu'on est connecté.
+ * `docs/test-integrite.php` (§ 19) fige la liste des routes sans garde — en
+ * ajouter une fait rougir le banc, et il faut alors le dire explicitement.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CE QUI LE DISTINGUE VRAIMENT DU DOSSIER `api/` : LE TYPE DE CLIENT.
+ *
+ *   api/v1 · api/mobile/   → un LOGICIEL ou une APPLICATION s'y connecte, avec
+ *                            un jeton, depuis n'importe où dans le monde.
+ *   admin-api.php          → le JAVASCRIPT DES PAGES DU SITE, dans le
+ *   public/chatbot-api.php   navigateur d'un visiteur, sur une page qu'on sert
+ *                            soi-même. Aucun jeton d'API, aucune documentation
+ *                            publique, aucune promesse de stabilité : les
+ *                            routes changent avec les écrans.
+ *
+ * ⚠️ CE FICHIER N'EST PAS SEUL DANS SA FAMILLE : `public/chatbot-api.php` fait
+ * la même chose pour le widget de discussion, entièrement en anonyme (CSRF,
+ * limitation de débit et captcha). Chercher « le back-end AJAX du site » sans
+ * savoir qu'ils sont deux mène à croire qu'une route manque.
+ *
+ * Le ranger dans `api/` laisserait croire à un contrat public et donnerait
+ * envie d'y ajouter une authentification par jeton « pour faire pareil ».
+ *
+ * ⚠️ IL NE SE RENOMME PAS À LA LÉGÈRE malgré son nom trompeur : il est cité à
+ * 73 endroits, dans du PHP ET dans des chaînes JavaScript, que ni un éditeur ni
+ * le banc d'intégrité ne relisent.
+ */
+
 require __DIR__ . '/src/core/config.php';
 require_once __DIR__ . '/src/security/csrf.php';
 require_once __DIR__ . '/src/security/captcha.php';
@@ -3174,7 +3241,7 @@ if ($route === 'archive-current' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// Dans votre api.php, section registrations-archive
+// Route de l'administration, à ne pas confondre avec l'API des logiciels tiers (api/v1)
 if ($route === 'registrations-archive') {
     // Lecture des archives : accessible si l'utilisateur a accès au dashboard
     if (!canAccessPage('dashboard')) {

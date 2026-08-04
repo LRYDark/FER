@@ -3,27 +3,21 @@
  * notifications.php — Messages poussés vers l'application mobile.
  *
  * ═════════════════════════════════════════════════════════════════════════════
- * CE N'EST PAS UN SYSTÈME DE PUSH, ET C'EST VOULU.
+ * DEUX CHOSES DISTINCTES — NE PAS LES CONFONDRE
  *
- * Il n'y a ici ni Firebase, ni APNs, ni compte Google/Apple à créer, ni jeton
- * d'appareil à collecter chez un tiers. L'application INTERROGE le serveur
- * (`GET /api/v1/notifications`) quand elle s'ouvre et lors de son réveil, puis
- * affiche localement ce qu'elle n'a pas encore vu.
+ * Ce fichier gère le CONTENU : des messages qui vivent dans la boîte de
+ * réception de l'application, avec une date de publication et une date de fin.
+ * L'application les récupère par `GET /api/mobile/me/notifications`.
  *
- * Pourquoi ce choix :
- *   • Aucune donnée ne part chez un tiers. Un vrai push suppose de déclarer
- *     chaque appareil auprès de Google ou d'Apple — c'est-à-dire d'exporter la
- *     liste des porteurs de l'application.
- *   • Rien à renouveler. Les clés de service expirent, les consoles changent
- *     d'interface ; une association qui organise UNE course par an ne doit pas
- *     découvrir la veille que son push ne marche plus.
- *   • Le besoin réel est un rappel la veille et le matin, pas une notification
- *     à la seconde.
+ * L'ENVOI qui fait SONNER les téléphones est une ACTION séparée, déclenchée
+ * par un bouton : src/content/push.php, via Firebase. Un message est du contenu
+ * qu'on relit ; un push est un événement qui sonne une fois. Un push n'a pas de
+ * date de fin, un message ne sonne pas.
  *
- * ⚠️ LA LIMITE DOIT ÊTRE DITE : une notification écrite maintenant n'arrive pas
- * instantanément. Elle arrive au prochain réveil de l'application. Pour une
- * annonce urgente le jour J, le mail et l'affichage sur place restent le moyen
- * sûr — l'écran d'administration le rappelle.
+ * ⚠️ CET EN-TÊTE A DÉJÀ MENTI. Il décrivait un système SANS push (« il n'y a ici
+ * ni Firebase ni APNs »), ce qui était vrai avant l'ajout de l'envoi réel, et
+ * faux depuis. Une documentation qui décrit le contraire du code est pire que
+ * pas de documentation : on prend une décision dessus.
  *
  * ═════════════════════════════════════════════════════════════════════════════
  * AUCUN DESTINATAIRE NOMMÉ

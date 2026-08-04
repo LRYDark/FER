@@ -1,8 +1,8 @@
 ﻿/// Cœur partagé des applications Forbach en Rose.
 ///
-/// Les trois coques (`../android`, `../android_watch`, `../mac`) n'importent
-/// QUE ce fichier. Tout le reste est derrière `src/`, donc libre d'être
-/// réorganisé sans toucher aux coques.
+/// Les deux coques (`APPS/android`, `APPS/mac`) n'importent QUE ce fichier —
+/// et chacune sert à la fois le téléphone et la montre. Tout le reste est
+/// derrière `src/`, donc libre d'être réorganisé sans toucher aux coques.
 ///
 /// ```dart
 /// import 'package:fer_shared/fer_shared.dart';

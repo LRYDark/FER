@@ -1,10 +1,50 @@
 <?php
 /**
- * api.php — API publique de Forbach en Rose
- * ==========================================
- * Point d'entrée unique permettant à des applications externes de se connecter
- * au site de manière sécurisée et authentifiée (identifiant + token).
+ * api/v1.php — API des logiciels tiers, version 1
+ * ═══════════════════════════════════════════════
+ * Point d'entrée permettant à des applications externes de se connecter au site
+ * de manière sécurisée et authentifiée (identifiant + token).
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * LE DOSSIER `api/` REGROUPE CE À QUOI UN LOGICIEL SE CONNECTE, avec un jeton,
+ * depuis n'importe où. C'est le TYPE DE CLIENT qui le définit.
+ *
+ *   api/v1        → logiciels tiers, serveur à serveur (ce fichier)
+ *   api/mobile/   → nos propres applications, jeton personnel par coureur
+ *
+ * ⚠️ POURQUOI UNE VERSION ICI ET PAS SUR LE MOBILE. Un partenaire ne met pas
+ * son logiciel à jour sur commande : le jour où le contrat change, `api/v2`
+ * naîtra à côté et `api/v1` continuera de répondre le temps qu'il faudra.
+ * L'API mobile, elle, n'est appelée que par nos propres applications — quand
+ * son contrat change, on relève `app_version_minimale` et le serveur refuse
+ * proprement les versions trop anciennes. Deux publics, deux stratégies.
+ *
+ * ⚠️ NE JAMAIS CRÉER UN DOSSIER `api/v1/`. Il prendrait le pas sur ce fichier
+ * (la réécriture de la racine ne s'applique que si le chemin n'est ni un
+ * fichier ni un dossier) et cette API deviendrait injoignable, sans erreur
+ * parlante. Une v2 est un FICHIER, `api/v2.php`.
+ *
+ * ⚠️ `admin-api.php` reste à la racine, et son nom ment : il n'est PAS réservé
+ * aux administrateurs — onze de ses routes répondent sans session, dont quatre
+ * servent le site public. Mais il n'a ni jeton, ni contrat public : il sert le
+ * JavaScript des pages du site, pas des logiciels tiers. Voir son en-tête.
+ *
+ * ⚠️ CE FICHIER S'APPELAIT `api.php` ET VIVAIT À LA RACINE. Il a été déplacé
+ * SANS QUE SON COMPORTEMENT CHANGE : seuls l'en-tête et les chemins `__DIR__`
+ * ont bougé — il faut désormais remonter d'un cran (`/../`) pour atteindre la
+ * racine du projet. Le banc d'intégrité (§ 8) compare encore le corps du
+ * fichier à la version d'origine et refuse toute autre différence.
+ *
+ * ⚠️ L'ANCIENNE ADRESSE `…/api.php` NE RÉPOND PLUS. Un partenaire qui l'appelle
+ * reçoit 404, sans explication. C'est un choix assumé, pas un oubli. S'il faut
+ * la rétablir, rien ne bouge de place : une seule ligne dans le .htaccess de la
+ * racine suffit, et elle préserve le corps des requêtes POST —
+ *
+ *     RewriteRule ^api\.php$ api/v1.php [QSA,L]
+ *
+ * (une redirection 3xx, elle, ferait perdre le corps du POST : à éviter.)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
  * Activation et identifiants : Réglages → onglet « API ».
  * Documentation complète : inc/api-doc.php (bouton « Voir la documentation »).
  *
@@ -25,7 +65,7 @@
  *   GET  ?endpoint=years                   Phase 3 — années archivées disponibles
  */
 
-require __DIR__ . '/src/core/config.php';   // $pdo, encrypt(), decrypt(), decryptRows()
+require __DIR__ . '/../src/core/config.php';   // $pdo, encrypt(), decrypt(), decryptRows()
 
 /* ─── En-têtes JSON + CORS ─────────────────────────────────────────────── */
 // 🔒 [SEC-CORS] Origin '*' volontaire et SANS danger ici : l'authentification se
@@ -75,7 +115,7 @@ function api_client_ip(): string
  */
 function api_log(int $status, string $message = ''): void
 {
-    $dir = __DIR__ . '/storage/logs';
+    $dir = __DIR__ . '/../storage/logs';
     if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
 
     $line = sprintf(
@@ -238,7 +278,7 @@ switch ($endpoint) {
         // Envoi des mails : ?send_mails=1 ou champ POST send_mails (comme la case du dashboard)
         $sendMails = !empty($_POST['send_mails']) || !empty($_GET['send_mails']);
 
-        require_once __DIR__ . '/src/content/registrations_core.php';
+        require_once __DIR__ . '/../src/content/registrations_core.php';
         $result = regcore_importExcel(
             $pdo,
             $_FILES['file']['tmp_name'],
@@ -270,7 +310,7 @@ switch ($endpoint) {
             $sendMail = ($sendMailRaw === null)
                 || filter_var($sendMailRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== false;
 
-            require_once __DIR__ . '/src/content/registrations_core.php';
+            require_once __DIR__ . '/../src/content/registrations_core.php';
             $res = regcore_createRegistration($pdo, $d, $sendMail, $d['origine'] ?? 'API');
 
             if (empty($res['ok'])) {

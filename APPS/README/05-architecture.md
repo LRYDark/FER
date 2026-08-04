@@ -1,23 +1,71 @@
-﻿# Où se trouve quoi, et pourquoi
+# Où se trouve quoi, et pourquoi
 
 ## Le découpage
 
-```
-shared/          LE CŒUR — tout ce qui n'est pas de la plateforme
-├── api/         client de /api/v1, erreurs, jetons
-├── models/      objets renvoyés par l'API
-├── course/      file d'attente, suivi GPS, écoute des balises
-├── ui/          thème et écrans (téléphone + tablette)
-├── reveil.dart  logique du rappel (SANS greffon de notification)
-└── session.dart l'état global
+**Deux applications, une bibliothèque.** Le code commun n'existe qu'à un seul
+endroit — corriger une fois suffit pour les quatre appareils.
 
-rappels/         notification locale Android + iOS
-android/         coque : permissions + point d'entrée
-android_watch/   coque : deux écrans dédiés à la montre
-mac/             coque iPhone/iPad + watchos/ en SwiftUI
+```
+bibliotheque/               LE CODE COMMUN — un seul exemplaire
+├── fer_shared/               LE CŒUR
+│   └── lib/src/
+│       ├── api/                client de /api/mobile, erreurs, jetons
+│       ├── models/             objets renvoyés par l'API
+│       ├── course/             file d'attente, GPS, balises, calories
+│       ├── ui/                 thème et écrans (téléphone + tablette)
+│       ├── reveil.dart         le rappel, SANS greffon de notification
+│       └── session.dart        l'état global
+└── fer_rappels/             greffons : rappel local + réception des push
+
+android/                    ANDROID : téléphone, tablette, Wear OS
+├── lib/
+│   ├── main.dart              point d'entrée téléphone et tablette
+│   ├── main_montre.dart       point d'entrée Wear OS
+│   └── ecran_montre.dart      l'écran unique de la montre
+└── android-overlay/          permissions à fusionner dans le manifeste
+
+mac/                        APPLE : iPhone, iPad, Apple Watch
+├── lib/main.dart              point d'entrée iPhone et iPad
+├── ios-overlay/               clés à fusionner dans Info.plist
+├── ios-liveactivity/          Live Activity et Dynamic Island (SwiftUI)
+└── watchos/                   Apple Watch (SwiftUI, pas du Dart)
 ```
 
-## Les cinq décisions qui structurent tout
+```
+bibliotheque ←── android
+      ↑
+      └───────── mac
+```
+
+⚠️ **`mac/` ne produit AUCUNE application macOS.** Le nom dit *où l'on compile*
+— il faut un Mac et Xcode — pas ce qu'on obtient : iPhone, iPad et Apple Watch.
+
+⚠️ **Sur le Mac, emportez `mac/` ET `bibliotheque/`**, côte à côte. C'est le seul
+piège du transfert.
+
+### Pourquoi un exemplaire unique, et pas une copie par application
+
+Une version antérieure dupliquait le cœur dans chaque application, pour que
+chaque dossier se transporte seul. C'était un mauvais échange : **deux copies
+divergent toujours**. Un correctif du client d'API appliqué d'un seul côté ne se
+remarque pas — les deux applications compilent, les deux fonctionnent, et l'une
+envoie de mauvaises données. On s'en aperçoit après la course.
+
+Un exemplaire unique règle le problème à la source. Le prix est une règle à
+retenir : **la bibliothèque voyage avec l'application.**
+
+### Pourquoi `fer_rappels` est un paquet à part
+
+**`fer_shared` doit rester compilable sans les greffons de notification.** La
+montre Wear OS ne pose aucun rappel *(c'est le téléphone qui le fait)*, et
+watchOS est en Swift. Y mettre `firebase_messaging` imposerait Firebase à des
+cibles qui n'en veulent pas.
+
+Et **Android et iOS partagent exactement le même code de notification** —
+`flutter_local_notifications` et `firebase_messaging` couvrent les deux
+plateformes avec la même API. Un fichier, pas deux.
+
+## Les six décisions qui structurent tout
 
 ### 1. Le serveur calcule, l'application observe
 
@@ -60,7 +108,23 @@ classement.
 champ n'a pas décidé de l'activer ; l'inverse ouvrirait la collecte de positions
 GPS sur un site que personne n'a configuré pour ça.
 
-### 5. L'état décide de l'écran
+### 5. Le message et la sonnerie sont deux choses
+
+Un **message** est du contenu : il vit dans la boîte de réception, avec une date
+de publication et une date de fin, et se relit. L'application le récupère par
+`GET /me/notifications`.
+
+Un **push** est un événement : il sonne une fois, quand l'organisation appuie
+sur « Envoyer sur les téléphones ». Il passe par Firebase.
+
+⚠️ Une version antérieure de ce document affirmait *« aucun service de push, pas
+de Firebase, pas d'APNs »* — c'était vrai avant l'ajout de l'envoi réel, et faux
+depuis. **Ce qui est obligatoire n'est pas Firebase** : c'est FCM sur Android
+*(incontournable en pratique)* et APNs sur iPhone *(celui d'Apple, que Firebase
+se contente de relayer)*. Le détail et l'alternative sont dans
+[06-notifications-push.md](06-notifications-push.md).
+
+### 6. L'état décide de l'écran
 
 Aucun `Navigator.push` vers la connexion ni vers l'accueil : c'est `EtatSession`
 qui choisit (`src/app.dart`). Une déconnexion venue du serveur — appareil révoqué
@@ -68,12 +132,6 @@ depuis un autre téléphone — ramène donc à la connexion où qu'on soit, et 
 bouton retour ne peut pas rouvrir une session fermée.
 
 ## Ce qui n'est volontairement pas là
-
-**Aucun service de push.** Pas de Firebase, pas d'APNs. L'application interroge
-`GET /me/notifications` à son ouverture. Conséquence : aucune liste d'appareils
-n'est déclarée chez Google ou Apple, donc aucune liste de porteurs de
-l'application n'est exportée. Contrepartie, dite dans l'administration : une
-notification n'arrive pas dans la seconde.
 
 **Aucune clé d'application globale.** Elle serait livrée dans le binaire installé
 sur chaque téléphone, donc lisible par quiconque le décompile. Un secret publié
@@ -90,20 +148,28 @@ l'application restera installée.
 
 ## Quand vous modifiez l'API
 
-| Vous changez | À reporter dans |
-|---|---|
-| une route, un champ | `shared/lib/src/api/api_client.dart` |
-| … et si la montre Apple s'en sert | `mac/watchos/SessionMontre.swift` **aussi** |
-| un code d'erreur | `shared/lib/src/api/api_erreur.dart` |
-| un réglage de `/app/config` | `shared/lib/src/models/modeles.dart` |
+Tout se modifie dans `bibliotheque/fer_shared/` — une fois, pour les quatre
+appareils.
 
-⚠️ La montre Apple est le seul endroit qui duplique le contrat. C'est le prix de
-watchOS, que Flutter ne sait pas compiler. Un oubli s'y voit en 404 ou en champ
-vide, sans message d'erreur.
+| Vous changez | Fichier |
+|---|---|
+| une route, un champ | `bibliotheque/fer_shared/lib/src/api/api_client.dart` |
+| un code d'erreur | `…/lib/src/api/api_erreur.dart` |
+| un réglage de `/app/config` | `…/lib/src/models/modeles.dart` |
+| … et si la **montre Apple** s'en sert | `mac/watchos/SessionMontre.swift` **aussi** |
+
+⚠️ **`mac/watchos/SessionMontre.swift` EST LE SEUL ENDROIT QUI DUPLIQUE LE
+CONTRAT.** C'est une réécriture en Swift, que rien ne peut synchroniser
+automatiquement — le prix de watchOS, que Flutter ne sait pas compiler. Un oubli
+s'y voit en 404 ou en champ vide, **sans message d'erreur**.
+
+```bash
+cd APPS/bibliotheque/fer_shared && flutter analyze   # après toute modification
+```
 
 ## Relever une version
 
-Trois `pubspec.yaml` (`android`, `android_watch`, `mac`) **et**
+Deux `pubspec.yaml` (`android`, `mac`) **et**
 `mac/watchos/SessionMontre.swift`. Le serveur compare une seule
 `app_version_minimale` : un numéro divergent ferait refuser une plateforme et
 pas l'autre, sans que rien ne l'explique.

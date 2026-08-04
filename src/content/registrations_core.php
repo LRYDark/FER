@@ -3,7 +3,7 @@
  * registrations_core.php — Noyau métier partagé des inscriptions.
  *
  * Ce fichier regroupe la logique « import Excel » et « nouvel inscrit » afin
- * qu'elle puisse être réutilisée par l'API externe (api.php) avec EXACTEMENT
+ * qu'elle puisse être réutilisée par l'API externe (api/v1) avec EXACTEMENT
  * le même comportement que le dashboard (gestion des doublons, chiffrement
  * des données personnelles, envoi des mails de confirmation avec QR Code
  * selon la configuration).
@@ -349,7 +349,7 @@ function regcore_createRegistration(PDO $pdo, array $d, bool $sendMail = true, ?
 /**
  * Fonction CANONIQUE d'import des inscrits, partagée par TOUS les chemins :
  *   - l'import manuel du dashboard (admin-api.php route `import-excel`),
- *   - l'API externe (api.php),
+ *   - l'API externe (api/v1),
  *   - l'import automatique AssoConnect (src/content/sync_assoconnect.php → sync_run_import).
  *
  * Comportement strictement identique à l'import manuel : mapping des colonnes
@@ -674,7 +674,7 @@ function importInscritsExcel(PDO $pdo, string $filePath, string $originalName, a
 }
 
 /**
- * Wrapper de compatibilité pour l'API externe (api.php). Délègue à la fonction
+ * Wrapper de compatibilité pour l'API externe (api/v1). Délègue à la fonction
  * canonique importInscritsExcel(). Conserve la signature historique.
  */
 function regcore_importExcel(PDO $pdo, string $tmpFile, string $originalName, bool $sendMails = false): array

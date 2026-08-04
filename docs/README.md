@@ -64,9 +64,12 @@ bug réel rencontré sur ce projet :
 * toute **permission** utilisée figure au catalogue ;
 * les colonnes des derniers lots sont dans **`install.php` ET `update.php`** ;
 * les **liens du chatbot** mènent à des fichiers existants ;
-* les fichiers que la consigne interdit de modifier (`api.php`, `login.php`,
+* les fichiers que la consigne interdit de modifier (`login.php`,
   `change-password.php`, `reset-password.php`, `totp.php`, `webauthn.php`) sont
   **restés intacts** ;
+* l'ancien `api.php`, devenu **`api/v1.php`**, n'a rien changé à son
+  comportement : le banc compare son corps ligne à ligne à la version d'origine
+  et n'accepte que l'en-tête et les chemins `__DIR__` remontés d'un cran ;
 * l'API mobile ne lit **aucune adresse email depuis l'URL**.
 
 ---

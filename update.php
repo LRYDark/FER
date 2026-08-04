@@ -1135,6 +1135,102 @@ if ($movedDeleted === 0 && $movedKept === 0) {
     $results[] = ['status' => 'error', 'sql' => $movedSql, 'msg' => "$movedDeleted supprimé(s), $movedKept conservé(s) : " . implode(' ; ', $movedErrors)];
 }
 
+/* ── L'ancien api.php, resté à la racine du serveur ─────────────────────────
+ *
+ * ⚠️⚠️ CE N'EST PAS UN SIMPLE MÉNAGE. `api.php` a été déplacé en
+ * `api/v1.php`, mais un déploiement qui ne fait qu'envoyer des fichiers ne
+ * supprime rien : l'ancien reste sur le serveur, ET IL CONTINUE DE FONCTIONNER
+ * — il est à la racine, ses chemins `__DIR__` résolvent toujours.
+ *
+ * On se retrouverait alors avec DEUX API vivantes servant le même secret : la
+ * nouvelle, corrigée à chaque version, et une copie figée que plus personne ne
+ * regarde. Le jour où une faille d'authentification est corrigée, elle ne l'est
+ * que d'un côté — et c'est l'autre qui reste ouvert, en silence.
+ *
+ * On ne supprime qu'après avoir vérifié que le remplaçant est bien là : mieux
+ * vaut deux copies qu'aucune API du tout.
+ * ──────────────────────────────────────────────────────────────────────────── */
+/* Écrit en fonction, et non en ligne, POUR QU'UN BANC PUISSE L'ÉPROUVER : ce
+   code ne s'exécute qu'une fois, sur le vrai serveur, le jour de la mise à jour.
+   S'il se trompe, personne n'est là pour le rattraper. docs/test-integrite.php
+   (§ 20) l'extrait et le rejoue sur un dossier jetable. */
+function updSupprimerAncienApi(string $racine): array
+{
+    $sql       = 'DELETE api.php (déplacé vers api/v1.php)';
+    $vieille   = $racine . '/api.php';
+    $nouvelle  = $racine . '/api/v1.php';
+    if (!is_file($vieille)) {
+        return ['status' => 'skip', 'sql' => $sql, 'msg' => 'Déjà supprimé'];
+    }
+    if (!is_file($nouvelle)) {
+        return ['status' => 'error', 'sql' => $sql,
+            'msg' => 'api/v1.php est absent : api.php est CONSERVÉ pour ne pas couper '
+                   . "l'API. Renvoyez le dossier api/ puis relancez cette mise à jour."];
+    }
+    if (@unlink($vieille)) {
+        return ['status' => 'success', 'sql' => $sql,
+            'msg' => "Ancienne API supprimée — l'adresse …/api.php ne répond plus, "
+                   . 'prévenez vos partenaires si vous en avez.'];
+    }
+    return ['status' => 'error', 'sql' => $sql,
+        'msg' => 'Suppression impossible (permissions). DEUX API vivent côte à côte : '
+               . 'supprimez api.php à la main, sans quoi une correction de sécurité '
+               . "ne s'appliquera qu'à l'une des deux."];
+}
+$results[] = updSupprimerAncienApi(__DIR__);
+
+/* ── L'ancien dossier api/v1/, qui masquerait la nouvelle API ───────────────
+ *
+ * ⚠️⚠️ LE PLUS SOURNOIS DES DEUX. `api/v1/` était l'API mobile ; elle s'appelle
+ * maintenant `api/mobile/`, et le nom `api/v1` désigne l'API des logiciels
+ * tiers — un FICHIER, `api/v1.php`.
+ *
+ * Or la réécriture « /x » → « /x.php » de la racine ne s'applique QUE si le
+ * chemin n'est ni un fichier ni un dossier. Si l'ancien dossier `api/v1/`
+ * survit au déploiement, il gagne : « /api/v1 » tombe dessus, pas sur
+ * `v1.php`. L'API des logiciels tiers devient injoignable — sans message
+ * d'erreur, juste un 403 de listing interdit qui n'explique rien.
+ *
+ * On ne supprime que ce qu'on a écrit soi-même, et seulement si le remplaçant
+ * est en place. Tout fichier étranger trouvé là fait renoncer : on préfère un
+ * avertissement clair à une suppression aveugle.
+ * ──────────────────────────────────────────────────────────────────────────── */
+/* Même raison qu'au-dessus : en fonction, pour être éprouvable hors production. */
+function updSupprimerAncienDossierV1(string $racine): array
+{
+    $sql     = 'DELETE api/v1/ (l\'API mobile a déménagé en api/mobile/)';
+    $vieux   = $racine . '/api/v1';
+    if (!is_dir($vieux)) {
+        return ['status' => 'skip', 'sql' => $sql, 'msg' => 'Déjà supprimé'];
+    }
+    if (!is_file($racine . '/api/mobile/index.php')) {
+        return ['status' => 'error', 'sql' => $sql,
+            'msg' => 'api/mobile/index.php est absent : api/v1/ est CONSERVÉ pour ne pas '
+                   . "couper l'API mobile. Renvoyez le dossier api/ puis relancez."];
+    }
+    /* On ne supprime que ce qu'on a écrit soi-même. Tout fichier étranger fait
+       renoncer : mieux vaut un avertissement clair qu'un effacement aveugle. */
+    $connus    = ['index.php', '.htaccess'];
+    $restant   = array_values(array_diff(scandir($vieux) ?: [], ['.', '..']));
+    $etrangers = array_diff($restant, $connus);
+    if ($etrangers) {
+        return ['status' => 'error', 'sql' => $sql,
+            'msg' => 'Fichiers inattendus dans api/v1/ (' . implode(', ', $etrangers)
+                   . ') : rien n\'a été supprimé. Videz le dossier à la main — tant '
+                   . "qu'il existe, l'adresse /api/v1 ne répond pas."];
+    }
+    foreach ($connus as $c) { if (is_file($vieux . '/' . $c)) @unlink($vieux . '/' . $c); }
+    if (@rmdir($vieux)) {
+        return ['status' => 'success', 'sql' => $sql,
+            'msg' => 'Ancien dossier supprimé — /api/v1 sert désormais l\'API '
+                   . 'des logiciels tiers, /api/mobile celle des coureurs.'];
+    }
+    return ['status' => 'error', 'sql' => $sql,
+        'msg' => 'Suppression impossible (permissions). TANT QUE api/v1/ existe, '
+               . "l'adresse /api/v1 ne répond pas : supprimez le dossier à la main."];
+}
+$results[] = updSupprimerAncienDossierV1(__DIR__);
+
 // Divers fichiers/dossiers obsolètes en v2.0.0
 $obsoleteSql = 'DELETE fichiers obsolètes divers (fonts/Version-1.0.3.md, config/sessions/)';
 $obsoleteDone = [];
@@ -2357,7 +2453,7 @@ $lot1Settings = [
     // Lot 5 — API mobile
     'app_version_minimale'                 => "VARCHAR(20) NOT NULL DEFAULT '1.0.0'",
     'app_access_token_ttl_min'             => "SMALLINT NOT NULL DEFAULT 60",
-    // Interrupteur de l'API mobile /api/v1, distinct de celui de api.php : les
+    // Interrupteur de l'API mobile /api/mobile, distinct de celui de api/v1 : les
     // deux API n'ont ni le même public ni les mêmes risques, couper l'une ne
     // doit pas couper l'autre.
     // DÉFAUT 0 : après mise à jour, l'API mobile est FERMÉE tant qu'on ne l'a pas

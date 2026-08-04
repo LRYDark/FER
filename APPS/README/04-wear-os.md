@@ -1,4 +1,4 @@
-﻿# Wear OS — la montre Android
+# Wear OS — la montre Android
 
 Contrairement à watchOS, **Wear OS est de l'Android** : Flutter y compile
 normalement. Cette coque réutilise donc tout le cœur — API, file d'attente,
@@ -7,8 +7,8 @@ suivi de course — et n'en change que l'affichage.
 ## 1. Générer et lancer
 
 ```powershell
-cd W:\FER\APPS\android_watch
-flutter create --platforms=android --org fr.forbachenrose --project-name fer_wear .
+cd W:\FER\APPS\android
+# Rien à faire : le projet Android est déjà généré (voir 01-android.md).
 flutter pub get
 ```
 

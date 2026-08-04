@@ -14,7 +14,11 @@ if (!isset($_SESSION['uid']) || currentRole() !== 'admin') {
 $role = currentRole();
 require __DIR__ . '/../src/partials/navbar-data.php';
 
-// ── URL absolue de l'API (api.php est à la racine du projet) ──────────────
+/* ── URL absolue de l'API ─────────────────────────────────────────────────
+   Le dossier `api/` regroupe tout ce qui vient de l'extérieur. ⚠️ L'ancienne
+   adresse `…/api.php` NE RÉPOND PLUS : le fichier a été déplacé dans api/.
+   Voir l'en-tête d'api/v1.php pour la rétablir si un partenaire s'en
+   plaint — c'est une ligne, et rien ne bouge de place. */
 $baseUrl     = getAppBaseUrl();
 $projectRoot = realpath(__DIR__ . '/..');
 $docRoot     = isset($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
@@ -23,7 +27,7 @@ if ($projectRoot === $docRoot || $projectRoot === false || $docRoot === false) {
 } else {
     $baseDir = str_replace('\\', '/', substr($projectRoot, strlen($docRoot)));
 }
-$apiUrl = $baseUrl . $baseDir . '/api.php';
+$apiUrl = $baseUrl . $baseDir . '/api/v1';
 
 // Identifiant API actuel (le token n'est jamais affiché ici, voir l'onglet API)
 try {
@@ -88,6 +92,14 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     <p>L'API permet à d'autres logiciels de <strong>dialoguer avec le site</strong> sans passer
        par le tableau de bord. Tout se fait en envoyant des requêtes web à une seule adresse :</p>
     <p><span class="url-pill"><?= $A ?></span></p>
+    <p class="text-muted small">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      <strong>Cette adresse a changé.</strong> L'API répondait auparavant sur
+      <code>…/api.php</code>, à la racine du site ; elle a rejoint le dossier
+      <code>api/</code>, qui regroupe désormais tout ce qui vient de l'extérieur.
+      <strong>L'ancienne adresse ne répond plus</strong> — prévenez vos
+      partenaires avant de déployer.
+    </p>
     <p>Une requête = un <em>endpoint</em> (l'action voulue) + vos <em>identifiants</em> (pour prouver
        que vous avez le droit). La réponse est toujours au format <strong>JSON</strong>.</p>
     <ul>
@@ -362,7 +374,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     <div class="alert alert-info">
       <i class="bi bi-info-circle me-2"></i>
       <strong>Cette section documente le schéma, pas de nouveaux endpoints.</strong>
-      L'API décrite ci-dessus (<code>api.php</code>) est <strong>inchangée</strong>, et la table
+      L'API décrite ci-dessus (<code>api/v1</code>) est <strong>inchangée</strong>, et la table
       <code>registrations</code> <strong>n'a pas été modifiée</strong> : ni colonne, ni index, ni
       contrainte. L'archivage annuel fonctionne exactement comme avant.
     </div>
@@ -500,7 +512,7 @@ $A = htmlspecialchars($apiUrl, ENT_QUOTES, 'UTF-8');
     </div>
 
     <table class="table table-sm api-params">
-      <thead><tr><th></th><th>Cette page — <code>api.php</code></th><th>L'API mobile — <code>/api/v1</code></th></tr></thead>
+      <thead><tr><th></th><th>Cette page — <code>/api/v1</code></th><th>L'API mobile — <code>/api/mobile</code></th></tr></thead>
       <tbody>
         <tr>
           <th>Qui parle</th>

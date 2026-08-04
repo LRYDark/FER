@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'api_erreur.dart';
 import 'jetons.dart';
 
-/// Client de l'API mobile `/api/v1` de Forbach en Rose.
+/// Client de l'API mobile `/api/mobile` de Forbach en Rose.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// TOUTES LES RÉPONSES ONT LA MÊME FORME
@@ -40,7 +40,7 @@ class ApiClient {
     http.Client? http_,
   }) : _http = http_ ?? http.Client();
 
-  /// Racine de l'API, par exemple `https://exemple.fr/FER/api/v1`.
+  /// Racine de l'API, par exemple `https://exemple.fr/FER/api/mobile`.
   /// Sans barre oblique finale — [_uri] la pose.
   final String baseUrl;
 

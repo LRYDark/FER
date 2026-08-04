@@ -5,7 +5,7 @@
 //  MÊME CONTRAT QUE LE CLIENT DART
 //
 //  Routes, en-têtes et enveloppe sont identiques à
-//  ../../shared/lib/src/api/api_client.dart :
+//  ../../bibliotheque/fer_shared/lib/src/api/api_client.dart :
 //
 //      { "ok": true,  "data": …,  "error": null }
 //      { "ok": false, "data": null, "error": { "code": …, "message": … } }
@@ -21,7 +21,7 @@ import WatchConnectivity
 final class SessionMontre: NSObject, ObservableObject {
 
     /// Adresse de l'API. Doit rester alignée sur celle des coques Flutter.
-    private let baseUrl = "https://jr.zerobug-57.fr/FER/api/v1"
+    private let baseUrl = "https://jr.zerobug-57.fr/FER/api/mobile"
 
     /// ⚠️ ALIGNÉE SUR LES pubspec.yaml DES DEUX COQUES. Le serveur compare une
     /// seule `app_version_minimale` : un numéro plus bas ici ferait refuser la

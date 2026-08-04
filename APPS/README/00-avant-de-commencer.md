@@ -35,7 +35,7 @@ donc être trouvé tout seul.
 Inutile de compiler quoi que ce soit tant que le serveur n'est pas prêt.
 
 ```powershell
-curl https://jr.zerobug-57.fr/FER/api/v1/app/config
+curl https://jr.zerobug-57.fr/FER/api/mobile/app/config
 ```
 
 Réponse attendue :
@@ -69,7 +69,7 @@ Le bandeau en haut de l'onglet dit exactement ce qui manque. Il faut au minimum 
 Vérification :
 
 ```powershell
-curl https://jr.zerobug-57.fr/FER/api/v1/course
+curl https://jr.zerobug-57.fr/FER/api/mobile/course
 ```
 
 `"chrono_pret": true` signifie que tout y est.

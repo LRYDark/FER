@@ -13,6 +13,24 @@
  * Sécurité : CSRF obligatoire, rate-limit par IP et par action, captcha
  * Cloudflare Turnstile (ou fallback maths) pour l'envoi de message, aucune
  * donnée personnelle divulguée par la vérification e-mail (compteurs anonymes).
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * OÙ IL SE SITUE PARMI LES POINTS D'ENTRÉE JSON — c'est le TYPE DE CLIENT qui
+ * les sépare, pas « interne » contre « externe » :
+ *
+ *   api/v1 · api/mobile/     → un LOGICIEL ou une APPLICATION, avec un jeton,
+ *                               depuis n'importe où. Contrat public, documenté.
+ *   admin-api.php             → le JAVASCRIPT DES PAGES DU SITE, dans le
+ *   public/chatbot-api.php      navigateur d'un visiteur. Aucun jeton d'API,
+ *   (ce fichier)                aucune documentation publique, aucune promesse
+ *                               de stabilité : ça change avec les écrans.
+ *
+ * ⚠️ CE FICHIER EST ENTIÈREMENT ANONYME. Il n'exige aucune session — c'est le
+ * widget de discussion du site public. Tout ce qu'on y ajoute est donc exposé à
+ * Internet : ne jamais y renvoyer de donnée personnelle sans une preuve
+ * d'identité explicite, comme le fait déjà `check_email` avec ses compteurs.
+ *
+ * La carte de Réglages → API le liste avec les trois autres.
  */
 require '../src/core/config.php';
 require_once '../src/security/csrf.php';

@@ -1,9 +1,10 @@
 ﻿# Cœur partagé des applications Forbach en Rose.
 #
-# Ce paquet ne se compile pas seul : il est consommé par les coques
-# ../android, ../android_watch et ../mac via une dépendance `path`.
+# Ce paquet ne se compile pas seul : il est consommé par les deux coques,
+# APPS/android et APPS/mac, via une dépendance `path`.
 # Tout ce qui parle à l'API, tout ce qui s'affiche, vit ICI — une correction
-# faite une fois vaut pour les six cibles.
+# faite une fois vaut pour les six cibles (téléphone, tablette et montre, des
+# deux côtés).
 name: fer_shared
 description: Client de l'API mobile Forbach en Rose et écrans communs.
 publish_to: none
