@@ -3416,7 +3416,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <input type="text" class="form-control" name="link_instagram" placeholder="Lien Instagram" value="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>">
           </div>
           <div class="col-md-6"><label class="form-label">Lien de la Ligue contre le cancer</label>
-            <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la Ligue contre le cancer" value="<?= htmlspecialchars($link_cancer, ENT_QUOTES, 'UTF-8'); ?>">
+            <?php /* `?? ''` : le réglage est NULL tant que personne ne l'a saisi, et
+                     htmlspecialchars(null) est déprécié depuis PHP 8.1 — chaque
+                     affichage de cette page remplissait alors php-error.log. */ ?>
+            <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la Ligue contre le cancer" value="<?= htmlspecialchars($link_cancer ?? '', ENT_QUOTES, 'UTF-8'); ?>">
           </div>
           <!-- Image des partenaires : SUPPRIMÉ — édition désormais via clic sur l'image dans l'éditeur "Mise en page de l'accueil" -->
           <div class="col-md-6">
@@ -5236,13 +5239,13 @@ if ($canTab('import_auto') || $canImportXlsManual
                             <label class="ac-label" for="divCode"><i class="bi bi-file-earmark-code"></i>Code DIV</label>
                             <input type="text" class="form-control ac-code" id="divCode" name="assoconnect_iframe"
                                 placeholder='<div class="iframe-asc-container" data-type="collect" ...></div>'
-                                value="<?= htmlspecialchars($assoconnectIframe, ENT_QUOTES, 'UTF-8'); ?>">
+                                value="<?= htmlspecialchars($assoconnectIframe ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                         </div>
                         <div class="ac-field">
                             <label class="ac-label" for="scriptCode"><i class="bi bi-filetype-js"></i>Code Script</label>
                             <input type="text" class="form-control ac-code" id="scriptCode" name="assoconnect_js"
                                 placeholder='<script src="https://....assoconnect.com/..."></script>'
-                                value="<?= htmlspecialchars($assoconnectJs, ENT_QUOTES, 'UTF-8'); ?>">
+                                value="<?= htmlspecialchars($assoconnectJs ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                         </div>
 
                         <hr class="ac-divider">
