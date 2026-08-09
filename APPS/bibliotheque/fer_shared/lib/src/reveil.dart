@@ -1,11 +1,4 @@
-﻿import 'dart:async';
-
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'models/course_app.dart';
-
-/// Réveil de l'application avant la course.
+﻿/// Réveil de l'application avant la course.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// CE QUE « RÉVEIL » VEUT DIRE — ET CE QU'IL NE VEUT PAS DIRE.
@@ -36,6 +29,13 @@ import 'models/course_app.dart';
 /// versions d'Android. D'où [reprogrammer], appelé à CHAQUE lancement : on
 /// repose systématiquement le rappel, plutôt que de supposer qu'il tient.
 library;
+
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'models/course_app.dart';
 
 /// Ce qu'une coque de plateforme doit savoir faire.
 abstract class PoseurDeRappel {

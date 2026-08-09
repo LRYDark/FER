@@ -1,13 +1,4 @@
-﻿import 'package:flutter/material.dart';
-
-import '../../api/api_erreur.dart';
-import '../../course/mesures.dart';
-import '../../models/modeles.dart';
-import '../portee.dart';
-import '../theme.dart';
-import 'partage.dart';
-
-/// « Mes résultats » — les temps, édition par édition.
+﻿/// « Mes résultats » — les temps, édition par édition.
 ///
 /// ⚠️ DEUX RÈGLES QUI NE SE NÉGOCIENT PAS, reprises du site :
 ///   • La MÉTHODE accompagne toujours le temps. Un temps extrapolé au GPS
@@ -16,6 +7,14 @@ import 'partage.dart';
 ///     masquer sans rien dire laisserait croire à un oubli ; le publier ferait
 ///     passer une anomalie pour un résultat.
 library;
+
+import 'package:flutter/material.dart';
+
+import '../../course/mesures.dart';
+import '../../models/modeles.dart';
+import '../portee.dart';
+import '../theme.dart';
+import 'partage.dart';
 
 class EcranResultats extends StatelessWidget {
   const EcranResultats({super.key});
@@ -52,13 +51,21 @@ class EcranResultats extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: session.rafraichir,
       child: ListView(
-        padding: const EdgeInsets.all(marge),
+        padding: const EdgeInsets.fromLTRB(marge, marge, marge, margeBasListe),
         children: <Widget>[
           for (final entree in avecResultat.entries) ...<Widget>[
             _CarteEdition(inscription: entree.key, resultat: entree.value),
             const SizedBox(height: marge),
           ],
-          const _CarteConsentement(),
+          // ⚠️ LE CONSENTEMENT AU SUIVI GPS N'EST PLUS ICI.
+          //
+          // C'est un RÉGLAGE de compte, pas un résultat : il ne dépend ni de
+          // l'édition affichée ni d'une course. Posé au milieu des temps, il
+          // se présentait à quelqu'un venu consulter son chrono — et restait
+          // introuvable à qui le cherchait exprès.
+          //
+          // Il vit désormais dans « Mon compte », avec les appareils et les
+          // transferts, là où l'on va quand on veut changer quelque chose.
         ],
       ),
     );
@@ -189,97 +196,4 @@ class _CarteEdition extends StatelessWidget {
         StatutCourse.termine => const Pastille('Terminé', couleur: Colors.green),
         _ => null,
       };
-}
-
-/// Consentement au suivi GPS.
-///
-/// ⚠️ LE RETRAIT VAUT POUR L'AVENIR : il n'efface pas les traces déjà
-/// enregistrées. C'est dit noir sur blanc — laisser croire qu'un simple retrait
-/// suffit à tout effacer serait une fausse déclaration.
-class _CarteConsentement extends StatefulWidget {
-  const _CarteConsentement();
-
-  @override
-  State<_CarteConsentement> createState() => _CarteConsentementState();
-}
-
-class _CarteConsentementState extends State<_CarteConsentement> {
-  bool? _accord;
-  bool _occupe = false;
-
-  Future<void> _basculer(bool valeur) async {
-    setState(() => _occupe = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final r = await PorteeSession.action(context).api.consentementGps(valeur);
-      if (mounted) setState(() => _accord = r);
-      messenger.showSnackBar(SnackBar(
-        content: Text(r
-            ? 'Suivi GPS autorisé. Vous pouvez le retirer à tout moment.'
-            : 'Autorisation retirée. Aucune nouvelle trace ne sera enregistrée.'),
-      ));
-    } on ApiErreur catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    } finally {
-      if (mounted) setState(() => _occupe = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final jours = PorteeSession.de(context).config?.tracesConservationJours ?? 0;
-
-    return CarteFer(
-      titre: 'Suivi GPS pendant la course',
-      icone: Icons.place_outlined,
-      action: _accord == null
-          ? null
-          : Pastille(_accord! ? 'autorisé' : 'non autorisé',
-              couleur: _accord! ? Colors.green : null),
-      enfant: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Text(
-            "Si vous l'autorisez, l'application enregistre votre position "
-            'pendant la course. Sans votre accord, rien n\'est enregistré.',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _occupe ? null : () => _basculer(false),
-                  child: const Text('Retirer'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _occupe ? null : () => _basculer(true),
-                  child: const Text('Autoriser'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Le texte suit le RÉGLAGE : annoncer un effacement qui n'a pas lieu
-          // (ou l'inverse) est exactement ce que ce projet s'interdit.
-          Text(
-            jours > 0
-                ? 'Vos temps et vos résultats sont conservés : vous les '
-                    'retrouverez ici chaque année. Seul le chemin suivi sur la '
-                    'carte est effacé au bout de $jours jours.'
-                : 'Tout est conservé d\'une année sur l\'autre : vos temps, vos '
-                    'résultats et le chemin suivi sur la carte. Le retrait de '
-                    "l'autorisation vaut pour l'avenir — il n'efface pas les "
-                    'traces déjà enregistrées.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.outline),
-          ),
-        ],
-      ),
-    );
-  }
 }

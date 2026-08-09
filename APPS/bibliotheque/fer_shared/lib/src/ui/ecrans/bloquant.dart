@@ -1,10 +1,10 @@
-﻿import 'package:flutter/material.dart';
+﻿/// Écrans qui arrêtent l'application, et pourquoi ils l'arrêtent vraiment.
+library;
+
+import 'package:flutter/material.dart';
 
 import '../portee.dart';
 import '../theme.dart';
-
-/// Écrans qui arrêtent l'application, et pourquoi ils l'arrêtent vraiment.
-library;
 
 /// Version refusée par le serveur (HTTP 426).
 ///

@@ -1,13 +1,4 @@
-﻿import 'package:flutter/material.dart';
-
-import '../../course/mesures.dart';
-import '../../course/suivi_course.dart';
-import '../../models/course_app.dart';
-import '../portee.dart';
-import '../theme.dart';
-import 'profil_physique.dart';
-
-/// « Ma course » — infos pratiques, puis suivi pendant l'épreuve.
+﻿/// Suivi de course — le chrono, le GPS et la balise, pendant l'épreuve.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// CET ÉCRAN N'AFFICHE JAMAIS UN TEMPS OFFICIEL.
@@ -17,156 +8,69 @@ import 'profil_physique.dart';
 /// après arbitrage entre balise et GPS, et peut en différer de quelques
 /// secondes. C'est écrit à l'écran : laisser croire que ce compteur fait foi
 /// garantirait une contestation.
+///
+/// ═════════════════════════════════════════════════════════════════════════════
+/// CE N'EST PLUS UN ONGLET, C'EST UNE PAGE OUVERTE DEPUIS SON INSCRIPTION.
+///
+/// Une inscription passe par trois états : à venir, en cours, terminée. Le
+/// suivi est l'état « en cours » de CE dossard-là — pas une rubrique à part.
+/// L'ancien onglet obligeait à faire le rapprochement soi-même, et affichait
+/// onze mois sur douze « le suivi n'est pas ouvert », ce qui n'apprend rien.
+///
+/// Les infos pratiques (lieu, horaires, retrait des dossards) ne sont plus ici :
+/// elles vivent sur l'inscription, où on les cherche naturellement.
 library;
 
-class EcranCourse extends StatelessWidget {
-  const EcranCourse({super.key});
+import 'package:flutter/material.dart';
+
+import '../../course/mesures.dart';
+import '../../course/suivi_course.dart';
+import '../../models/modeles.dart';
+import '../portee.dart';
+import '../theme.dart';
+import 'profil_physique.dart';
+
+class EcranSuivi extends StatelessWidget {
+  const EcranSuivi({required this.inscription, super.key});
+
+  final Inscription inscription;
 
   @override
   Widget build(BuildContext context) {
     final session = PorteeSession.de(context);
-    final info = session.infoCourse;
-    final inscription = session.inscriptionActive;
     final suivi = session.suivi;
 
-    return RefreshIndicator(
-      onRefresh: session.rafraichirConfig,
-      child: ListView(
-        padding: const EdgeInsets.all(marge),
-        children: <Widget>[
-          if (info != null) _CarteInfos(info: info),
-          if (info != null) const SizedBox(height: marge),
-
-          // Le suivi n'apparaît que si le chronométrage est OUVERT et que
-          // l'édition a tout ce qu'il lui faut. Proposer « démarrer le suivi »
-          // sur une édition sans ligne d'arrivée serait promettre un temps qui
-          // ne sera jamais calculé.
-          if (!(info?.chronoPret ?? false))
-            const CarteFer(
-              titre: 'Suivi de course',
-              icone: Icons.timer_off_outlined,
-              enfant: Text(
-                "Le suivi n'est pas ouvert pour le moment. Il le sera aux "
-                'abords de la course. Vos inscriptions et votre QR code '
-                'restent accessibles.',
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Ma course'),
+        // Le dossard sous le titre : sur un écran de suivi, savoir POUR QUI on
+        // mesure évite l'erreur du parent qui suit la course d'un enfant.
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(22),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(marge, 0, marge, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${inscription.nomComplet} · n° ${inscription.inscriptionNo}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
-            )
-          else if (inscription == null)
-            const CarteFer(
-              titre: 'Suivi de course',
-              icone: Icons.person_off_outlined,
-              enfant: Text(
-                "Aucune inscription pour l'édition en cours : il n'y a rien à "
-                'suivre. Si vous êtes inscrit avec une autre adresse email, '
-                'reconnectez-vous avec celle-ci.',
-              ),
-            )
-          else
-            AnimatedBuilder(
-              animation: suivi,
-              builder: (context, _) => _CarteSuivi(suivi: suivi),
             ),
-
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(marge, marge, marge, margeBasListe),
+        children: <Widget>[
+          AnimatedBuilder(
+            animation: suivi,
+            builder: (context, _) => _CarteSuivi(suivi: suivi),
+          ),
           const SizedBox(height: marge),
           AnimatedBuilder(
             animation: suivi,
             builder: (context, _) => _CarteFile(suivi: suivi),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/* ═══════════════════════════ Infos pratiques ══════════════════════════ */
-
-class _CarteInfos extends StatelessWidget {
-  const _CarteInfos({required this.info});
-
-  final InfoCourse info;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final avant = info.avantDepart;
-
-    return CarteFer(
-      titre: info.libelle ?? 'Édition ${info.annee}',
-      icone: Icons.event_outlined,
-      enfant: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // Le compte à rebours n'apparaît que dans la semaine qui précède :
-          // « J-247 » n'aide personne et occupe la meilleure place de l'écran.
-          if (avant != null && !avant.isNegative && avant.inDays <= 7) ...<Widget>[
-            Text(
-              avant.inHours < 24
-                  ? 'Départ dans ${avant.inHours} h ${avant.inMinutes % 60} min'
-                  : 'Départ dans ${avant.inDays} jour${avant.inDays > 1 ? 's' : ''}',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (info.heureDepart != null)
-            _Ligne(Icons.schedule, 'Départ',
-                _dateHeure(info.heureDepart!)),
-          if (info.lieu != null)
-            _Ligne(Icons.place_outlined, 'Rendez-vous', info.lieu!),
-          if (info.distanceKm != null)
-            _Ligne(Icons.straighten, 'Distance',
-                '${info.distanceKm!.toStringAsFixed(2).replaceAll('.', ',')} km'),
-          if (info.horaires != null)
-            _Ligne(Icons.access_time, 'Horaires', info.horaires!),
-          if (info.retraitTshirt != null)
-            _Ligne(Icons.checkroom_outlined, 'Dossards et T-shirts',
-                info.retraitTshirt!),
-          if (info.inscriptionSurPlace != null)
-            _Ligne(Icons.how_to_reg_outlined, 'Sur place',
-                info.inscriptionSurPlace!),
-        ],
-      ),
-    );
-  }
-
-  static String _dateHeure(DateTime d) {
-    final l = d.toLocal();
-    return '${l.day.toString().padLeft(2, '0')}/'
-        '${l.month.toString().padLeft(2, '0')}/${l.year} à '
-        '${l.hour.toString().padLeft(2, '0')} h '
-        '${l.minute.toString().padLeft(2, '0')}';
-  }
-}
-
-class _Ligne extends StatelessWidget {
-  const _Ligne(this.icone, this.libelle, this.valeur);
-
-  final IconData icone;
-  final String libelle;
-  final String valeur;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icone, size: 18, color: theme.colorScheme.outline),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(libelle,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline)),
-                Text(valeur, style: theme.textTheme.bodyMedium),
-              ],
-            ),
           ),
         ],
       ),

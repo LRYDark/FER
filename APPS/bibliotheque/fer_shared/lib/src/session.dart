@@ -1,21 +1,4 @@
-﻿import 'dart:async';
-
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/foundation.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'api/api_client.dart';
-import 'api/api_erreur.dart';
-import 'api/jetons.dart';
-import 'course/file_attente.dart';
-import 'course/suivi_course.dart';
-import 'models/course_app.dart';
-import 'models/modeles.dart';
-import 'reveil.dart';
-
-/// État global de l'application : session, données du compte, suivi de course.
+﻿/// État global de l'application : session, données du compte, suivi de course.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// UN SEUL OBJET, ET C'EST DÉLIBÉRÉ.
@@ -29,6 +12,24 @@ import 'reveil.dart';
 /// statut, ou décider qu'une donnée absente vaut zéro. Le serveur est la source
 /// de vérité ; cet objet la transporte, il ne l'invente pas.
 library;
+
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'api/api_client.dart';
+import 'api/api_erreur.dart';
+import 'api/jetons.dart';
+import 'course/file_attente.dart';
+import 'course/suivi_course.dart';
+import 'models/course_app.dart';
+import 'models/modeles.dart';
+import 'reveil.dart';
 
 enum EtatSession {
   /// Au lancement : on ne sait pas encore si un jeton d'appareil existe.
@@ -90,6 +91,10 @@ class Session extends ChangeNotifier {
     api.surDeconnexion = s._surDeconnexion;
     api.surVersionRefusee = s._surVersionRefusee;
 
+    // Lu AVANT `_demarrer()` : c'est ce drapeau qui décide si le tout premier
+    // écran est la présentation ou la connexion.
+    s._bienvenueVue = prefs.getBool(_cleBienvenue) ?? false;
+
     await file.charger();
     await s._chargerEtatsMessages();
     await s._demarrer();
@@ -97,6 +102,16 @@ class Session extends ChangeNotifier {
   }
 
   static const _cleUrl = 'fer_url_api';
+
+  /// Présentation du premier lancement déjà vue.
+  ///
+  /// ⚠️ Ce drapeau ne mémorise PAS les autorisations — c'est le système qui les
+  /// détient, et lui seul. Il ne dit qu'une chose : « l'explication a déjà été
+  /// montrée ». Sans lui, la présentation reviendrait à chaque ouverture ;
+  /// avec lui, iOS et Android restent seuls maîtres du reste. Refuser une
+  /// autorisation ici n'enferme donc personne : elle se redemande depuis les
+  /// Réglages du téléphone, et l'application continue de fonctionner sans.
+  static const _cleBienvenue = 'fer_bienvenue_vue';
 
   final ApiClient _api;
   final FileAttente file;
@@ -115,9 +130,52 @@ class Session extends ChangeNotifier {
   List<NotificationCourse> _notifications = const <NotificationCourse>[];
   String? _erreur;
   bool _chargement = false;
+  bool _bienvenueVue = false;
   StreamSubscription<List<ConnectivityResult>>? _reseau;
 
   EtatSession get etat => _etat;
+
+  /// La présentation du premier lancement a-t-elle déjà été montrée ?
+  bool get bienvenueVue => _bienvenueVue;
+
+  /// Demande les autorisations, puis retient que la présentation est passée.
+  ///
+  /// ⚠️ ON RETIENT MÊME SI TOUT EST REFUSÉ. Redemander à chaque ouverture
+  /// serait sans effet — iOS ne repose la question qu'une fois, et Android
+  /// finit par la bloquer — et transformerait un refus en harcèlement. Le
+  /// coureur qui change d'avis passe par les Réglages du téléphone ; l'écran
+  /// « Ma course » le lui rappelle au moment où ça compte vraiment.
+  ///
+  /// Les autorisations sont demandées L'UNE APRÈS L'AUTRE et jamais en
+  /// parallèle : iOS n'affiche qu'une boîte de dialogue à la fois, et deux
+  /// demandes simultanées en font disparaître une sans que personne ne l'ait vue.
+  Future<void> terminerBienvenue({
+    bool position = true,
+    bool notifications = true,
+  }) async {
+    if (notifications) {
+      try {
+        await reveil.demanderAutorisation();
+      } catch (e) {
+        debugPrint('[FER] autorisation notifications indisponible : $e');
+      }
+    }
+    if (position) {
+      try {
+        var p = await Geolocator.checkPermission();
+        if (p == LocationPermission.denied) {
+          p = await Geolocator.requestPermission();
+        }
+      } catch (e) {
+        debugPrint('[FER] autorisation position indisponible : $e');
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_cleBienvenue, true);
+    _bienvenueVue = true;
+    notifyListeners();
+  }
   ConfigApp? get config => _config;
   Profil? get profil => _profil;
   List<Inscription> get inscriptions => _inscriptions;
@@ -329,36 +387,87 @@ class Session extends ChangeNotifier {
 
   /* ═══════════════════════════ Données ═════════════════════════════════ */
 
-  /// Recharge tout ce qui s'affiche. Les appels sont lancés ENSEMBLE : en
-  /// série, l'écran resterait vide le temps de quatre allers-retours.
+  /// Recharge tout ce qui s'affiche.
+  ///
+  /// ═══════════════════════════════════════════════════════════════════════
+  /// LES QUATRE SOURCES SONT INDÉPENDANTES, ET LE RESTENT.
+  ///
+  /// Elles partent ENSEMBLE — en série, l'écran resterait vide le temps de
+  /// quatre allers-retours. Mais chacune est reçue SÉPARÉMENT.
+  ///
+  /// ⚠️ C'EST LA CORRECTION D'UN BUG QUI RENDAIT L'APPLICATION MUETTE.
+  /// Avant, un unique `Future.wait` recevait les quatre réponses puis les
+  /// affectait à la suite. Une seule d'entre elles en défaut — un champ dans
+  /// un type inattendu suffit — et `Future.wait` levait AVANT la première
+  /// affectation : profil, inscriptions, éditions et résultats restaient tous
+  /// les quatre vides. Le coureur voyait « Mon compte : — » sans même son
+  /// adresse email, et « aucune inscription rattachée » alors qu'il en avait
+  /// une. Deux écrans faux, une seule cause, et aucun message.
+  ///
+  /// Un écran vide se lit « vous n'avez rien ». Il doit donc être VRAI. Une
+  /// panne se dit, elle ne se déguise pas en absence de données : les deux
+  /// appellent des gestes opposés — l'un fait vérifier son adresse
+  /// d'inscription, l'autre fait réessayer.
+  /// ═══════════════════════════════════════════════════════════════════════
   Future<void> rafraichir() async {
     if (_etat != EtatSession.connecte || _chargement) return;
     _chargement = true;
     _erreur = null;
     notifyListeners();
 
-    try {
-      final resultats = await Future.wait<Object?>(<Future<Object?>>[
-        _api.profil(),
-        _api.inscriptions(),
-        _api.editions(),
-        // Les résultats sont fermés quand le chronométrage l'est : on ne les
-        // demande pas, plutôt que d'essuyer un 403 attendu à chaque reprise.
-        if (chronoOuvert) _api.resultats() else Future<Object?>.value(null),
-      ]);
+    // Les quatre requêtes sont lancées ici, donc en parallèle. Ce qui suit
+    // n'attend que la réponse déjà en vol.
+    final fProfil = _api.profil();
+    final fInscriptions = _api.inscriptions();
+    final fEditions = _api.editions();
+    // Les résultats sont fermés quand le chronométrage l'est : on ne les
+    // demande pas, plutôt que d'essuyer un 403 attendu à chaque reprise.
+    final fResultats = chronoOuvert ? _api.resultats() : null;
 
-      _profil = Profil.depuisJson(resultats[0]! as Map<String, dynamic>);
-      _inscriptions = (resultats[1]! as List<Map<String, dynamic>>)
-          .map(Inscription.depuisJson)
-          .toList();
-      _editions = (resultats[2]! as List<Map<String, dynamic>>)
-          .map(Edition.depuisJson)
-          .toList();
-      _resultats = resultats[3] == null
-          ? const <Resultat>[]
-          : (resultats[3]! as List<Map<String, dynamic>>)
-              .map(Resultat.depuisJson)
-              .toList();
+    final echecs = <String>[];
+
+    /// Reçoit une source, et n'abandonne QU'ELLE si elle échoue.
+    Future<void> lire(String quoi, Future<void> Function() action) async {
+      try {
+        await action();
+      } on ApiErreur catch (e) {
+        // Ces trois-là ne concernent pas une source en particulier : elles
+        // disent que la session ou le service a changé d'état. On les laisse
+        // remonter au bloc du dessous, qui sait quoi en faire.
+        if (e.estDeconnecte || e.estChronoFerme || e.estTropAncienne) rethrow;
+        // Le message du serveur est écrit POUR le coureur, en français : on le
+        // reprend tel quel plutôt que d'inventer une formule générique qui
+        // perdrait la seule information utile.
+        echecs.add('$quoi — ${e.message}');
+        debugPrint('[FER] $quoi : ${e.statut} ${e.code} ${e.message}');
+      } catch (e, pile) {
+        // Défaut de l'application, pas du serveur : le coureur ne peut rien en
+        // faire, mais il doit savoir que c'est une panne et non un compte vide.
+        echecs.add('$quoi — donnée illisible');
+        debugPrint('[FER] $quoi a échoué : $e\n$pile');
+      }
+    }
+
+    try {
+      await lire('profil', () async {
+        _profil = Profil.depuisJson(await fProfil);
+      });
+      await lire('inscriptions', () async {
+        _inscriptions =
+            (await fInscriptions).map(Inscription.depuisJson).toList();
+      });
+      await lire('éditions', () async {
+        _editions = (await fEditions).map(Edition.depuisJson).toList();
+      });
+      await lire('résultats', () async {
+        _resultats = fResultats == null
+            ? const <Resultat>[]
+            : (await fResultats).map(Resultat.depuisJson).toList();
+      });
+
+      if (echecs.isNotEmpty) {
+        _erreur = 'Chargement incomplet.\n${echecs.join('\n')}';
+      }
 
       await rafraichirNotifications();
     } on ApiErreur catch (e) {
@@ -369,6 +478,22 @@ class Session extends ChangeNotifier {
       } else if (!e.estDeconnecte) {
         _erreur = e.message;
       }
+    } catch (e, pile) {
+      // ⚠️ CE `catch` EST INDISPENSABLE, ET IL A MANQUÉ.
+      //
+      // Les quatre appels partent ensemble dans un `Future.wait` : si UN SEUL
+      // lève autre chose qu'une [ApiErreur] — un champ que le serveur renvoie
+      // dans un type inattendu suffit — l'exception traversait `rafraichir()`
+      // sans être vue. `_demarrer()` ne l'attend pas : elle finissait en erreur
+      // asynchrone non traitée, invisible.
+      //
+      // Résultat pour le coureur : profil, inscriptions, éditions ET résultats
+      // vides EN MÊME TEMPS, sans le moindre message. Un écran vide se lit
+      // comme « vous n'avez rien », alors qu'il faut lire « ça n'a pas pu
+      // charger » — et les deux appellent des gestes opposés.
+      _erreur = 'Les données du compte n\'ont pas pu être lues. '
+          'Réessayez ; si cela persiste, signalez-le à l\'organisation.';
+      debugPrint('[FER] rafraichir() a échoué : $e\n$pile');
     } finally {
       _chargement = false;
       notifyListeners();

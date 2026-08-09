@@ -54,6 +54,41 @@ Réponse attendue :
 ⚠️ **`chrono_actif: false` est normal** hors période de course. Les écrans de
 course sont alors masqués dans l'application — c'est voulu.
 
+### ⚠️ Le second test, celui qu'on oublie : l'en-tête `Authorization`
+
+`/app/config` est **public**. Qu'il réponde ne prouve donc rien sur les routes
+authentifiées, qui sont l'essentiel de l'application. Faites ce second appel,
+avec un jeton volontairement faux :
+
+```bash
+curl -H "X-App-Version: 1.0.0" -H "Authorization: Bearer FAUX" \
+     https://jr.zerobug-57.fr/FER/api/mobile/me
+```
+
+| Réponse | Ce que ça veut dire |
+|---|---|
+| `invalid_token` — « Jeton d'accès invalide ou expiré » | ✅ **Correct.** PHP a bien reçu l'en-tête, il a simplement rejeté ce jeton |
+| `missing_token` — « Jeton d'accès absent » | ❌ **Apache retire l'en-tête `Authorization`** avant PHP |
+
+**Le second cas produit la panne la plus trompeuse du projet.** La connexion
+réussit (`/auth/verify-code` porte tout dans son corps JSON), les infos de la
+course s'affichent (routes publiques) — l'application paraît parfaitement
+connectée. Mais profil, inscriptions, appareils et résultats reviennent tous
+vides, sans le moindre message. Et le site web, lui, fonctionne : il
+s'authentifie par cookie de session, jamais par en-tête. On cherche alors le
+défaut dans l'application ou dans les données, alors qu'il est dans Apache.
+
+Le correctif tient en deux lignes dans `api/mobile/.htaccess`, avant la règle
+de routage (il y est, commenté) :
+
+```apache
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+```
+
+C'est à refaire après toute réinstallation ou tout déplacement du site : un
+`.htaccess` écrasé emporte la règle avec lui.
+
 ## 3. Renseigner les informations de course
 
 Sans elles, l'application n'a rien à afficher et le chronométrage ne peut rien

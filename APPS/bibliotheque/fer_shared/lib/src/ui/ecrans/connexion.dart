@@ -1,11 +1,4 @@
-﻿import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
-import '../../api/api_erreur.dart';
-import '../portee.dart';
-import '../theme.dart';
-
-/// Connexion par code à 6 chiffres envoyé par email.
+﻿/// Connexion par code à 6 chiffres envoyé par email.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// IL N'Y A PAS DE MOT DE PASSE, ET C'EST VOULU.
@@ -22,6 +15,13 @@ import '../theme.dart';
 /// l'adresse soit inscrite ou non — sinon l'API deviendrait un moyen de savoir
 /// qui participe à la course.
 library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../api/api_erreur.dart';
+import '../portee.dart';
+import '../theme.dart';
 
 class EcranConnexion extends StatefulWidget {
   const EcranConnexion({super.key});

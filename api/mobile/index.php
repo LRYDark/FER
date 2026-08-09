@@ -297,7 +297,7 @@ function api_requireDevice(PDO $pdo): array
 
     $st = $pdo->prepare(
         'SELECT d.id, d.participant_id, d.type, p.is_active, p.email_chiffre, p.nom, p.prenom,
-                p.rgpd_consent_at, p.derniere_connexion, p.created_at
+                p.rgpd_consent_at, p.traces_consent_at, p.derniere_connexion, p.created_at
            FROM participant_devices d
            JOIN participants p ON p.id = d.participant_id
           WHERE d.id = ? AND d.revoque_at IS NULL
@@ -633,6 +633,13 @@ if (($route[0] ?? '') === 'me') {
             'nom'                => $device['nom'],
             'prenom'             => $device['prenom'],
             'rgpd_accepte'       => !empty($device['rgpd_consent_at']),
+            /* ⚠️ SANS CE CHAMP, L'APPLICATION NE PEUT PAS SAVOIR OÙ ELLE EN EST.
+               Le consentement au suivi GPS s'écrivait (POST /me/traces/consent)
+               sans jamais pouvoir se LIRE : l'écran affichait donc « Autoriser »
+               ET « Retirer » côte à côte, faute de connaître l'état. Proposer de
+               retirer une autorisation qu'on n'a jamais donnée n'est pas qu'une
+               maladresse d'affichage — sur un consentement, c'est trompeur. */
+            'traces_consent'     => !empty($device['traces_consent_at']),
             'derniere_connexion' => api_date($device['derniere_connexion']),
             'compte_cree_le'     => api_date($device['created_at']),
         ]);

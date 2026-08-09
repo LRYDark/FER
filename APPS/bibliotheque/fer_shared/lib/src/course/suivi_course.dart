@@ -1,15 +1,4 @@
-﻿import 'dart:async';
-import 'dart:math' as math;
-
-import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
-
-import '../models/modeles.dart';
-import 'balise.dart';
-import 'file_attente.dart';
-import 'mesures.dart';
-
-/// Suivi d'une course : position, franchissement des lignes, balises.
+﻿/// Suivi d'une course : position, franchissement des lignes, balises.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// L'APPLICATION OBSERVE, LE SERVEUR CALCULE.
@@ -31,6 +20,17 @@ import 'mesures.dart';
 /// là, le serveur retient la balise. C'est le seul moyen de ne pas se retrouver
 /// avec des participants sans chrono à cause d'un boîtier à plat.
 library;
+
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+
+import '../models/modeles.dart';
+import 'balise.dart';
+import 'file_attente.dart';
+import 'mesures.dart';
 
 enum EtatSuivi { arrete, demarrage, actif, erreur }
 

@@ -88,6 +88,7 @@ class Profil {
     this.nom,
     this.prenom,
     this.rgpdAccepte = false,
+    this.tracesConsent = false,
     this.derniereConnexion,
     this.compteCreeLe,
   });
@@ -97,6 +98,11 @@ class Profil {
         nom: j['nom'] as String?,
         prenom: j['prenom'] as String?,
         rgpdAccepte: j['rgpd_accepte'] == true,
+        // ⚠️ DÉFAUT `false`, y compris face à un serveur trop ancien pour
+        // connaître ce champ. Sur un consentement, le doute se tranche TOUJOURS
+        // vers le non : supposer l'accord donné ferait afficher « autorisé » à
+        // quelqu'un qui n'a jamais rien accepté.
+        tracesConsent: j['traces_consent'] == true,
         derniereConnexion: _date(j['derniere_connexion']),
         compteCreeLe: _date(j['compte_cree_le']),
       );
@@ -105,6 +111,16 @@ class Profil {
   final String? nom;
   final String? prenom;
   final bool rgpdAccepte;
+
+  /// Le serveur a-t-il le droit d'enregistrer le tracé de la course ?
+  ///
+  /// ⚠️ À NE PAS CONFONDRE AVEC L'AUTORISATION DE POSITION DU TÉLÉPHONE.
+  /// iOS et Android décident si l'application peut LIRE la position ; ce
+  /// consentement-ci décide si le serveur peut la CONSERVER. On peut très bien
+  /// avoir accordé la première et refusé le second : le suivi fonctionne alors
+  /// sur l'appareil — chrono, distance, allure — sans qu'aucun tracé ne parte.
+  final bool tracesConsent;
+
   final DateTime? derniereConnexion;
   final DateTime? compteCreeLe;
 

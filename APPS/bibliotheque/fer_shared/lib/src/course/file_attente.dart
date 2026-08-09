@@ -1,11 +1,4 @@
-﻿import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../api/api_client.dart';
-import '../api/api_erreur.dart';
-
-/// File d'attente des données de course, persistée sur le téléphone.
+﻿/// File d'attente des données de course, persistée sur le téléphone.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// LE RÉSEAU TOMBERA PENDANT LA COURSE — CE N'EST PAS UNE HYPOTHÈSE.
@@ -30,6 +23,13 @@ import '../api/api_erreur.dart';
 /// On efface donc la file APRÈS confirmation, jamais avant. Dans le doute, on
 /// renvoie : le pire est un doublon, que le serveur ignore.
 library;
+
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../api/api_client.dart';
+import '../api/api_erreur.dart';
 
 class _Lot {
   _Lot(this.annee, this.inscriptionNo, this.elements);

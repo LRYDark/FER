@@ -14,9 +14,44 @@
 # casserait dès que le projet change de place.
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # ── ⚠️ SANS CES DEUX LIGNES, TOUTE L'API AUTHENTIFIÉE RÉPOND 401 ──────────
+    #
+    # Apache ne transmet PAS l'en-tête `Authorization` à PHP quand celui-ci
+    # tourne en CGI/FastCGI (le cas de la quasi-totalité des hébergements
+    # mutualisés). L'application envoie pourtant bien son `Bearer …` : c'est
+    # Apache qui le retire avant que PHP ne le voie.
+    #
+    # LE SYMPTÔME EST TRÈS TROMPEUR. La connexion réussit — /auth/verify-code
+    # n'a pas besoin de l'en-tête, il porte tout dans son corps JSON — et
+    # /app/config comme /course sont publics. L'application semble donc
+    # parfaitement connectée, avec les infos de la course à l'écran. Mais TOUTE
+    # route authentifiée répond « Jeton d'accès absent » : profil, inscriptions,
+    # appareils, résultats. Écrans vides, et rien qui l'explique.
+    #
+    # Le site web ne connaît pas ce problème : il s'authentifie par cookie de
+    # session PHP, jamais par en-tête. D'où l'écart déroutant entre l'espace
+    # coureur, qui affiche l'inscription, et l'application, qui n'en voit aucune.
+    #
+    # `E=HTTP_AUTHORIZATION` recopie l'en-tête dans une variable d'environnement.
+    # Après la réécriture interne vers index.php, PHP la lit sous les deux noms
+    # HTTP_AUTHORIZATION et REDIRECT_HTTP_AUTHORIZATION — `api_requireDevice()`
+    # essaie déjà les deux.
+    #
+    # ⚠️ AVANT la règle de routage : une fois `[L]` posé, plus rien ne s'exécute.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Filet de sécurité si mod_rewrite venait à manquer. Volontairement encadré par
+# IfModule : une directive inconnue dans un .htaccess ne produit pas un
+# avertissement, elle produit une erreur 500 sur TOUT le dossier.
+<IfModule mod_setenvif.c>
+    SetEnvIfNoCase ^Authorization$ "(.+)" HTTP_AUTHORIZATION=$1
 </IfModule>
 
 # Une API ne sert que du JSON : rien à indexer, rien à mettre en cache.

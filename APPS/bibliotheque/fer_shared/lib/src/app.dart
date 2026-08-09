@@ -1,13 +1,4 @@
-﻿import 'package:flutter/material.dart';
-
-import 'session.dart';
-import 'ui/ecrans/accueil.dart';
-import 'ui/ecrans/bloquant.dart';
-import 'ui/ecrans/connexion.dart';
-import 'ui/portee.dart';
-import 'ui/theme.dart';
-
-/// Racine de l'application, commune aux trois coques.
+﻿/// Racine de l'application, commune aux trois coques.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// L'ÉTAT DÉCIDE DE L'ÉCRAN, PAS LE NAVIGATEUR.
@@ -18,6 +9,16 @@ import 'ui/theme.dart';
 /// sans qu'aucun écran ait à y penser. Et le bouton retour ne peut pas rouvrir
 /// une session fermée.
 library;
+
+import 'package:flutter/material.dart';
+
+import 'session.dart';
+import 'ui/ecrans/accueil.dart';
+import 'ui/ecrans/bienvenue.dart';
+import 'ui/ecrans/bloquant.dart';
+import 'ui/ecrans/connexion.dart';
+import 'ui/portee.dart';
+import 'ui/theme.dart';
 
 class AppFer extends StatelessWidget {
   const AppFer({required this.session, this.titre = 'Forbach en Rose', super.key});
@@ -48,6 +49,21 @@ class _Routeur extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = PorteeSession.de(context);
+
+    // Premier lancement : la présentation passe AVANT tout le reste, connexion
+    // comprise.
+    //
+    // ⚠️ Elle passe aussi avant les écrans bloquants (version refusée, API
+    // fermée) — volontairement. Les autorisations sont demandées ici, et une
+    // application installée un jour de maintenance ne doit pas se retrouver
+    // sans elles le jour de la course, sans que rien ne le rattrape : la
+    // présentation ne se rejoue jamais.
+    //
+    // `demarrage` reste prioritaire : tant que la configuration n'est pas lue,
+    // on ne sait pas encore quoi montrer.
+    if (session.etat != EtatSession.demarrage && !session.bienvenueVue) {
+      return const EcranBienvenue();
+    }
 
     return switch (session.etat) {
       EtatSession.demarrage => const _Demarrage(),

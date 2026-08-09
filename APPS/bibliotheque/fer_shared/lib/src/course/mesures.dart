@@ -1,8 +1,4 @@
-﻿import 'dart:math' as math;
-
-import 'package:shared_preferences/shared_preferences.dart';
-
-/// Dépense énergétique et dénivelé.
+﻿/// Dépense énergétique et dénivelé.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// LES CALORIES SONT UNE ESTIMATION, PAS UNE MESURE — ET ÇA S'AFFICHE.
@@ -31,6 +27,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// fait très bien sur l'appareil. Il est saisi par le coureur, rangé
 /// localement, effaçable en un geste, et le serveur ne le voit jamais.
 library;
+
+import 'dart:math' as math;
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 /* ═══════════════════════════ Profil local ═════════════════════════════ */
 
