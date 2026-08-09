@@ -31,7 +31,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../course/mesures.dart';
 import '../portee.dart';
+import '../theme.dart';
 
 class EcranBienvenue extends StatefulWidget {
   const EcranBienvenue({super.key});
@@ -42,18 +44,64 @@ class EcranBienvenue extends StatefulWidget {
 
 class _EcranBienvenueState extends State<EcranBienvenue> {
   final _pages = PageController();
+  final _poids = TextEditingController();
+  final _taille = TextEditingController();
+  final _age = TextEditingController();
+  String? _sexe;
   int _page = 0;
   bool _enCours = false;
+
+  static const int _nbPages = 3;
+
+  /// ⚠️ OBLIGATOIRE POUR PASSER — décision de l'organisation.
+  ///
+  /// Le poids est indispensable au calcul, la taille et l'âge l'affinent. Sans
+  /// eux, l'estimation n'existe pas ou reste grossière ; les rendre facultatifs
+  /// revenait à ce que personne ne les saisisse et que la fonction ne serve
+  /// jamais.
+  ///
+  /// ⚠️ CE QUE CELA COÛTE, ET QU'IL FAUT SAVOIR : quelqu'un qui installe
+  /// l'application au stand de retrait, pour montrer son QR code, doit d'abord
+  /// renseigner son poids. C'est le prix de ce choix. Si cela pose problème le
+  /// jour J, la sortie est ce `_complet` : le rendre moins exigeant rouvre le
+  /// passage sans rien casser d'autre.
+  bool get _complet {
+    final p = double.tryParse(_poids.text.replaceAll(',', '.'));
+    final t = int.tryParse(_taille.text);
+    final a = int.tryParse(_age.text);
+    return p != null && p > 20 && p < 300 &&
+        t != null && t > 100 && t < 250 &&
+        a != null && a > 5 && a < 120 &&
+        _sexe != null;
+  }
 
   @override
   void dispose() {
     _pages.dispose();
+    _poids.dispose();
+    _taille.dispose();
+    _age.dispose();
     super.dispose();
   }
 
   Future<void> _terminer({required bool avecAutorisations}) async {
     if (_enCours) return;
     setState(() => _enCours = true);
+
+    // ⚠️ LE POIDS EST ENREGISTRÉ SUR L'APPAREIL, JAMAIS ENVOYÉ AU SERVEUR.
+    // C'est un engagement écrit dans le README du projet, et la raison pour
+    // laquelle l'estimation des calories se calcule ici et pas côté serveur.
+    final poids = double.tryParse(_poids.text.replaceAll(',', '.'));
+    final taille = int.tryParse(_taille.text);
+    final age = int.tryParse(_age.text);
+    if (poids != null || taille != null || age != null || _sexe != null) {
+      await ProfilPhysique(
+        poidsKg: (poids != null && poids > 20 && poids < 300) ? poids : null,
+        tailleCm: taille,
+        age: age,
+        sexe: _sexe,
+      ).enregistrer();
+    }
 
     final session = PorteeSession.action(context);
     await session.terminerBienvenue(
@@ -77,7 +125,18 @@ class _EcranBienvenueState extends State<EcranBienvenue> {
               child: PageView(
                 controller: _pages,
                 onPageChanged: (i) => setState(() => _page = i),
-                children: const <Widget>[_PagePresentation(), _PageAutorisations()],
+                children: <Widget>[
+                  const _PagePresentation(),
+                  const _PageAutorisations(),
+                  _PagePoids(
+                    poids: _poids,
+                    taille: _taille,
+                    age: _age,
+                    sexe: _sexe,
+                    surSexe: (v) => setState(() => _sexe = v),
+                    surSaisie: () => setState(() {}),
+                  ),
+                ],
               ),
             ),
 
@@ -85,7 +144,7 @@ class _EcranBienvenueState extends State<EcranBienvenue> {
             // d'un coup d'œil qu'il n'y a que deux écrans à passer.
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List<Widget>.generate(2, (i) {
+              children: List<Widget>.generate(_nbPages, (i) {
                 final actif = i == _page;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -103,7 +162,7 @@ class _EcranBienvenueState extends State<EcranBienvenue> {
 
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: _page == 0 ? _boutonsPage1() : _boutonsPage2(),
+              child: _page < _nbPages - 1 ? _boutonSuivant() : _boutonsFin(),
             ),
           ],
         ),
@@ -111,7 +170,7 @@ class _EcranBienvenueState extends State<EcranBienvenue> {
     );
   }
 
-  Widget _boutonsPage1() => FilledButton(
+  Widget _boutonSuivant() => FilledButton(
         onPressed: () => _pages.nextPage(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
@@ -119,11 +178,13 @@ class _EcranBienvenueState extends State<EcranBienvenue> {
         child: const Text('Suivant'),
       );
 
-  Widget _boutonsPage2() => Column(
+  Widget _boutonsFin() => Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           FilledButton(
-            onPressed: _enCours ? null : () => _terminer(avecAutorisations: true),
+            onPressed: (_enCours || !_complet)
+                ? null
+                : () => _terminer(avecAutorisations: true),
             child: _enCours
                 ? const SizedBox(
                     height: 20,
@@ -132,11 +193,18 @@ class _EcranBienvenueState extends State<EcranBienvenue> {
                   )
                 : const Text('Continuer'),
           ),
-          const SizedBox(height: 4),
-          TextButton(
-            onPressed: _enCours ? null : () => _terminer(avecAutorisations: false),
-            child: const Text('Plus tard'),
-          ),
+          if (!_complet) ...<Widget>[
+            const SizedBox(height: 8),
+            // ⚠️ ON DIT CE QUI MANQUE. Un bouton grisé sans explication laisse
+            // chercher — et sur un formulaire de quatre champs, on ne devine pas
+            // lequel bloque.
+            Text(
+              'Renseignez poids, taille, âge et sexe pour continuer.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
         ],
       );
 }
@@ -170,8 +238,8 @@ class _PagePresentation extends StatelessWidget {
 
           const _Ligne(
             icone: Icons.confirmation_number_outlined,
-            titre: 'Vos inscriptions et votre dossard',
-            texte: 'Toutes vos inscriptions, avec le QR code de votre dossard — '
+            titre: 'Vos inscriptions et votre QR code',
+            texte: 'Toutes vos inscriptions, avec leur QR code — '
                 'le même que celui du mail de confirmation.',
           ),
           const _Ligne(
@@ -290,7 +358,7 @@ class _PageAutorisations extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Vous pouvez tout refuser : l\'application reste utilisable '
-                    'pour vos inscriptions, votre dossard et vos résultats. '
+                    'pour vos inscriptions et vos résultats. '
                     'Votre poids, s\'il est renseigné, ne quitte jamais le '
                     'téléphone.',
                     style: textes.bodySmall
@@ -298,6 +366,143 @@ class _PageAutorisations extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/* ═══════════════════════ Page 3 — le poids, pour les calories ══════════════ */
+
+/// ⚠️ LE POIDS NE QUITTE JAMAIS L'APPAREIL.
+///
+/// C'est un engagement écrit dans le README du projet : « Elle n'envoie jamais
+/// votre poids. Il reste sur le téléphone, et le serveur n'a aucun moyen de le
+/// demander. » C'est précisément pour cela que l'estimation des calories se
+/// calcule ici et pas côté serveur — et pourquoi le site web ne peut pas
+/// l'afficher sans qu'on le saisisse aussi dans le navigateur.
+///
+/// ⚠️ FACULTATIF, ET DIT COMME TEL. Sans poids, tout le reste fonctionne : seule
+/// l'estimation des calories manque. Un champ obligatoire au troisième écran
+/// d'une application qu'on découvre ferait abandonner l'installation — pour une
+/// donnée dont on n'a besoin qu'après la course.
+class _PagePoids extends StatelessWidget {
+  const _PagePoids({
+    required this.poids,
+    required this.taille,
+    required this.age,
+    required this.sexe,
+    required this.surSexe,
+    required this.surSaisie,
+  });
+
+  final TextEditingController poids;
+  final TextEditingController taille;
+  final TextEditingController age;
+  final String? sexe;
+  final ValueChanged<String?> surSexe;
+  final VoidCallback surSaisie;
+
+  @override
+  Widget build(BuildContext context) {
+    final couleurs = Theme.of(context).colorScheme;
+    final textes = Theme.of(context).textTheme;
+
+    Widget etiquette(String t) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(t,
+              style: textes.bodySmall
+                  ?.copyWith(color: couleurs.onSurfaceVariant)),
+        );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Center(
+            child: Icon(Icons.local_fire_department_outlined,
+                size: 56, color: couleurs.primary),
+          ),
+          const SizedBox(height: 20),
+          Text('Quelques informations', style: textes.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            "Pour estimer les calories dépensées pendant votre course, "
+            "l'application a besoin de quelques informations sur vous.",
+            style: textes.titleMedium?.copyWith(color: couleurs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 24),
+
+          etiquette('Poids'),
+          TextField(
+            controller: poids,
+            onChanged: (_) => surSaisie(),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(hintText: '70', suffixText: 'kg'),
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    etiquette('Taille'),
+                    TextField(
+                      controller: taille,
+                      onChanged: (_) => surSaisie(),
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                          hintText: '175', suffixText: 'cm'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    etiquette('Âge'),
+                    TextField(
+                      controller: age,
+                      onChanged: (_) => surSaisie(),
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                          hintText: '35', suffixText: 'ans'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          etiquette('Sexe'),
+          SegmentedButton<String>(
+            segments: const <ButtonSegment<String>>[
+              ButtonSegment<String>(value: 'H', label: Text('Homme')),
+              ButtonSegment<String>(value: 'F', label: Text('Femme')),
+              ButtonSegment<String>(value: 'Autre', label: Text('Autre')),
+            ],
+            selected: <String>{if (sexe != null) sexe!},
+            emptySelectionAllowed: true,
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => surSexe(s.isEmpty ? null : s.first),
+          ),
+          const SizedBox(height: 20),
+
+          BlocAccent(
+            icone: Icons.lock_outline,
+            enfant: Text(
+              "Ces informations restent sur ce téléphone. Elles ne sont jamais "
+              "envoyées au serveur, et l'organisation n'y a pas accès — le "
+              "calcul se fait sur l'appareil.",
+              style: textes.bodyMedium,
             ),
           ),
         ],

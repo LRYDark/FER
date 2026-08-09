@@ -242,7 +242,7 @@ $ecTopbarActions = $ecGpsAffiche
       </div>
     </section>
   <?php else: ?>
-    <section class="card">
+    <section class="card ec-nu">
       <header>
         <div class="iconwell"><i class="bi bi-stopwatch"></i></div>
         <h2>Vos éditions</h2>
@@ -251,12 +251,45 @@ $ecTopbarActions = $ecGpsAffiche
       <div class="rows">
         <?php foreach ($inscriptions as $r): ?>
           <?php $res = $resultats[$r['annee'] . '|' . $r['inscription_no']] ?? null; ?>
-          <div class="row">
+          <?php /* ⚠️ `ec-resultat` : cette rangée porte TROIS blocs — identité,
+                   chrono, et les chiffres en pleine largeur. `.row` de
+                   components.css est une rangée flex SANS passage à la ligne :
+                   le troisième bloc écrasait les deux premiers jusqu'à couper
+                   les mots caractère par caractère. */ ?>
+          <div class="row ec-resultat">
             <div class="grow">
               <div class="title">Édition <?= (int) $r['annee'] ?></div>
               <div class="sub">
                 <?= $h(trim(($r['prenom'] ?? '') . ' ' . ($r['nom'] ?? ''))) ?>
-                · n° <span class="ec-mono"><?= $h($r['inscription_no']) ?></span>
+              </div>
+
+              <?php /* ⚠️ LE REÇU DE L'INSCRIPTION, ICI ET PLUS DANS « MES
+                       INSCRIPTIONS ». Dossard, montant payé et taille de
+                       T-shirt encombraient l'écran de l'année en cours pour
+                       des éditions passées. Ce sont pourtant eux qu'on rouvre
+                       pour « combien j'avais payé l'an dernier ? » : leur place
+                       est avec le temps de cette année-là.
+
+                       Affiché MÊME SANS RÉSULTAT : sur un abandon ou une
+                       édition sans chronométrage, c'est la seule trace qu'on a
+                       participé et payé — et une preuve de paiement. */ ?>
+              <div class="ec-recu">
+                <span><b>Dossard</b> <span class="ec-mono"><?= $h($r['inscription_no']) ?></span></span>
+                <span><b>Paiement</b>
+                  <?php $m = (float) ($r['montant_du'] ?? 0);
+                        $mode = strtolower(trim((string) ($r['paiement_mode'] ?? ''))); ?>
+                  <?= ($m <= 0 || $mode === 'gratuit')
+                        ? 'Gratuit'
+                        : $h(($mode !== '' ? $mode : 'Réglé') . ' · '
+                             . number_format($m, 2, ',', ' ') . ' €') ?>
+                </span>
+                <span><b>T-shirt</b>
+                  <?= (!empty($r['tshirt_size']) && $r['tshirt_size'] !== '-')
+                        ? $h($r['tshirt_size']) : '—' ?>
+                </span>
+                <?php if (!empty($r['ville'])): ?>
+                  <span><b>Ville</b> <?= $h($r['ville']) ?></span>
+                <?php endif; ?>
               </div>
             </div>
             <?php if ($res !== null && $res['statut'] === 'invalide'): ?>
@@ -281,18 +314,68 @@ $ecTopbarActions = $ecGpsAffiche
               ?>
               <div class="stat" style="align-items:flex-end">
                 <span class="value"><?= $h($chrono) ?></span>
-                <?php /* La méthode et la précision accompagnent TOUJOURS le temps :
-                         un temps extrapolé affiché nu passerait pour une mesure. */ ?>
-                <span class="delta">
-                  <?= $h(ec_methode($res['methode'])) ?>
-                  <?php if ($res['precision_s'] !== null): ?> · ±<?= (int) $res['precision_s'] ?> s<?php endif; ?>
-                </span>
+                <?php /* ⚠️ LA MENTION NE S'AFFICHE QUE SI ELLE APPORTE QUELQUE
+                         CHOSE — même règle que l'application (`mentionUtile`).
+                         Elle existe pour empêcher qu'une APPROXIMATION passe
+                         pour une mesure. Quand le temps vient d'une vraie
+                         mesure — balise, GPS au passage de la ligne — il n'y a
+                         rien à empêcher.
+
+                         Sur un temps approché, elle reste obligatoire : c'est
+                         elle qui permet de défendre ou de corriger un
+                         classement contesté. */ ?>
+                <?php if (in_array($res['methode'], ['gps_extrapole','gps_distance','declaratif'], true)): ?>
+                  <span class="delta">
+                    <?= $h(ec_methode($res['methode'])) ?>
+                    <?php if ($res['precision_s'] !== null): ?> · ±<?= (int) $res['precision_s'] ?> s<?php endif; ?>
+                  </span>
+                <?php endif; ?>
               </div>
+              <?php /* ⚠️ DISTANCE, DÉNIVELÉ ET ALLURE, SOUS LE CHRONO, alors
+                     que le serveur les renvoie et que l'application les
+                     affiche. Ce sont les trois chiffres qu'on regarde juste
+                     après le chrono.
+
+                     L'allure se calcule à partir du temps et de la distance
+                     OFFICIELS — jamais d'une autre source : deux allures
+                     différentes pour un même temps sèmeraient le doute. */ ?>
+              <?php if ($res !== null
+                      && ($res['distance_m'] !== null || $res['denivele_positif_m'] !== null)): ?>
+                <div class="ec-chiffres">
+                  <?php if ($res['distance_m'] !== null): ?>
+                  <div><span class="v"><?= $h(number_format((int) $res['distance_m'] / 1000, 2, ',', ' ')) ?> km</span><span class="l">Distance</span></div>
+                  <?php endif; ?>
+                  <?php if ($res['denivele_positif_m'] !== null): ?>
+                  <div><span class="v"><?= (int) $res['denivele_positif_m'] ?> m</span><span class="l">Dénivelé +</span></div>
+                  <?php endif; ?>
+                  <?php
+                  $allure = null;
+                  if ($res['distance_m'] !== null && $res['temps_s'] !== null
+                      && (int) $res['distance_m'] >= 50) {
+                      $sParKm = (float) $res['temps_s'] / ((int) $res['distance_m'] / 1000);
+                      if ($sParKm <= 3600) {
+                        $allure = sprintf('%d:%02d', (int) ($sParKm / 60), (int) round($sParKm) % 60);
+                      }
+                  }
+                ?>
+                  <?php if ($allure !== null): ?>
+                  <div><span class="v"><?= $h($allure) ?></span><span class="l">Allure /km</span></div>
+                  <?php endif; ?>
+                </div>
+              <?php endif; ?>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
       </div>
     </section>
+
+    <?php /* ⚠️ AUCUNE ESTIMATION DE CALORIES SUR LE SITE, ET C'EST DÉLIBÉRÉ.
+             Le calcul exige le poids ; le poids ne quitte jamais l'appareil.
+             Le demander ici obligerait à le ressaisir dans chaque navigateur,
+             pour un chiffre déjà disponible dans l'application — et créerait un
+             second endroit où une donnée de santé serait stockée.
+             Les calories restent donc sur l'application (iPhone, Android,
+             montre), là où le poids est déjà connu. */ ?>
 
     <?php /* ── Consentement au suivi GPS ────────────────────────────────────
              La trace GPS dit où vous vous trouviez minute par minute. Elle ne
@@ -342,7 +425,7 @@ $ecTopbarActions = $ecGpsAffiche
                 <i class="bi bi-x-circle"></i> Retirer mon autorisation
               </button>
               <button class="btn btn-danger" type="submit" name="supprimer_traces" value="1"
-                      data-confirm="Supprimer définitivement toutes vos traces GPS enregistrées ?">
+                      data-confirm="Supprimer définitivement vos tracés GPS ?\n\nLe chemin enregistré de vos courses passées sera effacé du serveur. Vous ne pourrez plus revoir votre parcours sur la carte.\n\nVos temps, vos résultats et vos inscriptions ne sont PAS touchés : vous restez au classement.">
                 <i class="bi bi-trash3"></i> Supprimer mes traces (<?= (int) $ecNbTraces ?>)
               </button>
             <?php else: ?>

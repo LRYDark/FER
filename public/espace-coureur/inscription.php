@@ -255,7 +255,22 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
        *
        * Le QR lui-même vient de la MÊME fonction que le mail : ce que le
        * bénévole scanne ici est identique à ce qui a été envoyé. */
-      $qrElig = fer_qrEligibilite($pdo, $data ?? [], $r['inscription_no']);
+      /* ⚠️ `$data` N'ÉTAIT DÉFINI NULLE PART DANS CE FICHIER.
+       *
+       * `$data ?? []` valait donc TOUJOURS un tableau vide, et
+       * `fer_qrEligibilite()` lit `$settings['qrcode_mail_mode'] ?? 'none'` :
+       * le mode retombait sur « none » à chaque affichage. Cette page annonçait
+       * « les QR codes ne sont pas utilisés pour cette édition » quel que soit
+       * le réglage réel — y compris quand l'organisation les avait activés et
+       * que les mails en contenaient un.
+       *
+       * L'écart s'est vu quand l'application, elle, a affiché le QR : ce n'est
+       * pas elle qui avait tort. `register.php` charge la ligne `setting` pour
+       * exactement cette raison, et documente déjà le piège. */
+      $qrSettings = $pdo->query('SELECT qrcode_mail_mode, qrcode_mail_limit
+                                   FROM setting WHERE id = 1 LIMIT 1')
+                        ->fetch(PDO::FETCH_ASSOC) ?: [];
+      $qrElig = fer_qrEligibilite($pdo, $qrSettings, $r['inscription_no']);
       $qr     = $qrElig['ok'] ? fer_qrCodeDataUri($r['inscription_no']) : '';
     ?>
     <section class="card">
@@ -290,12 +305,44 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
       <?php elseif ($qr !== ''): ?>
         <div class="ec-qr">
-          <img src="<?= $qr ?>" alt="QR code de l'inscription <?= $h($no) ?>">
+          <?php /* ⚠️ CLIQUABLE POUR L'AGRANDIR. Au stand on tend son écran à
+                   quelqu'un qui scanne : un QR de 200 px sur un écran incliné,
+                   luminosité basse, se lit mal. Le plein écran le met à la plus
+                   grande taille possible, sur fond blanc. */ ?>
+          <button type="button" class="ec-qr-zoom" id="ecQrZoom"
+                  aria-label="Afficher le QR code en grand">
+            <img src="<?= $qr ?>" alt="QR code de l'inscription <?= $h($no) ?>">
+          </button>
           <p style="font-size:var(--fs-micro);color:var(--ink-faint);text-align:center;margin:0">
-            Présentez-le au retrait des t-shirts.<br>
-            Il est identique à celui de votre mail de confirmation.
+            Cliquez dessus pour l'afficher en grand.<br>
+            Présentez-le au retrait des t-shirts&nbsp;; il est identique à celui
+            de votre mail de confirmation.
           </p>
         </div>
+
+        <?php /* Fond noir, QR blanc au centre, fermeture au clic ou à Échap :
+                 au moment où l'on tend son téléphone, chercher une croix est un
+                 geste de trop. */ ?>
+        <div class="ec-qr-plein" id="ecQrPlein" hidden>
+          <img src="<?= $qr ?>" alt="QR code de l'inscription <?= $h($no) ?>">
+          <span>Cliquez pour fermer</span>
+        </div>
+        <script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
+        (function () {
+          var b = document.getElementById('ecQrZoom');
+          var p = document.getElementById('ecQrPlein');
+          if (!b || !p) return;
+          function ouvrir(o) {
+            p.hidden = !o;
+            document.body.style.overflow = o ? 'hidden' : '';
+          }
+          b.addEventListener('click', function () { ouvrir(true); });
+          p.addEventListener('click', function () { ouvrir(false); });
+          document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !p.hidden) ouvrir(false);
+          });
+        })();
+        </script>
       <?php else: ?>
         <div class="alert">
           Le QR code n'a pas pu être généré. Votre numéro d'inscription

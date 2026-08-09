@@ -26,17 +26,28 @@ $ecChronoOuvert = $ecChronoOuvert ?? chrono_actif($pdo);
 /** Entrées du menu : fichier => [libellé, icône Bootstrap]. */
 $ecMenu = [
     'index.php'         => ['Mes inscriptions', 'bi-list-check'],
+    // ⚠️ MÊME RUBRIQUE QUE L'ONGLET DE L'APPLICATION. Elle manquait ici : les
+    // annonces de l'organisation n'étaient lisibles que par ceux qui avaient
+    // installé l'application, alors que la source est la même fonction.
+    'messages.php'      => ["Messages",         'bi-envelope'],
     'mes-resultats.php' => ['Mes résultats',    'bi-stopwatch'],
     'appareils.php'     => ['Mes appareils',    'bi-phone'],
     'compte.php'        => ['Mon compte',       'bi-person-gear'],
 ];
 
-/* « Mes résultats » disparaît du menu quand le chronométrage est fermé.
-   « Mes appareils » RESTE : révoquer un téléphone perdu n'a rien à voir avec
-   la course, et c'est justement hors période qu'on y pense. */
-if (!$ecChronoOuvert) {
-    unset($ecMenu['mes-resultats.php']);
-}
+/* ⚠️ « MES RÉSULTATS » RESTE, MÊME CHRONOMÉTRAGE FERMÉ — ET C'EST UN
+   CORRECTIF, PAS UN OUBLI.
+
+   Cette page ne porte pas que des temps : c'est elle qui contient le
+   consentement au suivi GPS ET la suppression des tracés enregistrés. La
+   retirer du menu onze mois sur douze rendait le DROIT À L'EFFACEMENT
+   inatteignable en dehors de la semaine de la course — alors que c'est
+   justement hors période qu'on y pense, comme pour « Mes appareils ».
+   Le RGPD n'admet pas qu'un droit soit ouvert par intermittence.
+
+   La page se garde d'elle-même : sans chronométrage, elle affiche les éditions
+   sans temps, et la carte du suivi GPS reste utile. */
+
 ?>
 <?php /* `ec-shell` ne sert QUE de portée : elle permet de faire du panneau
          principal une colonne flex sans toucher à `.jr-main` d'admin.css, qui

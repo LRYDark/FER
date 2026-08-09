@@ -270,6 +270,7 @@ class CarteFer extends StatelessWidget {
     this.icone,
     this.action,
     this.fond = false,
+    this.contour = false,
     this.surTouche,
     super.key,
   });
@@ -280,7 +281,20 @@ class CarteFer extends StatelessWidget {
   final Widget? action;
 
   /// Pose une surface teintée derrière le contenu.
+  ///
+  /// ⚠️ SUR UN THÈME COLORÉ, C'EST À MANIER AVEC PRÉCAUTION.
+  /// `surfaceContainerLow` dérive de la couleur d'accent : sur le rose du
+  /// projet, elle donne un bloc à peine plus foncé que le fond de la page —
+  /// assez pour délaver, pas assez pour séparer. Préférer `contour` quand il
+  /// s'agit seulement de délimiter.
   final bool fond;
+
+  /// Encadre le contenu d'un filet, sans le remplir.
+  ///
+  /// C'est ce qu'il faut pour distinguer des blocs RÉPÉTÉS — une carte par
+  /// édition, par exemple : le trait dit où l'un finit et où l'autre commence,
+  /// sans poser d'aplat coloré qui écraserait le contenu.
+  final bool contour;
 
   final VoidCallback? surTouche;
 
@@ -309,6 +323,26 @@ class CarteFer extends StatelessWidget {
         enfant,
       ],
     );
+
+    if (contour) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: surTouche,
+            child: Padding(
+              padding: const EdgeInsets.all(marge),
+              child: contenu,
+            ),
+          ),
+        ),
+      );
+    }
 
     if (!fond) {
       return surTouche == null
@@ -445,6 +479,140 @@ class LigneFer extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Choix parmi une liste, présenté en feuille glissante.
+///
+/// ═════════════════════════════════════════════════════════════════════════════
+/// POURQUOI PAS `DropdownButton`.
+///
+/// Le menu déroulant de Material ouvre un rectangle gris flottant, sans rapport
+/// avec le reste de l'écran, posé par-dessus le contenu et coupé aux bords de
+/// la fenêtre. Il ne prend ni les coins, ni les couleurs, ni la typographie du
+/// thème, et sur iPhone il détonne franchement.
+///
+/// La feuille glissante est ce qu'emploient aujourd'hui iOS ET Android : elle
+/// monte du bas, à portée du pouce, prend toute la largeur — donc de la place
+/// pour des libellés entiers — et se referme d'un glissement.
+///
+/// ⚠️ À EMPLOYER POUR TOUT NOUVEAU CHOIX. Un `DropdownButton` ajouté plus tard
+/// ramènerait la fenêtre grise, et l'écart ne se verrait qu'à l'usage.
+///
+/// En dessous de trois options, préférer `SegmentedButton` : tout afficher vaut
+/// mieux que faire ouvrir quoi que ce soit.
+class ChoixFer<T> extends StatelessWidget {
+  const ChoixFer({
+    required this.libelle,
+    required this.valeur,
+    required this.options,
+    required this.texteDe,
+    required this.surChangement,
+    this.titreFeuille,
+    super.key,
+  });
+
+  final String libelle;
+  final T? valeur;
+  final List<T> options;
+  final String Function(T) texteDe;
+  final ValueChanged<T>? surChangement;
+
+  /// Titre de la feuille. Reprend [libelle] par défaut.
+  final String? titreFeuille;
+
+  Future<void> _ouvrir(BuildContext context) async {
+    final theme = Theme.of(context);
+    final choisi = await showModalBottomSheet<T>(
+      context: context,
+      backgroundColor: theme.colorScheme.surfaceContainerLow,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      // Une liste longue doit pouvoir défiler sans occuper tout l'écran d'un
+      // coup : la feuille s'adapte à son contenu.
+      isScrollControlled: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(marge, 0, marge, 8),
+              child: Text(titreFeuille ?? libelle,
+                  style: theme.textTheme.titleMedium),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(bottom: 12),
+                children: <Widget>[
+                  for (final o in options)
+                    ListTile(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: marge),
+                      title: Text(texteDe(o)),
+                      // La coche marque le choix courant : sans elle, on rouvre
+                      // la feuille juste pour vérifier ce qui est retenu.
+                      trailing: o == valeur
+                          ? Icon(Icons.check, color: theme.colorScheme.primary)
+                          : null,
+                      onTap: () => Navigator.pop(c, o),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choisi != null) surChangement?.call(choisi);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final actif = surChangement != null && options.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(libelle,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 8),
+        Material(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: actif ? () => _ouvrir(context) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      valeur == null ? 'Choisir…' : texteDe(valeur as T),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: valeur == null
+                            ? theme.colorScheme.onSurfaceVariant
+                            : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_down,
+                      color: theme.colorScheme.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

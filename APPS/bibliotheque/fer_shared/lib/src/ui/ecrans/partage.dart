@@ -111,7 +111,7 @@ class _CartePartageState extends State<CartePartage> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Seuls votre prénom et votre dossard apparaissent sur l\'image.',
+                'Seuls votre prénom et votre numéro apparaissent sur l\'image.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context)
                     .textTheme
@@ -190,40 +190,60 @@ class _Visuel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            // ⚠️ La méthode accompagne le temps ici AUSSI. Une carte partagée
-            // qui annoncerait un temps GPS comme un chrono officiel ferait
-            // circuler l'approximation bien au-delà de l'application.
-            resultat != null
-                ? '${resultat!.methode.libelle}'
-                    '${resultat!.methode.estApproche ? ' · temps approché' : ''}'
+            // ⚠️ « TEMPS APPROCHÉ » RESTE SUR LA CARTE PARTAGÉE, même si la
+            // mention a disparu des écrans pour les mesures exactes.
+            //
+            // Ici, ce n'est plus le coureur qui lit : c'est son entourage, hors
+            // de toute application, sans rien pour recouper. Une carte qui
+            // annoncerait un temps extrapolé au GPS comme un chrono ferait
+            // circuler l'approximation bien au-delà de nous, et sans retour
+            // possible. Le nom de la méthode, lui, n'apparaît plus : il ne
+            // parlait qu'à ceux qui connaissent déjà la différence.
+            resultat != null && resultat!.methode.estApproche
+                ? 'Temps approché'
                 : 'Marche solidaire',
             style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 12),
           ),
 
           const SizedBox(height: 24),
-          Row(
-            children: <Widget>[
-              _Stat('Distance', _km(distanceM)),
-              _Stat('Dénivelé', deniveleM != null ? '${deniveleM!.round()} m' : '—'),
-              _Stat('Allure', allure != null ? '$allure /km' : '—'),
-            ],
+          // ⚠️ DEUX CASES PAR LIGNE, comme sur l'écran Résultats. Quatre
+          // colonnes à parts égales repliaient « ~563 kcal » sur deux lignes et
+          // désalignaient les libellés — sur une image qu'on partage, ce défaut
+          // reste visible pour toujours.
+          //
+          // ⚠️ LE TILDE DE `calories` EST LE DERNIER SIGNE que ce chiffre est
+          // estimé, la marge en pourcentage ayant été retirée. Sur une image qui
+          // circule hors de l'application, sans rien pour recouper, c'est lui
+          // seul qui empêche de la lire comme une mesure. Ne jamais l'ôter.
+          LayoutBuilder(
+            builder: (context, contraintes) {
+              const espace = 16.0;
+              final demi = (contraintes.maxWidth - espace) / 2;
+              final stats = <Widget>[
+                _Stat('Distance', _km(distanceM)),
+                _Stat('Dénivelé',
+                    deniveleM != null ? '${deniveleM!.round()} m' : '—'),
+                _Stat('Allure', allure != null ? '$allure /km' : '—'),
+                if (calories != null && calories != '—')
+                  _Stat('Calories', calories!),
+              ];
+              return Wrap(
+                spacing: espace,
+                runSpacing: 16,
+                children: <Widget>[
+                  for (final w in stats) SizedBox(width: demi, child: w),
+                ],
+              );
+            },
           ),
-          if (calories != null && calories != '—') ...<Widget>[
-            const SizedBox(height: 12),
-            Text(
-              // La réserve voyage avec le chiffre, même sur une image.
-              '$calories (estimation)',
-              style: TextStyle(color: Colors.white.withAlpha(160), fontSize: 12),
-            ),
-          ],
 
           const SizedBox(height: 24),
           Divider(color: Colors.white.withAlpha(40), height: 1),
           const SizedBox(height: 12),
           Text(
-            // Prénom seul et dossard : rien de plus que ce qui est déjà visible
+            // Prénom seul et numéro : rien de plus que ce qui est déjà visible
             // sur le T-shirt le jour de la course.
-            '${inscription.prenom ?? ''} · dossard ${inscription.inscriptionNo}',
+            '${inscription.prenom ?? ''} · n° ${inscription.inscriptionNo}',
             style: TextStyle(color: Colors.white.withAlpha(200), fontSize: 13),
           ),
         ],
@@ -242,9 +262,13 @@ class _Stat extends StatelessWidget {
   final String libelle;
   final String valeur;
 
+  /// ⚠️ PLUS D'`Expanded` ICI. Il forçait un partage à parts égales, alors que
+  /// « 84 m » et « ~563 kcal » n'ont pas la même longueur : le dernier chiffre
+  /// se repliait sur deux lignes et les libellés cessaient de s'aligner. C'est
+  /// désormais la disposition appelante qui fixe la largeur — deux cases par
+  /// ligne, chacune assez large pour tenir.
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Column(
+  Widget build(BuildContext context) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(libelle.toUpperCase(),
@@ -259,7 +283,6 @@ class _Stat extends StatelessWidget {
                     fontSize: 17,
                     fontWeight: FontWeight.w700)),
           ],
-        ),
       );
 }
 

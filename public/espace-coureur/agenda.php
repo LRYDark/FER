@@ -9,7 +9,7 @@
  * ═════════════════════════════════════════════════════════════════════════════
  * ⚠️ PROTÉGÉ COMME N'IMPORTE QUELLE PAGE DE L'ESPACE, ET POUR LA MÊME RAISON.
  *
- * Le fichier porte un nom, un numéro de dossard et une adresse. Servi sans
+ * Le fichier porte un nom, un numéro d'inscription et une adresse. Servi sans
  * session, il laisserait lire l'inscription de n'importe qui en devinant une
  * année et un numéro. `pauth_owns()` vérifie donc que l'inscription appartient
  * bien au compte connecté — c'est le même contrôle que la fiche de détail.
@@ -88,7 +88,7 @@ $lignes = [
     'DTSTAMP:' . gmdate('Ymd\THis\Z'),
     $champDebut,
     $champFin,
-    'SUMMARY:' . $esc($libelle . ' — dossard ' . $no),
+    'SUMMARY:' . $esc($libelle . ' — inscription n° ' . $no),
 ];
 if ($lieu !== '')       $lignes[] = 'LOCATION:' . $esc($lieu);
 if ($nomCoureur !== '') $lignes[] = 'DESCRIPTION:' . $esc("Inscription n° $no au nom de $nomCoureur.");

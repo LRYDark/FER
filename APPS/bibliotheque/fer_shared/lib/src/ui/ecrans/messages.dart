@@ -30,7 +30,8 @@ class EcranMessages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = PorteeSession.de(context);
-    final messages = session.notifications;
+    // Les messages écartés sur cet appareil ne figurent plus dans la liste.
+    final messages = session.messagesVisibles;
 
     if (messages.isEmpty) {
       return RefreshIndicator(
@@ -43,7 +44,8 @@ class EcranMessages extends StatelessWidget {
               titre: 'Aucun message',
               explication:
                   "Les informations de l'organisation — horaires, rendez-vous, "
-                  'changements de dernière minute — apparaîtront ici.',
+                  'changements de dernière minute — apparaîtront ici. Tirez vers '
+                  'le bas pour vérifier.',
             ),
           ],
         ),
@@ -55,11 +57,48 @@ class EcranMessages extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: messages.length,
-        separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
-        itemBuilder: (context, i) => _LigneMessage(
-          message: messages[i],
-          nonLu: !session.messageLu(messages[i].id),
-        ),
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 68),
+        itemBuilder: (context, i) {
+          final m = messages[i];
+          final ligne = _LigneMessage(
+            message: m,
+            nonLu: !session.messageLu(m.id),
+          );
+
+          // ⚠️ LES ÉPINGLÉS NE SE BALAIENT PAS. Ce sont les informations qu'on
+          // relit la veille — rendez-vous, parking, retrait des dossards. Le
+          // geste est trop facile pour être délibéré à chaque fois, et il
+          // viderait la page où l'on va justement les rechercher.
+          if (!session.peutMasquer(m)) return ligne;
+
+          return Dismissible(
+            key: ValueKey<int>(m.id),
+            // De la droite vers la gauche seulement : le glissement inverse
+            // sert au retour arrière sur iOS, et les deux se marcheraient dessus.
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: marge),
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Icon(Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.onErrorContainer),
+            ),
+            onDismissed: (_) {
+              session.masquerMessage(m.id);
+              // ⚠️ « ANNULER » N'EST PAS UN CONFORT. Un balayage part tout seul
+              // en faisant défiler ; sans retour en arrière, une consigne de
+              // course disparaîtrait sur un geste que personne n'a voulu.
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: const Text('Message retiré de votre boîte.'),
+                action: SnackBarAction(
+                  label: 'Annuler',
+                  onPressed: () => session.demasquerMessage(m.id),
+                ),
+              ));
+            },
+            child: ligne,
+          );
+        },
       ),
     );
   }
@@ -77,14 +116,32 @@ class _LigneMessage extends StatelessWidget {
     final couleur = couleurDe(message.type, theme);
 
     return ListTile(
+      // ⚠️ LE THÈME MET `horizontal: 4` SUR TOUTES LES LISTES — bien pour des
+      // lignes de texte, trop serré ici : la pastille ronde arrivait presque au
+      // bord de l'écran, ce qui donne l'impression d'un contenu coupé.
+      // ⚠️ RESSERRÉ : deux messages remplissaient l'écran.
+      //
+      // `vertical: 8` sur un ListTile à trois lignes donnait des rangées de
+      // près de 100 px. Sur une boîte de réception, c'est la HAUTEUR qui décide
+      // du nombre de messages qu'on embrasse d'un coup d'œil — et un aperçu
+      // qu'il faut faire défiler pour compter ses messages ne sert à rien.
+      //
+      // `dense` réduit aussi l'interligne interne. Le confort de touche reste
+      // assuré : la rangée fait encore plus de 60 px de haut, bien au-delà des
+      // 44 px recommandés par Apple.
+      contentPadding: const EdgeInsets.symmetric(horizontal: marge, vertical: 2),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      minLeadingWidth: 40,
       // Pastille de couleur avec l'icône du type : c'est ce qui distingue une
       // consigne de course d'une information générale, avant même de lire.
       leading: Stack(
         children: <Widget>[
           CircleAvatar(
+            radius: 18,
             // ignore: deprecated_member_use
             backgroundColor: couleur.withOpacity(0.15),
-            child: Icon(iconeDe(message.type), color: couleur, size: 20),
+            child: Icon(iconeDe(message.type), color: couleur, size: 18),
           ),
           if (nonLu)
             Positioned(
@@ -124,7 +181,9 @@ class _LigneMessage extends StatelessWidget {
       ),
       subtitle: Text(
         message.message,
-        maxLines: 2,
+        // Une seule ligne d'aperçu : le message entier s'ouvre d'un appui, et
+        // deux lignes tronquées n'en disaient guère plus qu'une.
+        maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.bodySmall,
       ),

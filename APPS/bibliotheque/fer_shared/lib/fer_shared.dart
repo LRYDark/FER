@@ -35,6 +35,7 @@ export 'src/ui/ecrans/connexion.dart';
 export 'src/ui/ecrans/course.dart';
 export 'src/ui/ecrans/inscriptions.dart';
 export 'src/ui/ecrans/messages.dart';
+export 'src/ui/ecrans/modifier_compte.dart';
 export 'src/ui/ecrans/partage.dart';
 export 'src/ui/ecrans/profil_physique.dart';
 export 'src/ui/ecrans/resultats.dart';

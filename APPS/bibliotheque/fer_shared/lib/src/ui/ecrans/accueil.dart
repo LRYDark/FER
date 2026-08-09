@@ -13,6 +13,8 @@
 /// ce qu'on cherche précisément ce jour-là.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/course_app.dart';
@@ -59,6 +61,24 @@ class _EcranAccueilState extends State<EcranAccueil>
     }
   }
 
+  /// Change d'onglet, et relit les messages en arrivant sur le leur.
+  ///
+  /// ⚠️ SANS CELA, IL FALLAIT REDÉMARRER L'APPLICATION POUR VOIR UN MESSAGE.
+  /// La liste n'était relue qu'au lancement et au retour au premier plan :
+  /// une annonce publiée pendant qu'on garde l'application ouverte n'arrivait
+  /// jamais. Le jour de la course, c'est précisément là qu'on la garde ouverte.
+  ///
+  /// La relecture ne bloque pas l'affichage : l'onglet s'ouvre tout de suite
+  /// avec ce qu'on a déjà, et se complète quand la réponse arrive.
+  void _allerA(int i) {
+    setState(() => _onglet = i);
+    final session = PorteeSession.action(context);
+    // L'onglet « Résultats » n'existe que si le chronométrage est ouvert :
+    // « Messages » glisse donc d'une place selon la période.
+    const indexMessages = 2;
+    if (i == indexMessages) unawaited(session.rafraichirNotifications());
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = PorteeSession.de(context);
@@ -78,22 +98,29 @@ class _EcranAccueilState extends State<EcranAccueil>
     // « Résultats » reste, mais devient une ARCHIVE : les éditions passées, que
     // l'inscription en cours ne montre pas. Le temps du jour, lui, s'affiche
     // sur l'inscription elle-même.
-    final chrono = session.chronoOuvert;
-
     final nonLus = session.messagesNonLus;
 
+    /* ⚠️ « RÉSULTATS » NE DISPARAÎT PLUS HORS PÉRIODE.
+     *
+     * Il ne porte plus que des temps : c'est lui qui contient maintenant
+     * l'historique complet des éditions passées — dossard, montant payé,
+     * taille de T-shirt. Le masquer onze mois sur douze rendrait ces
+     * informations introuvables, alors qu'elles servent justement hors saison
+     * (« combien j'avais payé l'an dernier ? »).
+     *
+     * L'écran se garde de lui-même : sans chronométrage, il affiche les
+     * éditions et leur reçu, sans temps. */
     final pages = <Widget>[
       const EcranInscriptions(),
-      if (chrono) const EcranResultats(),
+      const EcranResultats(),
       const EcranMessages(),
       const EcranCompte(),
     ];
     final destinations = <_Destination>[
       const _Destination('Inscriptions', Icons.confirmation_number_outlined,
           Icons.confirmation_number),
-      if (chrono)
-        const _Destination('Résultats', Icons.emoji_events_outlined,
-            Icons.emoji_events),
+      const _Destination('Résultats', Icons.emoji_events_outlined,
+          Icons.emoji_events),
       // La pastille remplace les bandeaux : elle signale sans occuper la place
       // du contenu, et c'est un signe que tout le monde sait déjà lire.
       _Destination('Messages', Icons.mail_outline, Icons.mail, badge: nonLus),
@@ -121,7 +148,18 @@ class _EcranAccueilState extends State<EcranAccueil>
       child: Column(
         children: <Widget>[
           const _BandeauErreur(),
-          const _BandeauNotifications(),
+          // ⚠️ SEULEMENT SUR INSCRIPTIONS ET MESSAGES.
+          //
+          // Un message épinglé — parking, retrait des dossards — concerne la
+          // course. Répété au-dessus des résultats et des réglages, il rognait
+          // le haut de CHAQUE écran sans jamais rien y apporter, et se
+          // transformait en bandeau publicitaire qu'on finit par ne plus lire.
+          //
+          // Il reste sur « Inscriptions », l'écran d'accueil de fait, et sur
+          // « Messages », où il est chez lui.
+          if (destinations[index].libelle == 'Inscriptions' ||
+              destinations[index].libelle == 'Messages')
+            const _BandeauNotifications(),
           Expanded(child: pages[index]),
         ],
       ),
@@ -133,7 +171,7 @@ class _EcranAccueilState extends State<EcranAccueil>
           children: <Widget>[
             NavigationRail(
               selectedIndex: index,
-              onDestinationSelected: (i) => setState(() => _onglet = i),
+              onDestinationSelected: _allerA,
               labelType: NavigationRailLabelType.all,
               destinations: <NavigationRailDestination>[
                 for (final d in destinations)
@@ -155,7 +193,7 @@ class _EcranAccueilState extends State<EcranAccueil>
       body: corps,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => _onglet = i),
+        onDestinationSelected: _allerA,
         destinations: <NavigationDestination>[
           for (final d in destinations)
             NavigationDestination(
@@ -294,37 +332,32 @@ class _Epingle extends StatelessWidget {
     final theme = Theme.of(context);
     final couleur = couleurDe(notification.type, theme);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(marge, marge, marge, 0),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        // ignore: deprecated_member_use
-        color: couleur.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: couleur.withAlpha(60)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(Icons.push_pin, color: couleur, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(notification.titre,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(color: couleur, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(notification.message,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall),
-              ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(marge, 12, marge, 0),
+      // ⚠️ MÊME BLOC QUE PARTOUT AILLEURS. L'ancien bandeau se dessinait à la
+      // main — fond à 10 %, bordure à 60 d'alpha, coins à 12 — et détonnait
+      // depuis la refonte : il était le dernier morceau d'interface encadré
+      // dans une application qui ne l'est plus.
+      child: BlocAccent(
+        couleur: couleur,
+        icone: Icons.push_pin_outlined,
+        enfant: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              notification.titre,
+              style: theme.textTheme.titleSmall?.copyWith(color: couleur),
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              notification.message,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }

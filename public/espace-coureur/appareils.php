@@ -114,7 +114,7 @@ $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
       </div>
     </section>
   <?php else: ?>
-    <section class="card">
+    <section class="card ec-nu">
       <header>
         <div class="iconwell"><i class="bi bi-shield-check"></i></div>
         <h2>Appareils actifs</h2>

@@ -143,7 +143,7 @@ class _CarteSuivi extends StatelessWidget {
                       // La réserve accompagne le chiffre ici comme partout : ce
                       // n'est pas une mesure, et ça doit se lire.
                       ? _Stat('Calories', suivi.calories.libelle,
-                          note: Calories.mention)
+                          note: suivi.calories.mentionPrecision)
                       : _StatProfil(),
                 ),
               ],
