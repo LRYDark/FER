@@ -17,6 +17,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../course/mesures.dart';
+import '../../pont_montre.dart';
+import '../portee.dart';
 import '../theme.dart';
 
 class EcranProfilPhysique extends StatefulWidget {
@@ -61,12 +63,19 @@ class _EcranProfilPhysiqueState extends State<EcranProfilPhysique> {
 
   Future<void> _enregistrer() async {
     final messenger = ScaffoldMessenger.of(context);
-    await ProfilPhysique(
+    final session = PorteeSession.action(context);
+    final profil = ProfilPhysique(
       poidsKg: double.tryParse(_poids.text.replaceAll(',', '.')),
       tailleCm: int.tryParse(_taille.text),
       age: int.tryParse(_age.text),
       sexe: _sexe,
-    ).enregistrer();
+    );
+    await profil.enregistrer();
+    // ⚠️ LA MONTRE SUIT, SINON ELLE GARDE L'ANCIEN POIDS. Ces valeurs ne
+    // passent jamais par le serveur : c'est le seul chemin qu'elles ont pour
+    // l'atteindre, et sans lui elle afficherait des calories calculées sur une
+    // saisie corrigée depuis longtemps.
+    await synchroniserMontre(jeton: await session.api.jetons.appareil(), profil: profil);
     if (!mounted) return;
     messenger.showSnackBar(
       const SnackBar(content: Text('Enregistré sur cet appareil.')),
@@ -75,7 +84,11 @@ class _EcranProfilPhysiqueState extends State<EcranProfilPhysique> {
   }
 
   Future<void> _effacer() async {
+    final session = PorteeSession.action(context);
     await ProfilPhysique.effacer();
+    // Le droit à l'effacement vaut aussi au poignet : un profil retiré du
+    // téléphone qui subsisterait sur la montre ne serait pas effacé du tout.
+    await synchroniserMontre(jeton: await session.api.jetons.appareil());
     if (!mounted) return;
     setState(() {
       _poids.clear();
