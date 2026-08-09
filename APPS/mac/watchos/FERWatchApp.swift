@@ -35,11 +35,18 @@ struct FERWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
+            // ⚠️ PAS DE NavigationStack, ET C'EST UN CORRECTIF.
+            // Sur un boîtier de 40 mm, un titre de navigation mange le tiers
+            // supérieur de l'écran — et il recouvrait le chrono, qui est
+            // justement ce qu'on vient lire. Il annonçait « Ma course » sur
+            // l'unique écran de l'application : une place prise pour rien.
+            // Sans lui, la zone sûre garde l'heure du système dégagée et le
+            // chrono occupe le haut.
+            Group {
                 if session.jetonAppareil == nil {
                     VueConnexionRequise()
                 } else {
-                    VueCourse()
+                    VuePrincipale()
                 }
             }
             .environmentObject(session)
@@ -55,18 +62,28 @@ struct FERWatchApp: App {
 /// un clavier ici serait imposer vingt caractères sur un écran de 40 mm.
 struct VueConnexionRequise: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "iphone.and.arrow.forward")
-                .font(.largeTitle)
-                .foregroundStyle(.pink)
-            Text("Ouvrez l'application sur votre iPhone")
-                .font(.headline)
-                .multilineTextAlignment(.center)
-            Text("La montre reprend votre connexion automatiquement.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        // ⚠️ ScrollView ET `fixedSize(vertical:)`, LES DEUX. Sur un boîtier de
+        // 40 mm, une VStack nue n'a pas la hauteur d'afficher trois éléments :
+        // SwiftUI ne remonte pas à la ligne, il TRONQUE — « Ouvrez
+        // l'application sur… ». Le ScrollView donne la hauteur, `fixedSize`
+        // interdit au texte de se laisser comprimer pour tenir dedans.
+        ScrollView {
+            VStack(spacing: 10) {
+                Image(systemName: "iphone.and.arrow.forward")
+                    .font(.title2)
+                    .foregroundStyle(.pink)
+                Text("Ouvrez l'application sur votre iPhone")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("La montre reprend votre connexion toute seule.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 8)
         }
-        .padding()
     }
 }

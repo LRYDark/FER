@@ -30,6 +30,7 @@ import 'course/mesures.dart';
 import 'course/suivi_course.dart';
 import 'models/course_app.dart';
 import 'models/modeles.dart';
+import 'pont_montre.dart';
 import 'reveil.dart';
 
 enum EtatSession {
@@ -99,6 +100,17 @@ class Session extends ChangeNotifier {
     await file.charger();
     await s._chargerEtatsMessages();
     await s._demarrer();
+
+    // ⚠️ À CHAQUE OUVERTURE, PAS SEULEMENT À LA CONNEXION. Une montre appairée
+    // des mois après coup n'aurait jamais vu passer le jeton, et resterait sur
+    // « Ouvrez l'application sur votre iPhone » sans qu'on comprenne pourquoi.
+    // `updateApplicationContext` ne transmet que si la valeur a changé : le
+    // répéter ne coûte rien.
+    await synchroniserMontre(
+      jeton: await jetons.appareil(),
+      profil: await ProfilPhysique.charger(),
+    );
+
     return s;
   }
 
@@ -327,6 +339,13 @@ class Session extends ChangeNotifier {
     );
     _etat = EtatSession.connecte;
     notifyListeners();
+    // La montre n'a ni clavier ni accès au poids : c'est le téléphone qui
+    // lui donne les deux. Rien ne dépend du résultat — sans montre
+    // appairée, l'appel ne fait rien du tout.
+    await synchroniserMontre(
+      jeton: await _api.jetons.appareil(),
+      profil: await ProfilPhysique.charger(),
+    );
     await rafraichir();
   }
 
@@ -360,6 +379,10 @@ class Session extends ChangeNotifier {
 
   Future<void> deconnexion() async {
     await suivi.arreter();
+    // ⚠️ AVANT `_api.deconnexion()`, qui efface le jeton : après, il n'y aurait
+    // plus rien à retirer, et la montre garderait le sien. Elle continuerait
+    // d'envoyer des passages de ligne sous une identité qu'on croit fermée.
+    await synchroniserMontre();
     await _api.deconnexion();
     // ⚠️ La file est purgée : les données de course d'un compte ne doivent pas
     // repartir sous l'identité de la personne qui se connectera ensuite.
