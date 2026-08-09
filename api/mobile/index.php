@@ -915,6 +915,38 @@ if (($route[0] ?? '') === 'me') {
         }
         krsort($vues);
 
+        /* ⚠️ LES MESSAGES ÉCARTÉS PAR CE COUREUR NE REMONTENT PAS.
+         *
+         * Le masquage était retenu par l'appareil — SharedPreferences sur le
+         * téléphone, localStorage dans le navigateur. Un message écarté sur
+         * l'ordinateur réapparaissait donc sur le mobile. Il est désormais
+         * porté par `participant_notifications_masquees`, et le filtre se fait
+         * ICI : chaque client reçoit déjà la liste nettoyée, sans avoir à
+         * refaire le tri de son côté.
+         *
+         * ⚠️ LES ÉPINGLÉS ÉCHAPPENT AU FILTRE, comme ils échappent déjà au
+         * bouton de suppression. Ce sont les informations qu'on relit la
+         * veille — rendez-vous, parking, retrait des T-shirts. */
+        $masques = [];
+        try {
+            $st = $pdo->prepare('SELECT notification_id
+                                   FROM participant_notifications_masquees
+                                  WHERE participant_id = ?');
+            $st->execute([$participantId]);
+            $masques = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        } catch (\Throwable $e) {
+            // Table absente : migration non jouée. On sert tout plutôt que de
+            // faire échouer la boîte de réception.
+            error_log('[API] masquees : ' . $e->getMessage());
+        }
+        if ($masques) {
+            $vues = array_filter(
+                $vues,
+                fn($n) => (int) $n['epingle'] === 1
+                       || !in_array((int) $n['id'], $masques, true)
+            );
+        }
+
         api_ok(array_values(array_map(fn($n) => [
             'id'        => (int) $n['id'],
             'annee'     => $n['annee'] === null ? null : (int) $n['annee'],
@@ -941,6 +973,58 @@ if (($route[0] ?? '') === 'me') {
         api_err(403, 'chrono_disabled',
             "Le chronométrage n'est pas ouvert pour le moment. Les temps et le suivi du "
             . "parcours ne sont proposés qu'autour de la course.");
+    }
+
+    /* DELETE /me/notifications/{id} — retirer un message de SA boîte.
+     *
+     * ⚠️ CE N'EST PAS UNE SUPPRESSION. Le message reste intact pour les autres
+     * coureurs. L'organisation publie pour tout le monde ; une consigne
+     * effaçable par son destinataire n'en serait plus une.
+     *
+     * ⚠️ UN ÉPINGLÉ NE SE RETIRE PAS. Ce sont les informations qu'on relit la
+     * veille — rendez-vous, parking. Les laisser masquer viderait justement la
+     * page où on va les rechercher. Le refus est explicite plutôt que silencieux :
+     * un client qui l'ignore doit l'apprendre, pas croire que ça a marché. */
+    if ($sousRoute === 'notifications' && isset($route[2]) && $methode === 'DELETE') {
+        $id = (int) $route[2];
+        if ($id <= 0) api_err(422, 'invalid_id', 'Identifiant de message invalide.');
+
+        $st = $pdo->prepare('SELECT epingle FROM app_notifications WHERE id = ? LIMIT 1');
+        $st->execute([$id]);
+        $epingle = $st->fetchColumn();
+        if ($epingle === false) api_err(404, 'not_found', 'Message introuvable.');
+        if ((int) $epingle === 1) {
+            api_err(409, 'message_epingle',
+                "Ce message est épinglé par l'organisation : il ne peut pas être retiré.");
+        }
+
+        $pdo->prepare('INSERT IGNORE INTO participant_notifications_masquees
+                         (participant_id, notification_id) VALUES (?, ?)')
+            ->execute([$participantId, $id]);
+
+        api_ok(['message' => 'Message retiré de votre boîte.']);
+    }
+
+    /* POST /me/notifications/{id}/restaurer — remettre un message écarté.
+     *
+     * ⚠️ SANS CETTE ROUTE, « ANNULER » NE DÉFAISAIT QUE LA COPIE LOCALE.
+     * Le bandeau du téléphone rendait le message à l'écran, mais le serveur le
+     * gardait masqué : il restait invisible sur le navigateur, et réapparaissait
+     * sur le téléphone au prochain rechargement. Un bouton qui annonce annuler
+     * doit annuler partout, sinon il ment.
+     *
+     * Une route explicite plutôt qu'un second sens donné à DELETE : « supprimer
+     * la suppression » se lit mal et s'appelle par erreur. */
+    if ($sousRoute === 'notifications' && isset($route[2])
+        && ($route[3] ?? '') === 'restaurer' && $methode === 'POST') {
+        $id = (int) $route[2];
+        if ($id <= 0) api_err(422, 'invalid_id', 'Identifiant de message invalide.');
+
+        $pdo->prepare('DELETE FROM participant_notifications_masquees
+                        WHERE participant_id = ? AND notification_id = ?')
+            ->execute([$participantId, $id]);
+
+        api_ok(['message' => 'Message remis dans votre boîte.']);
     }
 
     if ($sousRoute === 'detections' && $methode === 'POST') {

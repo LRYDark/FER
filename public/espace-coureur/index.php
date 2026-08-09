@@ -144,7 +144,7 @@ function ec_pillPaiement(array $r): string
            laisse `$parEdition` vide — et voyait donc « aucune inscription
            rattachée » juste sous son propre dossard. */ ?>
   <?php if (!$lignes): ?>
-    <div class="card">
+    <div class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-inbox"></i></div>
         <h2>Aucune inscription rattachée</h2>
@@ -241,7 +241,7 @@ function ec_pillPaiement(array $r): string
   <?php foreach ($parEdition as $annee => $groupes): ?>
     <?php foreach ($groupes as $membres): ?>
       <?php $estGroupe = count($membres) > 1; ?>
-      <section class="card">
+      <section class="card ec-bloc">
         <header>
           <div style="display:flex;align-items:center;gap:var(--sp-3);min-width:0">
             <div class="iconwell"><i class="bi <?= $estGroupe ? 'bi-people' : 'bi-person' ?>"></i></div>

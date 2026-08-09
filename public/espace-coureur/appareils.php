@@ -103,7 +103,7 @@ $date = fn($d) => $d ? date('d/m/Y à H:i', strtotime((string) $d)) : '—';
   <?php endif; ?>
 
   <?php if (!$appareils): ?>
-    <section class="card">
+    <section class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-phone"></i></div>
         <h2>Aucun appareil mémorisé</h2>

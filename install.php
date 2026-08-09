@@ -1354,6 +1354,38 @@ function getCreateTableStatements(): array
           INDEX `idx_annee` (`annee`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
+        /* Messages écartés par un coureur de SA boîte de réception.
+         *
+         * ═══════════════════════════════════════════════════════════════════
+         * POURQUOI UNE TABLE, ET PAS UN STOCKAGE LOCAL.
+         *
+         * La suppression était d'abord retenue par l'appareil —
+         * `SharedPreferences` sur le téléphone, `localStorage` dans le
+         * navigateur. Un message écarté sur l'ordinateur réapparaissait donc
+         * sur le mobile, et l'inverse. Une boîte de réception qui ne se
+         * souvient pas de ce qu'on en a retiré n'est pas une boîte.
+         *
+         * ⚠️ CE N'EST PAS UNE SUPPRESSION. Le message reste intact pour tous
+         * les autres coureurs : l'organisation publie pour tout le monde, et
+         * une consigne effaçable par son destinataire n'en serait plus une.
+         * Cette table ne dit qu'une chose : « untel ne veut plus le voir ».
+         *
+         * ⚠️ `ON DELETE CASCADE` DES DEUX CÔTÉS. Sur le participant, pour que
+         * la suppression d'un compte n'y laisse rien. Sur la notification, pour
+         * qu'un message effacé par l'administration n'y laisse pas des lignes
+         * pointant dans le vide — que `check-integrity` signalerait ensuite
+         * comme des orphelines. */
+        "CREATE TABLE IF NOT EXISTS `participant_notifications_masquees` (
+          `participant_id` INT NOT NULL,
+          `notification_id` INT NOT NULL,
+          `masque_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`participant_id`, `notification_id`),
+          CONSTRAINT `fk_pnm_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_pnm_notification` FOREIGN KEY (`notification_id`)
+            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
         // Chronométrage — alimenté plus tard par l'application mobile, mais créé
         // maintenant pour que l'API du lot 5 l'expose sans seconde migration.
         // DATETIME(3) = précision milliseconde. ⏱️ Toutes ces dates sont EN UTC.

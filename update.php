@@ -2104,6 +2104,21 @@ $lot1Tables = [
           INDEX `idx_annee` (`annee`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
+    /* Messages écartés par un coureur de SA boîte — voir install.php pour
+       le détail. Table ajoutée après coup : sans elle, une suppression
+       faite sur le téléphone ne suivait pas sur le navigateur. */
+    'participant_notifications_masquees' =>
+        "CREATE TABLE IF NOT EXISTS `participant_notifications_masquees` (
+          `participant_id` INT NOT NULL,
+          `notification_id` INT NOT NULL,
+          `masque_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`participant_id`, `notification_id`),
+          CONSTRAINT `fk_pnm_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_pnm_notification` FOREIGN KEY (`notification_id`)
+            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
     'editions' =>
         "CREATE TABLE IF NOT EXISTS `editions` (
           `id` INT AUTO_INCREMENT PRIMARY KEY,
