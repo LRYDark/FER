@@ -423,6 +423,21 @@ class ApiClient {
   /// chrono est le fait sportif, publié et classé ; le tracé est le chemin
   /// suivi. Le serveur fait la distinction, le client ne doit pas la brouiller
   /// dans ce qu'il annonce.
+  /// Retire un message de la boîte de CE coureur, sur tous ses appareils.
+  ///
+  /// ⚠️ CE N'EST PAS UNE SUPPRESSION : le message reste intact pour les autres.
+  /// Le serveur refuse les messages épinglés (409 `message_epingle`).
+  Future<void> masquerNotification(int id) =>
+      _appel('DELETE', 'me/notifications/$id');
+
+  /// Remet un message écarté, sur tous les appareils du coureur.
+  ///
+  /// ⚠️ INDISPENSABLE AU BOUTON « ANNULER ». Sans elle, le bandeau rendait le
+  /// message à l'écran mais le serveur le gardait masqué : il restait invisible
+  /// sur le navigateur, et réapparaissait au prochain rechargement.
+  Future<void> restaurerNotification(int id) =>
+      _appel('POST', 'me/notifications/$id/restaurer');
+
   Future<int> supprimerTraces() async {
     final d = await _appel('DELETE', 'me/traces') as Map<String, dynamic>;
     return (d['supprimes'] as num?)?.toInt() ?? 0;

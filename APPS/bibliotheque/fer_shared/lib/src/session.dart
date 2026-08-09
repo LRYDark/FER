@@ -611,10 +611,35 @@ class Session extends ChangeNotifier {
 
   Future<void> masquerMessage(int id) async {
     if (!_masques.add(id)) return;
+    // L'écran répond tout de suite ; l'aller-retour réseau suit.
     notifyListeners();
     final p = await SharedPreferences.getInstance();
     await p.setStringList(
         _cleMasques, _masques.map((e) => e.toString()).toList());
+
+    // ⚠️ ET SURTOUT : ON LE DIT AU SERVEUR.
+    //
+    // Le masquage n'était que local — propre à cet appareil. Un message écarté
+    // sur le téléphone réapparaissait donc sur le navigateur, et l'inverse.
+    // Il est désormais porté par le compte.
+    //
+    // Le stockage local reste, et n'est PAS redondant : il fait tenir le
+    // masquage hors ligne et évite que le message réapparaisse une seconde
+    // avant que le serveur ne réponde.
+    try {
+      await _api.masquerNotification(id);
+    } on ApiErreur catch (e) {
+      // Épinglé, ou réseau coupé. On rend la main : le message reparaîtra au
+      // prochain rechargement, ce qui est le comportement juste — il n'a pas
+      // été retiré côté serveur.
+      _masques.remove(id);
+      final p2 = await SharedPreferences.getInstance();
+      await p2.setStringList(
+          _cleMasques, _masques.map((e) => e.toString()).toList());
+      debugPrint('[FER] masquage refusé : ${e.code} ${e.message}');
+      notifyListeners();
+      rethrow;
+    }
   }
 
   /// Remet un message masqué. Sert au « Annuler » qui suit le balayage : sans
@@ -625,6 +650,27 @@ class Session extends ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     await p.setStringList(
         _cleMasques, _masques.map((e) => e.toString()).toList());
+
+    // ⚠️ ET ON LE DIT AU SERVEUR — c'est ce qui manquait.
+    //
+    // « Annuler » ne défaisait que la copie locale : le message revenait sur le
+    // téléphone, mais le serveur le gardait masqué. Il restait donc invisible
+    // sur le navigateur, et disparaissait à nouveau au rechargement suivant.
+    // Un bouton qui annonce annuler doit annuler partout.
+    try {
+      await _api.restaurerNotification(id);
+    } on ApiErreur catch (e) {
+      // Réseau coupé : on remet le masque local pour rester cohérent avec le
+      // serveur, qui n'a pas été prévenu. Mieux vaut un message encore masqué
+      // qu'un écran qui affiche l'inverse de ce qui est enregistré.
+      _masques.add(id);
+      final p2 = await SharedPreferences.getInstance();
+      await p2.setStringList(
+          _cleMasques, _masques.map((e) => e.toString()).toList());
+      debugPrint('[FER] restauration refusée : ${e.code} ${e.message}');
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> _chargerEtatsMessages() async {

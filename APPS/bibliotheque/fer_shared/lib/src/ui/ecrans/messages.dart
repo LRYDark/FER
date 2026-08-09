@@ -21,6 +21,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../models/course_app.dart';
+import '../../api/api_erreur.dart';
 import '../portee.dart';
 import '../theme.dart';
 
@@ -84,7 +85,16 @@ class EcranMessages extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onErrorContainer),
             ),
             onDismissed: (_) {
-              session.masquerMessage(m.id);
+              // `masquerMessage` remonte au serveur et REMET le message en cas
+              // de refus : on attrape ici pour le dire, sinon l'erreur
+              // remonterait sans que rien ne s'affiche.
+              session.masquerMessage(m.id).catchError((Object e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e is ApiErreur
+                      ? e.message
+                      : "Le retrait n'a pas pu être enregistré.")),
+                );
+              });
               // ⚠️ « ANNULER » N'EST PAS UN CONFORT. Un balayage part tout seul
               // en faisant défiler ; sans retour en arrière, une consigne de
               // course disparaîtrait sur un geste que personne n'a voulu.
@@ -92,7 +102,17 @@ class EcranMessages extends StatelessWidget {
                 content: const Text('Message retiré de votre boîte.'),
                 action: SnackBarAction(
                   label: 'Annuler',
-                  onPressed: () => session.demasquerMessage(m.id),
+                  // `demasquerMessage` remonte au serveur et REMET le masque
+                  // en cas d'échec : on attrape pour le dire, sinon l'erreur
+                  // partirait sans que rien ne s'affiche.
+                  onPressed: () =>
+                      session.demasquerMessage(m.id).catchError((Object e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e is ApiErreur
+                          ? e.message
+                          : "L'annulation n'a pas pu être enregistrée.")),
+                    );
+                  }),
                 ),
               ));
             },

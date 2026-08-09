@@ -118,7 +118,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
   <?php if ($interdit): ?>
-    <div class="card">
+    <div class="card ec-bloc">
       <header>
         <div class="iconwell" style="background:var(--danger-soft);color:var(--danger)">
           <i class="bi bi-shield-exclamation"></i>
@@ -132,7 +132,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </div>
 
   <?php elseif ($r === null): ?>
-    <div class="card">
+    <div class="card ec-bloc">
       <header>
         <div class="iconwell" style="background:var(--warn-soft);color:var(--warn)">
           <i class="bi bi-question-circle"></i>
@@ -152,7 +152,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
              colonne : un QR de 200 px et une liste de champs ne tiennent pas
              l'un à côté de l'autre sur un téléphone. */ ?>
     <div class="ec-duo">
-    <section class="card">
+    <section class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-card-list"></i></div>
         <h2>Détail de l'inscription</h2>
@@ -273,7 +273,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       $qrElig = fer_qrEligibilite($pdo, $qrSettings, $r['inscription_no']);
       $qr     = $qrElig['ok'] ? fer_qrCodeDataUri($r['inscription_no']) : '';
     ?>
-    <section class="card">
+    <section class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-qr-code"></i></div>
         <h2><?= $qrElig['ok'] ? 'Votre QR code' : 'Retrait des t-shirts' ?></h2>
@@ -352,7 +352,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </section>
     </div><?php /* .ec-duo */ ?>
 
-    <section class="card">
+    <section class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-arrow-left-right"></i></div>
         <h2>Transférer cette inscription</h2>

@@ -278,12 +278,19 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      Une LISTE, pas une pile de cartes : c'est une boîte de réception, et son
      seul intérêt est de voir d'un coup d'œil ce qu'on a reçu. */
   .ec-messages { list-style: none; margin: 0; padding: 0; }
+  /* ⚠️ PAS DE CARTE PAR MESSAGE — une boîte de réception est une LISTE.
+     
+     Un cadre par message donnait autant de boîtes que d'annonces, sur une page
+     dont le seul intérêt est de voir d'un coup d'œil ce qu'on a reçu. Le trait
+     de séparation suffit : c'est le même parti que dans l'application.
+
+     Le cadre reste sur l'état vide (« Aucun message »), qui est un bloc unique
+     et non un élément de liste. */
   .ec-msg {
     display: flex;
     align-items: flex-start;
     gap: var(--sp-3);
-    /* Plus de retrait latéral : sans cadre, le texte s'aligne sur le titre de
-       la page comme le reste du contenu. */
+    /* Sans cadre, le texte s'aligne sur le titre de la page comme le reste. */
     padding: var(--sp-3) 0;
     border-bottom: 1px solid var(--border);
   }

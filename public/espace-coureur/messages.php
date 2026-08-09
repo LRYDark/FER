@@ -29,9 +29,60 @@ require_once '../../src/content/course.php';
 
 pauth_require($pdo, 'messages.php');
 
+/* ⚠️ LE RETRAIT PASSE PAR LE SERVEUR, PLUS PAR `localStorage`.
+ *
+ * Il était retenu par le navigateur : un message écarté sur l'ordinateur
+ * réapparaissait sur le téléphone, et l'inverse. Il est désormais porté par le
+ * compte, dans `participant_notifications_masquees`, exactement comme dans
+ * l'application.
+ *
+ * ⚠️ UN ÉPINGLÉ NE SE RETIRE PAS : le contrôle est refait ICI et pas seulement
+ * dans l'affichage. Une requête forgée ne doit pas pouvoir masquer ce que
+ * l'organisation a explicitement désigné comme « à relire ». */
+$ecMsgRetire = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()
+    && isset($_POST['masquer'])) {
+    $idMasque = (int) $_POST['masquer'];
+    try {
+        $st = $pdo->prepare('SELECT epingle FROM app_notifications WHERE id = ? LIMIT 1');
+        $st->execute([$idMasque]);
+        $ep = $st->fetchColumn();
+        if ($ep === false) {
+            $ecMsgRetire = 'Message introuvable.';
+        } elseif ((int) $ep === 1) {
+            $ecMsgRetire = "Ce message est épinglé par l'organisation : il ne peut pas être retiré.";
+        } else {
+            $pdo->prepare('INSERT IGNORE INTO participant_notifications_masquees
+                             (participant_id, notification_id) VALUES (?, ?)')
+                ->execute([pauth_id(), $idMasque]);
+            $ecMsgRetire = 'Message retiré de votre boîte.';
+        }
+    } catch (\Throwable $e) {
+        error_log('[EC] masquage message : ' . $e->getMessage());
+        $ecMsgRetire = "Le retrait n'a pas pu être enregistré.";
+    }
+}
+
 $moi     = $_SESSION[PAUTH_SESSION_KEY];
 $annee   = (int) (course_lire($pdo)['annee'] ?? 0);
 $messages = notif_pourCoureur($pdo, $annee > 0 ? $annee : null);
+
+/* Les épinglés échappent au filtre, comme dans l'application : ce sont les
+   informations qu'on relit la veille. */
+try {
+    $st = $pdo->prepare('SELECT notification_id FROM participant_notifications_masquees
+                          WHERE participant_id = ?');
+    $st->execute([pauth_id()]);
+    $ecMasques = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    if ($ecMasques) {
+        $messages = array_values(array_filter($messages, fn($m) =>
+            !empty($m['epingle']) || !in_array((int) $m['id'], $ecMasques, true)));
+    }
+} catch (\Throwable $e) {
+    // Table absente : migration non jouée. On sert tout plutôt que de faire
+    // échouer la page.
+    error_log('[EC] masquees : ' . $e->getMessage());
+}
 
 $ecTitre    = "Messages de l'organisation";
 $ecSurtitre = trim(($moi['prenom'] ?? '') . ' ' . ($moi['nom'] ?? '')) ?: ($moi['email'] ?? '');
@@ -74,7 +125,7 @@ $ecQuand = static function (?string $iso): string {
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
   <?php if (!$messages): ?>
-    <div class="card">
+    <div class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-mailbox"></i></div>
         <h2>Aucun message</h2>
@@ -98,19 +149,6 @@ $ecQuand = static function (?string $iso): string {
     <?php /* ⚠️ AUCUN CADRE. Les messages se posent directement sur le fond du
              panneau : une carte autour d'une liste ajoute une boîte dans une
              boîte, et la page en portait déjà une. */ ?>
-    <?php /* Le vide affiché quand TOUT a été supprimé : le même que celui
-             d'une boîte qui n'a jamais rien reçu. Il n'y a pas lieu de
-             distinguer les deux — dans les deux cas, il n'y a rien à lire. */ ?>
-    <div class="card ec-nu" id="ecMsgVide" hidden>
-      <header>
-        <div class="iconwell"><i class="bi bi-mailbox"></i></div>
-        <h2>Aucun message</h2>
-      </header>
-      <div class="empty">
-        <p>Votre boîte est vide.</p>
-      </div>
-    </div>
-
     <ul class="ec-messages" id="ecMessages">
         <?php foreach ($messages as $m): ?>
           <?php [$icone, $classe] = $ecTypeInfo($m['type']); ?>
@@ -150,82 +188,6 @@ $ecQuand = static function (?string $iso): string {
         <?php endforeach; ?>
     </ul>
 
-    <?php /* ═══════════════════════════════════════════════════════════════
-             MASQUÉ DANS CE NAVIGATEUR, PAS SUPPRIMÉ SUR LE SERVEUR.
-
-             L'organisation publie pour tout le monde : un coureur retire une
-             annonce de SA boîte, il ne l'efface pour personne. Le serveur
-             n'expose d'ailleurs aucune suppression — une consigne de sécurité
-             effaçable par son destinataire n'en serait plus une.
-
-             ⚠️ C'EST DONC PROPRE À CE NAVIGATEUR, exactement comme la
-             suppression de l'application est propre à ce téléphone. Un coureur
-             qui supprime un message sur son ordinateur le reverra sur son
-             mobile. Faire mieux demanderait une table de masquage par compte
-             côté serveur ; ce n'est pas fait.
-
-             ⚠️ IL N'Y A PLUS DE « TOUT RÉAFFICHER ». Supprimer est définitif,
-             c'est ce qui a été demandé — et c'est cohérent avec le mot employé
-             sur le bouton. Le garde-fou est donc UNIQUEMENT la confirmation :
-             elle est la seule chose qui sépare un clic d'une perte, et elle ne
-             doit jamais être retirée.
-             ═══════════════════════════════════════════════════════════════ */ ?>
-    <script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
-    (function () {
-      var CLE   = 'fer_messages_masques';
-      var liste = document.getElementById('ecMessages');
-      var vide  = document.getElementById('ecMsgVide');
-      if (!liste) return;
-
-      function lus() {
-        try { return JSON.parse(localStorage.getItem(CLE) || '[]'); }
-        catch (e) { return []; }
-      }
-      function ecrire(v) {
-        try { localStorage.setItem(CLE, JSON.stringify(v)); } catch (e) {}
-      }
-      function majVide() {
-        var reste = liste.querySelectorAll('.ec-msg:not([hidden])').length;
-        if (vide) vide.hidden = reste > 0;
-        liste.hidden = reste === 0;
-      }
-
-      var masques = lus();
-      Array.prototype.forEach.call(liste.querySelectorAll('.ec-msg'), function (li) {
-        if (masques.indexOf(parseInt(li.dataset.id, 10)) !== -1) li.hidden = true;
-      });
-      majVide();
-
-      /* ⚠️ CONFIRMATION AVANT DE RETIRER.
-         La croix est petite et voisine du texte : un clic de trop faisait
-         disparaître un message sans le moindre recours visible. Sur mobile, le
-         balayage a son bandeau « Annuler » ; ici, il fallait l'équivalent.
-
-         La question dit CE QUI SE PASSE — retiré de VOTRE boîte, pas supprimé —
-         parce que c'est la seule chose qui compte pour décider. */
-      liste.addEventListener('click', function (e) {
-        var bouton = e.target.closest('.ec-msg-x');
-        if (!bouton) return;
-        var li = bouton.closest('.ec-msg');
-        var titre = (li.querySelector('.ec-msg-tete strong') || {}).textContent || '';
-
-        var ok = window.confirm(
-          'Supprimer « ' + titre.trim() + ' » ?\n\n'
-          + "Ce message disparaîtra définitivement de votre boîte. Il n'est pas "
-          + 'supprimé pour les autres coureurs.'
-        );
-        if (!ok) return;
-
-        var id = parseInt(li.dataset.id, 10);
-        var v  = lus();
-        if (v.indexOf(id) === -1) v.push(id);
-        ecrire(v);
-        li.hidden = true;
-        majVide();
-      });
-
-    })();
-    </script>
   <?php endif; ?>
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>

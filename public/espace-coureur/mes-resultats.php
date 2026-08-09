@@ -52,7 +52,7 @@ if (!chrono_actif($pdo)) {
     </head>
     <body>
     <?php include __DIR__ . '/_layout-haut.php'; ?>
-      <section class="card">
+      <section class="card ec-bloc">
         <header>
           <div class="iconwell"><i class="bi bi-stopwatch"></i></div>
           <h2>Le chronométrage n'est pas ouvert</h2>
@@ -232,7 +232,7 @@ $ecTopbarActions = $ecGpsAffiche
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
   <?php if (!$inscriptions): ?>
-    <section class="card">
+    <section class="card ec-bloc">
       <header>
         <div class="iconwell"><i class="bi bi-stopwatch"></i></div>
         <h2>Rien à afficher</h2>
