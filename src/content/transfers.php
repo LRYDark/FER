@@ -69,10 +69,21 @@ function xfer_deadlineInfo(PDO $pdo, int $annee): array
 {
     try {
         $st = $pdo->prepare(
+            /* ⚠️ `transferts_deadline_defaut_h = 0` SIGNIFIE « JAMAIS ».
+               Sans cette convention, il n'existait AUCUN moyen de laisser les
+               transferts ouverts : vider le réglage retombait sur le
+               `COALESCE(…, 24)`, donc sur 24 h avant la course. Une valeur par
+               défaut ne doit pas pouvoir se substituer à un choix explicite.
+
+               Zéro plutôt que NULL : la colonne est `NOT NULL DEFAULT 24`, et
+               « 0 heure avant la course » n'a par ailleurs aucun sens utile —
+               fermer les transferts à l'instant du départ revient à ne pas les
+               fermer, puisque `pprofile_courseDemarree()` prend le relais. */
             'SELECT d.deadline, (d.deadline IS NOT NULL AND d.deadline < NOW()) AS passee
                FROM (SELECT COALESCE(
                         e.transferts_deadline,
                         CASE WHEN e.date_course IS NOT NULL
+                              AND COALESCE(s.transferts_deadline_defaut_h, 24) > 0
                              THEN DATE_SUB(e.date_course, INTERVAL COALESCE(s.transferts_deadline_defaut_h, 24) HOUR)
                         END) AS deadline
                        FROM editions e

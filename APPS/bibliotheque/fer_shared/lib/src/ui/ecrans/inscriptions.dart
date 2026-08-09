@@ -35,6 +35,7 @@ import '../../models/modeles.dart';
 import '../portee.dart';
 import '../theme.dart';
 import 'course.dart';
+import 'transfert.dart';
 
 class EcranInscriptions extends StatelessWidget {
   const EcranInscriptions({super.key});
@@ -91,8 +92,28 @@ class EcranInscriptions extends StatelessWidget {
             ),
             const SizedBox(height: 28),
           ],
-          for (final annee in annees) ...<Widget>[
-            SectionFer('$annee'),
+          /* ══════════════════════════════════════════════════════════════
+           * LES ÉDITIONS PASSÉES NE SONT PLUS ICI.
+           *
+           * Cet écran sert à UNE chose : la course qui vient. Empiler dessous
+           * les années précédentes noyait le dossard du moment sous un
+           * historique qu'on ne consulte que rarement.
+           *
+           * Rien n'est perdu : dossard, montant payé, taille de T-shirt et
+           * ville ont rejoint l'onglet « Résultats », où chaque édition passée
+           * a désormais son bloc complet — le temps ET le reçu au même endroit.
+           * C'est là qu'on va pour « combien j'avais payé l'an dernier ? ».
+           *
+           * ⚠️ C'EST POURQUOI L'ONGLET « RÉSULTATS » NE DISPARAÎT PLUS hors
+           * période de chronométrage (voir accueil.dart) : sinon les éditions
+           * passées deviendraient invisibles onze mois sur douze.
+           *
+           * Les inscriptions de l'année en cours qui NE SONT PAS la vôtre —
+           * une famille inscrite sous votre adresse — restent affichées : ce
+           * sont des dossards à venir, pas de l'historique.
+           * ══════════════════════════════════════════════════════════════ */
+          for (final annee in annees.where((a) => a == active?.annee)) ...<Widget>[
+            SectionFer('Aussi inscrits sous votre adresse'),
             for (final i in parAnnee[annee]!) ...<Widget>[
               _LigneInscription(
                 inscription: i,
@@ -102,7 +123,7 @@ class EcranInscriptions extends StatelessWidget {
             ],
             const SizedBox(height: 24),
           ],
-          if (inscriptions.length > 1)
+          if (annees.any((a) => a == active?.annee))
             Text(
               'Plusieurs personnes partagent votre adresse email. Pour que '
               "l'une d'elles ait son propre espace, transférez son inscription "
@@ -110,6 +131,7 @@ class EcranInscriptions extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
+
         ],
       ),
     );
@@ -149,12 +171,12 @@ class _Hero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _Dossard(
+        _CarteInscription(
           inscription: inscription,
           info: info,
           // ⚠️ REPLI SUR LA DATE DE L'ÉDITION. `heureDepart` reste nulle tant
           // que l'organisation n'a pas publié l'heure du coup de feu — c'est le
-          // cas la plus grande partie de l'année. Sans ce repli, le dossard
+          // cas la plus grande partie de l'année. Sans ce repli, la carte
           // n'affichait aucune date, alors que le JOUR de la course, lui, est
           // connu de longue date. Un écran de course sans date n'a pas de sens.
           dateEdition: session.editionActive?.dateCourse,
@@ -171,17 +193,19 @@ class _Hero extends StatelessWidget {
   }
 }
 
-/* ────────────────────────────── le dossard ────────────────────────────────
+/* ────────────────────── la carte de l'inscription ─────────────────────────
  *
- * L'EN-TÊTE EST UN DOSSARD, PAS UNE FICHE.
+ * L'EN-TÊTE EST UNE CARTE, PAS UNE FICHE.
  *
- * Il n'y avait ici qu'un nom et une ligne « Dossard n° S1 » en petits
- * caractères. C'était exact, et parfaitement sans âme : rien ne distinguait
- * l'écran d'un formulaire administratif, alors qu'il s'agit de la seule chose
- * qu'on vient regarder vingt fois avant une course.
+ * Il n'y avait ici qu'un nom et une ligne « n° S1 » en petits caractères.
+ * C'était exact, et parfaitement sans âme : rien ne distinguait l'écran d'un
+ * formulaire administratif, alors qu'il s'agit de la seule chose qu'on vient
+ * regarder vingt fois avant une course.
  *
- * Le numéro prend donc la place qu'il a dans la réalité — celle du dossard
- * qu'on épinglera sur son maillot — et la DATE l'accompagne. Son absence était
+ * ⚠️ ON NE PARLE PAS DE « DOSSARD » : cette course n'en distribue pas. Le
+ * numéro est celui de l'INSCRIPTION, et c'est lui que le QR encode.
+ *
+ * Le numéro prend donc toute sa place, et la DATE l'accompagne. Son absence était
  * le vrai manque : un écran d'inscription à une course qui ne dit pas quand
  * elle a lieu oblige à aller la chercher ailleurs.
  *
@@ -192,8 +216,8 @@ class _Hero extends StatelessWidget {
  * une épreuve annuelle, l'attente FAIT partie de l'objet.
  * ────────────────────────────────────────────────────────────────────────── */
 
-class _Dossard extends StatelessWidget {
-  const _Dossard({required this.inscription, this.info, this.dateEdition});
+class _CarteInscription extends StatelessWidget {
+  const _CarteInscription({required this.inscription, this.info, this.dateEdition});
 
   final Inscription inscription;
   final InfoCourse? info;
@@ -273,7 +297,7 @@ class _Dossard extends StatelessWidget {
       'UID:fer-${inscription.annee}-${inscription.inscriptionNo}@forbachenrose.fr',
       champDebut,
       champFin,
-      'SUMMARY:$titre — dossard ${inscription.inscriptionNo}',
+      'SUMMARY:$titre — inscription n° ${inscription.inscriptionNo}',
       if (lieu.isNotEmpty) 'LOCATION:$lieu',
       'DESCRIPTION:Inscription n° ${inscription.inscriptionNo} '
           'au nom de ${inscription.nomComplet}.',
@@ -282,13 +306,22 @@ class _Dossard extends StatelessWidget {
     ].join('\r\n');
 
     try {
-      await Share.shareXFiles(<XFile>[
-        XFile.fromData(
-          Uint8List.fromList(utf8.encode(ics)),
-          mimeType: 'text/calendar',
-          name: 'forbach-en-rose-${inscription.annee}.ics',
-        ),
-      ]);
+      // ⚠️ `sharePositionOrigin` EST INDISPENSABLE SUR IPAD. La feuille de
+      // partage y est un popover : sans rectangle d'origine, iOS ne sait pas
+      // d'où la faire sortir et l'appel lève. Sur iPhone, il est ignoré.
+      final boite = context.findRenderObject() as RenderBox?;
+      await Share.shareXFiles(
+        <XFile>[
+          XFile.fromData(
+            Uint8List.fromList(utf8.encode(ics)),
+            mimeType: 'text/calendar',
+            name: 'forbach-en-rose-${inscription.annee}.ics',
+          ),
+        ],
+        sharePositionOrigin: boite == null
+            ? null
+            : boite.localToGlobal(Offset.zero) & boite.size,
+      );
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text("L'ajout à l'agenda n'a pas abouti : $e")),
@@ -328,7 +361,7 @@ class _Dossard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Le numéro, à la taille qu'il a sur un vrai dossard.
+          // Le numéro en grand : c'est l'identifiant qu'on cherche.
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -458,7 +491,7 @@ class _EtatAVenir extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        // ⚠️ PLUS DE COMPTE À REBOURS ICI : il est sur le dossard, avec la date.
+        // ⚠️ PLUS DE COMPTE À REBOURS ICI : il est sur la carte, avec la date.
         // Le laisser aux deux endroits ferait répéter la même information à
         // trois lignes d'écart.
         if (info != null) ...<Widget>[
@@ -473,7 +506,7 @@ class _EtatAVenir extends StatelessWidget {
                 '${info!.distanceKm!.toStringAsFixed(2).replaceAll('.', ',')} km',
                 icone: Icons.straighten),
           if (info!.retraitTshirt != null)
-            LigneFer('Dossards et T-shirts', info!.retraitTshirt!,
+            LigneFer('Retrait des T-shirts', info!.retraitTshirt!,
                 icone: Icons.checkroom_outlined),
           const SizedBox(height: 20),
         ],
@@ -508,11 +541,14 @@ class _EtatAVenir extends StatelessWidget {
             label: const Text('Voir mon inscription'),
           ),
 
+        // ⚠️ LA SECONDE PHRASE A ÉTÉ RETIRÉE : « votre dossard et votre QR
+        // code restent accessibles » désignait ce que le bouton juste au-dessus
+        // ouvre déjà. Rassurer sur ce qu'on vient d'offrir, c'est laisser
+        // croire qu'il y avait lieu de s'inquiéter.
         if (!pret) ...<Widget>[
           const SizedBox(height: 10),
           Text(
-            'Le suivi de course s\'activera aux abords de la course. Votre '
-            'dossard et votre QR code restent accessibles.',
+            'Le suivi de course s\'activera aux abords de la course.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -680,21 +716,99 @@ class _EtatTerminee extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        // ⚠️ MÉTHODE ET PRÉCISION VONT AVEC LE CHRONO, TOUJOURS. Un temps sans
-        // sa méthode laisse croire à une mesure unique et incontestable — et
-        // c'est exactement la phrase qu'on ne peut pas défendre devant un
-        // classement contesté. Même formulation que l'écran Résultats : deux
-        // libellés différents pour un même temps sèmeraient le doute.
-        Text(
-          '${resultat.methode.libelle} — ${resultat.methode.precision}'
-          '${resultat.precisionS != null ? ' · ±${resultat.precisionS} s' : ''}',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
+        // ⚠️ LA MENTION NE S'AFFICHE QUE SI ELLE APPORTE QUELQUE CHOSE — la
+        // même règle qu'à l'écran Résultats, portée par `Resultat.mentionUtile`.
+        // Sur un temps issu d'une vraie mesure (balise, GPS à la ligne), il n'y
+        // a aucune approximation à signaler. Sur un temps approché, elle reste
+        // obligatoire : c'est elle qui permet de défendre ou de corriger un
+        // classement contesté.
+        if (resultat.mentionUtile) ...<Widget>[
+          const SizedBox(height: 10),
+          Text(
+            resultat.mention,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
       ],
     );
   }
+}
+
+/// Deux champs côte à côte, à parts égales.
+///
+/// ⚠️ `IntrinsicHeight` VOLONTAIREMENT ABSENT : les deux colonnes n'ont pas à
+/// faire la même hauteur. Si l'une se replie sur deux lignes et l'autre non,
+/// c'est sans conséquence — elles sont alignées PAR LE HAUT, là où se trouvent
+/// les libellés, et c'est le seul alignement que l'œil suit.
+class _Paire extends StatelessWidget {
+  const _Paire({required this.gauche, required this.droite});
+
+  final Widget gauche;
+  final Widget droite;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(child: gauche),
+          const SizedBox(width: 20),
+          Expanded(child: droite),
+        ],
+      );
+}
+
+/// Le QR en plein écran, sur fond blanc.
+///
+/// ⚠️ FOND BLANC ET NOIR PUR, quel que soit le thème. Un lecteur de code lit un
+/// contraste, pas une couleur : un QR sombre sur fond sombre ne se lit plus, et
+/// on ne s'en aperçoit qu'au stand, le jour de la course, devant la file.
+///
+/// La page se ferme au toucher : au moment où on tend son téléphone, chercher
+/// une croix est un geste de trop.
+Future<void> _ouvrirQrEnGrand(BuildContext context, Uint8List png) {
+  return Navigator.of(context).push(PageRouteBuilder<void>(
+    opaque: false,
+    barrierColor: Colors.black87,
+    pageBuilder: (c, _, __) => GestureDetector(
+      onTap: () => Navigator.of(c).pop(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Image.memory(
+                        png,
+                        // `contain` : le QR occupe le plus grand carré possible
+                        // sans jamais être déformé — un module rectangulaire ne
+                        // se décode pas.
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 24),
+                child: Text(
+                  'Touchez pour fermer',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  ));
 }
 
 /* ───────────────────────── les éditions passées ───────────────────────── */
@@ -766,6 +880,14 @@ class _LigneInscription extends StatelessWidget {
 /// « information perdue ».
 bool _rempli(String? v) => v != null && v.trim().isNotEmpty;
 
+/// « 04/07/2026 à 00:00 » — le même format que le site, pour qu'un coureur qui
+/// compare les deux ne se demande pas s'il lit bien la même date.
+String _dateHeureCourte(DateTime d) {
+  final l = d.toLocal();
+  String d2(int n) => n.toString().padLeft(2, '0');
+  return '${d2(l.day)}/${d2(l.month)}/${l.year} à ${d2(l.hour)}:${d2(l.minute)}';
+}
+
 /* ════════════════════════════ Fiche détaillée ═══════════════════════════ */
 
 class EcranInscription extends StatefulWidget {
@@ -816,15 +938,42 @@ class _EcranInscriptionState extends State<EcranInscription> {
       // null laissait donc passer des lignes « Ville » et « Équipe » sans
       // valeur. Une étiquette suivie de rien ne se lit pas comme « non
       // renseigné » — elle se lit comme une information perdue.
+      // ⚠️ DEUX COLONNES POUR LES VALEURS COURTES.
+      //
+      // Tout empilé sur une seule colonne, la fiche s'étirait sur un écran
+      // entier pour huit informations dont la moitié tiennent en trois mots :
+      // « Homme », « 26 ans », « S1 », « 2026 ». Il fallait défiler pour voir
+      // ce qui aurait pu être lu d'un coup d'œil.
+      //
+      // Les valeurs longues — nom, ville, équipe, paiement — gardent toute la
+      // largeur : les mettre en demi-colonne les ferait se replier, et on
+      // retomberait sur le défaut qu'on vient de corriger.
       enfant: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           LigneFer('Nom', i.nomComplet),
-          LigneFer('Numéro de dossard', i.inscriptionNo),
-          LigneFer('Édition', '${i.annee}'),
-          if (_rempli(i.sexe)) LigneFer('Sexe', _sexe(i.sexe!)),
-          if (i.age != null) LigneFer('Âge', '${i.age} ans'),
-          if (_rempli(i.ville)) LigneFer('Ville', i.ville!),
-          if (_rempli(i.tshirt)) LigneFer('T-shirt', i.tshirt!),
+          _Paire(
+            gauche: LigneFer('Numéro', i.inscriptionNo),
+            droite: LigneFer('Édition', '${i.annee}'),
+          ),
+          if (_rempli(i.sexe) || i.age != null)
+            _Paire(
+              gauche: _rempli(i.sexe)
+                  ? LigneFer('Sexe', _sexe(i.sexe!))
+                  : const SizedBox.shrink(),
+              droite: i.age != null
+                  ? LigneFer('Âge', '${i.age} ans')
+                  : const SizedBox.shrink(),
+            ),
+          if (_rempli(i.ville) || _rempli(i.tshirt))
+            _Paire(
+              gauche: _rempli(i.ville)
+                  ? LigneFer('Ville', i.ville!)
+                  : const SizedBox.shrink(),
+              droite: _rempli(i.tshirt)
+                  ? LigneFer('T-shirt', i.tshirt!)
+                  : const SizedBox.shrink(),
+            ),
           if (_rempli(i.equipe)) LigneFer('Équipe', i.equipe!),
           LigneFer(
             'Paiement',
@@ -833,6 +982,51 @@ class _EcranInscriptionState extends State<EcranInscription> {
                 : '${i.paiementMode ?? 'Réglé'} · '
                     '${i.montantDu!.toStringAsFixed(2).replaceAll('.', ',')} €',
           ),
+
+          const SizedBox(height: 16),
+          // ⚠️ LE TRANSFERT SE TROUVE ICI PARCE QU'ON Y PENSE ICI. Il n'existait
+          // que dans « Mon compte » : quelqu'un qui regarde l'inscription de son
+          // conjoint et décide de la lui rendre devait deviner qu'il fallait
+          // ressortir et aller dans les réglages. C'est le même écran des deux
+          // côtés — mais ouvert d'ici, l'inscription est déjà désignée, et on ne
+          // risque plus de transférer celle du voisin.
+          // ⚠️ DÉSACTIVÉ QUAND LES TRANSFERTS SONT FERMÉS, comme sur le site.
+          // Le serveur refusait déjà — `xfer_creer()` applique la règle — mais
+          // seulement après avoir laissé saisir une adresse. Un bouton actif
+          // qui mène à un refus connu d'avance est une promesse qu'on ne tient
+          // pas.
+          Builder(builder: (context) {
+            final edition = PorteeSession.de(context).editionActive;
+            final fermes = edition != null && !edition.transfertsOuverts;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: fermes
+                      ? null
+                      : () => Navigator.of(context).push(
+                            MaterialPageRoute<bool>(
+                              builder: (_) => EcranTransfert(inscription: i),
+                            ),
+                          ),
+                  icon: const Icon(Icons.swap_horiz, size: 18),
+                  label: const Text('Transférer cette inscription'),
+                ),
+                if (fermes) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    edition.transfertsDeadline == null
+                        ? 'Les transferts sont fermés pour cette édition.'
+                        : 'La date limite de transfert est dépassée '
+                            '(${_dateHeureCourte(edition.transfertsDeadline!)}). '
+                            "Contactez l'organisation si c'est un cas particulier.",
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ],
+            );
+          }),
         ],
       ),
     );
@@ -850,31 +1044,81 @@ class _EcranInscriptionState extends State<EcranInscription> {
             );
           }
           if (snap.hasError) {
+            final e = snap.error;
+            // ⚠️ « PAS DE QR » N'EST PAS UNE PANNE.
+            //
+            // Le serveur répond 409 `qr_indisponible` quand l'organisation
+            // n'utilise pas les QR, quand l'inscription est gratuite, ou quand
+            // elle est arrivée après la limite de t-shirts — la même règle que
+            // le site et que le mail. Proposer « Réessayer » sur cette réponse
+            // ferait espérer qu'un QR finisse par arriver. Le message du
+            // serveur dit déjà pourquoi ; on le reprend tel quel.
+            if (e is ApiErreur && e.code == 'qr_indisponible') {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(e.message,
+                      style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Votre inscription reste valable — vous êtes attendu au '
+                    'départ.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              );
+            }
             return _Erreur(snap.error!, () => setState(() => _qr = _chargerQr()));
           }
-          return Column(
+          // ⚠️ `SizedBox(width: double.infinity)` EST INDISPENSABLE ICI.
+          //
+          // `crossAxisAlignment: center` seul ne suffisait pas : une colonne
+          // prend la largeur de son plus large enfant, et se centrer dans sa
+          // propre largeur ne déplace rien. La carte l'alignait ensuite à
+          // gauche, et le QR restait collé au bord — d'où l'impression qu'il
+          // n'était « toujours pas centré ».
+          //
+          // En forçant la colonne à occuper toute la largeur disponible, il y a
+          // enfin de la place à distribuer de part et d'autre.
+          return SizedBox(
+            width: double.infinity,
+            child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               // ⚠️ FOND BLANC IMPOSÉ. En thème sombre, un QR noir sur fond
               // sombre n'est plus lisible par un lecteur — et on ne s'en rend
               // compte qu'au stand, le jour de la course.
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Image.memory(
-                  snap.data!,
-                  width: 200,
-                  height: 200,
-                  // Un QR agrandi doit rester net : l'interpolation lisserait
-                  // les modules et le rendrait illisible.
-                  filterQuality: FilterQuality.none,
+              // ⚠️ TOUCHABLE POUR L'AGRANDIR. Au stand, on tend son téléphone
+              // à quelqu'un qui scanne : 200 px sur un écran incliné, avec la
+              // luminosité au minimum, se lisent mal. Le plein écran met le QR
+              // à la plus grande taille possible sur fond blanc.
+              InkWell(
+                onTap: () => _ouvrirQrEnGrand(context, snap.data!),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Image.memory(
+                    snap.data!,
+                    width: 200,
+                    height: 200,
+                    // Un QR agrandi doit rester net : l'interpolation lisserait
+                    // les modules et le rendrait illisible.
+                    filterQuality: FilterQuality.none,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
+              // Le bouton « Afficher en grand » a été retiré : l'image est
+              // elle-même touchable, et la phrase ci-dessous le dit. Un bouton
+              // pour ce qu'on obtient déjà en touchant l'objet fait doublon.
               Text(
-                'À présenter au retrait des dossards.',
+                'Touchez le code pour l\'afficher en grand.\n'
+                'À présenter au retrait des T-shirts.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context)
                     .textTheme
@@ -882,6 +1126,7 @@ class _EcranInscriptionState extends State<EcranInscription> {
                     ?.copyWith(color: Theme.of(context).colorScheme.outline),
               ),
             ],
+            ),
           );
         },
       ),
@@ -902,16 +1147,20 @@ class _EcranInscriptionState extends State<EcranInscription> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Expanded(child: detail),
-                    const SizedBox(width: marge),
                     SizedBox(width: 320, child: qr),
+                    const SizedBox(width: marge),
+                    Expanded(child: detail),
                   ],
                 ),
               )
             else ...<Widget>[
-              detail,
-              const SizedBox(height: marge),
+              // ⚠️ LE QR PASSE DEVANT LA FICHE. C'est ce qu'on vient chercher
+              // au stand de retrait, téléphone à la main, souvent en file :
+              // le faire défiler sous huit lignes d'état civil ajoutait un
+              // geste au pire moment. La fiche, elle, se consulte au calme.
               qr,
+              const SizedBox(height: marge),
+              detail,
             ],
             if (resultat != null) ...<Widget>[
               const SizedBox(height: marge),
@@ -985,6 +1234,24 @@ class _CarteCorrectionState extends State<_CarteCorrection> {
 
   @override
   Widget build(BuildContext context) {
+    // ⚠️ FERMÉ UNE FOIS LE DÉPART DONNÉ, comme sur le site.
+    //
+    // `pprofile_majInscription()` refuse déjà — sexe et âge déterminent la
+    // catégorie de classement, les changer en pleine course reviendrait à
+    // changer de catégorie. Mais le refus n'arrivait qu'après la saisie.
+    final partie = PorteeSession.de(context).infoCourse?.partie ?? false;
+    if (partie) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'La course a démarré : le sexe et l\'âge ne sont plus modifiables. '
+          "Contactez l'organisation pour toute correction.",
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      );
+    }
+
     if (!_ouvert) {
       return Align(
         alignment: Alignment.centerLeft,
@@ -1015,11 +1282,19 @@ class _CarteCorrectionState extends State<_CarteCorrection> {
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 8),
           SegmentedButton<String>(
+            // ⚠️ « AUTRE » MANQUAIT, ET LA BASE L'ACCEPTAIT DÉJÀ :
+            // `enum('H','F','Autre')`, validé par le serveur. Ne pas l'offrir
+            // obligeait une partie des coureurs à se ranger dans une case qui
+            // n'est pas la leur — pour un champ qui ne sert qu'au classement
+            // par catégorie.
+            //
+            // Les icônes disparaissent : il n'en existe pas de juste pour la
+            // troisième option, et deux entrées illustrées sur trois se lisent
+            // comme un oubli.
             segments: const <ButtonSegment<String>>[
-              ButtonSegment<String>(
-                  value: 'H', label: Text('Homme'), icon: Icon(Icons.male)),
-              ButtonSegment<String>(
-                  value: 'F', label: Text('Femme'), icon: Icon(Icons.female)),
+              ButtonSegment<String>(value: 'H', label: Text('Homme')),
+              ButtonSegment<String>(value: 'F', label: Text('Femme')),
+              ButtonSegment<String>(value: 'Autre', label: Text('Autre')),
             ],
             selected: <String>{if (_sexe != null) _sexe!},
             // Rien de sélectionné tant que le serveur n'a rien renvoyé : on
@@ -1077,15 +1352,15 @@ class _CarteResultat extends StatelessWidget {
               fontFeatures: chiffresFixes.fontFeatures,
             ),
           ),
-          const SizedBox(height: 4),
-          // ⚠️ LA MÉTHODE ACCOMPAGNE TOUJOURS LE TEMPS. Un temps extrapolé au
-          // GPS affiché nu passerait pour une mesure à la seconde près.
-          Text(
-            '${resultat.methode.libelle}'
-            '${resultat.precisionS != null ? ' · ±${resultat.precisionS} s' : ''}',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.outline),
-          ),
+          // Même règle que partout : voir `Resultat.mentionUtile`.
+          if (resultat.mentionUtile) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              resultat.mention,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline),
+            ),
+          ],
         ],
       ),
     );

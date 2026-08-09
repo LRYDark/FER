@@ -68,10 +68,14 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      composants de components.css. */
   .ec-stack { display: flex; flex-direction: column; gap: var(--sp-4); }
 
-  /* ── Le dossard ──────────────────────────────────────────────────────────
+  /* ── La carte de l'inscription ───────────────────────────────────────────
      Même objet que dans l'application : numéro en grand, nom, puis la date
      qui ouvre l'ajout à l'agenda. Quelqu'un qui passe du téléphone au
      navigateur doit reconnaître la même chose.
+
+     ⚠️ Les classes gardent le préfixe `ec-dossard-` : les renommer toucherait
+     le HTML de plusieurs pages sans rien changer à l'écran. Le mot ne paraît
+     nulle part dans l'interface.
 
      Les couleurs viennent des jetons d'accent (tokens.css) : le dossard suit
      donc l'accent choisi par le coureur, comme le reste de son espace. */
@@ -81,6 +85,31 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
     padding: var(--sp-4) var(--sp-5) var(--sp-2);
     margin-bottom: var(--sp-4);
   }
+  /* Libellé à gauche, action à droite. `wrap` : sur un écran étroit l'action
+     passe dessous plutôt que d'écraser le libellé. */
+  .ec-dossard-tete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+  }
+  .ec-dossard-voir {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 22%, var(--canvas));
+    color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+    font-size: var(--fs-small);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: opacity var(--dur-fast, .15s) ease;
+  }
+  .ec-dossard-voir:hover { opacity: .8; }
+
   .ec-dossard-edition {
     font-size: var(--fs-micro);
     font-weight: 800;
@@ -140,6 +169,179 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
     white-space: nowrap;
   }
   .ec-dossard-date .chev { opacity: 0.5; }
+
+  /* ⚠️ PAS DE CARTE AUTOUR DES INFOS PRATIQUES. Elles suivent immédiatement le
+     dossard et s'y rattachent : deux blocs encadrés l'un sous l'autre les
+     séparaient visuellement alors qu'ils ne font qu'un. Le dossard porte déjà
+     le fond coloré ; ce qui suit n'a besoin que d'espace. */
+  .ec-pratique { padding: 0 var(--sp-2); margin-bottom: var(--sp-5); }
+  .ec-pratique .rows .row { padding-left: 0; padding-right: 0; }
+  .ec-pratique .rows .row .sub { font-size: var(--fs-micro); color: var(--ink-faint); }
+  .ec-pratique .rows .row .title { font-weight: 600; }
+
+  /* ── Bloc sans cadre ─────────────────────────────────────────────────────
+     `.card` apporte le fond, la bordure, l'ombre ET l'espacement interne. On ne
+     retire donc pas la classe — on la neutralise visuellement, en gardant tout
+     ce qu'elle règle pour l'en-tête et les rangées.
+
+     ⚠️ POURQUOI DÉCADRER. Le panneau principal est DÉJÀ une carte : chaque
+     section encadrée à l'intérieur faisait une boîte dans une boîte, et l'œil
+     comptait les cadres au lieu de lire. Le titre et l'espace suffisent à
+     séparer — c'est le même parti que l'application. */
+  .ec-nu {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .ec-nu > .rows { border: 0; }
+
+  /* Le reçu de l'inscription, sur une ligne sous le nom. `wrap` : sur un
+     écran étroit les valeurs passent dessous au lieu d'être tronquées. */
+  .ec-recu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+    margin-top: var(--sp-2);
+    font-size: var(--fs-small);
+    color: var(--ink-soft, var(--ink));
+  }
+  .ec-recu b { font-weight: 600; color: var(--ink-faint); margin-right: 4px; }
+
+  /* Les trois chiffres qui suivent le chrono. En petit sous le temps, ils
+     passaient pour une note de bas de page — ici ils se lisent. */
+  /* ── Carte simple, à filet ───────────────────────────────────────────────
+     `.card` de components.css pose un fond, une ombre et une bordure : à
+     l'intérieur du panneau principal — qui est DÉJÀ une carte — cela fait une
+     boîte dans une boîte, avec une ombre qui n'a rien à porter.
+
+     `.ec-bloc` garde l'espacement de `.card` et ne conserve qu'un filet. C'est
+     le même parti que les éditions de « Mes résultats » et que l'application :
+     un trait pour délimiter, jamais un aplat. */
+  .ec-bloc {
+    background: transparent;
+    box-shadow: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+  }
+
+  /* ── Une carte par édition ───────────────────────────────────────────────
+     Même parti que l'application : un FILET, pas un aplat.
+
+     ⚠️ POURQUOI ENCADRER ICI ALORS QU'ON A TOUT DÉCADRÉ AILLEURS. Le principe
+     du projet est de séparer par le vide ; il tient tant qu'un écran présente
+     UNE chose. Cette page en empile trois ou quatre — une par édition, chacune
+     avec son chrono, ses chiffres et son reçu. Sans limite visible, on ne sait
+     plus où finit 2025 et où commence 2024, et le regard rattache les chiffres
+     à la mauvaise année.
+
+     ⚠️ LA RANGÉE DOIT POUVOIR PASSER À LA LIGNE. `.row` de components.css est
+     une rangée flex sans `wrap` : sur un écran étroit, les deux colonnes se
+     comprimaient jusqu'à couper les mots caractère par caractère. */
+  .ec-resultat {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: var(--sp-4);
+    margin-bottom: var(--sp-4);
+  }
+  .ec-resultat:last-child { margin-bottom: 0; }
+  /* `.rows > .row` pose un trait de séparation : deux traits pour une seule
+     limite feraient un double filet entre les cartes. */
+  .ec-nu .rows > .ec-resultat { border-bottom: 1px solid var(--border); }
+  .ec-resultat > .grow { flex: 1 1 260px; min-width: 0; }
+
+  /* Les trois chiffres sont DANS la colonne du chrono, sous lui — donc en face
+     du reçu, à droite. Ils ne prennent plus toute la largeur : le regard suit
+     une seule colonne au lieu de redescendre. */
+  .ec-chiffres {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--sp-2) var(--sp-4);
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+  }
+  .ec-chiffres > div { align-items: flex-end; }
+  .ec-chiffres > div { display: flex; flex-direction: column; align-items: flex-end; }
+  .ec-chiffres .v {
+    font-size: var(--fs-h4, 1.05rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .ec-chiffres .l { font-size: var(--fs-micro); color: var(--ink-faint); }
+
+  /* ── Boîte de réception ──────────────────────────────────────────────────
+     Une LISTE, pas une pile de cartes : c'est une boîte de réception, et son
+     seul intérêt est de voir d'un coup d'œil ce qu'on a reçu. */
+  .ec-messages { list-style: none; margin: 0; padding: 0; }
+  .ec-msg {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    /* Plus de retrait latéral : sans cadre, le texte s'aligne sur le titre de
+       la page comme le reste du contenu. */
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ec-msg:last-child { border-bottom: 0; }
+  .ec-msg[hidden] { display: none; }
+  .ec-msg-ico { margin-top: 2px; color: var(--accent); font-size: 1.05rem; }
+  .ec-msg.is-danger .ec-msg-ico { color: var(--danger, #dc2626); }
+  .ec-msg.is-warn   .ec-msg-ico { color: var(--warn, #d97706); }
+  .ec-msg.is-ok     .ec-msg-ico { color: var(--ok, #16a34a); }
+
+  .ec-msg-corps { flex: 1; min-width: 0; }
+  .ec-msg-tete {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+  .ec-msg-tete strong { font-weight: 650; }
+  .ec-msg-date { font-size: var(--fs-micro); color: var(--ink-faint); }
+  .ec-msg-corps p { margin: 2px 0 0; white-space: pre-line; }
+  .ec-msg-exp { font-size: var(--fs-micro); color: var(--ink-faint); }
+
+  /* La croix reste discrète : on ne retire pas un message par mégarde, mais on
+     ne doit pas non plus avoir à la chercher. */
+  .ec-msg-x {
+    flex: none;
+    border: 0;
+    background: transparent;
+    color: var(--ink-faint);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm, 8px);
+    line-height: 1;
+  }
+  .ec-msg-x:hover { background: var(--surface-2, rgba(0,0,0,.05)); color: var(--ink); }
+
+  /* ── Le QR en grand ──────────────────────────────────────────────────────
+     ⚠️ FOND BLANC ET NOIR PUR, quel que soit le thème. Un lecteur lit un
+     CONTRASTE, pas une couleur : un QR sombre sur fond sombre ne se décode
+     plus, et on ne s'en aperçoit qu'au stand, devant la file. */
+  .ec-qr-zoom {
+    border: 0; background: transparent; padding: 0; cursor: zoom-in;
+    border-radius: var(--radius-md, 12px); line-height: 0;
+  }
+  .ec-qr-plein {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: var(--sp-4);
+    background: #fff; cursor: zoom-out;
+  }
+  .ec-qr-plein[hidden] { display: none; }
+  .ec-qr-plein img {
+    /* Le plus grand carré possible, jamais déformé : un module rectangulaire
+       ne se décode pas. */
+    width: min(80vw, 80vh); height: auto; aspect-ratio: 1;
+    image-rendering: pixelated;
+  }
+  .ec-qr-plein span { color: #666; font-size: var(--fs-small); }
 
   /* ── Le pied de page reste EN BAS, même quand la page est courte ──────────
      « Mes inscriptions » avec une seule ligne tient dans un tiers d'écran : le

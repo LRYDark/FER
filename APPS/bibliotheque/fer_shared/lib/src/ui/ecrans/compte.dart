@@ -7,6 +7,9 @@ import '../../api/api_erreur.dart';
 import '../../models/modeles.dart';
 import '../portee.dart';
 import '../theme.dart';
+import 'modifier_compte.dart';
+import 'profil_physique.dart';
+import 'transfert.dart';
 
 class EcranCompte extends StatelessWidget {
   const EcranCompte({super.key});
@@ -24,6 +27,29 @@ class EcranCompte extends StatelessWidget {
           CarteFer(
             titre: 'Mon compte',
             icone: Icons.person_outline,
+            // ⚠️ UN FILET, PAS UN APLAT — même parti que « Mes résultats ».
+            //
+            // Cet écran empile cinq blocs indépendants : identité, transferts,
+            // appareils, suivi GPS, profil physique. Séparés par le seul vide,
+            // on ne voyait plus où finissait l'un et où commençait le suivant,
+            // et les boutons semblaient flotter entre deux rubriques.
+            //
+            // `fond: true` a été écarté ici comme ailleurs : `surfaceContainerLow`
+            // dérive de l'accent et donne, sur le rose du projet, un aplat qui
+            // délave le contenu sans le délimiter.
+            contour: true,
+            // ⚠️ L'APPLICATION NE FAISAIT QU'AFFICHER. Corriger une faute dans
+            // son nom ou changer d'adresse obligeait à sortir de l'application
+            // et à ouvrir le site — pour des champs que le serveur sait
+            // modifier depuis le premier jour.
+            action: IconButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                    builder: (_) => const EcranModifierCompte()),
+              ),
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Modifier mes informations',
+            ),
             enfant: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -44,6 +70,32 @@ class EcranCompte extends StatelessWidget {
           const _CarteAppareils(),
           const SizedBox(height: marge),
           const _CarteConsentementGps(),
+          const SizedBox(height: marge),
+
+          // ⚠️ CET ÉCRAN N'ÉTAIT ATTEIGNABLE QUE DEPUIS LE SUIVI DE COURSE —
+          // c'est-à-dire pendant la course, et seulement si le chronométrage
+          // était ouvert. Le poids qu'on y saisit sert pourtant à estimer les
+          // calories des courses PASSÉES : il fallait pouvoir le renseigner en
+          // dehors, et le corriger quand il change.
+          CarteFer(
+            titre: 'Mon profil physique',
+            icone: Icons.monitor_weight_outlined,
+            contour: true,
+            action: IconButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                    builder: (_) => const EcranProfilPhysique()),
+              ),
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Modifier',
+            ),
+            enfant: Text(
+              'Votre poids sert à estimer les calories dépensées. Il reste sur '
+              "cet appareil : il n'est jamais envoyé au serveur, et "
+              "l'organisation n'y a pas accès.",
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
           const SizedBox(height: marge),
           // ⚠️ PLUS DE CARTE « RAPPEL AVANT LA COURSE » ICI.
           //
@@ -127,32 +179,15 @@ class _CarteTransfertsState extends State<_CarteTransferts> {
         .then((l) => l.map(Transfert.depuisJson).toList());
   }
 
+  /// ⚠️ UN ÉCRAN, PLUS UNE FENÊTRE. Le transfert se déclenche aussi depuis la
+  /// fiche d'une inscription : enfermé dans une fenêtre privée de cet écran, il
+  /// aurait fallu le réécrire là-bas — et les deux copies auraient divergé.
   Future<void> _nouveau() async {
-    final session = PorteeSession.action(context);
-    final inscriptions = session.inscriptions;
-    if (inscriptions.isEmpty) return;
-
-    final resultat = await showDialog<_DemandeTransfert>(
-      context: context,
-      builder: (_) => _DialogueTransfert(inscriptions: inscriptions),
+    if (PorteeSession.action(context).inscriptions.isEmpty) return;
+    final envoye = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const EcranTransfert()),
     );
-    if (resultat == null || !mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await session.api.creerTransfert(
-        annee: resultat.inscription.annee,
-        inscriptionNo: resultat.inscription.inscriptionNo,
-        emailCible: resultat.email,
-      );
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Demande envoyée. Elle doit être acceptée par la '
-            'personne destinataire, depuis le lien reçu par mail.'),
-      ));
-      if (mounted) setState(_recharger);
-    } on ApiErreur catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    }
+    if ((envoye ?? false) && mounted) setState(_recharger);
   }
 
   Future<void> _annuler(int id) async {
@@ -173,6 +208,7 @@ class _CarteTransfertsState extends State<_CarteTransferts> {
     return CarteFer(
       titre: "Transférer une inscription",
       icone: Icons.swap_horiz,
+      contour: true,
       action: IconButton(
         onPressed: _nouveau,
         icon: const Icon(Icons.add),
@@ -217,82 +253,6 @@ class _CarteTransfertsState extends State<_CarteTransferts> {
   }
 }
 
-class _DemandeTransfert {
-  const _DemandeTransfert(this.inscription, this.email);
-
-  final Inscription inscription;
-  final String email;
-}
-
-class _DialogueTransfert extends StatefulWidget {
-  const _DialogueTransfert({required this.inscriptions});
-
-  final List<Inscription> inscriptions;
-
-  @override
-  State<_DialogueTransfert> createState() => _DialogueTransfertState();
-}
-
-class _DialogueTransfertState extends State<_DialogueTransfert> {
-  late Inscription _choisie = widget.inscriptions.first;
-  final _email = TextEditingController();
-
-  @override
-  void dispose() {
-    _email.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Transférer une inscription'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            DropdownButtonFormField<Inscription>(
-              value: _choisie,
-              decoration: const InputDecoration(labelText: 'Inscription'),
-              items: <DropdownMenuItem<Inscription>>[
-                for (final i in widget.inscriptions)
-                  DropdownMenuItem<Inscription>(
-                    value: i,
-                    child: Text('${i.annee} · ${i.nomComplet}'),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _choisie = v!),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Adresse email du destinataire',
-              ),
-            ),
-            const SizedBox(height: 12),
-            // La conséquence est annoncée AVANT la demande, pas après : c'est
-            // le moment où elle peut encore changer la décision.
-            Text(
-              "Vous perdrez l'accès à cette inscription une fois le transfert "
-              'accepté.',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler')),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-                context, _DemandeTransfert(_choisie, _email.text.trim())),
-            child: const Text('Envoyer la demande'),
-          ),
-        ],
-      );
-}
-
 /* ═══════════════════════════ Appareils ════════════════════════════════ */
 
 class _CarteAppareils extends StatefulWidget {
@@ -322,6 +282,7 @@ class _CarteAppareilsState extends State<_CarteAppareils> {
   Widget build(BuildContext context) => CarteFer(
         titre: 'Mes appareils',
         icone: Icons.devices_outlined,
+        contour: true,
         enfant: FutureBuilder<List<Appareil>>(
           future: _liste,
           builder: (context, snap) {
@@ -444,6 +405,57 @@ class _CarteConsentementGpsState extends State<_CarteConsentementGps> {
     if (ok ?? false) await _basculer(false);
   }
 
+  /// ⚠️ SUPPRESSION DÉFINITIVE : LA CONFIRMATION EST OBLIGATOIRE.
+  ///
+  /// Rien ne permet de revenir en arrière — les points sont effacés du serveur,
+  /// et l'application ne les a jamais gardés. La question dit donc ce qui part
+  /// ET ce qui reste : sans cette précision, beaucoup renonceraient de peur de
+  /// perdre leur chrono, ou l'accepteraient en croyant tout effacer.
+  Future<void> _confirmerSuppressionTraces() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Supprimer vos tracés GPS ?'),
+        content: const Text(
+          'Le chemin enregistré de vos courses passées sera effacé du serveur, '
+          'définitivement. Vous ne pourrez plus revoir votre parcours sur la '
+          'carte.\n\n'
+          'Vos temps, vos résultats et vos inscriptions ne sont PAS touchés : '
+          'vous restez au classement.',
+        ),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(c).colorScheme.error,
+              foregroundColor: Theme.of(c).colorScheme.onError,
+            ),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (!(ok ?? false)) return;
+
+    setState(() => _occupe = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final n = await PorteeSession.action(context).api.supprimerTraces();
+      messenger.showSnackBar(SnackBar(
+        content: Text(n == 0
+            ? "Aucun tracé enregistré : il n'y avait rien à supprimer."
+            : '$n tracé(s) supprimé(s). Vos temps et vos résultats sont conservés.'),
+      ));
+    } on ApiErreur catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _occupe = false);
+    }
+  }
+
   Future<void> _basculer(bool valeur) async {
     setState(() => _occupe = true);
     final session = PorteeSession.action(context);
@@ -477,6 +489,7 @@ class _CarteConsentementGpsState extends State<_CarteConsentementGps> {
     return CarteFer(
       titre: 'Suivi GPS pendant la course',
       icone: Icons.place_outlined,
+      contour: true,
       action: Pastille(
         autorise ? 'Autorisé' : 'Non autorisé',
         couleur: autorise ? Colors.green : null,
@@ -516,6 +529,24 @@ class _CarteConsentementGpsState extends State<_CarteConsentementGps> {
             ),
 
           const SizedBox(height: 14),
+          // ⚠️ LE DROIT À L'EFFACEMENT, ET IL MANQUAIT.
+          //
+          // Retirer l'autorisation empêche les tracés FUTURS mais laisse les
+          // anciens : l'écran le disait honnêtement, et c'était bien le
+          // problème — on annonçait une conservation sans offrir aucun moyen
+          // d'y mettre fin. Un tracé dit où quelqu'un se trouvait minute par
+          // minute ; c'est la donnée la plus intrusive que ce projet détienne.
+          TextButton.icon(
+            onPressed: _occupe ? null : _confirmerSuppressionTraces,
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text('Supprimer mes tracés enregistrés'),
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+              alignment: Alignment.centerLeft,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+          const SizedBox(height: 10),
           // Le texte suit le RÉGLAGE : annoncer un effacement qui n'a pas lieu
           // (ou l'inverse) est exactement ce que ce projet s'interdit.
           Text(

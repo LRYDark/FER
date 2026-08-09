@@ -26,6 +26,7 @@ import 'api/api_client.dart';
 import 'api/api_erreur.dart';
 import 'api/jetons.dart';
 import 'course/file_attente.dart';
+import 'course/mesures.dart';
 import 'course/suivi_course.dart';
 import 'models/course_app.dart';
 import 'models/modeles.dart';
@@ -469,6 +470,7 @@ class Session extends ChangeNotifier {
         _erreur = 'Chargement incomplet.\n${echecs.join('\n')}';
       }
 
+      await _completerProfilPhysique();
       await rafraichirNotifications();
     } on ApiErreur catch (e) {
       // Le chronométrage a pu se fermer entre-temps : ce n'est pas une panne,
@@ -498,6 +500,38 @@ class Session extends ChangeNotifier {
       _chargement = false;
       notifyListeners();
     }
+  }
+
+  /// Reprend l'âge et le sexe de l'inscription, s'ils manquent localement.
+  ///
+  /// ═══════════════════════════════════════════════════════════════════════
+  /// CE QUE LE SERVEUR SAIT DÉJÀ NE SE REDEMANDE PAS.
+  ///
+  /// L'âge et le sexe figurent sur l'inscription : les faire ressaisir à la
+  /// présentation du premier lancement serait poser deux fois la même question,
+  /// et exposerait à deux réponses différentes.
+  ///
+  /// ⚠️ LE POIDS ET LA TAILLE NE SONT JAMAIS REPRIS D'ICI : le serveur ne les
+  /// connaît pas, et ne doit pas les connaître. Ils viennent uniquement de ce
+  /// que le coureur saisit sur l'appareil.
+  ///
+  /// ⚠️ ON N'ÉCRASE JAMAIS UNE SAISIE LOCALE. Quelqu'un qui a corrigé son âge
+  /// sur le téléphone ne doit pas le voir revenir à la valeur de l'inscription
+  /// au prochain démarrage : on ne complète que ce qui est vide.
+  Future<void> _completerProfilPhysique() async {
+    final i = inscriptionActive;
+    if (i == null) return;
+    if (i.age == null && (i.sexe == null || i.sexe!.trim().isEmpty)) return;
+
+    final actuel = await ProfilPhysique.charger();
+    if (actuel.age != null && actuel.sexe != null) return;
+
+    await ProfilPhysique(
+      poidsKg: actuel.poidsKg,
+      tailleCm: actuel.tailleCm,
+      age: actuel.age ?? i.age,
+      sexe: actuel.sexe ?? i.sexe,
+    ).enregistrer();
   }
 
   /// Recharge les messages de l'organisation.
@@ -537,8 +571,9 @@ class Session extends ChangeNotifier {
   bool messageLu(int id) => _lus.contains(id);
 
   /// Nombre de messages non lus — la pastille de l'onglet.
-  int get messagesNonLus =>
-      _notifications.where((n) => !_lus.contains(n.id)).length;
+  int get messagesNonLus => _notifications
+      .where((n) => !_lus.contains(n.id) && !_masques.contains(n.id))
+      .length;
 
   Future<void> marquerLu(int id) async {
     if (_lus.contains(id)) return;
@@ -549,9 +584,56 @@ class Session extends ChangeNotifier {
         _cleLus, _lus.map((e) => e.toString()).toList());
   }
 
+  /* ─────────────────────── Messages masqués ─────────────────────────────
+   *
+   * ⚠️ MASQUÉS SUR CET APPAREIL, PAS SUPPRIMÉS SUR LE SERVEUR.
+   *
+   * L'organisation publie pour tout le monde ; un coureur ne peut pas effacer
+   * une annonce, il peut seulement la retirer de SA boîte. Le serveur n'expose
+   * d'ailleurs aucune suppression — et c'est heureux : une consigne de sécurité
+   * effaçable par son destinataire ne serait plus une consigne.
+   *
+   * ⚠️ LES ÉPINGLÉS NE SE MASQUENT PAS. Ce sont les informations qu'on relit la
+   * veille — rendez-vous, parking, retrait des dossards. Les laisser balayer
+   * viderait précisément la page où l'on va les rechercher, et le geste est
+   * trop facile pour être délibéré à chaque fois.
+   * ───────────────────────────────────────────────────────────────────────── */
+
+  Set<int> _masques = <int>{};
+
+  static const _cleMasques = 'fer_messages_masques';
+
+  /// Les messages visibles : tout ce qui n'a pas été écarté sur cet appareil.
+  List<NotificationCourse> get messagesVisibles =>
+      _notifications.where((n) => !_masques.contains(n.id)).toList();
+
+  bool peutMasquer(NotificationCourse n) => !n.epingle;
+
+  Future<void> masquerMessage(int id) async {
+    if (!_masques.add(id)) return;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setStringList(
+        _cleMasques, _masques.map((e) => e.toString()).toList());
+  }
+
+  /// Remet un message masqué. Sert au « Annuler » qui suit le balayage : sans
+  /// lui, un geste de trop serait définitif.
+  Future<void> demasquerMessage(int id) async {
+    if (!_masques.remove(id)) return;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setStringList(
+        _cleMasques, _masques.map((e) => e.toString()).toList());
+  }
+
   Future<void> _chargerEtatsMessages() async {
     final p = await SharedPreferences.getInstance();
     _lus = (p.getStringList(_cleLus) ?? const <String>[])
+        .map(int.tryParse)
+        .whereType<int>()
+        .toSet();
+    _masques = (p.getStringList(_cleMasques) ?? const <String>[])
         .map(int.tryParse)
         .whereType<int>()
         .toSet();

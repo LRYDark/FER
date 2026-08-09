@@ -16,8 +16,29 @@ import '../portee.dart';
 import '../theme.dart';
 import 'partage.dart';
 
-class EcranResultats extends StatelessWidget {
+class EcranResultats extends StatefulWidget {
   const EcranResultats({super.key});
+
+  @override
+  State<EcranResultats> createState() => _EcranResultatsState();
+}
+
+class _EcranResultatsState extends State<EcranResultats> {
+  /// Poids et taille, lus UNE fois pour toute la liste.
+  ///
+  /// ⚠️ CES DONNÉES NE QUITTENT JAMAIS L'APPAREIL. Le serveur ne connaît pas
+  /// votre poids et n'a aucun moyen de le demander : l'estimation se calcule
+  /// donc ICI, à partir de la distance, du temps et du dénivelé renvoyés par
+  /// l'API. C'est aussi pourquoi le site web ne peut pas l'afficher.
+  ProfilPhysique _profil = const ProfilPhysique();
+
+  @override
+  void initState() {
+    super.initState();
+    ProfilPhysique.charger().then((p) {
+      if (mounted) setState(() => _profil = p);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +75,11 @@ class EcranResultats extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(marge, marge, marge, margeBasListe),
         children: <Widget>[
           for (final entree in avecResultat.entries) ...<Widget>[
-            _CarteEdition(inscription: entree.key, resultat: entree.value),
+            _CarteEdition(
+              inscription: entree.key,
+              resultat: entree.value,
+              profil: _profil,
+            ),
             const SizedBox(height: marge),
           ],
           // ⚠️ LE CONSENTEMENT AU SUIVI GPS N'EST PLUS ICI.
@@ -72,11 +97,92 @@ class EcranResultats extends StatelessWidget {
   }
 }
 
+/// Une valeur est-elle reellement renseignee ? Le serveur renvoie une chaine
+/// VIDE, et non `null`, pour une ville ou une equipe non saisies.
+bool _rempli(String? v) => v != null && v.trim().isNotEmpty;
+
+/// Deux champs cote a cote, alignes par le HAUT — la ou sont les libelles.
+class _Paire extends StatelessWidget {
+  const _Paire({required this.gauche, required this.droite});
+
+  final Widget gauche;
+  final Widget droite;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(child: gauche),
+          const SizedBox(width: 20),
+          Expanded(child: droite),
+        ],
+      );
+}
+
+/// Un chiffre en grand, son libelle dessous.
+class _Chiffre extends StatelessWidget {
+  const _Chiffre(this.valeur, this.libelle);
+
+  final String valeur;
+  final String libelle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(valeur,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontFeatures: chiffresFixes.fontFeatures,
+            )),
+        Text(libelle,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      ],
+    );
+  }
+}
+
 class _CarteEdition extends StatelessWidget {
-  const _CarteEdition({required this.inscription, this.resultat});
+  const _CarteEdition({
+    required this.inscription,
+    required this.profil,
+    this.resultat,
+  });
 
   final Inscription inscription;
   final Resultat? resultat;
+  final ProfilPhysique profil;
+
+  /// Estimation en kilocalories, ou `null` si le poids n'est pas renseigné.
+  ///
+  /// ⚠️ ON N'INVENTE PAS UN POIDS MOYEN pour afficher un chiffre : sans poids,
+  /// l'estimation serait celle de quelqu'un d'autre. `Calories` renvoie `—`, et
+  /// on n'affiche alors rien du tout.
+  String? _calories(Resultat? r) {
+    if (r == null || !profil.utilisable) return null;
+    final d = r.distanceM?.toDouble();
+    final t = r.tempsS;
+    if (d == null || t == null || d <= 0 || t <= 0) return null;
+
+    final c = Calories(profil)
+      ..ajouter(
+        distanceM: d,
+        secondes: t,
+        deniveleM: (r.denivelePositifM ?? 0).toDouble(),
+      );
+    // ⚠️ LA MARGE N'EST PLUS AFFICHÉE — décision de l'organisation. Il ne reste
+    // donc QUE LE TILDE pour dire que c'est une estimation : `~487 kcal`. Il
+    // est désormais le dernier signe, et `Calories.libelle` est le seul endroit
+    // où il se pose. Le retirer ferait passer le chiffre pour une mesure, alors
+    // que l'équation ignore le terrain, le vent, la foulée et l'entraînement.
+    //
+    // `mentionPrecision` reste disponible dans `Calories` si l'on veut la
+    // réafficher un jour — elle n'est simplement plus lue ici.
+    return c.disponible ? c.libelle : null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,11 +193,27 @@ class _CarteEdition extends StatelessWidget {
       titre: 'Édition ${inscription.annee}',
       icone: Icons.emoji_events_outlined,
       action: _pastille(r),
+      // ⚠️ UN FILET, PAS UN APLAT.
+      //
+      // Le parti pris général est de séparer par le vide. Il tient tant qu'un
+      // écran présente UNE chose ; ici, il en empile trois ou quatre — une par
+      // édition — chacune avec son chrono, ses chiffres et son reçu. Sans
+      // limite visible, on ne sait plus où finit 2025 et où commence 2024, et
+      // le regard rattache les chiffres à la mauvaise année.
+      //
+      // ⚠️ `fond: true` A ÉTÉ ESSAYÉ ET REJETÉ. `surfaceContainerLow` dérive de
+      // l'accent : sur le rose du projet, elle donne un bloc à peine plus foncé
+      // que la page — assez pour délaver le contenu, pas assez pour le séparer.
+      // Le filet, lui, ne teinte rien et dit exactement où sont les bords.
+      //
+      // C'est le seul endroit du projet où une carte encadre un objet RÉPÉTÉ.
+      // Ailleurs, elle ferait une boîte dans une boîte.
+      contour: true,
       enfant: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            '${inscription.nomComplet} · n° ${inscription.inscriptionNo}',
+            inscription.nomComplet,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.outline),
           ),
@@ -104,42 +226,124 @@ class _CarteEdition extends StatelessWidget {
                 fontFeatures: chiffresFixes.fontFeatures,
               ),
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: <Widget>[
-                Icon(
-                  r.methode.estApproche
-                      ? Icons.satellite_alt_outlined
-                      : Icons.sensors,
-                  size: 15,
-                  color: theme.colorScheme.outline,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '${r.methode.libelle} — ${r.methode.precision}'
-                    '${r.precisionS != null ? ' · ±${r.precisionS} s' : ''}',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  ),
-                ),
-              ],
-            ),
-            if (r.distanceM != null || r.denivelePositifM != null) ...<Widget>[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 14,
+            // ⚠️ LA MENTION NE S'AFFICHE QUE SI ELLE APPORTE QUELQUE CHOSE.
+            // « Balise · ±1 s » sous un chrono issu d'une vraie mesure n'est
+            // qu'un mot de plus. Sur un temps approché, c'est indispensable —
+            // voir `Resultat.mentionUtile`.
+            if (r.mentionUtile) ...<Widget>[
+              const SizedBox(height: 6),
+              Row(
                 children: <Widget>[
-                  if (r.distanceM != null)
-                    Text('${(r.distanceM! / 1000).toStringAsFixed(2)
-                        .replaceAll('.', ',')} km',
-                        style: theme.textTheme.bodySmall),
-                  if (r.denivelePositifM != null)
-                    Text('${r.denivelePositifM} m D+',
-                        style: theme.textTheme.bodySmall),
+                  Icon(Icons.satellite_alt_outlined,
+                      size: 15, color: theme.colorScheme.outline),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      r.mention,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline),
+                    ),
+                  ),
                 ],
               ),
             ],
+            // Distance, dénivelé et allure : les trois chiffres qu'on
+            // regarde après le chrono. En petit sous le temps, ils passaient
+            // pour une note de bas de page.
+            /* ═══════════════════════════════════════════════════════════════
+             * DEUX LIGNES DE DEUX, PAS QUATRE COLONNES.
+             *
+             * Quatre `Expanded` se partageaient la largeur à parts égales, mais
+             * les valeurs ne font pas la même longueur : « 84 m » tient dans un
+             * quart d'écran, « ~563 kcal » non. Résultat, le dernier chiffre se
+             * repliait sur deux lignes et les libellés ne s'alignaient plus.
+             *
+             * Un `Wrap` avec des cases de DEMI-LARGEUR règle les deux : chaque
+             * chiffre a la place de tenir sur une ligne, et les cases se
+             * réorganisent d'elles-mêmes quand il n'y en a que deux ou trois.
+             * ═══════════════════════════════════════════════════════════════ */
+            if (r.distanceM != null || r.denivelePositifM != null) ...<Widget>[
+              const SizedBox(height: 16),
+              LayoutBuilder(
+                builder: (context, contraintes) {
+                  const espace = 16.0;
+                  final demi = (contraintes.maxWidth - espace) / 2;
+                  final chiffres = <Widget>[
+                    if (r.distanceM != null)
+                      _Chiffre(
+                        '${(r.distanceM! / 1000).toStringAsFixed(2)
+                            .replaceAll('.', ',')} km',
+                        'Distance',
+                      ),
+                    if (r.denivelePositifM != null)
+                      _Chiffre('${r.denivelePositifM} m', 'Dénivelé +'),
+                    // `formaterAllure` rend `null` sur une distance nulle : on
+                    // n'affiche alors rien plutôt qu'un tiret sans signification.
+                    if (r.distanceM != null && r.tempsS != null)
+                      _Chiffre(
+                        formaterAllure(r.distanceM!.toDouble(),
+                                Duration(seconds: r.tempsS!.round())) ??
+                            '—',
+                        'Allure /km',
+                      ),
+                    if (_calories(r) != null)
+                      _Chiffre(_calories(r)!, 'Calories'),
+                  ];
+                  return Wrap(
+                    spacing: espace,
+                    runSpacing: 14,
+                    children: <Widget>[
+                      for (final c in chiffres) SizedBox(width: demi, child: c),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ],
+
+          /* ═══════════════════════════════════════════════════════════════════
+           * LE REÇU DE L'INSCRIPTION, ICI ET PLUS DANS LA LISTE DES DOSSARDS.
+           *
+           * ⚠️ AFFICHÉ MÊME SANS RÉSULTAT — hors du bloc conditionnel ci-dessus.
+           * Un abandon, un non-partant, une édition sans chronométrage : dans
+           * ces cas, c'est la SEULE trace qu'on a participé et payé. C'est aussi
+           * une preuve de paiement, et elle ne doit dépendre de rien.
+           * ═══════════════════════════════════════════════════════════════════ */
+          const SizedBox(height: 12),
+          const Divider(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(child: LigneFer('Numéro', inscription.inscriptionNo)),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: LigneFer(
+                  'Paiement',
+                  inscription.estGratuite
+                      ? 'Gratuit'
+                      : '${inscription.paiementMode ?? 'Réglé'} · '
+                          '${inscription.montantDu!.toStringAsFixed(2).replaceAll('.', ',')} €',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: LigneFer('T-shirt',
+                    _rempli(inscription.tshirt) ? inscription.tshirt! : '—'),
+              ),
+            ],
+          ),
+          if (_rempli(inscription.ville) || _rempli(inscription.equipe))
+            _Paire(
+              gauche: _rempli(inscription.ville)
+                  ? LigneFer('Ville', inscription.ville!)
+                  : const SizedBox.shrink(),
+              droite: _rempli(inscription.equipe)
+                  ? LigneFer('Équipe', inscription.equipe!)
+                  : const SizedBox.shrink(),
+            ),
+
+          if (r != null && r.chronoAffichable) ...<Widget>[
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerLeft,
@@ -158,6 +362,12 @@ class _CarteEdition extends StatelessWidget {
                           ? formaterAllure(r.distanceM!.toDouble(),
                               Duration(seconds: r.tempsS!.round()))
                           : null,
+                      // ⚠️ AVEC LA MARGE, ET C'EST LE CAS OÙ ELLE COMPTE LE
+                      // PLUS. La carte quitte l'application : elle circule dans
+                      // une conversation, sans rien pour recouper. Un « ~487
+                      // kcal » nu y passerait pour une mesure, et l'image ne se
+                      // rattrape pas une fois partagée.
+                      calories: _calories(r),
                     ),
                   ),
                 ),

@@ -602,7 +602,17 @@ if (($route[0] ?? '') === 'editions') {
         'arrivee'            => $e['lat_arrivee'] !== null
             ? ['lat' => (float) $e['lat_arrivee'], 'lon' => (float) $e['lon_arrivee']] : null,
         'temps_min_plausible_s' => $e['temps_min_plausible_s'] !== null ? (int) $e['temps_min_plausible_s'] : null,
-        'transferts_deadline'   => api_date($e['transferts_deadline']),
+        /* ⚠️ LA DATE CALCULÉE, PAS LA COLONNE BRUTE.
+         *
+         * `editions.transferts_deadline` est le plus souvent VIDE : la limite
+         * réelle se déduit alors de `date_course` moins le réglage
+         * `transferts_deadline_defaut_h`. Le site passe par `xfer_deadline()`,
+         * qui fait ce calcul ; l'API envoyait la colonne telle quelle.
+         *
+         * L'application recevait donc `null` — « aucune limite » — et
+         * proposait un transfert que le serveur refusait ensuite. Le site
+         * bloquait, l'application non : deux réponses pour une seule règle. */
+        'transferts_deadline'   => api_date(xfer_deadline($pdo, (int) $e['annee'])),
         'active'                => (int) $e['is_active'] === 1,
     ];
 
@@ -698,6 +708,36 @@ if (($route[0] ?? '') === 'me') {
         if ($r === null) api_err(404, 'not_found', 'Inscription introuvable.');
 
         if (($route[4] ?? '') === 'qrcode' && $methode === 'GET') {
+            /* ⚠️ L'ÉLIGIBILITÉ MANQUAIT ICI, ET L'ÉCART SE VOYAIT À L'ŒIL NU.
+             *
+             * Le site consulte `fer_qrEligibilite()` — la règle qui régit déjà
+             * l'envoi des mails : mode `none`, inscription gratuite, ou arrivée
+             * après la limite de t-shirts. L'API, elle, fabriquait le QR sans
+             * rien demander. Résultat : le site annonçait « les QR codes ne sont
+             * pas utilisés pour cette édition » pendant que l'application en
+             * affichait un.
+             *
+             * Un QR présenté au stand alors que l'organisation ne les utilise
+             * pas, c'est une personne qui tend son téléphone pour rien et un
+             * bénévole qui doit expliquer. La règle est UNE, elle vit dans
+             * `fer_qrEligibilite()`, et tout le monde la lit au même endroit. */
+            /* Même source que le mail, le site et le chatbot : la ligne
+               `setting`. `pauth_settings()` ne porte pas ces deux colonnes. */
+            $qrSet = $pdo->query('SELECT qrcode_mail_mode, qrcode_mail_limit
+                                    FROM setting WHERE id = 1 LIMIT 1')
+                         ->fetch(PDO::FETCH_ASSOC) ?: [];
+            $elig = fer_qrEligibilite($pdo, $qrSet, $r['inscription_no']);
+            if (!$elig['ok']) {
+                api_err(409, 'qr_indisponible', match ($elig['raison']) {
+                    'hors_limite' => 'Les t-shirts sont réservés aux '
+                        . (int) $elig['limite'] . ' premières inscriptions payantes : '
+                        . "la vôtre est arrivée après, il n'y a donc pas de QR code.",
+                    'non_payant'  => 'Le t-shirt accompagne les inscriptions payantes. '
+                        . "La vôtre étant gratuite, il n'y a pas de QR code.",
+                    'introuvable' => "Cette édition est terminée : le QR code n'a plus d'usage.",
+                    default       => 'Les QR codes ne sont pas utilisés pour cette édition.',
+                });
+            }
             // Même générateur que le mail et l'espace web : un seul QR possible.
             $png = fer_qrCodePngBytes($r['inscription_no']);
             if ($png === null) api_err(500, 'qr_error', 'QR code indisponible.');
@@ -966,6 +1006,60 @@ if (($route[0] ?? '') === 'me') {
     /* POST /me/traces — lot de points GPS.
        Idempotent : seuls les points postérieurs au dernier point connu sont
        retenus. Renvoyer un lot déjà reçu n'ajoute donc rien. */
+    /* DELETE /me/traces — efface les tracés GPS du coureur.
+     *
+     * ═══════════════════════════════════════════════════════════════════════
+     * LE DROIT À L'EFFACEMENT, ET IL MANQUAIT.
+     *
+     * Retirer le consentement empêchait les tracés FUTURS, mais laissait les
+     * anciens en base — l'écran le disait honnêtement, et c'était bien le
+     * problème : on annonçait une conservation sans offrir aucun moyen d'y
+     * mettre fin. Le RGPD (article 17) donne ce droit, et un tracé GPS dit où
+     * quelqu'un se trouvait minute par minute : c'est la donnée la plus
+     * intrusive que ce projet détienne.
+     *
+     * ⚠️ LES TEMPS ET RÉSULTATS NE SONT PAS TOUCHÉS. Ce sont deux choses
+     * distinctes : le chrono est le fait sportif, publié et classé ; le tracé
+     * est le chemin suivi. Effacer l'un en supprimant l'autre ferait
+     * disparaître quelqu'un du classement pour avoir demandé la suppression
+     * d'une carte.
+     *
+     * Sans année précisée, TOUT est effacé — c'est la demande la plus
+     * courante, et exiger de le faire édition par édition reviendrait à rendre
+     * le droit pénible à exercer, ce que le règlement n'admet pas.
+     * ═══════════════════════════════════════════════════════════════════════ */
+    if ($sousRoute === 'traces' && $methode === 'DELETE') {
+        $inscriptions = pauth_registrations($pdo, $participantId);
+        if (!$inscriptions) api_ok(['supprimes' => 0]);
+
+        $annee = isset($route[2]) ? (int) $route[2] : null;
+
+        $conds = [];
+        $args  = [];
+        foreach ($inscriptions as $r) {
+            if ($annee !== null && (int) $r['annee'] !== $annee) continue;
+            $conds[] = '(annee = ? AND inscription_no = ?)';
+            $args[]  = (int) $r['annee'];
+            $args[]  = (string) $r['inscription_no'];
+        }
+        if (!$conds) api_ok(['supprimes' => 0]);
+
+        // ⚠️ LA CLAUSE PORTE SUR LES INSCRIPTIONS DU COMPTE, jamais sur une
+        // année seule : sans cela, une requête forgée effacerait les tracés de
+        // toute une édition.
+        $st = $pdo->prepare('DELETE FROM traces_gps WHERE ' . implode(' OR ', $conds));
+        $st->execute($args);
+        $n = $st->rowCount();
+
+        api_log("traces GPS supprimees ($n) (compte $participantId)");
+        api_ok([
+            'supprimes' => $n,
+            'message'   => $n === 0
+                ? "Aucun tracé enregistré : il n'y avait rien à supprimer."
+                : "$n tracé(s) supprimé(s). Vos temps et vos résultats sont conservés.",
+        ]);
+    }
+
     if ($sousRoute === 'traces' && !isset($route[2]) && $methode === 'POST') {
         $annee  = (int) ($corps['annee'] ?? 0);
         $no     = trim((string) ($corps['inscription_no'] ?? ''));

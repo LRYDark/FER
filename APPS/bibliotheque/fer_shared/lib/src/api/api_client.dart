@@ -417,6 +417,17 @@ class ApiClient {
   /// Donne ou retire l'accord au suivi GPS. Une trace dit où quelqu'un se
   /// trouvait minute par minute : elle ne s'enregistre pas parce que
   /// l'application l'a décidé.
+  /// Efface les tracés GPS du compte. Renvoie le nombre de tracés supprimés.
+  ///
+  /// ⚠️ NE TOUCHE NI AUX TEMPS NI AUX RÉSULTATS. Ce sont deux choses : le
+  /// chrono est le fait sportif, publié et classé ; le tracé est le chemin
+  /// suivi. Le serveur fait la distinction, le client ne doit pas la brouiller
+  /// dans ce qu'il annonce.
+  Future<int> supprimerTraces() async {
+    final d = await _appel('DELETE', 'me/traces') as Map<String, dynamic>;
+    return (d['supprimes'] as num?)?.toInt() ?? 0;
+  }
+
   Future<bool> consentementGps(bool accord) async {
     final d = await _appel('POST', 'me/traces/consent',
         corps: <String, dynamic>{'consent': accord}) as Map<String, dynamic>;

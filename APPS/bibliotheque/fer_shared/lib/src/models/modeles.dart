@@ -215,6 +215,18 @@ enum MethodeChrono {
   final String libelle;
   final String precision;
 
+  /// Version courte, pour la mention qui suit un chrono. `libelle` reste la
+  /// forme longue, employée là où l'on explique (aide, écran de course).
+  String get libelleCourt => switch (this) {
+        MethodeChrono.balise => 'Balise',
+        MethodeChrono.gpsLigne => 'GPS à la ligne',
+        MethodeChrono.gpsExtrapole => 'GPS extrapolé',
+        MethodeChrono.gpsDistance => 'GPS par la distance',
+        MethodeChrono.manuel => "Relevé par l'organisation",
+        MethodeChrono.declaratif => 'Déclaré',
+        MethodeChrono.inconnue => 'Méthode non précisée',
+      };
+
   static MethodeChrono depuisCode(String? c) => values.firstWhere(
         (m) => m.code == c,
         orElse: () => MethodeChrono.inconnue,
@@ -290,6 +302,49 @@ class Resultat {
   /// « à vérifier », et l'écran ne montre pas de chrono.
   bool get chronoAffichable =>
       tempsS != null && statut != StatutCourse.invalide;
+
+  /// La mention qui accompagne le chrono, partout et sans exception.
+  ///
+  /// ═════════════════════════════════════════════════════════════════════════
+  /// LA MÉTHODE RESTE. LA PROSE PART.
+  ///
+  /// « Balise à la ligne — précision maximale · ±1 s » disait trois fois la
+  /// même chose : la méthode, son appréciation qualitative, et sa marge
+  /// chiffrée. Devant un chrono, la marge chiffrée est la plus utile et la plus
+  /// courte — « ±1 s » se comprend sans être expliqué.
+  ///
+  /// ⚠️ LA MÉTHODE ELLE-MÊME N'EST PAS NÉGOCIABLE. Un temps affiché nu passe
+  /// pour une mesure à la seconde près, quelle que soit sa provenance. Le jour
+  /// où un classement est contesté, « GPS extrapolé » est ce qui permet de
+  /// défendre — ou de corriger — le résultat. C'est le seul endroit du projet
+  /// où l'on préfère une ligne de plus à un doute.
+  ///
+  /// L'appréciation qualitative n'est conservée QUE lorsqu'il n'y a pas de
+  /// marge chiffrée : sans elle, « GPS extrapolé » ne dirait rien de sa
+  /// fiabilité à quelqu'un qui ne connaît pas la différence.
+  String get mention => precisionS != null
+      ? '${methode.libelleCourt} · ±${precisionS} s'
+      : '${methode.libelleCourt} — ${methode.precision}';
+
+  /// Faut-il afficher la mention ?
+  ///
+  /// ═════════════════════════════════════════════════════════════════════════
+  /// SEULEMENT QUAND LE TEMPS N'EST PAS UNE MESURE.
+  ///
+  /// La mention existe pour UNE raison : empêcher qu'une approximation passe
+  /// pour une mesure. Quand le temps VIENT d'une mesure — balise à la ligne,
+  /// GPS au passage — il n'y a rien à empêcher, et « Balise · ±1 s » n'est plus
+  /// qu'un mot de plus sous le chrono.
+  ///
+  /// ⚠️ ELLE RESTE OBLIGATOIRE SUR LES TEMPS APPROCHÉS. GPS extrapolé, GPS par
+  /// la distance, déclaratif : ces trois-là ressemblent à un chrono sans en
+  /// être un. Le jour où un classement est contesté, c'est cette ligne qui
+  /// permet de défendre — ou de corriger — le résultat. On ne la retire pas.
+  ///
+  /// Les temps marqués `invalide` la gardent aussi : on doit pouvoir dire d'où
+  /// vient une anomalie.
+  bool get mentionUtile =>
+      methode.estApproche || statut == StatutCourse.invalide;
 
   /// `h:mm:ss`, ou `—` tant qu'il n'y a rien à montrer.
   String get chrono {
@@ -397,6 +452,7 @@ class Edition {
     this.latArrivee,
     this.lonArrivee,
     this.tempsMinPlausibleS,
+    this.transfertsDeadline,
   });
 
   factory Edition.depuisJson(Map<String, dynamic> j) {
@@ -418,6 +474,11 @@ class Edition {
       latArrivee: (arr?['lat'] as num?)?.toDouble(),
       lonArrivee: (arr?['lon'] as num?)?.toDouble(),
       tempsMinPlausibleS: (j['temps_min_plausible_s'] as num?)?.toInt(),
+      // ⚠️ LE SERVEUR L'ENVOIE DEPUIS TOUJOURS, PERSONNE NE LA LISAIT. D'où une
+      // application qui laissait remplir tout le formulaire de transfert pour
+      // ne refuser qu'à l'envoi, là où le site bloque d'emblée. La règle était
+      // tenue — c'est `xfer_creer()` qui l'applique — mais annoncée trop tard.
+      transfertsDeadline: _date(j['transferts_deadline']),
     );
   }
 
@@ -433,6 +494,18 @@ class Edition {
   final double? latArrivee;
   final double? lonArrivee;
   final int? tempsMinPlausibleS;
+
+  /// Après cette date, plus aucun transfert d'inscription n'est accepté.
+  /// `null` = aucune limite (réglage « jamais » côté administration).
+  final DateTime? transfertsDeadline;
+
+  /// Les transferts sont-ils encore ouverts pour cette édition ?
+  ///
+  /// ⚠️ CE N'EST QU'UN AFFICHAGE. La décision appartient au serveur
+  /// (`xfer_creer`), qui refuse de toute façon. Cette propriété sert à le dire
+  /// AVANT de faire remplir un formulaire, pas à le décider.
+  bool get transfertsOuverts =>
+      transfertsDeadline == null || transfertsDeadline!.isAfter(DateTime.now());
 
   bool get aLigneDepart => latDepart != null && lonDepart != null;
   bool get aLigneArrivee => latArrivee != null && lonArrivee != null;

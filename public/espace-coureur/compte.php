@@ -281,7 +281,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <div class="alert is-ok"><i class="bi bi-check-circle"></i> <?= $h($succes) ?></div>
   <?php endif; ?>
 
-  <section class="card">
+  <section class="card ec-bloc">
     <header>
       <div class="iconwell"><i class="bi bi-person"></i></div>
       <h2>Mes informations</h2>
@@ -319,7 +319,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </dl>
   </section>
 
-  <section class="card">
+  <section class="card ec-bloc">
     <header>
       <div class="iconwell"><i class="bi bi-envelope-at"></i></div>
       <h2>Mon adresse email</h2>
@@ -384,7 +384,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <?php endif; ?>
   </section>
 
-  <section class="card">
+  <section class="card ec-bloc">
     <header>
       <div class="iconwell"><i class="bi bi-palette"></i></div>
       <h2>Apparence</h2>
@@ -472,7 +472,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </div>
   </section>
 
-  <section class="card">
+  <section class="card ec-bloc">
     <header>
       <div class="iconwell"><i class="bi bi-download"></i></div>
       <h2>Exporter mes données</h2>
@@ -486,7 +486,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     </div>
   </section>
 
-  <section class="card">
+  <section class="card ec-bloc">
     <header>
       <div class="iconwell" style="background:var(--danger-soft);color:var(--danger)">
         <i class="bi bi-trash3"></i>

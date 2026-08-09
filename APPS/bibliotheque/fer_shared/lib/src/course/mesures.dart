@@ -9,7 +9,13 @@
 /// domaine, et elles restent justes à **±20 %** environ. Strava, Garmin et Apple
 /// donnent trois chiffres différents pour la même sortie ; aucun n'a tort.
 ///
-/// D'où le libellé imposé partout : « ~450 kcal (estimation) ».
+/// D'où le libellé imposé partout : « ~450 kcal · ±15 % ».
+///
+/// ⚠️ LE MOT « ESTIMATION » A ÉTÉ RETIRÉ, PAS LA RÉSERVE. Deux signes la
+/// portent encore, et ils ne doivent JAMAIS disparaître : le tilde devant le
+/// chiffre, et la marge en pourcentage. Un nombre de calories affiché nu — sans
+/// l'un ni l'autre — se lirait comme une mesure, alors que l'équation ignore le
+/// terrain, le vent, la foulée et l'entraînement.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// LA TAILLE NE SERT QUASIMENT À RIEN, ET C'EST NORMAL
@@ -135,6 +141,60 @@ class Calories {
 
   bool get disponible => profil.utilisable;
 
+  /// Le profil est-il assez complet pour affiner le terme de repos ?
+  bool get affine =>
+      profil.utilisable &&
+      profil.tailleCm != null &&
+      profil.age != null &&
+      profil.sexe != null;
+
+  /// Consommation de repos, en mL d'oxygène par kg et par minute.
+  ///
+  /// ═════════════════════════════════════════════════════════════════════════
+  /// C'EST ICI, ET SEULEMENT ICI, QUE LA TAILLE ET L'ÂGE SERVENT.
+  ///
+  /// L'équation ACSM ajoute un terme fixe de 3,5 mL/kg/min — la consommation
+  /// « moyenne » au repos, soit 1 MET. Cette moyenne est celle d'un homme de
+  /// 40 ans, 70 kg, 1,75 m : elle s'écarte facilement de 15 % pour quelqu'un de
+  /// plus âgé, plus petit ou plus léger.
+  ///
+  /// Mifflin-St Jeor donne un métabolisme de repos individuel (kcal/jour), que
+  /// l'on ramène ici à la même unité. C'est la formule recommandée par
+  /// l'Academy of Nutrition and Dietetics, plus juste que Harris-Benedict sur
+  /// les populations actuelles.
+  ///
+  /// ⚠️ CE QUE ÇA AMÉLIORE, ET CE QUE ÇA N'AMÉLIORE PAS. Le terme de repos ne
+  /// pèse qu'une fraction de la dépense pendant l'effort — de l'ordre de 15 à
+  /// 25 % pour une marche soutenue. Le reste vient de la régression ACSM sur la
+  /// vitesse et la pente, qui garde SA propre incertitude : elle ignore le
+  /// terrain, le vent, la foulée et l'entraînement. On passe donc d'environ
+  /// ±20 % à ±15 %, pas à une mesure.
+  ///
+  /// Sans taille, âge ou sexe, on retombe sur les 3,5 de l'ACSM — jamais sur
+  /// une valeur inventée.
+  double get _vo2Repos {
+    if (!affine) return 3.5;
+
+    // Mifflin-St Jeor, en kcal/jour.
+    final base = 10 * profil.poidsKg! +
+        6.25 * profil.tailleCm! -
+        5 * profil.age! +
+        (profil.sexe == 'H' ? 5 : (profil.sexe == 'F' ? -161 : -78));
+
+    // kcal/jour → mL O₂/kg/min : ÷1440 min, ÷5 kcal par litre, ×1000 mL,
+    // ÷ le poids pour revenir à l'unité de l'équation.
+    final vo2 = base / 1440 / 5 * 1000 / profil.poidsKg!;
+
+    // ⚠️ BORNÉ. Une saisie aberrante — 30 kg pour 190 cm — sortirait la formule
+    // de son domaine et fausserait tout le total. En dehors de ces bornes, on
+    // préfère la moyenne ACSM à un chiffre personnalisé mais faux.
+    return vo2.clamp(2.5, 5.0);
+  }
+
+  /// La réserve à afficher AVEC le chiffre, jamais sans.
+  String get mentionPrecision =>
+      affine ? '±15 %' : '±20 %';
+
   /// Ajoute un segment.
   ///
   /// [distanceM] distance parcourue, [secondes] durée, [deniveleM] variation
@@ -161,9 +221,12 @@ class Calories {
 
     // ACSM. La bascule à 100 m/min (6 km/h) est celle de la littérature :
     // au-delà, la marche devient moins économique que la course.
+    // Le terme constant de l'ACSM est remplacé par le repos INDIVIDUEL dès que
+    // la taille, l'âge et le sexe sont connus — voir `_vo2Repos`.
+    final repos = _vo2Repos;
     final vo2 = vitesse <= 100
-        ? 0.1 * vitesse + 1.8 * vitesse * math.max(0, pente) + 3.5
-        : 0.2 * vitesse + 0.9 * vitesse * math.max(0, pente) + 3.5;
+        ? 0.1 * vitesse + 1.8 * vitesse * math.max(0, pente) + repos
+        : 0.2 * vitesse + 0.9 * vitesse * math.max(0, pente) + repos;
 
     // VO2 (mL/kg/min) → kcal : 5 kcal par litre d'oxygène consommé.
     final kcalParMin = vo2 * profil.poidsKg! / 1000 * 5;
@@ -177,7 +240,9 @@ class Calories {
   String get libelle =>
       disponible ? '~${_kcal.round()} kcal' : '—';
 
-  static const String mention = 'estimation ±20 %';
+  /// ⚠️ CONSERVÉE POUR LES APPELANTS QUI N'ONT PAS D'INSTANCE sous la main.
+  /// Préférer `mentionPrecision`, qui dit la vraie marge du profil courant.
+  static const String mention = '±20 %';
 }
 
 /* ═══════════════════════════ Dénivelé ═════════════════════════════════ */
