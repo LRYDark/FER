@@ -1,14 +1,3 @@
-import 'package:flutter/material.dart';
-
-import '../../models/course_app.dart';
-import '../portee.dart';
-import '../theme.dart';
-import 'compte.dart';
-import 'course.dart';
-import 'inscriptions.dart';
-import 'messages.dart';
-import 'resultats.dart';
-
 /// Coquille de l'application connectée.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
@@ -23,6 +12,16 @@ import 'resultats.dart';
 /// pas ce qu'on peut faire. Un écran « allégé » finit toujours par manquer de
 /// ce qu'on cherche précisément ce jour-là.
 library;
+
+import 'package:flutter/material.dart';
+
+import '../../models/course_app.dart';
+import '../portee.dart';
+import '../theme.dart';
+import 'compte.dart';
+import 'inscriptions.dart';
+import 'messages.dart';
+import 'resultats.dart';
 
 class EcranAccueil extends StatefulWidget {
   const EcranAccueil({super.key});
@@ -65,25 +64,33 @@ class _EcranAccueilState extends State<EcranAccueil>
     final session = PorteeSession.de(context);
     final large = MediaQuery.sizeOf(context).width >= 720;
 
-    // L'onglet Course disparaît quand le chronométrage est fermé : c'est le
-    // cas onze mois sur douze, et un onglet vide donne l'impression d'un site
-    // à moitié fini.
+    // ⚠️ IL N'Y A PLUS D'ONGLET « COURSE ».
+    //
+    // Il faisait doublon : les infos pratiques figurent déjà sur l'inscription,
+    // et le suivi n'a de sens que rapporté à un dossard. Une inscription passe
+    // par TROIS ÉTATS — à venir, en cours, terminée — et c'est le même objet
+    // qu'on ouvre à chaque fois. On ne court pas « dans un onglet », on court
+    // SON dossard : le chrono se trouve donc là où on l'a laissé.
+    //
+    // Le suivi vit maintenant dans un écran ouvert depuis l'inscription
+    // (`EcranSuivi`), pas dans la barre du bas.
+    //
+    // « Résultats » reste, mais devient une ARCHIVE : les éditions passées, que
+    // l'inscription en cours ne montre pas. Le temps du jour, lui, s'affiche
+    // sur l'inscription elle-même.
     final chrono = session.chronoOuvert;
 
     final nonLus = session.messagesNonLus;
 
     final pages = <Widget>[
       const EcranInscriptions(),
-      if (chrono) const EcranCourse(),
       if (chrono) const EcranResultats(),
       const EcranMessages(),
       const EcranCompte(),
     ];
     final destinations = <_Destination>[
-      const _Destination('Inscriptions', Icons.list_alt_outlined, Icons.list_alt),
-      if (chrono)
-        const _Destination('Course', Icons.directions_walk_outlined,
-            Icons.directions_walk),
+      const _Destination('Inscriptions', Icons.confirmation_number_outlined,
+          Icons.confirmation_number),
       if (chrono)
         const _Destination('Résultats', Icons.emoji_events_outlined,
             Icons.emoji_events),
@@ -96,16 +103,32 @@ class _EcranAccueilState extends State<EcranAccueil>
     // Le chronométrage a pu se fermer pendant qu'on était sur son onglet.
     final index = _onglet.clamp(0, pages.length - 1);
 
-    final corps = Column(
-      children: <Widget>[
-        const _BandeauNotifications(),
-        Expanded(child: pages[index]),
-      ],
+    // ⚠️ PLUS DE BARRE DE TITRE SUR LES ONGLETS.
+    //
+    // Elle répétait ce que la barre du bas dit déjà, en surbrillance : on ne
+    // peut pas être sur « Inscriptions » sans le voir. Deux fois la même
+    // information, pour une soixantaine de pixels de hauteur perdus sur chaque
+    // écran — et sur un téléphone, la hauteur est ce qui manque toujours.
+    //
+    // `SafeArea` remplace la barre pour écarter le contenu de l'encoche : sans
+    // elle, la première ligne passerait sous l'heure et la Dynamic Island.
+    //
+    // ⚠️ LES ÉCRANS OUVERTS PAR-DESSUS GARDENT LEUR BARRE (`EcranSuivi`,
+    // `EcranInscription`) : elle y porte la flèche de retour, qui est le seul
+    // moyen d'en sortir. Ce n'est pas le même besoin.
+    final corps = SafeArea(
+      bottom: false,
+      child: Column(
+        children: <Widget>[
+          const _BandeauErreur(),
+          const _BandeauNotifications(),
+          Expanded(child: pages[index]),
+        ],
+      ),
     );
 
     if (large) {
       return Scaffold(
-        appBar: AppBar(title: Text(destinations[index].libelle)),
         body: Row(
           children: <Widget>[
             NavigationRail(
@@ -129,7 +152,6 @@ class _EcranAccueilState extends State<EcranAccueil>
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(destinations[index].libelle)),
       body: corps,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
@@ -162,6 +184,68 @@ class _Destination {
     final ico = Icon(selectionnee ? iconePleine : icone);
     if (badge <= 0) return ico;
     return Badge(label: Text('$badge'), child: ico);
+  }
+}
+
+/// La panne, quand il y en a une — en tête de TOUS les onglets.
+///
+/// ═════════════════════════════════════════════════════════════════════════════
+/// ⚠️ CE BANDEAU A MANQUÉ, ET SON ABSENCE A COÛTÉ CHER.
+///
+/// `Session.erreur` était renseignée à chaque échec de chargement… et n'était
+/// affichée QUE par les écrans bloquants (version refusée, API fermée). Sur les
+/// écrans ordinaires, rien. Une panne de chargement produisait donc des listes
+/// vides silencieuses, impossibles à distinguer d'un compte réellement vide.
+///
+/// C'est la pire confusion possible ici : « aucune inscription rattachée »
+/// envoie le coureur vérifier son adresse d'inscription, alors qu'il fallait
+/// simplement réessayer. Deux messages, deux gestes opposés.
+///
+/// Il vit dans la coquille et non dans un écran : une panne ne concerne pas un
+/// onglet, elle concerne la session. Le placer dans chaque écran aurait garanti
+/// qu'on l'oublie dans l'un d'eux — c'est exactement ce qui s'était passé.
+class _BandeauErreur extends StatelessWidget {
+  const _BandeauErreur();
+
+  @override
+  Widget build(BuildContext context) {
+    final session = PorteeSession.de(context);
+    final message = session.erreur;
+    if (message == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final couleur = theme.colorScheme.error;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(marge, 12, marge, 0),
+      child: BlocAccent(
+        couleur: couleur,
+        icone: Icons.error_outline,
+        enfant: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(message, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 6),
+            // Une panne sans moyen d'agir n'est qu'un reproche : le bouton fait
+            // partie du message.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: session.chargement ? null : session.rafraichir,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Réessayer'),
+                style: TextButton.styleFrom(
+                  foregroundColor: couleur,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

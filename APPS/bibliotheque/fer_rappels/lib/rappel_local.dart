@@ -1,10 +1,4 @@
-﻿import 'package:fer_shared/fer_shared.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tzdata;
-import 'package:timezone/timezone.dart' as tz;
-
-/// Implémentation Android et iOS de [PoseurDeRappel].
+﻿/// Implémentation Android et iOS de [PoseurDeRappel].
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// UNE NOTIFICATION, PAS UN DÉMARRAGE.
@@ -20,6 +14,12 @@ import 'package:timezone/timezone.dart' as tz;
 /// deux heures selon la saison, exactement le genre d'écart qu'on ne remarque
 /// qu'au réveil raté.
 library;
+
+import 'package:fer_shared/fer_shared.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 class RappelLocal implements PoseurDeRappel {
   RappelLocal._(this._plugin);

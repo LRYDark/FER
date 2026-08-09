@@ -1,8 +1,4 @@
-﻿import 'dart:async';
-
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-
-/// Écoute des balises Bluetooth posées sur les lignes de départ et d'arrivée.
+﻿/// Écoute des balises Bluetooth posées sur les lignes de départ et d'arrivée.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// LA BALISE EST LA MESURE LA PLUS PRÉCISE — ET LA PLUS FRAGILE
@@ -26,6 +22,10 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 /// était à côté ; -95 dBm, on l'a captée de loin, peut-être sans franchir quoi
 /// que ce soit.
 library;
+
+import 'dart:async';
+
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 /// Un passage devant une balise, une fois le pic déterminé.
 class PassageBalise {

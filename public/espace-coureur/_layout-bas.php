@@ -6,7 +6,10 @@
 ?>
     </div><!-- /ec-stack -->
 
-    <footer class="auth-links" style="margin-top:var(--sp-6);justify-content:center;flex-wrap:wrap;gap:var(--sp-4)">
+    <?php /* La marge, le filet et le renvoi en bas viennent de `.ec-shell
+             .jr-main > footer.auth-links` dans _styles.php — pas d'un style en
+             ligne, qui aurait obligé à répéter la même valeur ici et là. */ ?>
+    <footer class="auth-links" style="justify-content:center;flex-wrap:wrap;gap:var(--sp-4)">
       <a href="../accueil.php">Site public</a>
       <a href="../faq.php">Questions fréquentes</a>
       <a href="../politique-confidentialite.php">Confidentialité</a>

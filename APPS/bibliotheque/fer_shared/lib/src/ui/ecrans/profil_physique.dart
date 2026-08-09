@@ -1,10 +1,4 @@
-﻿import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
-import '../../course/mesures.dart';
-import '../theme.dart';
-
-/// Poids et mensurations, pour l'estimation des calories.
+﻿/// Poids et mensurations, pour l'estimation des calories.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// ⚠️ CES DONNÉES NE QUITTENT JAMAIS LE TÉLÉPHONE.
@@ -18,6 +12,12 @@ import '../theme.dart';
 /// C'est écrit à l'écran, et le bouton d'effacement est là : une donnée qu'on ne
 /// peut pas retirer n'aurait pas dû être demandée.
 library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../course/mesures.dart';
+import '../theme.dart';
 
 class EcranProfilPhysique extends StatefulWidget {
   const EcranProfilPhysique({super.key});
@@ -95,7 +95,7 @@ class _EcranProfilPhysiqueState extends State<EcranProfilPhysique> {
     return Scaffold(
       appBar: AppBar(title: const Text('Estimation des calories')),
       body: ListView(
-        padding: const EdgeInsets.all(marge),
+        padding: const EdgeInsets.fromLTRB(marge, marge, marge, margeBasListe),
         children: <Widget>[
           CarteFer(
             titre: 'Vos données',

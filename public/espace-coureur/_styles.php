@@ -68,6 +68,102 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      composants de components.css. */
   .ec-stack { display: flex; flex-direction: column; gap: var(--sp-4); }
 
+  /* ── Le dossard ──────────────────────────────────────────────────────────
+     Même objet que dans l'application : numéro en grand, nom, puis la date
+     qui ouvre l'ajout à l'agenda. Quelqu'un qui passe du téléphone au
+     navigateur doit reconnaître la même chose.
+
+     Les couleurs viennent des jetons d'accent (tokens.css) : le dossard suit
+     donc l'accent choisi par le coureur, comme le reste de son espace. */
+  .ec-dossard {
+    background: color-mix(in srgb, var(--accent) 14%, var(--canvas));
+    border-radius: var(--radius-xl);
+    padding: var(--sp-4) var(--sp-5) var(--sp-2);
+    margin-bottom: var(--sp-4);
+  }
+  .ec-dossard-edition {
+    font-size: var(--fs-micro);
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: color-mix(in srgb, var(--accent) 70%, var(--ink));
+  }
+  .ec-dossard-no {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    margin-top: var(--sp-3);
+    font-size: clamp(2.2rem, 7vw, 3rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+    /* Chiffres à chasse fixe : un numéro qui change de largeur selon ses
+       chiffres se lit mal en grande taille. */
+    font-variant-numeric: tabular-nums;
+  }
+  .ec-dossard-no .prefixe {
+    font-size: var(--fs-small);
+    font-weight: 600;
+    opacity: 0.6;
+    letter-spacing: 0;
+  }
+  .ec-dossard-nom {
+    margin-top: var(--sp-1);
+    font-size: var(--fs-h3, 1.1rem);
+    font-weight: 600;
+    color: color-mix(in srgb, var(--accent) 70%, var(--ink));
+  }
+
+  /* La date est un lien : il doit se comporter comme tel au survol, sans
+     ressembler à un bouton — c'est une action secondaire. */
+  .ec-dossard-date {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+    padding: var(--sp-3) 0;
+    border-top: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    color: color-mix(in srgb, var(--accent) 75%, var(--ink));
+    text-decoration: none;
+    transition: opacity var(--dur-fast, .15s) ease;
+  }
+  .ec-dossard-date:hover { opacity: 0.75; }
+  .ec-dossard-date .txt { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .ec-dossard-date small { font-size: var(--fs-micro); opacity: 0.7; }
+  .ec-dossard-date .jrs {
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 75%, var(--ink));
+    color: var(--canvas);
+    font-size: var(--fs-micro);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .ec-dossard-date .chev { opacity: 0.5; }
+
+  /* ── Le pied de page reste EN BAS, même quand la page est courte ──────────
+     « Mes inscriptions » avec une seule ligne tient dans un tiers d'écran : le
+     pied se retrouvait plaqué sous la carte, au milieu d'une grande zone vide,
+     et se lisait comme un bloc de contenu abandonné là.
+
+     `.jr-shell` fait déjà `min-height: 100vh` et `.jr-main` s'étire sur toute
+     la hauteur : il suffit d'en faire une colonne et de laisser le contenu
+     prendre la place restante. Le pied descend alors tout seul.
+
+     ⚠️ CE N'EST PAS UN PIED FIXE (`position: fixed`). Il reste à la fin du
+     document : sur une page longue il défile normalement avec le contenu, au
+     lieu de manger en permanence une bande de l'écran — ce qui coûte cher sur
+     un téléphone. Il est en bas de la PAGE, pas en bas de la FENÊTRE. */
+  .ec-shell .jr-main { display: flex; flex-direction: column; }
+  .ec-shell .ec-stack { flex: 1 0 auto; }
+  .ec-shell .jr-main > footer.auth-links {
+    margin-top: var(--sp-6);
+    padding-top: var(--sp-4);
+    /* Un filet, pas une bordure : il sépare sans encadrer. Sans lui, les liens
+       flottent sans qu'on voie qu'ils appartiennent au pied. */
+    border-top: 1px solid var(--border);
+  }
+
   /* ⚠️ SANS CETTE LIGNE, LA FENÊTRE MODALE SERAIT VISIBLE EN PERMANENCE.
      .modal-backdrop (components.css) est en `display: grid` ; une règle de
      classe l'emporte sur le style par défaut de l'attribut [hidden], qui ne

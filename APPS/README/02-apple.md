@@ -37,23 +37,87 @@ Quelque part/
 
 Clé USB, `scp`, dépôt git : peu importe, tant que les deux voyagent ensemble.
 
+### ⚠️ OÙ les poser : ni le Bureau, ni un partage réseau
+
+Rangez le projet dans un dossier **ordinaire et local** — `~/Developer/FER/` par
+exemple. Deux endroits font échouer la compilation, chacun à sa manière, et
+aucun des deux messages d'erreur ne dit ce qui se passe réellement.
+
+**Le Bureau et Documents, si OneDrive est installé.** OneDrive les gère par
+*FileProvider* : le chemin reste `~/Desktop`, le dossier reste un vrai dossier —
+rien ne se voit. Mais tout répertoire en `.bundle` créé là reçoit l'attribut
+`com.apple.FinderInfo` dans la seconde qui suit, et `codesign` le refuse :
+
+```
+Flutter.framework/Flutter: resource fork, Finder information,
+                           or similar detritus not allowed
+```
+
+Purger l'attribut ne sert à rien : il est reposé pendant la compilation. Pour
+vérifier si un dossier est concerné :
+
+```bash
+mkdir -p ~/Desktop/essai/x.bundle && sleep 2 && xattr -lr ~/Desktop/essai
+# une ligne `com.apple.fileprovider.fpfs#P` = OneDrive gère ce dossier
+rm -rf ~/Desktop/essai
+```
+
+**Un partage réseau (SMB, NFS).** Xcode et CocoaPods n'y travaillent pas de
+façon fiable : liens symboliques, permissions, attributs étendus. C'est aussi
+la raison pour laquelle `APPS/` se copie sur le Mac au lieu de se compiler
+depuis le lecteur réseau.
+
+Si le doute persiste, `ditto --noextattr --norsrc` recopie proprement :
+
+```bash
+ditto --noextattr --norsrc /Volumes/html/FER/APPS/mac ~/Developer/FER/mac
+ditto --noextattr --norsrc /Volumes/html/FER/APPS/bibliotheque ~/Developer/FER/bibliotheque
+```
+
 ## 2. Préparer le Mac
 
 ```bash
-# Flutter, via Homebrew
+# Homebrew d'abord — il demande votre mot de passe une fois.
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Flutter. Le .zip depuis flutter.dev convient aussi ; voir l'encadré plus bas.
 brew install --cask flutter
 
 # Xcode depuis l'App Store, puis :
 sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -license accept
 
-# CocoaPods, dont Flutter a besoin pour les greffons iOS
-sudo gem install cocoapods
+# CocoaPods — PAR HOMEBREW, pas par `sudo gem install`.
+brew install cocoapods
 
 flutter doctor
 ```
 
-`flutter doctor` doit être vert sur « Xcode » et « CocoaPods ».
+`flutter doctor` doit être vert sur « Xcode » et « CocoaPods ». Les lignes
+« Android toolchain » et « Chrome » peuvent rester rouges : elles ne concernent
+pas la compilation iOS.
+
+### ⚠️ Pourquoi `brew install cocoapods` et pas `sudo gem install cocoapods`
+
+Le Ruby livré avec macOS est un **2.6**, et il le restera. Les dépendances
+actuelles de CocoaPods exigent bien davantage — `zeitwerk` réclame Ruby ≥ 3.2,
+`securerandom` ≥ 3.1 — et aucune combinaison de versions épinglées n'en sort :
+descendre assez bas pour Ruby 2.6 donne un CocoaPods trop ancien pour Xcode 26.
+
+La formule Homebrew embarque son propre Ruby. C'est la seule voie qui tient.
+
+### Si vous installez Flutter par le `.zip` plutôt que par Homebrew
+
+Purgez les attributs étendus après décompression, sinon la signature du
+framework échoue avec le message « resource fork… » vu plus haut :
+
+```bash
+xattr -cr ~/Developer/flutter
+```
+
+(Les erreurs `Permission denied` sur `flutter/.git/objects/` sont sans
+conséquence : ces fichiers sont en lecture seule et n'entrent pas dans le
+binaire.)
 
 ## 3. Générer le dossier iOS
 
@@ -91,7 +155,42 @@ Apple demanderait de justifier pourquoi.
 l'autoriser côté application n'ouvre rien et affaiblit la protection du jeton
 personnel de chaque coureur.
 
-## 5. Signer
+## 5. Fusionner le Podfile
+
+Ajoutez au bloc `post_install` de `ios/Podfile` ce que décrit
+[`../mac/ios-overlay/Podfile-additions.rb`](../mac/ios-overlay/Podfile-additions.rb),
+puis :
+
+```bash
+cd ios && pod install && cd ..
+```
+
+**Sans cette étape, la compilation échoue** sur `VerifyModule` pour
+`flutter_local_notifications` et `device_info_plus` — le contrôle de modules
+d'Xcode 15+ refuse leurs en-têtes, écrits à une époque plus permissive. Le
+fichier d'overlay explique quoi ajouter, pourquoi, et quand le retirer.
+
+## 6. Vérifier avant d'ouvrir Xcode
+
+```bash
+flutter build ios --simulator
+```
+
+Cette commande **ne demande aucune signature** : elle valide tout le reste —
+Dart, greffons, pods, ressources — sans compte Apple. C'est le contrôle à passer
+en premier ; `flutter build ios` échouera de toute façon sur l'absence d'équipe
+de développement tant que l'étape suivante n'est pas faite.
+
+⚠️ **`flutter analyze` dans `mac/` ne suffit pas.** Il n'analyse QUE le paquet
+courant, jamais les dépendances `path` : des erreurs de compilation dans
+`bibliotheque/` passent inaperçues. Analysez le cœur séparément :
+
+```bash
+cd APPS/bibliotheque/fer_shared && flutter analyze
+cd ../fer_rappels              && flutter analyze
+```
+
+## 7. Signer
 
 ```bash
 open ios/Runner.xcworkspace

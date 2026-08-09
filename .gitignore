@@ -49,3 +49,21 @@ migrate_*.php
 
 # Dépendances
 # vendor/ — inclus dans git pour déploiement sans composer
+
+# macOS sur un partage réseau
+# SMB ne sait pas porter les attributs étendus : macOS les écrit dans des
+# fichiers annexes « ._nom ». Ils apparaissent dès qu'on travaille depuis un Mac
+# sur /Volumes/html, et n'ont rien à faire dans le dépôt.
+._*
+.DS_Store
+
+# Dossiers générés par `flutter create` / `flutter pub get`.
+# Ils se régénèrent sur chaque machine ; les versionner ferait diverger deux
+# postes sans que rien ne l'explique.
+APPS/*/ios/
+APPS/*/android/app/
+APPS/*/build/
+APPS/*/.dart_tool/
+APPS/*/.idea/
+APPS/**/.flutter-plugins-dependencies
+APPS/**/pubspec.lock

@@ -28,6 +28,7 @@ export 'src/models/modeles.dart';
 export 'src/reveil.dart';
 export 'src/session.dart';
 export 'src/ui/ecrans/accueil.dart';
+export 'src/ui/ecrans/bienvenue.dart';
 export 'src/ui/ecrans/bloquant.dart';
 export 'src/ui/ecrans/compte.dart';
 export 'src/ui/ecrans/connexion.dart';

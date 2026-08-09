@@ -1,14 +1,4 @@
-﻿import 'dart:typed_data';
-import 'dart:ui' as ui;
-
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:share_plus/share_plus.dart';
-
-import '../../models/modeles.dart';
-import '../theme.dart';
-
-/// La carte à partager après la course.
+﻿/// La carte à partager après la course.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// L'IMAGE EST FABRIQUÉE SUR L'APPAREIL, PAS DEMANDÉE AU SERVEUR.
@@ -22,6 +12,16 @@ import '../theme.dart';
 /// publique, dans une capture qui circule. Le prénom et le dossard suffisent —
 /// ils sont déjà sur le T-shirt.
 library;
+
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../models/modeles.dart';
+import '../theme.dart';
 
 class CartePartage extends StatefulWidget {
   const CartePartage({

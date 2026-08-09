@@ -1,8 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-
-/// Le chrono qui vit hors de l'application : notification permanente sur
+﻿/// Le chrono qui vit hors de l'application : notification permanente sur
 /// Android, Live Activity et Dynamic Island sur iPhone.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
@@ -30,7 +26,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// votre position, et ça se voit.
 library;
 
-class ChronoVivant {
+import 'package:fer_shared/fer_shared.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+class ChronoVivant implements AfficheurChrono {
   ChronoVivant(this._plugin);
 
   /// Identifiant réservé. Distinct des rappels (1001-1002) : une notification
@@ -63,6 +64,7 @@ class ChronoVivant {
   ///
   /// [depart] est l'instant d'origine du chrono — le top réel s'il a été donné,
   /// l'heure prévue sinon.
+  @override
   Future<void> demarrer({
     required DateTime depart,
     required String dossard,
@@ -124,6 +126,7 @@ class ChronoVivant {
   /// Arrête l'affichage. À appeler à l'arrivée ET à l'arrêt manuel du suivi :
   /// un chrono qui continue de tourner après la course est pire que pas de
   /// chrono du tout.
+  @override
   Future<void> arreter() async {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       try {

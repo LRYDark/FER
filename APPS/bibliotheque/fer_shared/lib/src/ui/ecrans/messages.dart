@@ -1,10 +1,4 @@
-﻿import 'package:flutter/material.dart';
-
-import '../../models/course_app.dart';
-import '../portee.dart';
-import '../theme.dart';
-
-/// Les messages de l'organisation, présentés comme une boîte de réception.
+﻿/// Les messages de l'organisation, présentés comme une boîte de réception.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// UN MESSAGE, PAS UN BANDEAU.
@@ -23,6 +17,12 @@ import '../theme.dart';
 /// descendre parce qu'elles ont déjà été ouvertes viderait la page où l'on va
 /// justement les rechercher.
 library;
+
+import 'package:flutter/material.dart';
+
+import '../../models/course_app.dart';
+import '../portee.dart';
+import '../theme.dart';
 
 class EcranMessages extends StatelessWidget {
   const EcranMessages({super.key});
@@ -164,7 +164,7 @@ class _MessageEntier extends StatelessWidget {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(marge, 0, marge, marge),
+        padding: const EdgeInsets.fromLTRB(marge, 0, marge, margeBasListe),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,9 +1,4 @@
-﻿import 'package:fer_shared/fer_shared.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
-
-/// Réception des notifications poussées (Firebase Cloud Messaging).
+﻿/// Réception des notifications poussées (Firebase Cloud Messaging).
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// UN SEUL CHEMIN POUR LES DEUX PLATEFORMES — PAS LA SEULE VOIE POSSIBLE.
@@ -28,6 +23,11 @@ import 'package:flutter/foundation.dart';
 /// ⚠️ SANS LA SECONDE, les notifications cesseraient d'arriver un jour, sans
 /// que rien ne l'explique — et on le découvrirait le matin de la course.
 library;
+
+import 'package:fer_shared/fer_shared.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 /// Reçoit les messages quand l'application est fermée ou en arrière-plan.
 ///

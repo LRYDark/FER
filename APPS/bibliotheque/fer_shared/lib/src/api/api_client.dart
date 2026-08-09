@@ -1,11 +1,4 @@
-﻿import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
-import 'api_erreur.dart';
-import 'jetons.dart';
-
-/// Client de l'API mobile `/api/mobile` de Forbach en Rose.
+﻿/// Client de l'API mobile `/api/mobile` de Forbach en Rose.
 ///
 /// ═════════════════════════════════════════════════════════════════════════════
 /// TOUTES LES RÉPONSES ONT LA MÊME FORME
@@ -28,6 +21,13 @@ import 'jetons.dart';
 ///      volonté du client.
 ///   3. Aucune donnée personnelle dans une URL. Tout passe par le corps JSON.
 library;
+
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'api_erreur.dart';
+import 'jetons.dart';
 
 /// Enveloppe le résultat d'un appel : soit la donnée, soit l'erreur.
 typedef Reponse = Map<String, dynamic>;
@@ -69,7 +69,7 @@ class ApiClient {
 
   /// Exécute une requête et déballe l'enveloppe.
   ///
-  /// [avecJeton] à false pour les routes publiques (/app/config, /auth/*).
+  /// [avecJeton] à false pour les routes publiques (/app/config, /auth/…).
   /// [reessaye] est un garde-fou interne : après un rafraîchissement de jeton
   /// on retente UNE fois, jamais deux — sinon un jeton durablement refusé
   /// bouclerait indéfiniment contre le serveur.
@@ -177,10 +177,40 @@ class ApiClient {
     throw erreur;
   }
 
+  /// Rachat en cours, s'il y en a un.
+  ///
+  /// ⚠️ SANS CE VERROU, UN DÉMARRAGE DEMANDE QUATRE JETONS AU LIEU D'UN.
+  /// `Session.rafraichir()` lance ses appels ENSEMBLE — profil, inscriptions,
+  /// éditions, résultats. Aucun n'a de jeton d'accès en mémoire au lancement :
+  /// les quatre appelaient donc `_rafraichir()` en même temps. Le journal du
+  /// serveur le montre noir sur blanc, quatre `POST /auth/refresh` à la même
+  /// seconde pour une seule ouverture de l'application.
+  ///
+  /// Ce n'est pas qu'une question de politesse envers le serveur : les quatre
+  /// réponses arrivaient dans un ordre quelconque et écrasaient tour à tour le
+  /// jeton enregistré. Trois d'entre elles étaient au mieux inutiles.
+  ///
+  /// Le premier appelant lance la demande, les trois autres attendent la même.
+  Future<String?>? _rachatEnCours;
+
   /// Rachète un jeton d'accès à partir du jeton d'appareil.
   /// Renvoie `null` si l'appareil n'est plus reconnu — le seul cas où il faut
   /// vraiment redemander une connexion.
-  Future<String?> _rafraichir() async {
+  Future<String?> _rafraichir() {
+    // Pas d'`await` avant cette ligne : le partage doit être décidé de façon
+    // atomique. Un `await` ici rouvrirait la fenêtre qu'on vient de fermer.
+    final enCours = _rachatEnCours;
+    if (enCours != null) return enCours;
+
+    final futur = _rafraichirVraiment();
+    _rachatEnCours = futur;
+    // `whenComplete` et non `then` : le verrou doit sauter même si la demande
+    // échoue, sinon une coupure de réseau au lancement interdirait toute
+    // nouvelle tentative jusqu'à la fermeture de l'application.
+    return futur.whenComplete(() => _rachatEnCours = null);
+  }
+
+  Future<String?> _rafraichirVraiment() async {
     final appareil = await jetons.appareil();
     if (appareil == null) return null;
     try {
@@ -218,7 +248,7 @@ class ApiClient {
       await _appel('GET', 'app/config', avecJeton: false)
           as Map<String, dynamic>;
 
-  /* ═════════════════════════════ /auth/* ═══════════════════════════════ */
+  /* ═════════════════════════════ /auth/… ═══════════════════════════════ */
 
   /// Demande l'envoi d'un code à 6 chiffres.
   ///
@@ -269,7 +299,7 @@ class ApiClient {
     }
   }
 
-  /* ═══════════════════════════════ /me/* ═══════════════════════════════ */
+  /* ═══════════════════════════════ /me/… ═══════════════════════════════ */
 
   Future<Map<String, dynamic>> profil() async =>
       await _appel('GET', 'me') as Map<String, dynamic>;

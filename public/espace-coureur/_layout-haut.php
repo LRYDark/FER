@@ -38,7 +38,11 @@ if (!$ecChronoOuvert) {
     unset($ecMenu['mes-resultats.php']);
 }
 ?>
-<div class="jr-shell">
+<?php /* `ec-shell` ne sert QUE de portée : elle permet de faire du panneau
+         principal une colonne flex sans toucher à `.jr-main` d'admin.css, qui
+         habille aussi toute l'administration. Une règle globale ferait bouger
+         des dizaines de pages pour régler le pied d'une seule. */ ?>
+<div class="jr-shell ec-shell">
 
   <aside class="jr-nav" id="ecSidebar">
     <a class="jr-brand" href="../accueil.php" title="Forbach en Rose">
@@ -63,8 +67,19 @@ if (!$ecChronoOuvert) {
         <a class="item" href="../faq.php"><i class="bi bi-question-circle"></i>Questions fréquentes</a>
         <?php /* En rouge : c'est la seule entrée du menu qui fait quitter
                  l'espace. La distinguer d'un coup d'œil évite de cliquer
-                 dessus en cherchant autre chose. */ ?>
-        <a class="item is-danger" href="deconnexion.php" style="margin-top:var(--sp-4)">
+                 dessus en cherchant autre chose.
+
+                 ⚠️ `margin-top:auto` ET NON UNE MARGE FIXE. `.jr-nav nav` est
+                 une colonne flex en `flex:1` : la marge automatique absorbe
+                 tout l'espace libre et colle donc l'entrée EN BAS de la barre,
+                 quel que soit le nombre d'entrées au-dessus — « Mes résultats »
+                 disparaît hors période de chronométrage, et avec une marge fixe
+                 la déconnexion remontait alors au milieu du vide.
+
+                 Elle se replace toute seule juste après le menu quand la barre
+                 est trop courte pour défiler : une marge automatique vaut zéro
+                 dès qu'il n'y a plus d'espace à distribuer. */ ?>
+        <a class="item is-danger" href="deconnexion.php" style="margin-top:auto">
           <i class="bi bi-box-arrow-right"></i>Se déconnecter
         </a>
       <?php else: ?>
