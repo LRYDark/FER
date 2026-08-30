@@ -63,26 +63,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()
     }
 }
 
-$moi     = $_SESSION[PAUTH_SESSION_KEY];
-$annee   = (int) (course_lire($pdo)['annee'] ?? 0);
-$messages = notif_pourCoureur($pdo, $annee > 0 ? $annee : null);
+$moi   = $_SESSION[PAUTH_SESSION_KEY];
+$annee = (int) (course_lire($pdo)['annee'] ?? 0);
 
-/* Les épinglés échappent au filtre, comme dans l'application : ce sont les
-   informations qu'on relit la veille. */
-try {
-    $st = $pdo->prepare('SELECT notification_id FROM participant_notifications_masquees
-                          WHERE participant_id = ?');
-    $st->execute([pauth_id()]);
-    $ecMasques = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-    if ($ecMasques) {
-        $messages = array_values(array_filter($messages, fn($m) =>
-            !empty($m['epingle']) || !in_array((int) $m['id'], $ecMasques, true)));
+/* ── Lu / non lu ──────────────────────────────────────────────────────────────
+ * ⚠️ LIRE N'EST PAS MASQUER. Le message lu reste dans la boîte : c'est la
+ * pastille du menu qui descend, pas le message qui disparaît. Masquer garde
+ * son bouton, à part, et ses propres règles (un épinglé ne se masque pas).
+ *
+ * Le marquage passe par le serveur, comme le masquage : lu sur le téléphone,
+ * lu sur le navigateur. */
+$ecLuDispo = notif_luesDisponible($pdo);
+
+if ($ecLuDispo && $_SERVER['REQUEST_METHOD'] === 'POST' && csrf_verify()) {
+    if (isset($_POST['lu'])) {
+        notif_marquerLu($pdo, (int) pauth_id(), [(int) $_POST['lu']]);
+    } elseif (isset($_POST['non_lu'])) {
+        notif_marquerNonLu($pdo, (int) pauth_id(), (int) $_POST['non_lu']);
+    } elseif (isset($_POST['tout_lu'])) {
+        notif_marquerLu($pdo, (int) pauth_id(),
+            array_map(fn($m) => (int) $m['id'], notif_boiteCoureur($pdo, (int) pauth_id(), $annee > 0 ? $annee : null)));
     }
-} catch (\Throwable $e) {
-    // Table absente : migration non jouée. On sert tout plutôt que de faire
-    // échouer la page.
-    error_log('[EC] masquees : ' . $e->getMessage());
+    /* Redirection après écriture : sans elle, un rafraîchissement rejouait le
+       marquage, et le retour arrière du navigateur affichait un avertissement
+       de renvoi de formulaire pour une action déjà faite. */
+    if (isset($_POST['lu']) || isset($_POST['non_lu']) || isset($_POST['tout_lu'])) {
+        $q = isset($_GET['f']) ? '?f=' . urlencode((string) $_GET['f']) : '';
+        header('Location: messages.php' . $q);
+        exit;
+    }
 }
+
+/* Une seule définition de « ce que voit le coureur » : la boîte et la pastille
+   du menu comptent la même chose (src/content/notifications.php). */
+$messages = notif_boiteCoureur($pdo, (int) pauth_id(), $annee > 0 ? $annee : null);
+$ecLues   = notif_luesIds($pdo, (int) pauth_id());
+
+$ecNonLusTotal = 0;
+foreach ($messages as $m) if (!in_array((int) $m['id'], $ecLues, true)) $ecNonLusTotal++;
+
+/* Filtre d'affichage. Il ne touche PAS aux données : il ne fait que réduire la
+   liste, et le compteur de chaque onglet reste calculé sur la boîte entière. */
+$ecFiltre = $_GET['f'] ?? 'tous';
+if (!in_array($ecFiltre, ['tous', 'non-lus', 'lus'], true)) $ecFiltre = 'tous';
+$ecAffiches = array_values(array_filter($messages, function ($m) use ($ecFiltre, $ecLues) {
+    $lu = in_array((int) $m['id'], $ecLues, true);
+    return $ecFiltre === 'tous' || ($ecFiltre === 'lus' ? $lu : !$lu);
+}));
 
 $ecTitre    = "Messages de l'organisation";
 $ecSurtitre = trim(($moi['prenom'] ?? '') . ' ' . ($moi['nom'] ?? '')) ?: ($moi['email'] ?? '');
@@ -145,14 +172,66 @@ $ecQuand = static function (?string $iso): string {
            seul intérêt est de voir d'un coup d'œil ce qu'on a reçu.
 
            Liste plate, séparateurs fins : le même parti que l'application. */ ?>
-  <?php if ($messages): ?>
+  <?php /* Migration non jouée : on le DIT, au lieu de laisser des boutons qui
+           ne font rien. Le reste de la page fonctionne normalement. */ ?>
+  <?php if (!$ecLuDispo && $messages): ?>
+    <div class="alert is-warn">
+      <i class="bi bi-exclamation-triangle"></i>
+      Le suivi des messages lus n'est pas encore actif sur ce site&nbsp;: la mise
+      à jour de la base de données n'a pas été appliquée.
+    </div>
+  <?php endif; ?>
+
+  <?php if ($messages && $ecLuDispo): ?>
+    <?php /* ── Filtres ──────────────────────────────────────────────────────
+             Trois liens, pas un menu déroulant : avec trois choix dont on voit
+             le compte, un déroulant demanderait deux gestes pour lire ce qui
+             tient sur une ligne. Chaque compteur porte sur la boîte entière,
+             jamais sur ce qui est affiché — sinon « Non lus » afficherait
+             toujours zéro une fois le filtre appliqué. */ ?>
+    <div class="ec-filtres">
+      <?php
+      $ecOnglets = [
+          'tous'    => ['Tous',     count($messages)],
+          'non-lus' => ['Non lus',  $ecNonLusTotal],
+          'lus'     => ['Lus',      count($messages) - $ecNonLusTotal],
+      ];
+      foreach ($ecOnglets as $cle => [$libelle, $combien]):
+      ?>
+        <a class="ec-filtre<?= $ecFiltre === $cle ? ' is-active' : '' ?>"
+           href="messages.php<?= $cle === 'tous' ? '' : '?f=' . $cle ?>">
+          <?= $h($libelle) ?><span class="n"><?= (int) $combien ?></span>
+        </a>
+      <?php endforeach; ?>
+
+      <?php if ($ecNonLusTotal > 0): ?>
+        <form method="post" class="ec-filtres-action">
+          <?= csrf_field() ?>
+          <button type="submit" name="tout_lu" value="1" class="ec-filtre-tout">
+            <i class="bi bi-check2-all"></i> Tout marquer comme lu
+          </button>
+        </form>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!$ecAffiches): ?>
+      <p class="ec-vide-filtre">
+        <?= $ecFiltre === 'non-lus' ? 'Tous vos messages sont lus.' : "Vous n'avez encore lu aucun message." ?>
+      </p>
+    <?php endif; ?>
+  <?php endif; ?>
+
+  <?php if ($ecAffiches): ?>
     <?php /* ⚠️ AUCUN CADRE. Les messages se posent directement sur le fond du
              panneau : une carte autour d'une liste ajoute une boîte dans une
              boîte, et la page en portait déjà une. */ ?>
     <ul class="ec-messages" id="ecMessages">
-        <?php foreach ($messages as $m): ?>
-          <?php [$icone, $classe] = $ecTypeInfo($m['type']); ?>
-          <li class="ec-msg <?= $h($classe) ?>" data-id="<?= (int) $m['id'] ?>"
+        <?php foreach ($ecAffiches as $m): ?>
+          <?php
+            [$icone, $classe] = $ecTypeInfo($m['type']);
+            $ecLu = in_array((int) $m['id'], $ecLues, true);
+          ?>
+          <li class="ec-msg <?= $h($classe) ?><?= $ecLu ? '' : ' is-nonlu' ?>" data-id="<?= (int) $m['id'] ?>"
               data-epingle="<?= !empty($m['epingle']) ? '1' : '0' ?>">
             <i class="bi <?= $h($icone) ?> ec-msg-ico"></i>
             <div class="ec-msg-corps">
@@ -161,6 +240,7 @@ $ecQuand = static function (?string $iso): string {
                   <i class="bi bi-pin-angle-fill" title="Épinglé"></i>
                 <?php endif; ?>
                 <strong><?= $h($m['titre']) ?></strong>
+                <?php if (!$ecLu): ?><span class="ec-msg-neuf">Non lu</span><?php endif; ?>
                 <?php if (!empty($m['publie_at'])): ?>
                   <span class="ec-msg-date"><?= $h($ecQuand($m['publie_at'])) ?></span>
                 <?php endif; ?>
@@ -172,6 +252,24 @@ $ecQuand = static function (?string $iso): string {
                   Ne sera plus affiché après le <?= $h($ecQuand($m['expire_at'])) ?>.
                 </p>
               <?php endif; ?>
+
+              <?php /* Bascule lu / non lu, DANS le corps du message et non
+                       dans un coin : c'est une action sur ce qu'on vient de
+                       lire, pas un réglage de la liste. Un épinglé se marque
+                       lu comme les autres — c'est le retrait qui lui est
+                       interdit, pas la lecture. */ ?>
+              <form method="post" class="ec-msg-lu"<?= $ecLuDispo ? '' : ' hidden' ?>>
+                <?= csrf_field() ?>
+                <?php if ($ecLu): ?>
+                  <button type="submit" name="non_lu" value="<?= (int) $m['id'] ?>">
+                    <i class="bi bi-envelope"></i> Marquer comme non lu
+                  </button>
+                <?php else: ?>
+                  <button type="submit" name="lu" value="<?= (int) $m['id'] ?>">
+                    <i class="bi bi-check2"></i> Marquer comme lu
+                  </button>
+                <?php endif; ?>
+              </form>
             </div>
 
             <?php /* ⚠️ LES ÉPINGLÉS NE SE RETIRENT PAS, comme dans

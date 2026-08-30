@@ -217,7 +217,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <div class="card-dashboard h-100" id="carteReglagesApp">
       <h2 class="h5 fw-bold mb-3"><i class="bi bi-toggles me-2"></i>Réglages</h2>
 
-      <form method="post">
+      <form data-oc-save="save_app" method="post">
         <?= csrf_field() ?>
         <div class="form-check form-switch mb-2">
           <input class="form-check-input" type="checkbox" id="app_notifications_actives"
@@ -269,9 +269,6 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         <?php endif; ?>
 
         <?php if ($canWrite): ?>
-          <button type="submit" name="save_app" class="btn btn-primary">
-            <i class="bi bi-check2 me-1"></i>Enregistrer
-          </button>
         <?php endif; ?>
       </form>
 
@@ -287,7 +284,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         c'est la même valeur.
       </p>
 
-      <form method="post" class="row g-2">
+      <form data-oc-save="save_course_app" method="post" class="row g-2">
         <?= csrf_field() ?>
         <div class="col-7">
           <label class="form-label small mb-1" for="course_date">Date</label>
@@ -313,9 +310,6 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         <input type="hidden" name="course_heure" id="course_heure">
         <div class="col-12 d-flex align-items-center gap-2">
           <?php if ($canWrite): ?>
-            <button type="submit" name="save_course_app" class="btn btn-sm btn-primary">
-              <i class="bi bi-check2 me-1"></i>Enregistrer
-            </button>
           <?php endif; ?>
           <span class="text-muted small ms-auto">
             Chronométrage :
@@ -360,7 +354,7 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
           <?= $fcm['pret'] ? 'Remplacer la clé' : 'Configurer Firebase' ?>
         </button>
 
-        <form method="post" class="collapse<?= $fcm['pret'] ? '' : ' show' ?> mt-2" id="fcmConfig">
+        <form data-oc-save="save_fcm" method="post" class="collapse<?= $fcm['pret'] ? '' : ' show' ?> mt-2" id="fcmConfig">
           <?= csrf_field() ?>
           <label class="form-label small" for="fcm_json">
             Compte de service <em>(JSON)</em>
@@ -378,9 +372,6 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
             Console Firebase → Paramètres du projet → Comptes de service →
             <em>Générer une nouvelle clé privée</em>. Le projet est lu dans le fichier.
           </small>
-          <button type="submit" name="save_fcm" class="btn btn-sm btn-primary">
-            <i class="bi bi-key me-1"></i>Enregistrer la clé
-          </button>
         </form>
       <?php endif; ?>
     </div>
@@ -616,6 +607,12 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   });
 })();
 </script>
+
+<?php /* Barre d'enregistrement partagée : les trois cartes de configuration
+         (application, course, clé FCM) portent data-oc-save. Le formulaire de
+         création de message garde SON bouton : il crée quelque chose, ce
+         n'est pas un réglage qu'on enregistre au passage. */ ?>
+<?php include __DIR__ . '/../src/partials/save-bar.php'; ?>
 
 <?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 </body>

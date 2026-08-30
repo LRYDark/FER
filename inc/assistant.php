@@ -144,6 +144,12 @@ try {
 
 <body>
 
+<?php
+/* Assistance n'affiche pas son propre titre : on demande au shell de le
+   rendre, comme le fait Réglages. */
+$pageShowTitle = true;
+$pageIcon = 'chat-dots';
+?>
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <div class="py-3">

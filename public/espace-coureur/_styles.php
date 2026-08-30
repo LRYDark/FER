@@ -46,10 +46,12 @@ $ecV = function (string $rel): string {
 <link rel="stylesheet" href="<?= $ecV('css/base.css') ?>">
 <link rel="stylesheet" href="<?= $ecV('css/components.css') ?>">
 <link rel="stylesheet" href="<?= $ecV('css/app.css') ?>">
-<?php /* admin.css porte la coquille .jr-shell / .jr-nav / .jr-main : c'est elle
-         qui donne à l'espace coureur la barre latérale de l'administration,
-         y compris son repli sous 991px. */ ?>
+<?php /* admin.css porte les composants partagés avec l'administration.
+         admin-shell.css porte la coquille .oc-* : barre du haut avec les
+         entrées en onglets, contenu à plat, aucun contour. C'est elle qui
+         donne à l'espace coureur EXACTEMENT le rendu des pages d'admin. */ ?>
 <link rel="stylesheet" href="<?= $ecV('css/admin.css') ?>">
+<link rel="stylesheet" href="<?= $ecV('css/admin-shell.css') ?>">
 <?php if ($ecDataAcc !== null): ?>
 <script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
 document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc) ?>);
@@ -216,14 +218,19 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      l'intérieur du panneau principal — qui est DÉJÀ une carte — cela fait une
      boîte dans une boîte, avec une ombre qui n'a rien à porter.
 
-     `.ec-bloc` garde l'espacement de `.card` et ne conserve qu'un filet. C'est
-     le même parti que les éditions de « Mes résultats » et que l'application :
-     un trait pour délimiter, jamais un aplat. */
+     `.ec-bloc` garde l'espacement de `.card` et prend le MÊME APLAT que les
+     cartes de réglages de l'administration : un gris très clair, aucun
+     contour, aucune ombre. La seule chose qui flotte dans ce langage, c'est
+     la barre d'enregistrement.
+
+     ⚠️ MÊME EXPRESSION QUE `.setting-card` (css/admin-shell.css), pas une
+     valeur en dur : les deux doivent bouger ensemble, et le thème sombre suit
+     sans règle supplémentaire. */
   .ec-bloc {
-    background: transparent;
+    background: color-mix(in srgb, var(--surface-2) 48%, var(--canvas));
     box-shadow: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
+    border: 0;
+    border-radius: 16px;
   }
 
   /* ── Une carte par édition ───────────────────────────────────────────────
@@ -313,6 +320,77 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
   .ec-msg-corps p { margin: 2px 0 0; white-space: pre-line; }
   .ec-msg-exp { font-size: var(--fs-micro); color: var(--ink-faint); }
 
+  /* ── Lu / non lu ────────────────────────────────────────────────────────────
+     Un message non lu se signale par le POIDS DU TITRE et une étiquette, pas
+     par un fond coloré : la couleur est déjà prise par le type du message
+     (alerte, avertissement), et deux codes couleur superposés ne se lisent
+     plus. */
+  .ec-msg.is-nonlu .ec-msg-tete strong { font-weight: 800; }
+  .ec-msg-neuf {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--fs-micro);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Bascule discrète : elle ne doit pas concurrencer le message lui-même. */
+  .ec-msg-lu { margin-top: var(--sp-2); }
+  .ec-msg-lu button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--ink-faint);
+    font: inherit; font-size: var(--fs-micro); font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .ec-msg-lu button:hover { background: var(--surface-2); color: var(--ink); }
+
+  /* ── Barre de filtres ───────────────────────────────────────────────────────
+     ⚠️ LES COMPTEURS PORTENT SUR LA BOÎTE ENTIÈRE, jamais sur ce qui est
+     affiché : un onglet « Non lus (0) » alors qu'on vient de filtrer dessus
+     n'aurait aucun sens. */
+  .ec-filtres {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+  }
+  .ec-filtre {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-dim);
+    text-decoration: none;
+    font-size: var(--fs-small); font-weight: 600;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .ec-filtre:hover { background: var(--border); color: var(--ink); }
+  .ec-filtre .n { font-size: var(--fs-micro); opacity: .7; font-variant-numeric: tabular-nums; }
+  .ec-filtre.is-active { background: var(--accent); color: var(--accent-ink); }
+  .ec-filtre.is-active .n { opacity: .85; }
+
+  /* Poussé à droite : c'est une action, pas un quatrième filtre. */
+  .ec-filtres-action { margin-left: auto; }
+  .ec-filtre-tout {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--accent);
+    font: inherit; font-size: var(--fs-small); font-weight: 600;
+    cursor: pointer;
+  }
+  .ec-filtre-tout:hover { background: var(--accent-soft); }
+
+  .ec-vide-filtre {
+    margin: 0;
+    padding: var(--sp-5) 0;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: var(--fs-small);
+  }
+
   /* La croix reste discrète : on ne retire pas un message par mégarde, mais on
      ne doit pas non plus avoir à la chercher. */
   .ec-msg-x {
@@ -355,7 +433,7 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      pied se retrouvait plaqué sous la carte, au milieu d'une grande zone vide,
      et se lisait comme un bloc de contenu abandonné là.
 
-     `.jr-shell` fait déjà `min-height: 100vh` et `.jr-main` s'étire sur toute
+     `.oc-shell` fait déjà `min-height: 100vh` et `.oc-page` s'étire sur toute
      la hauteur : il suffit d'en faire une colonne et de laisser le contenu
      prendre la place restante. Le pied descend alors tout seul.
 
@@ -363,9 +441,24 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      document : sur une page longue il défile normalement avec le contenu, au
      lieu de manger en permanence une bande de l'écran — ce qui coûte cher sur
      un téléphone. Il est en bas de la PAGE, pas en bas de la FENÊTRE. */
-  .ec-shell .jr-main { display: flex; flex-direction: column; }
+  /* ⚠️ COLONNE DE LECTURE BORNÉE, PAS LA LARGEUR DE L'ÉCRAN.
+     L'espace coureur n'affiche que des formulaires courts et quelques
+     encarts. Étirés sur un écran large, les libellés se retrouvaient à un
+     mètre de leurs champs et chaque bloc paraissait vide. 1080 px : la page
+     respire sans que les marges prennent le dessus sur le contenu.
+
+     `.ec-large` lève la borne pour les rares pages qui ont besoin de la
+     largeur — aujourd'hui Mon compte, avec ses blocs en deux colonnes. */
+  .ec-shell .oc-page {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1080px;
+    margin-inline: auto;
+  }
+  .ec-shell .oc-page.ec-large { max-width: none; }
   .ec-shell .ec-stack { flex: 1 0 auto; }
-  .ec-shell .jr-main > footer.auth-links {
+  .ec-shell .oc-page > footer.auth-links {
     margin-top: var(--sp-6);
     padding-top: var(--sp-4);
     /* Un filet, pas une bordure : il sépare sans encadrer. Sans lui, les liens
@@ -395,15 +488,17 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
 
   /* Choix de la couleur d'accent — calqué sur .accent-option du profil admin. */
   .ec-accents { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+  /* Aplat et non contour, comme partout ailleurs : la pastille se distingue
+     par son fond, la sélection par la couleur d'accent. */
   .ec-accent {
     display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
     padding: 0.45rem 0.8rem; border-radius: var(--radius-m);
-    border: 1px solid var(--border-strong); background: var(--surface);
+    border: 0; background: var(--surface);
     color: var(--ink-dim); font: inherit; font-size: var(--fs-small); font-weight: 550;
-    transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
-  .ec-accent:hover { border-color: var(--accent); color: var(--ink); }
-  .ec-accent.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .ec-accent:hover { background: var(--surface-2); color: var(--ink); }
+  .ec-accent.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .ec-accent .dot { width: 14px; height: 14px; border-radius: 50%; flex: none;
                     box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
   /* Le sélecteur natif est masqué : c'est la pastille entière qui l'ouvre. */
@@ -438,6 +533,31 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
     /* Le QR se place au centre du vide plutôt que collé en haut. */
     .ec-duo .ec-qr { flex: 1; align-content: center; }
   }
+
+  /* ── Mise en colonnes des blocs d'une page (Mon compte) ──────────────────
+     Cinq blocs courts empilés faisaient une page à dérouler pour rien. Deux
+     colonnes suffisent, et l'œil compare enfin ce qui va ensemble.
+
+     ⚠️ PAS DE `align-items: start` ICI. Les blocs d'une rangée s'étirent à la
+     hauteur du plus haut, et c'est voulu : ce sont des aplats, pas des cartes
+     encadrées. Laissés à leur hauteur propre, ils créaient un décroché blanc
+     au bas de la rangée, bien plus visible qu'un peu d'espace libre à
+     l'intérieur du bloc le plus court.
+
+     À ne pas confondre avec `.ec-grid2`, juste en dessous, qui met en
+     colonnes les CHAMPS à l'intérieur d'un formulaire. */
+  .ec-cols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-4);
+  }
+  /* Réservé aux blocs qu'une demi-colonne ne peut pas contenir (aucun
+     aujourd'hui — « Apparence » tient dans la moitié, ses pastilles de
+     couleur passent à la ligne toutes seules). */
+  .ec-cols > .ec-col-full { grid-column: 1 / -1; }
+  /* Sous 860px, la colonne unique revient : deux colonnes de formulaires sur
+     un téléphone, ce sont deux colonnes illisibles. */
+  @media (max-width: 860px) { .ec-cols { grid-template-columns: minmax(0, 1fr); } }
 
   /* Deux champs par ligne dès qu'il y a la place (prénom/nom, sexe/âge). */
   .ec-grid2 { display: grid; gap: var(--sp-3); }

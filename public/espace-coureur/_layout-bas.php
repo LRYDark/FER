@@ -1,44 +1,50 @@
 <?php
 /**
  * _layout-bas.php — Ferme la coquille ouverte par _layout-haut.php
- * (.ec-stack, .jr-main, .jr-shell) et pose le repli mobile de la barre latérale.
+ * (.ec-stack, .oc-page, .oc-body, .oc-shell) et pose le menu du compte.
+ *
+ * Depuis le passage au shell v2.1, il n'y a plus de barre latérale à replier :
+ * les entrées sont des onglets en haut, qui défilent horizontalement sur les
+ * petits écrans. Le burger et le voile de fond ont donc disparu avec elle.
  */
 ?>
-    </div><!-- /ec-stack -->
+      </div><!-- /ec-stack -->
 
-    <?php /* La marge, le filet et le renvoi en bas viennent de `.ec-shell
-             .jr-main > footer.auth-links` dans _styles.php — pas d'un style en
-             ligne, qui aurait obligé à répéter la même valeur ici et là. */ ?>
-    <footer class="auth-links" style="justify-content:center;flex-wrap:wrap;gap:var(--sp-4)">
-      <a href="../accueil.php">Site public</a>
-      <a href="../faq.php">Questions fréquentes</a>
-      <a href="../politique-confidentialite.php">Confidentialité</a>
-      <a href="../mentions-legales.php">Mentions légales</a>
-    </footer>
-  </main>
+      <?php /* La marge, le filet et le renvoi en bas viennent de `.ec-shell
+               .oc-page > footer.auth-links` dans _styles.php — pas d'un style
+               en ligne, qui aurait obligé à répéter la même valeur ici et là. */ ?>
+      <footer class="auth-links" style="justify-content:center;flex-wrap:wrap;gap:var(--sp-4)">
+        <a href="../accueil.php">Site public</a>
+        <a href="../faq.php">Questions fréquentes</a>
+        <a href="../politique-confidentialite.php">Confidentialité</a>
+        <a href="../mentions-legales.php">Mentions légales</a>
+      </footer>
 
-  <?php /* Voile de fond : sous 991px la barre latérale se superpose au contenu.
-           Sans voile cliquable, on ne saurait pas comment la refermer. */ ?>
-  <div class="oc-overlay" id="ecOverlay"></div>
-</div><!-- /jr-shell -->
+    </div><!-- /.oc-page -->
+  </div><!-- /.oc-body -->
+</div><!-- /.oc-shell -->
 
 <script<?= isset($GLOBALS['csp_nonce']) ? ' nonce="' . htmlspecialchars($GLOBALS['csp_nonce']) . '"' : '' ?>>
 (function () {
-  var burger  = document.getElementById('ecBurger');
-  var barre   = document.getElementById('ecSidebar');
-  var voile   = document.getElementById('ecOverlay');
-  if (!burger || !barre) return;
+  /* Menu du compte — même geste que dans l'administration, mais le script de
+     l'admin (admin-footer.php) n'est pas chargé ici : l'espace coureur ne
+     partage que les feuilles de style, jamais les partials d'administration. */
+  var puce = document.getElementById('ecAvatarBtn');
+  var menu = document.getElementById('ecDropdown');
+  if (!puce || !menu) return;
 
-  function basculer(ouvrir) {
-    barre.classList.toggle('open', ouvrir);
-    if (voile) voile.classList.toggle('show', ouvrir);
-    burger.setAttribute('aria-expanded', ouvrir ? 'true' : 'false');
-  }
-  burger.addEventListener('click', function () { basculer(!barre.classList.contains('open')); });
-  if (voile) voile.addEventListener('click', function () { basculer(false); });
-  // Échap referme : même geste que partout ailleurs.
+  function synchro() { puce.classList.toggle('is-open', menu.classList.contains('show')); }
+
+  puce.addEventListener('click', function (e) {
+    e.stopPropagation();
+    menu.classList.toggle('show');
+    synchro();
+  });
+  document.addEventListener('click', function (e) {
+    if (!menu.contains(e.target) && !puce.contains(e.target)) { menu.classList.remove('show'); synchro(); }
+  });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && barre.classList.contains('open')) basculer(false);
+    if (e.key === 'Escape') { menu.classList.remove('show'); synchro(); }
   });
 })();
 </script>

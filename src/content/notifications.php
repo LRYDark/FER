@@ -302,3 +302,126 @@ function notif_reglages(PDO $pdo): array
         'store_android'         => $r['app_store_url_android'] ?? null,
     ];
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ÉTAT « LU » PAR COUREUR
+   ---------------------------------------------------------------------------
+   ⚠️ « LU » N'EST PAS « MASQUÉ ». Masquer, c'est écarter un message de sa
+   boîte ; lire, c'est en avoir pris connaissance. Le cas courant est de lire
+   sans masquer — d'où deux tables et non une.
+
+   Toutes ces fonctions avalent leurs erreurs et retombent sur « rien de lu » :
+   la table peut manquer si update.php n'a pas encore été joué, et une pastille
+   de messages non lus ne doit jamais empêcher une page de s'afficher.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * La table des lectures existe-t-elle ?
+ *
+ * ⚠️ SANS CE TEST, UN BOUTON RESTE MUET. Les fonctions ci-dessous avalent
+ * leurs erreurs pour ne jamais casser une page — mais si la migration n'a pas
+ * été jouée, « Marquer comme lu » ne faisait alors strictement rien, sans le
+ * moindre message. Mieux vaut désactiver la fonction et dire pourquoi.
+ *
+ * Résultat mémorisé : la question ne se pose qu'une fois par requête.
+ */
+function notif_luesDisponible(PDO $pdo): bool
+{
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    try {
+        $pdo->query('SELECT 1 FROM participant_notifications_lues LIMIT 0');
+        $ok = true;
+    } catch (\Throwable $e) {
+        $ok = false;
+    }
+    return $ok;
+}
+
+/** Identifiants des messages déjà lus par ce coureur. */
+function notif_luesIds(PDO $pdo, int $participantId): array
+{
+    if ($participantId <= 0) return [];
+    try {
+        $st = $pdo->prepare('SELECT notification_id FROM participant_notifications_lues
+                              WHERE participant_id = ?');
+        $st->execute([$participantId]);
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    } catch (\Throwable $e) {
+        error_log('[notif] lecture des lus : ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Marque un ou plusieurs messages comme lus. `INSERT IGNORE` : relire un
+ * message déjà lu ne doit ni échouer ni déplacer la date de première lecture.
+ */
+function notif_marquerLu(PDO $pdo, int $participantId, array $notificationIds): int
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $notificationIds), fn($i) => $i > 0)));
+    if ($participantId <= 0 || !$ids) return 0;
+    try {
+        $st = $pdo->prepare('INSERT IGNORE INTO participant_notifications_lues
+                               (participant_id, notification_id) VALUES (?, ?)');
+        $n = 0;
+        foreach ($ids as $id) { $st->execute([$participantId, $id]); $n += $st->rowCount(); }
+        return $n;
+    } catch (\Throwable $e) {
+        error_log('[notif] marquage lu : ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/** Remet un message en « non lu ». */
+function notif_marquerNonLu(PDO $pdo, int $participantId, int $notificationId): void
+{
+    if ($participantId <= 0 || $notificationId <= 0) return;
+    try {
+        $pdo->prepare('DELETE FROM participant_notifications_lues
+                        WHERE participant_id = ? AND notification_id = ?')
+            ->execute([$participantId, $notificationId]);
+    } catch (\Throwable $e) {
+        error_log('[notif] marquage non lu : ' . $e->getMessage());
+    }
+}
+
+/**
+ * Messages visibles par ce coureur, moins ceux qu'il a masqués.
+ *
+ * ⚠️ UNE SEULE DÉFINITION DE « CE QUE VOIT LE COUREUR ». La page Messages et
+ * la pastille du menu doivent compter la MÊME chose : si l'une oubliait les
+ * masqués, la pastille annoncerait des messages introuvables dans la boîte.
+ */
+function notif_boiteCoureur(PDO $pdo, int $participantId, ?int $annee): array
+{
+    $messages = notif_pourCoureur($pdo, $annee);
+    try {
+        $st = $pdo->prepare('SELECT notification_id FROM participant_notifications_masquees
+                              WHERE participant_id = ?');
+        $st->execute([$participantId]);
+        $masques = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        if ($masques) {
+            // Les épinglés échappent au masquage : ce sont les informations
+            // qu'on relit la veille.
+            $messages = array_values(array_filter($messages, fn($m) =>
+                !empty($m['epingle']) || !in_array((int) $m['id'], $masques, true)));
+        }
+    } catch (\Throwable $e) {
+        // Table absente : on sert tout plutôt que de faire échouer la page.
+        error_log('[notif] masquees : ' . $e->getMessage());
+    }
+    return $messages;
+}
+
+/** Combien de messages ce coureur n'a-t-il pas encore lus ? */
+function notif_nonLusCount(PDO $pdo, int $participantId, ?int $annee): int
+{
+    if ($participantId <= 0) return 0;
+    $lues = notif_luesIds($pdo, $participantId);
+    $n = 0;
+    foreach (notif_boiteCoureur($pdo, $participantId, $annee) as $m) {
+        if (!in_array((int) $m['id'], $lues, true)) $n++;
+    }
+    return $n;
+}

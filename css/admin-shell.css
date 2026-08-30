@@ -1,0 +1,624 @@
+/* ============================================================
+   FER — Shell d'administration v2.1 « onglets en haut »
+   ------------------------------------------------------------
+   Barre du haut (logo + onglets de section + compte), sous-menu
+   gris flottant à gauche, contenu à plat sur la page, barre
+   d'enregistrement flottante.
+
+   ⚠️ CLASSES DÉDIÉES (.oc-*) ET NON .jr-shell / .jr-nav / .jr-main.
+   Ces trois-là sont AUSSI utilisées par public/espace-coureur/
+   (_layout-haut.php) : les réécrire changerait l'espace coureur du
+   site public, qui n'a rien demandé. Le prix à payer est un jeu de
+   noms en double dans admin.css ; le bénéfice est qu'aucune page
+   publique ne bouge.
+
+   Aucun contour : la hiérarchie se lit uniquement par les aplats.
+   Les couleurs dérivent des tokens (color-mix) — le thème sombre
+   suit sans règle supplémentaire.
+   ============================================================ */
+
+/* Fond de page blanc : les réglages se posent dessus, ils ne flottent pas.
+   Ce fichier n'est chargé que par navbar-admin.php — l'espace coureur, qui
+   partage admin.css, garde son fond teinté. */
+html, body { background: var(--canvas); }
+
+.oc-shell {
+  /* Aplats dérivés : jamais de hex en dur, sinon le thème sombre casse. */
+  --oc-panel:   color-mix(in srgb, var(--surface-2) 48%, var(--canvas));
+  --oc-float:   color-mix(in srgb, var(--surface-2) 52%, var(--canvas));
+  --oc-control: color-mix(in srgb, var(--surface-2) 88%, var(--canvas));
+  --oc-line:    color-mix(in srgb, var(--border) 55%, var(--canvas));
+  --oc-top-h: 64px;
+
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+}
+
+/* ════════ BARRE DU HAUT ════════ */
+.oc-top {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-nav, 40);
+  flex: none;
+  height: var(--oc-top-h);
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  padding: 0 20px 0 22px;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--oc-line);
+}
+
+.oc-brand { flex: none; display: flex; align-items: center; padding-right: 6px; text-decoration: none; }
+.oc-brand img { height: 38px; width: auto; max-width: 190px; object-fit: contain; }
+.oc-brand .name { font-weight: 650; font-size: 1rem; color: var(--ink); }
+
+.oc-tabs {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.oc-tabs::-webkit-scrollbar { display: none; }
+.oc-tabs a {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color var(--dur-fast, .15s) var(--ease-out, ease);
+}
+.oc-tabs a:hover { color: var(--ink); }
+.oc-tabs a.is-active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+/* Pastille de comptage sur un onglet (messages non lus).
+   Elle n'existe que lorsqu'il y a quelque chose à compter — jamais un « 0 ».
+
+   ⚠️ EN EXPOSANT, PAS DANS LE FLUX. Posée à la suite du libellé, elle se
+   lisait comme un mot de plus. Accrochée en haut à droite et débordant
+   légèrement — comme une pastille d'application sur un téléphone — elle se
+   voit du coin de l'œil sans entrer dans la lecture. */
+.oc-tabs a { position: relative; }
+.oc-tabs a.has-badge { padding-right: 20px; }
+.oc-tabs a .oc-badge {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  /* ⚠️ LE DÉCALAGE SE COMPTE DEPUIS LE MILIEU DE LA BARRE, pas depuis son
+     haut : l'onglet fait toute la hauteur (64 px), son libellé est centré.
+     À -16 px, le CENTRE de la pastille tombe sur le haut des capitales du
+     libellé — le coin haut-droit de l'élément, comme sur un téléphone.
+     Plus haut, elle flottait au-dessus du mot sans s'y rattacher. */
+  margin-top: -16px;
+
+  /* ⚠️ CENTRAGE OPTIQUE D'UN CHIFFRE UNIQUE — chaque ligne compte.
+     `box-sizing` explicite : une règle globale qui passerait en content-box
+     ferait grandir la pastille du côté du remplissage et décentrerait tout.
+     Remplissage latéral SYMÉTRIQUE, et rien en haut ni en bas : il ne sert
+     qu'aux nombres à deux ou trois chiffres, où la pastille s'allonge.
+     `place-items: center` centre le bloc de texte dans les DEUX axes, sans
+     dépendre de l'alignement des lignes.
+     `tabular-nums` : le « 1 » d'une police proportionnelle est plus étroit
+     que les autres chiffres et mal calé dans sa chasse — c'est lui qui
+     paraissait décentré. En chasse fixe, tous les chiffres se valent.
+     `line-height: 1` : sans elle, l'interligne héritée décale verticalement. */
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  /* ⚠️ REMPLISSAGE HAUT ASYMÉTRIQUE, ET C'EST VOLONTAIRE.
+     Un chiffre n'a pas de jambage sous la ligne de base, mais le bloc de
+     texte réserve quand même la place d'un « p » en dessous. Centrer ce bloc
+     centre donc du vide autant que le glyphe, et le chiffre paraît remonté.
+     Ce pixel de remplissage en haut redescend le contenu d'un demi-pixel de
+     chaque côté : c'est la correction optique, pas un centrage géométrique —
+     lequel est déjà exact. */
+  padding: 2px 5px 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+
+  border-radius: var(--radius-pill, 999px);
+  background: var(--danger);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  /* Un léger halo de la couleur du fond détache la pastille du libellé
+     lorsqu'elle le chevauche. */
+  box-shadow: 0 0 0 2px var(--canvas);
+}
+
+.oc-topright { flex: none; display: flex; align-items: center; gap: 10px; position: relative; }
+
+/* ---- Recherche : elle a perdu sa colonne, ses résultats deviennent un menu.
+   Le composant (src/partials/recherche-admin.php) cherche `.jr-nav` pour se
+   mettre en mode « la liste remplace le menu » ; ici il ne le trouve pas et
+   se contente de remplir #jrResultats, que l'on positionne en panneau. ---- */
+.oc-search { position: relative; }
+/* Même gabarit que la puce « Bonjour X » juste à côté : 40 px de haut, forme
+   de pastille. Deux hauteurs et deux rayons différents dans la même barre se
+   voyaient tout de suite. */
+.oc-search .jr-recherche {
+  width: 230px;
+  height: 40px;
+  margin: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--oc-control);
+}
+.oc-search .jr-recherche:hover,
+.oc-search .jr-recherche:focus-within { background: color-mix(in srgb, var(--surface-2) 100%, var(--canvas)); }
+.oc-search .jr-resultats {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: var(--radius-l, 16px);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, .07), 0 10px 30px rgba(16, 24, 40, .12);
+  z-index: calc(var(--z-nav, 40) + 6);
+}
+.oc-search .jr-resultats[hidden] { display: none; }
+
+@media (max-width: 1280px) { .oc-search .jr-recherche { width: 170px; } }
+@media (max-width: 1024px) { .oc-search { display: none; } }
+
+/* Puce « Bonjour X » — sans contour : le navigateur en dessine un d'office
+   sur <button> dès qu'on ne déclare rien, d'où le border:0 explicite. */
+.oc-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  background: var(--oc-control);
+  border-radius: var(--radius-pill, 999px);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--dur-fast, .15s) var(--ease-out, ease);
+}
+.oc-user:hover { background: color-mix(in srgb, var(--surface-2) 100%, var(--canvas)); }
+.oc-user .ava {
+  width: 28px; height: 28px; flex: none;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+}
+.oc-user .who {
+  font-size: 13.5px; font-weight: 500; color: var(--ink);
+  max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.oc-user svg { width: 15px; height: 15px; flex: none; stroke: var(--ink-faint); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.oc-user.is-open { background: var(--accent-soft); }
+.oc-user.is-open .ava { background: var(--accent); color: var(--accent-ink); }
+.oc-user.is-open svg { stroke: var(--accent); transform: rotate(180deg); }
+
+/* ════════ MENU DU COMPTE ════════ */
+.oc-usermenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 296px;
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--radius-l, 16px);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, .07), 0 10px 30px rgba(16, 24, 40, .12);
+  padding: 8px;
+  display: none;
+  z-index: calc(var(--z-nav, 40) + 5);
+}
+.oc-usermenu.show { display: block; animation: oc-drop var(--dur-fast, .15s) var(--ease-out, ease); }
+@keyframes oc-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.oc-usermenu .head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 14px; }
+.oc-usermenu .head .ava {
+  width: 42px; height: 42px; flex: none;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--accent); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 700;
+}
+.oc-usermenu .head .id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.oc-usermenu .head .id .name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.oc-usermenu .head .id .mail { font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-usermenu .head .role {
+  margin-left: auto; flex: none;
+  padding: 3px 9px; border-radius: var(--radius-pill, 999px);
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 11px; font-weight: 600;
+}
+.oc-usermenu hr { border: 0; border-top: 1px solid var(--oc-line); margin: 0 6px 6px; }
+.oc-usermenu a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-s, 8px);
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 13.5px; font-weight: 500;
+}
+.oc-usermenu a:hover { background: var(--oc-control); color: var(--ink); }
+.oc-usermenu a svg { width: 18px; height: 18px; flex: none; stroke: var(--ink-dim); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.oc-usermenu a.is-danger { color: var(--danger); }
+.oc-usermenu a.is-danger svg { stroke: currentColor; }
+.oc-usermenu a.is-danger:hover { background: var(--danger-soft); color: var(--danger); }
+.oc-usermenu a .tag { margin-left: auto; font-size: 12px; color: var(--ink-faint); font-weight: 500; }
+.oc-usermenu .ver { padding: 8px 12px 6px; font-size: 11px; color: var(--ink-faint); }
+
+/* ════════ CORPS ════════ */
+.oc-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 246px minmax(0, 1fr);
+  gap: 46px;
+  padding: 26px 40px 0 28px;
+}
+/* Section sans sous-entrées (Tableau de bord) : le contenu prend tout. */
+.oc-body.is-wide { grid-template-columns: minmax(0, 1fr); padding-left: 40px; }
+
+/* ---- Sous-menu : la SEULE chose qui flotte ---- */
+.oc-sub {
+  align-self: start;
+  position: sticky;
+  top: calc(var(--oc-top-h) + 26px);
+  background: var(--oc-float);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 1px 4px rgba(16, 24, 40, .05);
+  padding: 10px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.oc-sub .title {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 6px 12px 8px;
+}
+.oc-sub a.item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink-dim);
+  font-size: 13.5px; font-weight: 500;
+  transition: color var(--dur-fast, .15s) var(--ease-out, ease), background var(--dur-fast, .15s) var(--ease-out, ease);
+}
+.oc-sub a.item:hover { color: var(--ink); background: color-mix(in srgb, var(--surface-2) 100%, var(--canvas)); }
+.oc-sub a.item svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Entrée active : aplat d'accent qui déborde de 9 px avec une pointe courte. */
+.oc-sub a.item.is-active {
+  position: relative;
+  margin-right: -12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.oc-sub a.item.is-active:hover { background: var(--accent); color: var(--accent-ink); }
+.oc-sub a.item.is-active::after {
+  content: "";
+  position: absolute;
+  right: -5px; top: 50%;
+  width: 11px; height: 11px; margin-top: -5.5px;
+  background: var(--accent);
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.oc-sub a.item.is-danger { color: var(--danger); }
+.oc-sub a.item.is-danger:hover { color: var(--danger); background: var(--danger-soft); }
+
+.oc-sub a.item .jr-badge {
+  margin-left: auto;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--danger); color: #fff;
+  font-size: var(--fs-micro, .72rem); font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.oc-sub a.item.is-active .jr-badge { background: var(--accent-ink); color: var(--accent); }
+.oc-sub a.item .jr-badge.d-none { display: none; }
+
+/* ---- Garde-fou « Mode test », au bas du sous-menu ---- */
+.oc-testmode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  background: var(--warn-soft);
+  color: #92400e;
+}
+.oc-testmode:hover { background: color-mix(in srgb, var(--warn) 20%, var(--canvas)); color: #92400e; }
+.oc-testmode i { font-size: 14px; line-height: 1; flex: none; }
+.oc-testmode .lab { font-size: 12.5px; font-weight: 700; letter-spacing: .02em; }
+.oc-testmode .det { flex: 1 1 100%; font-size: 11.5px; line-height: 1.4; opacity: .9; }
+.oc-testmode.is-bloquant { background: var(--danger-soft); color: #b91c1c; }
+.oc-testmode.is-bloquant:hover { background: color-mix(in srgb, var(--danger) 18%, var(--canvas)); color: #b91c1c; }
+
+/* Écrans sans sous-menu : le garde-fou n'a nulle part où se ranger, il reprend
+   sa place en tête de contenu — sur une seule ligne. */
+.oc-testmode.is-large { margin: 0 0 18px; padding: 10px 14px; }
+.oc-testmode.is-large .det { flex: 1 1 auto; font-size: 12.5px; }
+
+/* ════════ UNE SEULE CHOSE FLOTTE : LA BARRE D'ENREGISTREMENT ════════
+   admin.css donne une ombre ET un contour à .setting-card / .card-dashboard /
+   .stat-card / .card (règle partagée, ligne ~626). On les neutralise ICI,
+   sous .oc-shell uniquement : l'espace coureur du site public partage le même
+   admin.css mais vit sous .jr-shell — il garde son habillage d'origine.
+
+   Portée volontairement large (toutes les cartes de l'admin, pas seulement
+   celles des Réglages) : deux langages de carte selon l'écran se verraient
+   au premier changement de page. */
+.oc-shell .setting-card,
+.oc-shell .card-dashboard,
+.oc-shell .stat-card,
+.oc-shell .card {
+  border: 0;
+  box-shadow: none;
+}
+
+/* ---- Champs : blancs, sans contour ----
+   Même règle sur TOUTES les cartes de l'admin (Réglages, Emails,
+   Applications) et pas seulement les Réglages : trois niveaux qui alternent —
+   page blanche, carte teintée, champ blanc. Un champ gris dans une carte
+   presque blanche se lit comme désactivé. */
+/* ⚠️ LA LISTE DES CONTENEURS EST LA MÊME QU'AU-DESSUS, et ce n'est pas un
+   hasard : un champ sans contour n'est lisible que sur un fond teinté. Dans
+   une carte, le blanc du champ ressort. Posé directement sur la page blanche,
+   il disparaîtrait — les champs HORS carte gardent donc leur bordure. */
+.oc-shell .setting-card .form-control,
+.oc-shell .setting-card .form-select,
+.oc-shell .setting-card .input-group-text,
+.oc-shell .card-dashboard .form-control,
+.oc-shell .card-dashboard .form-select,
+.oc-shell .card-dashboard .input-group-text,
+.oc-shell .stat-card .form-control,
+.oc-shell .stat-card .form-select,
+.oc-shell .stat-card .input-group-text,
+.oc-shell .card .form-control,
+.oc-shell .card .form-select,
+.oc-shell .card .input-group-text {
+  border: 0;
+  background: var(--surface);
+  box-shadow: none;
+}
+.oc-shell .setting-card .form-control:focus,
+.oc-shell .setting-card .form-select:focus,
+.oc-shell .card-dashboard .form-control:focus,
+.oc-shell .card-dashboard .form-select:focus,
+.oc-shell .stat-card .form-control:focus,
+.oc-shell .stat-card .form-select:focus,
+.oc-shell .card .form-control:focus,
+.oc-shell .card .form-select:focus {
+  background: var(--surface);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* Le gris garde un sens là où il en a un : on ne peut pas écrire dedans. */
+.oc-shell .setting-card .form-control:disabled,
+.oc-shell .setting-card .form-control[readonly],
+.oc-shell .setting-card .form-select:disabled,
+.oc-shell .card-dashboard .form-control:disabled,
+.oc-shell .card-dashboard .form-control[readonly],
+.oc-shell .card-dashboard .form-select:disabled,
+.oc-shell .stat-card .form-control:disabled,
+.oc-shell .stat-card .form-control[readonly],
+.oc-shell .stat-card .form-select:disabled,
+.oc-shell .card .form-control:disabled,
+.oc-shell .card .form-control[readonly],
+.oc-shell .card .form-select:disabled {
+  background: color-mix(in srgb, var(--surface-2) 85%, var(--canvas));
+  color: var(--ink-dim);
+}
+.oc-shell .setting-card .btn,
+.oc-shell .card-dashboard .btn,
+.oc-shell .stat-card .btn,
+.oc-shell .card .btn { border: 0; }
+
+/* ---- Contenu : à plat, jamais dans une carte ---- */
+.oc-page {
+  min-width: 0;
+  padding-bottom: 40px;
+}
+body.oc-has-savebar .oc-page { padding-bottom: 116px; }
+
+.oc-pagehead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.oc-pagehead h1 {
+  margin: 0;
+  font-size: 26px; font-weight: 600; letter-spacing: -.015em;
+  color: var(--ink);
+}
+/* Même icône devant le titre que sur les autres écrans d'administration. */
+.oc-pagehead h1 i { margin-right: 10px; color: var(--ink-faint); font-size: .9em; }
+.oc-pagehead .sub { margin: 4px 0 0; font-size: 13.5px; color: var(--ink-faint); }
+.oc-pagehead .acts { display: flex; align-items: center; gap: 10px; flex: none; }
+
+/* ════════ BARRE D'ENREGISTREMENT FLOTTANTE ════════
+   Fixe et non collée : elle passe AU-DESSUS du contenu et du sous-menu,
+   décollée des bords. */
+.oc-savebar {
+  position: fixed;
+  left: 28px; right: 40px; bottom: 20px;
+  z-index: calc(var(--z-nav, 40) + 2);
+  min-height: 68px;
+  padding: 12px 22px;
+  background: var(--surface);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .035), 0 4px 14px rgba(16, 24, 40, .055);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.oc-savebar .left,
+.oc-savebar .right { display: flex; align-items: center; gap: 14px; }
+
+.oc-savebar .oc-state {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill, 999px);
+  font-size: 12.5px; font-weight: 600;
+  background: var(--surface-2); color: var(--ink-dim);
+}
+.oc-savebar .oc-state .dot { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.oc-savebar .oc-state[data-state="dirty"] { background: var(--warn-soft); color: #92400e; }
+.oc-savebar .oc-state[data-state="saving"] { background: var(--surface-2); color: var(--ink-dim); }
+.oc-savebar .oc-state[data-state="saved"] { background: var(--ok-soft); color: #15803d; }
+.oc-savebar .oc-state[data-state="error"] { background: var(--danger-soft); color: #b91c1c; }
+
+/* Boutons de la barre — border:0 explicite (contour natif du navigateur). */
+.oc-btn {
+  height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-m, 12px);
+  background: var(--oc-control);
+  color: var(--ink);
+  font-family: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background var(--dur-fast, .15s) var(--ease-out, ease), opacity var(--dur-fast, .15s) var(--ease-out, ease);
+}
+.oc-btn:hover { background: color-mix(in srgb, var(--surface-2) 100%, var(--canvas)); }
+.oc-btn.is-primary { padding: 0 26px; background: var(--accent); color: var(--accent-ink); font-size: 14px; }
+.oc-btn.is-primary:hover { background: var(--accent-strong); }
+.oc-btn.is-ghost { background: transparent; color: var(--ink-dim); font-weight: 500; padding: 0 14px; }
+.oc-btn.is-ghost:hover { background: var(--oc-control); color: var(--ink); }
+.oc-btn[disabled] { opacity: .55; cursor: not-allowed; }
+.oc-btn[disabled]:hover { background: var(--oc-control); }
+.oc-btn.is-primary[disabled]:hover { background: var(--accent); }
+.oc-btn svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.oc-spin {
+  width: 16px; height: 16px; flex: none;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--accent-ink) 35%, transparent);
+  border-top-color: var(--accent-ink);
+  animation: oc-spin .7s linear infinite;
+}
+@keyframes oc-spin { to { transform: rotate(360deg); } }
+
+/* ════════ BURGER + TIROIR MOBILE ════════ */
+.oc-burger {
+  display: none;
+  width: 40px; height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-m, 12px);
+  background: var(--oc-control);
+  cursor: pointer;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 4px;
+}
+.oc-burger span { display: block; width: 16px; height: 2px; background: var(--ink-dim); border-radius: 2px; }
+
+@media (max-width: 1100px) {
+  .oc-body { padding: 20px 20px 0; gap: 24px; grid-template-columns: 220px minmax(0, 1fr); }
+  .oc-savebar { left: 16px; right: 16px; }
+}
+
+@media (max-width: 860px) {
+  .oc-burger { display: inline-flex; }
+  .oc-top { gap: 12px; padding: 0 12px; }
+  .oc-brand img { height: 30px; }
+  .oc-user .who { display: none; }
+  .oc-user { padding: 0 6px; }
+
+  .oc-body { grid-template-columns: minmax(0, 1fr); padding: 16px 14px 0; }
+
+  /* Le sous-menu passe en tiroir : même carte, sortie par la gauche. */
+  .oc-sub {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100vh;
+    width: min(300px, 85vw);
+    border-radius: 0 18px 18px 0;
+    overflow-y: auto;
+    transform: translateX(-105%);
+    transition: transform var(--dur-med, .25s) var(--ease-out, ease);
+    z-index: calc(var(--z-nav, 40) + 20);
+    box-shadow: 0 8px 40px rgba(16, 24, 40, .18);
+  }
+  .oc-sub.open { transform: none; }
+  .oc-sub a.item.is-active { margin-right: 0; }
+  .oc-sub a.item.is-active::after { display: none; }
+
+  .oc-pagehead { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .oc-pagehead h1 { font-size: 22px; }
+
+  .oc-savebar { left: 12px; right: 12px; bottom: 12px; padding: 12px; }
+  .oc-savebar .left, .oc-savebar .right { flex: 1 1 100%; }
+  .oc-savebar .right { flex-wrap: wrap; }
+  .oc-savebar .right .oc-btn { flex: 1; justify-content: center; }
+  body.oc-has-savebar .oc-page { padding-bottom: 170px; }
+}
+
+/* Overlay du tiroir : réutilise .oc-overlay d'admin.css (déjà stylé). */
+
+/* ============================================================
+   FENÊTRE DU COMPTE (pf-*) — même langage que le reste
+   ------------------------------------------------------------
+   Le compte ouvert depuis le menu du haut doit ressembler au
+   reste : aplats, aucun trait. On surcharge ici plutôt que de
+   réécrire le bloc pf-* d'admin.css, que l'espace coureur peut
+   aussi croiser.
+   ============================================================ */
+.pf-modal { border: 0; box-shadow: 0 2px 8px rgba(16, 24, 40, .07), 0 16px 48px rgba(16, 24, 40, .16); }
+.pf-header,
+.pf-tabs { border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, var(--canvas)); }
+
+.pf-input {
+  border: 0;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent);
+}
+.pf-input:focus {
+  background: var(--surface);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.pf-btn { border: 0; }
+.pf-btn-outline,
+.pf-btn-ghost {
+  background: color-mix(in srgb, var(--surface-2) 88%, var(--canvas));
+  color: var(--ink);
+}
+.pf-btn-outline:hover:not(:disabled),
+.pf-btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+.pf-btn-danger { background: var(--danger-soft); color: var(--danger); }
+.pf-btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+
+/* Cartes internes (méthodes de connexion, méthode par défaut) : aplat seul. */
+.pf-method-row,
+.pf-default-card,
+.pf-panel .pf-card {
+  border: 0;
+  background: color-mix(in srgb, var(--surface-2) 48%, var(--canvas));
+}
+.pf-divider-line { background: color-mix(in srgb, var(--border) 55%, var(--canvas)); }

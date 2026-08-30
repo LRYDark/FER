@@ -1,8 +1,8 @@
 <?php
 /**
- * _layout-haut.php — Coquille des pages de l'espace coureur : barre latérale
- * à gauche et contenu à droite, EXACTEMENT la structure de l'administration
- * (.jr-shell / .jr-nav / .jr-main de css/admin.css).
+ * _layout-haut.php — Coquille des pages de l'espace coureur : barre du haut
+ * avec les entrées en onglets et contenu à plat, EXACTEMENT le rendu des
+ * pages d'administration (.oc-* de css/admin-shell.css).
  *
  * POURQUOI PAS navbar-admin.php directement : ce partial est conditionné aux
  * permissions d'administration (canAccessPage / canDoAction) et pointe vers les
@@ -12,7 +12,9 @@
  *
  * Le préfixe underscore signale un fragment : ce n'est pas une page à ouvrir.
  */
-require_once dirname(__DIR__, 2) . '/src/content/chrono.php';   // chrono_actif()
+require_once dirname(__DIR__, 2) . '/src/content/chrono.php';         // chrono_actif()
+require_once dirname(__DIR__, 2) . '/src/content/notifications.php';  // notif_nonLusCount()
+require_once dirname(__DIR__, 2) . '/src/content/course.php';         // course_lire()
 
 $ecLogo     = dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png';
 $ecConnecte = function_exists('pauth_isLogged') && pauth_isLogged();
@@ -49,14 +51,51 @@ $ecMenu = [
    sans temps, et la carte du suivi GPS reste utile. */
 
 ?>
-<?php /* `ec-shell` ne sert QUE de portée : elle permet de faire du panneau
-         principal une colonne flex sans toucher à `.jr-main` d'admin.css, qui
-         habille aussi toute l'administration. Une règle globale ferait bouger
-         des dizaines de pages pour régler le pied d'une seule. */ ?>
-<div class="jr-shell ec-shell">
+<?php
+/* ── Identité du coureur connecté, pour la puce du compte ──────────────────
+ * La session est posée par pauth_login() ; on la lit avec prudence : ce
+ * fragment est aussi rendu déconnecté (page de connexion). */
+$ecSess   = (defined('PAUTH_SESSION_KEY') && isset($_SESSION[PAUTH_SESSION_KEY])) ? $_SESSION[PAUTH_SESSION_KEY] : [];
+$ecPrenom = trim((string) ($ecSess['prenom'] ?? ''));
+$ecNom    = trim((string) ($ecSess['nom'] ?? ''));
+$ecMail   = trim((string) ($ecSess['email'] ?? ''));
+if ($ecPrenom === '') $ecPrenom = $ecMail !== '' ? explode('@', $ecMail)[0] : 'coureur';
+$ecInitiale = mb_strtoupper(mb_substr($ecPrenom, 0, 1));
 
-  <aside class="jr-nav" id="ecSidebar">
-    <a class="jr-brand" href="../accueil.php" title="Forbach en Rose">
+/* ── Messages non lus, pour la pastille de l'onglet ───────────────────────────
+ * Comptés par la MÊME fonction que celle qui garnit la boîte : si la pastille
+ * comptait autre chose, elle annoncerait des messages introuvables dans la
+ * page. Le compte exclut donc les masqués, exactement comme la boîte. */
+$ecNonLus = 0;
+/* ⚠️ PAS DE PASTILLE SANS LA TABLE DES LECTURES. Sans elle, aucun message
+   n'est « lu » : la pastille aurait annoncé la totalité de la boîte, en
+   permanence, sans qu'on puisse jamais la faire descendre. */
+if ($ecConnecte && function_exists('notif_nonLusCount') && notif_luesDisponible($pdo)) {
+    try {
+        $ecAnneeCourse = (int) (course_lire($pdo)['annee'] ?? 0);
+        $ecNonLus = notif_nonLusCount($pdo, (int) pauth_id(), $ecAnneeCourse > 0 ? $ecAnneeCourse : null);
+    } catch (\Throwable $e) {
+        // Une pastille ne vaut pas une page blanche.
+        error_log('[EC] compte des non lus : ' . $e->getMessage());
+    }
+}
+?>
+<?php /* ── Coquille : la MÊME que l'administration (.oc-* de css/admin-shell.css)
+         ─────────────────────────────────────────────────────────────────────
+         Barre du haut avec le logo, les entrées en onglets, le compte à
+         droite ; contenu à plat sur la page, sans carte ni contour.
+
+         PAS DE SOUS-MENU À GAUCHE, et c'est volontaire : le menu du coureur
+         est plat — cinq entrées, aucune sous-rubrique. La carte grise
+         flottante n'aurait rien à contenir. `.oc-body.is-wide` donne alors
+         toute la largeur au contenu.
+
+         `ec-shell` ne sert que de portée pour les quelques règles de
+         _styles.php qui collent le pied de page en bas. */ ?>
+<div class="oc-shell ec-shell">
+
+  <header class="oc-top">
+    <a class="oc-brand" href="../accueil.php" title="Forbach en Rose">
       <?php if (is_file($ecLogo)): ?>
         <img src="../../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
       <?php else: ?>
@@ -64,70 +103,88 @@ $ecMenu = [
       <?php endif; ?>
     </a>
 
-    <nav>
+    <nav class="oc-tabs">
       <?php if ($ecConnecte): ?>
-        <div class="section">Mon espace</div>
         <?php foreach ($ecMenu as $fichier => [$libelle, $icone]): ?>
-          <a class="item <?= $ecPage === $fichier ? 'is-active' : '' ?>" href="<?= $fichier ?>">
-            <i class="bi <?= $icone ?>"></i><?= htmlspecialchars($libelle) ?>
+          <?php $ecPastille = ($fichier === 'messages.php' && $ecNonLus > 0); ?>
+          <a class="<?= $ecPage === $fichier ? 'is-active' : '' ?><?= $ecPastille ? ' has-badge' : '' ?>" href="<?= htmlspecialchars($fichier) ?>">
+            <?= htmlspecialchars($libelle) ?>
+            <?php /* La pastille ne dit QUE le nombre de non lus. Elle disparaît
+                     à zéro : une pastille à « 0 » attire l'œil pour annoncer
+                     qu'il n'y a rien. */ ?>
+            <?php if ($ecPastille): ?>
+              <span class="oc-badge" title="<?= (int) $ecNonLus ?> message<?= $ecNonLus > 1 ? 's' : '' ?> non lu<?= $ecNonLus > 1 ? 's' : '' ?>"><?= (int) $ecNonLus ?></span>
+            <?php endif; ?>
           </a>
         <?php endforeach; ?>
-
-        <div class="section">Le site</div>
-        <a class="item" href="../accueil.php"><i class="bi bi-house"></i>Site public</a>
-        <a class="item" href="../faq.php"><i class="bi bi-question-circle"></i>Questions fréquentes</a>
-        <?php /* En rouge : c'est la seule entrée du menu qui fait quitter
-                 l'espace. La distinguer d'un coup d'œil évite de cliquer
-                 dessus en cherchant autre chose.
-
-                 ⚠️ `margin-top:auto` ET NON UNE MARGE FIXE. `.jr-nav nav` est
-                 une colonne flex en `flex:1` : la marge automatique absorbe
-                 tout l'espace libre et colle donc l'entrée EN BAS de la barre,
-                 quel que soit le nombre d'entrées au-dessus — « Mes résultats »
-                 disparaît hors période de chronométrage, et avec une marge fixe
-                 la déconnexion remontait alors au milieu du vide.
-
-                 Elle se replace toute seule juste après le menu quand la barre
-                 est trop courte pour défiler : une marge automatique vaut zéro
-                 dès qu'il n'y a plus d'espace à distribuer. */ ?>
-        <a class="item is-danger" href="deconnexion.php" style="margin-top:auto">
-          <i class="bi bi-box-arrow-right"></i>Se déconnecter
-        </a>
       <?php else: ?>
-        <a class="item" href="login.php"><i class="bi bi-box-arrow-in-right"></i>Se connecter</a>
-        <a class="item" href="../accueil.php"><i class="bi bi-house"></i>Site public</a>
+        <a class="<?= $ecPage === 'login.php' ? 'is-active' : '' ?>" href="login.php">Se connecter</a>
       <?php endif; ?>
     </nav>
-  </aside>
 
-  <main class="jr-main">
-    <div class="jr-topbar">
-      <div style="display:flex;align-items:center;gap:var(--sp-3)">
-        <?php /* Burger : la barre latérale sort de l'écran sous 991px, comme en
-                 administration. Sans lui, le menu serait inaccessible sur mobile. */ ?>
-        <button class="jr-burger" id="ecBurger" type="button" aria-label="Menu"
-                aria-controls="ecSidebar" aria-expanded="false">
-          <i class="bi bi-list"></i>
+    <div class="oc-topright">
+      <?php if ($ecConnecte): ?>
+        <button class="oc-user" id="ecAvatarBtn" type="button" title="<?= htmlspecialchars($ecMail) ?>">
+          <span class="ava"><?= htmlspecialchars($ecInitiale) ?></span>
+          <span class="who">Bonjour <?= htmlspecialchars($ecPrenom) ?></span>
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div class="crumbs">
+
+        <?php /* Tout ce qui fait SORTIR de l'espace tient ici, et nulle part
+                 ailleurs — comme dans l'administration. « Mon compte » reste
+                 un onglet : c'est une page de l'espace, pas une sortie. */ ?>
+        <div class="oc-usermenu" id="ecDropdown">
+          <div class="head">
+            <span class="ava"><?= htmlspecialchars($ecInitiale) ?></span>
+            <span class="id">
+              <span class="name"><?= htmlspecialchars(trim($ecPrenom . ' ' . $ecNom)) ?></span>
+              <span class="mail"><?= htmlspecialchars($ecMail) ?></span>
+            </span>
+          </div>
+          <hr>
+          <a href="../accueil.php">
+            <svg viewBox="0 0 24 24"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
+            <span>Site public</span>
+          </a>
+          <a href="../faq.php">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
+            <span>Questions fréquentes</span>
+          </a>
+          <hr>
+          <a href="deconnexion.php" class="is-danger">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Se déconnecter</span>
+          </a>
+        </div>
+      <?php else: ?>
+        <a class="oc-btn" href="../accueil.php">Site public</a>
+      <?php endif; ?>
+    </div>
+  </header>
+
+  <div class="oc-body is-wide">
+    <?php /* Colonne de lecture bornée par défaut : sur un grand écran, une
+             page de formulaires étirée sur 1900 px fatigue à la lecture et
+             fait paraître chaque bloc vide. Une page qui a vraiment besoin de
+             la largeur — Mon compte et ses deux colonnes — pose
+             $ecPleineLargeur = true avant d'inclure ce fragment. */ ?>
+    <div class="oc-page<?= !empty($ecPleineLargeur) ? ' ec-large' : '' ?>">
+
+      <header class="oc-pagehead">
+        <div>
           <?php if ($ecSurtitre !== ''): ?>
-            <span class="eyebrow"><?= htmlspecialchars($ecSurtitre) ?></span>
+            <p class="sub" style="margin:0 0 2px"><?= htmlspecialchars($ecSurtitre) ?></p>
           <?php endif; ?>
           <h1><?= htmlspecialchars($ecTitre) ?></h1>
         </div>
-      </div>
 
-      <?php /* Actions de la page, EN FACE du titre : .jr-topbar est déjà en
-               `justify-content: space-between` (css/admin.css), un second enfant
-               se range donc à droite tout seul, et repasse sous le titre quand
-               l'écran devient étroit (flex-wrap). Aucun style à inventer.
-
-               ⚠️ HTML BRUT, VOLONTAIREMENT NON ÉCHAPPÉ. Cette variable est écrite
-               par la page elle-même — jamais par une saisie. Toute donnée qu'on y
-               place doit être passée par htmlspecialchars() AVANT d'y arriver. */ ?>
-      <?php if (($ecTopbarActions ?? '') !== ''): ?>
-        <div class="row-actions" style="margin:0"><?= $ecTopbarActions ?></div>
-      <?php endif; ?>
-    </div>
-
+        <?php /* Actions de la page, en face du titre.
+                 ⚠️ HTML BRUT, VOLONTAIREMENT NON ÉCHAPPÉ. Cette variable est
+                 écrite par la page elle-même — jamais par une saisie. Toute
+                 donnée qu'on y place doit passer par htmlspecialchars() AVANT
+                 d'arriver ici. */ ?>
+        <?php if (($ecTopbarActions ?? '') !== ''): ?>
+          <div class="acts"><?= $ecTopbarActions ?></div>
+        <?php endif; ?>
+      </header>
     <div class="ec-stack">

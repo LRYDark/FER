@@ -2138,6 +2138,20 @@ if (isset($_POST['deleteImage'])) {
     }
 }
 
+/* ═══ « Enregistrer et voir le site » ═══
+ * Placé APRÈS tous les gestionnaires : ils ont déjà écrit en base quand on
+ * arrive ici. On part alors sur le site public au lieu de réafficher les
+ * réglages — c'est ce que le bouton promet.
+ *
+ * ⚠️ Les messages de confirmation (addToast) sont perdus par la redirection.
+ * C'est assumé : quelqu'un qui clique ce bouton-là veut voir le résultat sur
+ * le site, pas lire un bandeau vert dans l'administration. Le bouton
+ * « Enregistrer » seul, lui, reste sur place et affiche les messages. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['oc_goto_site'])) {
+    header('Location: ../public/accueil');
+    exit;
+}
+
 ?>
 <!doctype html>
 <html lang="fr">
@@ -2184,30 +2198,110 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <body>
 
+<?php
+/* ═══ En-tête de page ═══
+ * Réglages est l'un des deux seuls écrans qui n'affiche pas son propre <h1> :
+ * c'est le shell qui le rend, à la demande. Le titre suit l'onglet actif —
+ * on est sur « Personnalisation », pas sur « Réglages » en général. */
+$pageShowTitle = true;
+$ocTabIcons = [
+    'personnalisation' => 'palette', 'accueil' => 'house', 'course' => 'flag',
+    'inscription' => 'pencil-square', 'parcours' => 'map', 'reglementation' => 'file-earmark-text',
+    'legal' => 'file-text', 'formulaire' => 'input-cursor-text', 'import_auto' => 'arrow-repeat',
+    'maintenance' => 'wrench', 'api' => 'plug',
+];
+$ocTabLeads = [
+    'personnalisation' => 'Logos, couleurs et typographie du site public.',
+    'accueil'          => "Contenu et mise en page de la page d'accueil.",
+    'course'           => 'Date, horaires et lieu de départ de la course.',
+    'inscription'      => 'Ouverture des inscriptions, tarifs et messages affichés.',
+    'parcours'         => 'Tracés, dénivelé et images des parcours.',
+    'reglementation'   => 'Texte du règlement de la course.',
+    'legal'            => 'Mentions légales et politique de confidentialité.',
+    'formulaire'       => "Champs du formulaire d'inscription.",
+    'import_auto'      => 'Liaison AssoConnect et import automatique des inscrits.',
+    'maintenance'      => 'Mode maintenance et durée des sessions.',
+    'api'              => 'Accès API du site et de l’application mobile.',
+];
+$pageIcon = $ocTabIcons[$activeTab] ?? 'sliders';
+$pageLead = $ocTabLeads[$activeTab] ?? '';
+$pageActions = '<a class="oc-btn" href="../public/accueil" target="_blank" rel="noopener">'
+    . '<i class="bi bi-eye"></i> Aperçu du site</a>';
+?>
+
 <?php include __DIR__ . '/../src/partials/navbar-admin.php'; ?>
 
 <style>
-  .settings-tabs { border-bottom: 2px solid var(--border); margin-bottom: 24px; gap: 0; }
-  .settings-tabs .nav-link {
-    color: var(--ink); font-weight: 500; font-size: 14px;
-    padding: 10px 18px; border: none; border-bottom: 2px solid transparent;
-    margin-bottom: -2px; border-radius: 0; background: transparent;
-  }
-  .settings-tabs .nav-link:hover { color: var(--ink); border-bottom-color: var(--ink-faint); }
-  .settings-tabs .nav-link.active {
-    color: var(--ink); font-weight: 600;
-    border-bottom-color: var(--primary, #f42182); background: transparent;
-  }
+  /* ⚠️ LA BARRE D'ONGLETS EST MASQUÉE, PAS SUPPRIMÉE.
+     La navigation entre onglets passe désormais par le sous-menu gris du
+     shell (src/partials/navbar-admin.php), qui recharge la page avec ?tab=.
+     Le <ul> reste dans le document parce que le script de bascule d'onglets
+     plus bas s'y accroche encore ; l'enlever demanderait de réécrire ce
+     script pour rien. */
+  .settings-tabs { display: none; }
   .settings-section { display: none; }
   .settings-section.active { display: block; }
+  /* ═══ Cartes de réglages — à plat, sans aucun contour ═══
+     Les blocs ne flottent pas : ils se posent sur la page, et ne se
+     distinguent que par un aplat à peine plus soutenu. Les couleurs
+     dérivent des tokens (color-mix) pour que le thème sombre suive. */
   .setting-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 24px; margin-bottom: 20px;
+    background: color-mix(in srgb, var(--surface-2) 48%, var(--canvas));
+    border: 0;
+    border-radius: 16px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
   }
   .setting-card h2 {
-    font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 16px;
-    padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    font-size: 15.5px; font-weight: 600; color: var(--ink);
+    margin: 0 0 14px;
+    padding-bottom: 0;
+    border-bottom: 0;
   }
+  /* Les conteneurs de boutons vidés par la barre d'enregistrement globale ne
+     doivent pas laisser un blanc au bas des cartes. */
+  .setting-card .row > .col-12:empty,
+  .setting-card .col-12.text-end:empty { display: none; }
+
+  /* ═══ Contrôles : aplat, jamais de trait ═══
+     Bootstrap dessine une bordure sur .form-control / .form-select / .btn,
+     et le navigateur en dessine une d'office sur tout <button> sans style.
+     On repasse tout en aplats — c'est la règle du nouveau shell. */
+  /* ⚠️ CHAMPS BLANCS SUR CARTE TEINTÉE, ET NON L'INVERSE.
+     Trois niveaux qui alternent : page blanche → carte à peine teintée →
+     champ blanc. Des champs gris dans une carte presque blanche inversaient
+     la lecture : le champ paraissait désactivé et la carte, cliquable. */
+  .settings-section .form-control,
+  .settings-section .form-select,
+  .settings-section .input-group-text {
+    border: 0;
+    background: var(--surface);
+    box-shadow: none;
+  }
+  .settings-section .form-control:focus,
+  .settings-section .form-select:focus {
+    background: var(--surface);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  /* Champ désactivé : là, le gris a un sens — il dit qu'on ne peut pas écrire. */
+  .settings-section .form-control:disabled,
+  .settings-section .form-control[readonly],
+  .settings-section .form-select:disabled {
+    background: color-mix(in srgb, var(--surface-2) 85%, var(--canvas));
+    color: var(--ink-dim);
+  }
+  .settings-section .btn { border: 0; }
+  .settings-section .btn-outline-secondary,
+  .settings-section .btn-secondary {
+    background: color-mix(in srgb, var(--surface-2) 88%, var(--canvas));
+    color: var(--ink);
+  }
+  .settings-section .btn-outline-secondary:hover,
+  .settings-section .btn-secondary:hover { background: var(--surface-2); color: var(--ink); }
+  .settings-section .btn-outline-danger { background: var(--danger-soft); color: var(--danger); }
+  .settings-section .btn-outline-danger:hover { background: var(--danger); color: #fff; }
+  .settings-section .btn-outline-primary { background: var(--accent-soft); color: var(--accent); }
+  .settings-section .btn-outline-primary:hover { background: var(--accent); color: var(--accent-ink); }
   .theme-mode-tab {
     background: var(--surface-2); color: var(--ink-dim); border: 1px solid var(--border);
     border-radius: 8px; cursor: pointer; transition: all .2s;
@@ -3104,13 +3198,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 <!-- ═══ TAB: Personnalisation ═══ -->
 <?php if ($canTab('personnalisation')): ?>
 <div class="settings-section <?= $activeTab === 'personnalisation' ? 'active' : '' ?>" id="tab-personnalisation">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-personnalisation" data-tab="personnalisation" data-save-flags="save_navbar_logo=1|save_footer_logo=1|save_theme=1|save_flash_colors=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
 
     <!-- Carte : Logo -->
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Logo de la navbar</h2>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-12">
             <label class="form-label">Changer le logo</label>
@@ -3129,9 +3229,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </div>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_navbar_logo" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-lg-6 -->
 
@@ -3139,7 +3238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Logo du footer</h2>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-12">
             <label class="form-label">Changer le logo</label>
@@ -3158,9 +3257,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </div>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_footer_logo" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-lg-6 -->
 
@@ -3168,7 +3266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     <div class="col-12">
       <div class="setting-card" id="carteTheme">
         <h2>Thème du site</h2>
-        <form action="" method="post" class="needs-validation" id="themeForm">
+        <div class="needs-validation" id="themeForm">
           <?= csrf_field() ?>
 
           <!-- Sous-onglets Light / Dark -->
@@ -3316,13 +3414,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </div>
 
             <div class="col-12 d-flex justify-content-between">
-              <button type="submit" name="reset_theme" class="btn btn-outline-secondary w-auto" data-confirm="Réinitialiser le thème aux valeurs par défaut ?">
+              <button type="submit" formnovalidate name="reset_theme" class="btn btn-outline-secondary w-auto" data-confirm="Réinitialiser le thème aux valeurs par défaut ?">
                 <i class="bi bi-arrow-counterclockwise me-1"></i>Par défaut
               </button>
-              <button type="submit" name="save_theme" class="btn btn-primary w-auto">Sauvegarder le thème</button>
             </div>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-12 -->
 
@@ -3346,7 +3443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
        </div>
        <div class="modal-body">
       <div class="setting-card">
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
 
           <div class="col-md-4">
@@ -3372,12 +3469,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </div>
 
           <div class="col-12 d-flex justify-content-between">
-            <button type="submit" name="reset_flash_colors" class="btn btn-outline-secondary w-auto" data-confirm="Réinitialiser les couleurs du bandeau ?">
+            <button type="submit" formnovalidate name="reset_flash_colors" class="btn btn-outline-secondary w-auto" data-confirm="Réinitialiser les couleurs du bandeau ?">
               <i class="bi bi-arrow-counterclockwise me-1"></i>Par défaut
             </button>
-            <button type="submit" name="save_flash_colors" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
        </div><!-- /modal-body -->
       </div>
@@ -3385,12 +3481,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     </div><!-- /modalFlashCouleurs -->
 
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-personnalisation -->
 <?php endif; // canTab('personnalisation') ?>
 
 <!-- ═══ TAB: Accueil ═══ -->
 <?php if ($canTab('accueil')): ?>
 <div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-accueil" data-tab="accueil" data-save-flags="save_accueil_params=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
 
     <?php /* Le bandeau « l'assistant virtuel a déménagé » a été retiré : il
@@ -3406,7 +3509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     <div class="col-12">
       <div class="setting-card">
         <h2>Paramètres page accueil</h2>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
 
           <div class="col-md-6"><label class="form-label">Lien Facebook</label>
@@ -3470,9 +3573,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </script>
 
           <div class="col-12 text-end">
-            <button type="submit" name="save_accueil_params" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-12 -->
     <?php endif; // canCard('accueil','params') ?>
@@ -4099,19 +4201,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     <?php endif; // canCard('accueil','custom') ?>
 
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-accueil -->
 <?php endif; // canTab('accueil') ?>
 
 <!-- ═══ TAB: Inscription ═══ -->
 <?php if ($canTab('inscription')): ?>
 <div class="settings-section <?= $activeTab === 'inscription' ? 'active' : '' ?>" id="tab-inscription">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-inscription" data-tab="inscription" data-save-flags="save_header=1|save_inscription_params=1|save_closed_message=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
     <?php if ($canCard('inscription', 'header')): ?>
     <div class="col-12">
       <div class="setting-card" id="carteInscriptionHeader">
         <h2>En-tête du site d'inscription</h2>
         <?php $headerSubTab = $_POST['header_subtab'] ?? 'headerPC'; ?>
-        <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <input type="hidden" name="header_subtab" id="header_subtab" value="<?= htmlspecialchars($headerSubTab) ?>">
 
@@ -4166,9 +4275,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </script>
 
           <div class="col-12 text-end">
-            <button type="submit" name="save_header" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-12 -->
     <?php endif; // canCard('inscription','header') ?>
@@ -4177,7 +4285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     <div class="col-12 col-lg-6">
       <div class="setting-card" id="carteInscriptionParams">
         <h2>Paramètres d'inscription</h2>
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-md-6"><label class="form-label">Montant de l'inscription</label>
             <select id="registration_fee" name="registration_fee" class="form-select">
@@ -4233,16 +4341,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <small class="text-muted">Les inscriptions se fermeront automatiquement à cette date et heure.</small>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_inscription_params" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-lg-6 -->
 
     <div class="col-12 col-lg-6">
       <div class="setting-card" id="carteInscriptionFermee">
         <h2>Message « inscriptions fermées »</h2>
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-12">
             <label class="form-label" for="registrationClosedMessageEditor">Information complémentaire affichée quand les inscriptions sont fermées</label>
@@ -4250,15 +4357,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             <small class="text-muted">S'affiche sous « 🚫 Les inscriptions sont actuellement fermées » sur la page publique d'inscription. Utilisez la barre d'outils pour la mise en forme (gras, couleurs, liens…). Laisser vide pour n'afficher que le message par défaut.</small>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_closed_message" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-lg-6 -->
     <?php endif; // canCard('inscription','params') ?>
 
 
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-inscription -->
 <?php endif; // canTab('inscription') ?>
 
@@ -4274,6 +4381,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
   $coManques = course_manques($pdo);
 ?>
 <div class="settings-section <?= $activeTab === 'course' ? 'active' : '' ?>" id="tab-course">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-course" data-tab="course" data-save-flags="save_course=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
 
     <?php /* Le diagnostic AVANT le formulaire. Un interrupteur « chronométrage
@@ -4309,7 +4422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           seule valeur pour chaque information.
         </p>
 
-        <form action="" method="post" class="row g-3">
+        <div class="row g-3">
           <?= csrf_field() ?>
 
           <div class="col-md-6">
@@ -4443,26 +4556,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           </div>
 
           <div class="col-12">
-            <button type="submit" name="save_course" class="btn btn-primary">
-              <i class="bi bi-check2 me-1"></i>Enregistrer les informations de course
-            </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
 
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-course -->
 <?php endif; // canTab('course') ?>
 
 <!-- ═══ TAB: Parcours ═══ -->
 <?php if ($canTab('parcours')): ?>
 <div class="settings-section <?= $activeTab === 'parcours' ? 'active' : '' ?>" id="tab-parcours">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-parcours" data-tab="parcours" data-save-flags="parcours=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
         <h2>Parcours</h2>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                <div class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div class="col-md-6"><label class="form-label">Titre de l'image principale</label>
                         <input type="text" class="form-control" name="titleParcours" placeholder="Titre de l'image principale" value="<?= htmlspecialchars($titleParcours, ENT_QUOTES, 'UTF-8'); ?>">
@@ -4486,7 +4603,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                                 class="img-thumbnail"
                                 style="max-width:145px;">
                         </div>
-                        <button type="submit" name="delete_picture_parcours" value="1" class="btn btn-danger btn-sm">
+                        <button type="submit" formnovalidate name="delete_picture_parcours" value="1" class="btn btn-danger btn-sm">
                             Supprimer l'image
                         </button>
                     <?php endif; ?>
@@ -4505,7 +4622,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                                 class="img-thumbnail"
                                 style="max-width:145px;">
                         </div>
-                        <button type="submit" name="delete_picture_gradient" value="1" class="btn btn-danger btn-sm">
+                        <button type="submit" formnovalidate name="delete_picture_gradient" value="1" class="btn btn-danger btn-sm">
                             Supprimer l'image
                         </button>
                     <?php endif; ?>
@@ -4516,9 +4633,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                         </button>
                     </div>
                     <div class="col-12 text-end">
-                        <button type="submit" name="parcours" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
-                </form>
+                </div>
       </div><!-- /setting-card parcours -->
     </div><!-- /col-12 -->
   </div><!-- /row -->
@@ -4635,19 +4751,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
       </div>
     </div>
   </div>
+  </form>
 </div><!-- /tab-parcours -->
 <?php endif; // canTab('parcours') ?>
 
 <!-- ═══ TAB: Reglementation ═══ -->
 <?php if ($canTab('reglementation')): ?>
 <div class="settings-section <?= $activeTab === 'reglementation' ? 'active' : '' ?>" id="tab-reglementation">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-reglementation" data-tab="reglementation" data-save-flags="reglementation=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <style>
   </style>
   <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
         <h2>Reglement de la course</h2>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                <div class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div>
                         <textarea class="form-control" id="divReglementation" name="div_reglementation" rows="10" required>
@@ -4655,9 +4778,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                         </textarea>
                     </div>
                     <div class="col-12 text-end">
-                        <button type="submit" name="reglementation" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
-                </form>
+                </div>
       </div><!-- /setting-card reglementation -->
     </div><!-- /col-12 -->
   </div><!-- /row -->
@@ -4669,12 +4791,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
         <?= getTinyMceConfig($pdo, ['height' => 430]) ?>
     });
   </script>
+  </form>
 </div><!-- /tab-reglementation -->
 <?php endif; // canTab('reglementation') ?>
 
 <!-- ═══ TAB: Pages légales ═══ -->
 <?php if ($canTab('legal')): ?>
 <div class="settings-section <?= $activeTab === 'legal' ? 'active' : '' ?>" id="tab-legal">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-legal" data-tab="legal" data-save-flags="save_legal_mentions=1|save_legal_privacy=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
@@ -4682,15 +4811,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
         <p class="text-muted" style="font-size:13px;margin-top:-6px">
           Affichées sur la page publique <strong>/mentions-legales</strong> (lien du footer).
         </p>
-        <form action="" method="post" class="row g-3">
+        <div class="row g-3">
           <?= csrf_field() ?>
           <div>
             <textarea class="form-control" id="legalMentions" name="legal_mentions" rows="10"><?= htmlspecialchars($legal_mentions) ?></textarea>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_legal_mentions" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
     <div class="col-12">
@@ -4700,15 +4828,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           Affichée sur la page publique <strong>/politique-confidentialite</strong> (lien du footer).
           Pensez à la tenir à jour si vous ajoutez un service tiers ou un nouveau formulaire.
         </p>
-        <form action="" method="post" class="row g-3">
+        <div class="row g-3">
           <?= csrf_field() ?>
           <div>
             <textarea class="form-control" id="legalPrivacy" name="legal_privacy" rows="10"><?= htmlspecialchars($legal_privacy) ?></textarea>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_legal_privacy" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   </div>
@@ -4731,12 +4858,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     }
   })();
   </script>
+  </form>
 </div><!-- /tab-legal -->
 <?php endif; // canTab('legal') ?>
 
 <!-- ═══ TAB: Formulaire ═══ -->
 <?php if ($canTab('formulaire')): ?>
 <div class="settings-section <?= $activeTab === 'formulaire' ? 'active' : '' ?>" id="tab-formulaire">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-formulaire" data-tab="formulaire" data-save-flags="save_fields=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
@@ -4745,7 +4879,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
           <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addFieldModal"><i class="bi bi-plus-lg"></i> Ajouter un champ</button>
         </div>
 
-        <form action="" method="post" class="needs-validation">
+        <div class="needs-validation">
           <?= csrf_field() ?>
           <div class="table-responsive">
             <table class="table table-sm table-bordered align-middle mb-3" style="font-size:13px;">
@@ -4882,7 +5016,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                                donc PAS — et la suppression d'une colonne, avec
                                toutes ses données, partait sans rien demander.
                                Les &#10; sont des retours à la ligne réels. */ ?>
-                      <button type="submit" name="delete_field_id" value="<?= $id ?>" class="btn btn-outline-danger btn-sm"
+                      <button type="submit" formnovalidate name="delete_field_id" value="<?= $id ?>" class="btn btn-outline-danger btn-sm"
                         data-confirm="ATTENTION : Cela supprimera la colonne « <?= htmlspecialchars($f['label']) ?> » et toutes ses données en base.&#10;&#10;Si vous voulez juste masquer le champ, décochez-le et cliquez Sauvegarder.&#10;&#10;Supprimer définitivement ?">
                         <i class="bi bi-trash"></i>
                       </button>
@@ -4894,9 +5028,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </table>
           </div>
           <div class="text-end">
-            <button type="submit" name="save_fields" class="btn btn-primary">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div><!-- /setting-card fields -->
     </div><!-- /col-12 -->
 
@@ -4904,7 +5037,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
     <div class="modal fade" id="addFieldModal" tabindex="-1">
       <div class="modal-dialog">
         <div class="modal-content">
-          <form action="" method="post">
+          <div >
             <?= csrf_field() ?>
             <div class="modal-header">
               <h5 class="modal-title">Ajouter un champ personnalisé</h5>
@@ -4941,14 +5074,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-              <button type="submit" name="add_custom_field" class="btn btn-success">Ajouter</button>
+              <button type="submit" formnovalidate name="add_custom_field" class="btn btn-success">Ajouter</button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
 
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-formulaire -->
 <?php endif; // canTab('formulaire') ?>
 
@@ -4967,6 +5101,12 @@ if ($canTab('import_auto') || $canImportXlsManual
     || $canCard('inscription', 'assoconnect') || $canCard('inscription', 'cspdomains') || $canTab('import')):
 ?>
 <div class="settings-section <?= $activeTab === 'import_auto' ? 'active' : '' ?>" id="tab-import_auto">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-import_auto" data-tab="import_auto" data-save-flags="save_import_auto=save|LinkAssoConnect=1|save_csp_domains=1|importExcel=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
 
   <?php if ($canImportXlsManual): ?>
   <!-- Carte : import manuel (bouton) — droit dashboard.import_excel -->
@@ -5027,7 +5167,7 @@ if ($canTab('import_auto') || $canImportXlsManual
           (Réglages → QR Code), comme en manuel.
         </p>
 
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
 
           <div class="col-12">
@@ -5093,11 +5233,8 @@ if ($canTab('import_auto') || $canImportXlsManual
             <button type="submit" name="save_import_auto" value="run" class="btn btn-outline-primary w-auto">
               <i class="bi bi-play-fill me-1"></i>Lancer maintenant
             </button>
-            <button type="submit" name="save_import_auto" value="save" class="btn btn-primary w-auto">
-              <i class="bi bi-save me-1"></i>Enregistrer
-            </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
 
@@ -5197,12 +5334,12 @@ if ($canTab('import_auto') || $canImportXlsManual
         <div class="d-flex gap-2 flex-wrap align-items-center">
           <input type="password" id="cronTokenView" value="<?= htmlspecialchars($wkToken, ENT_QUOTES, 'UTF-8') ?>" readonly class="form-control" style="max-width:330px;font-family:Consolas,monospace;font-size:12px">
           <button class="btn btn-outline-secondary" type="button" data-wktoggle="cronTokenView"><i class="bi bi-eye"></i> Voir le token</button>
-          <form action="" method="post" class="d-inline" id="regenWorkerForm">
+          <div class="d-inline" id="regenWorkerForm">
             <?= csrf_field() ?>
-            <button type="submit" name="regenerate_worker_token" class="btn btn-outline-danger">
+            <button type="submit" formnovalidate name="regenerate_worker_token" class="btn btn-outline-danger" data-confirm="Régénérer le token ? Le cron cessera de fonctionner tant que vous n'aurez pas mis à jour la commande (avec le nouveau token) dans votre panel d'hébergement.">
               <i class="bi bi-arrow-repeat me-1"></i>Régénérer le token
             </button>
-          </form>
+          </div>
         </div>
         <small class="text-muted d-block mt-2">
           <i class="bi bi-shield-lock me-1"></i>Le token sécurise l'URL du cron (comparé en temps constant, HTTPS).
@@ -5230,7 +5367,7 @@ if ($canTab('import_auto') || $canImportXlsManual
           .ac-form input:-ms-input-placeholder{color: var(--ink-faint);font-style:italic}
           .ac-divider{border:0;border-top:1px solid var(--border);margin:18px 0}
         </style>
-                    <form action="" method="post" enctype="multipart/form-data" class="ac-form">
+                    <div class="ac-form">
                         <?= csrf_field() ?>
 
                         <p class="ac-hint" style="margin-top:0">Collez le code fourni par AssoConnect (onglet « Diffusion » &rarr; « Afficher le formulaire de campagne sur un site externe »).</p>
@@ -5260,9 +5397,8 @@ if ($canTab('import_auto') || $canImportXlsManual
                         </div>
 
                         <div class="text-end mt-3">
-                            <button type="submit" name="LinkAssoConnect" class="btn btn-primary w-auto">Sauvegarder</button>
                         </div>
-                    </form>
+                    </div>
       </div><!-- /setting-card asso -->
     </div><!-- /col-lg-6 -->
     <?php endif; // canCard('inscription','assoconnect') ?>
@@ -5271,7 +5407,7 @@ if ($canTab('import_auto') || $canImportXlsManual
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2>Domaines autorisés (AssoConnect)</h2>
-        <form action="" method="post" class="row g-3">
+        <div class="row g-3">
           <?= csrf_field() ?>
           <input type="hidden" name="active_tab" value="inscription">
           <div class="col-12">
@@ -5287,9 +5423,8 @@ if ($canTab('import_auto') || $canImportXlsManual
             </div>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_csp_domains" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div><!-- /setting-card csp -->
     </div><!-- /col-lg-6 -->
     <?php endif; // canCard('inscription','cspdomains') ?>
@@ -5300,7 +5435,7 @@ if ($canTab('import_auto') || $canImportXlsManual
     <div class="col-12">
       <div class="setting-card">
         <h2>Correspondance des colonnes Excel (import)</h2>
-                <form action="" method="post" enctype="multipart/form-data" class="row g-3 needs-validation">
+                <div class="row g-3 needs-validation">
                     <?= csrf_field() ?>
                     <div class="col-md-4"><label class="form-label">N d'inscription =</label>
                         <input type="text" class="form-control" name="inscription_no" value="<?= htmlspecialchars($inscription_no, ENT_QUOTES, 'UTF-8'); ?>">
@@ -5343,9 +5478,8 @@ if ($canTab('import_auto') || $canImportXlsManual
                         <input type="text" class="form-control" name="created_at" value="<?= htmlspecialchars($created_at, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
                     <div class="col-12 text-end">
-                        <button type="submit" name="importExcel" class="btn btn-primary w-auto">Sauvegarder</button>
                     </div>
-                </form>
+                </div>
       </div><!-- /setting-card import -->
     </div><!-- /col-12 -->
   </div><!-- /row -->
@@ -5362,6 +5496,7 @@ if ($canTab('import_auto') || $canImportXlsManual
     </div>
   </div>
 </div><!-- /modalConfigImport -->
+  </form>
 </div><!-- /tab-import_auto -->
 
 <?php if ($canImportXlsManual): ?>
@@ -5687,15 +5822,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       btn.innerHTML = (field.type === 'password') ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
     });
   });
-  // Confirmation avant régénération du token
-  var regen = document.getElementById('regenWorkerForm');
-  if(regen){
-    regen.addEventListener('submit', function(e){
-      if(!confirm('Régénérer le token ? Le cron cessera de fonctionner tant que vous n\'aurez pas mis à jour la commande (avec le nouveau token) dans votre panel d\'hébergement.')){
-        e.preventDefault();
-      }
-    });
-  }
+  // Confirmation : data-confirm sur le bouton (src/partials/confirm-script.php).
 })();
 </script>
 <?php endif; // fin onglet Import AssoConnect (canTab('import_auto') OU dashboard.import_excel) ?>
@@ -5703,11 +5830,17 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
 <!-- ═══ TAB: Maintenance ═══ -->
 <?php if ($canTab('maintenance')): ?>
 <div class="settings-section <?= $activeTab === 'maintenance' ? 'active' : '' ?>" id="tab-maintenance">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-maintenance" data-tab="maintenance" data-save-flags="save_maintenance=1|save_session=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
     <div class="col-12">
       <div class="setting-card">
         <h2>Mode maintenance</h2>
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
 
           <div class="col-12">
@@ -5728,16 +5861,15 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
           </div>
 
           <div class="col-12 text-end">
-            <button type="submit" name="save_maintenance" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-12 -->
 
     <div class="col-12">
       <div class="setting-card">
         <h2>Sécurité — Expiration de session</h2>
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-12 col-md-6">
             <label class="form-label" for="session_lifetime">Déconnexion automatique après inactivité</label>
@@ -5760,18 +5892,24 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             <small class="text-muted">Déconnexion automatique cette durée après la <strong>connexion</strong>, même si l'utilisateur reste actif. « Jamais » = pas de limite absolue. Indépendant de l'inactivité ci-dessus.</small>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_session" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
-        </form>
+        </div>
       </div>
     </div><!-- /col-12 -->
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-maintenance -->
 <?php endif; // canTab('maintenance') ?>
 
 <!-- ═══ TAB: API ═══ -->
 <?php if ($canTab('api')): ?>
 <div class="settings-section <?= $activeTab === 'api' ? 'active' : '' ?>" id="tab-api">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-api" data-tab="api" data-save-flags="save_api=1|save_api_v1=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
   <div class="row g-4">
 
     <!-- Carte : vue d'ensemble des trois points d'entrée -->
@@ -5824,7 +5962,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
           importer un fichier Excel, ajouter un inscrit ou consulter les statistiques,
           exactement comme depuis le tableau de bord.
         </p>
-        <form action="" method="post" class="row g-3 needs-validation">
+        <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-12">
             <label class="form-label">Activer l'API</label>
@@ -5840,9 +5978,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             </small>
           </div>
           <div class="col-12 text-end">
-            <button type="submit" name="save_api" class="btn btn-primary w-auto">Enregistrer</button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
 
@@ -5886,12 +6023,12 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             <a href="api-doc.php" target="_blank" rel="noopener" class="btn btn-info">
               <i class="bi bi-book me-1"></i>Voir la documentation
             </a>
-            <form action="" method="post" class="d-inline" id="regenApiForm">
+            <div class="d-inline" id="regenApiForm">
               <?= csrf_field() ?>
-              <button type="submit" name="regenerate_api" class="btn btn-outline-danger">
+              <button type="submit" formnovalidate name="regenerate_api" class="btn btn-outline-danger" data-confirm="Régénérer les identifiants ? Les applications utilisant les anciens identifiants ne fonctionneront plus.">
                 <i class="bi bi-arrow-repeat me-1"></i>Régénérer les identifiants
               </button>
-            </form>
+            </div>
           </div>
           <small class="text-muted d-block mt-2">
             Régénérer crée un nouvel identifiant et un nouveau token. Les applications
@@ -5917,7 +6054,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
                  tableau « Vue d'ensemble », en haut de l'onglet, le dit déjà. Le
                  répéter allongeait l'écran sans rien apprendre. */ ?>
 
-        <form action="" method="post" class="row g-3">
+        <div class="row g-3">
           <?= csrf_field() ?>
           <div class="col-12">
             <label class="form-label">Activer l'API mobile</label>
@@ -5936,11 +6073,8 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
             </small>
           </div>
           <div class="col-12">
-            <button type="submit" name="save_api_v1" class="btn btn-primary">
-              <i class="bi bi-check2 me-1"></i>Enregistrer
-            </button>
           </div>
-        </form>
+        </div>
 
         <?php if ($api_v1_enabled): ?>
           <hr class="my-4">
@@ -5982,6 +6116,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
     </div>
 
   </div><!-- /row -->
+  </form>
 </div><!-- /tab-api -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 (function(){
@@ -6017,15 +6152,7 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
       btn.innerHTML = (field.type === 'password') ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
     });
   });
-  // Confirmation avant régénération
-  var regenForm = document.getElementById('regenApiForm');
-  if(regenForm){
-    regenForm.addEventListener('submit', function(e){
-      if(!confirm('Régénérer les identifiants ? Les applications utilisant les anciens identifiants ne fonctionneront plus.')){
-        e.preventDefault();
-      }
-    });
-  }
+  // Confirmation : data-confirm sur le bouton (src/partials/confirm-script.php).
 })();
 </script>
 <?php endif; // canTab('api') ?>
@@ -6194,6 +6321,11 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
   });
 })();
 </script>
+
+<?php /* Barre d'enregistrement : composant partagé (src/partials/save-bar.php).
+         Réglages est en mode « un seul formulaire par onglet » — chaque
+         <form class="oc-tabform"> porte ses drapeaux dans data-save-flags. */ ?>
+<?php $saveBarSite = true; include __DIR__ . '/../src/partials/save-bar.php'; ?>
 
 <?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 
@@ -6398,6 +6530,50 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
   radius.addEventListener('input', updatePreview);
   font.addEventListener('change', updatePreview);
   updatePreview();
+
+  /* ═══ L'ADMINISTRATION SE REPEINT PENDANT QU'ON CHOISIT ═══
+   * L'accent de l'interface est, par défaut, la couleur principale du site.
+   * Attendre l'enregistrement pour la voir obligeait à sauvegarder « pour
+   * voir », puis à revenir en arrière si ça ne va pas. Ici, la teinte suit
+   * le sélecteur au doigt, et un simple rechargement annule l'essai.
+   *
+   * <?= json_encode($jrAccent) ?> : accent choisi par l'utilisateur dans son
+   * profil. On ne repeint QUE s'il suit la couleur du site ('rose') — celui
+   * qui s'est mis un accent bleu ne veut pas le voir virer. */
+  var suitLeSite = <?= json_encode($jrAccent === 'rose') ?>;
+  if (suitLeSite) {
+    // Même calcul que jr_accent_vars_from_hex() côté PHP (src/core/config.php).
+    function melange(hex, t, vers) {
+      var r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);
+      function c(x, y) { return Math.round(x + (y - x) * t); }
+      function h(x) { return ('0' + x.toString(16)).slice(-2); }
+      return '#' + h(c(r, vers[0])) + h(c(g, vers[1])) + h(c(b, vers[2]));
+    }
+    function luminance(hex) {
+      return 0.2126 * parseInt(hex.substr(1, 2), 16) / 255
+           + 0.7152 * parseInt(hex.substr(3, 2), 16) / 255
+           + 0.0722 * parseInt(hex.substr(5, 2), 16) / 255;
+    }
+    function repeindre(hex) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+      var d = melange(hex, 0.30, [255, 255, 255]);
+      var s = document.documentElement.style;
+      s.setProperty('--accent-l',        hex);
+      s.setProperty('--accent-l-strong', melange(hex, 0.14, [0, 0, 0]));
+      s.setProperty('--accent-l-ink',    luminance(hex) > 0.62 ? '#101828' : '#ffffff');
+      s.setProperty('--accent-d',        d);
+      s.setProperty('--accent-d-strong', melange(hex, 0.42, [255, 255, 255]));
+      s.setProperty('--accent-d-ink',    luminance(d) > 0.62 ? '#0b1030' : '#ffffff');
+    }
+    primary.addEventListener('input', function () { repeindre(primary.value); });
+
+    // « Réinitialiser » de la barre du bas : on revient aussi à la teinte
+    // enregistrée, sinon l'interface garde la couleur d'un essai abandonné.
+    var formulaire = primary.form;
+    if (formulaire) formulaire.addEventListener('reset', function () {
+      setTimeout(function () { repeindre(primary.defaultValue); }, 0);
+    });
+  }
 })();
 
 // ─── Flash info color preview ───
