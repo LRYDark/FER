@@ -2119,6 +2119,22 @@ $lot1Tables = [
             REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
+    /* Messages LUS par un coureur — voir install.php pour le détail.
+       Sans cette table, la pastille « non lus » de l'espace coureur ne peut
+       rien compter : « masqué » et « lu » sont deux choses différentes, on
+       écarte un message qu'on a lu comme un message qu'on n'a jamais ouvert. */
+    'participant_notifications_lues' =>
+        "CREATE TABLE IF NOT EXISTS `participant_notifications_lues` (
+          `participant_id` INT NOT NULL,
+          `notification_id` INT NOT NULL,
+          `lu_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`participant_id`, `notification_id`),
+          CONSTRAINT `fk_pnl_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_pnl_notification` FOREIGN KEY (`notification_id`)
+            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
     'editions' =>
         "CREATE TABLE IF NOT EXISTS `editions` (
           `id` INT AUTO_INCREMENT PRIMARY KEY,

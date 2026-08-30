@@ -1386,6 +1386,29 @@ function getCreateTableStatements(): array
             REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
+        /* Messages LUS par un coureur.
+         *
+         * ⚠️ « LU » N'EST PAS « MASQUÉ », ET LES DEUX TABLES DOIVENT RESTER
+         * SÉPARÉES. Masquer, c'est écarter un message de sa boîte ; lire,
+         * c'est en avoir pris connaissance. On peut lire sans masquer — et
+         * c'est le cas courant. Une seule table aurait obligé à choisir entre
+         * « la pastille ne descend jamais » et « lire fait disparaître le
+         * message ».
+         *
+         * Cascade des deux côtés, pour la même raison que la table voisine :
+         * la suppression d'un compte n'y laisse rien, et un message effacé
+         * par l'administration n'y laisse pas de lignes orphelines. */
+        "CREATE TABLE IF NOT EXISTS `participant_notifications_lues` (
+          `participant_id` INT NOT NULL,
+          `notification_id` INT NOT NULL,
+          `lu_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`participant_id`, `notification_id`),
+          CONSTRAINT `fk_pnl_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_pnl_notification` FOREIGN KEY (`notification_id`)
+            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
         // Chronométrage — alimenté plus tard par l'application mobile, mais créé
         // maintenant pour que l'API du lot 5 l'expose sans seconde migration.
         // DATETIME(3) = précision milliseconde. ⏱️ Toutes ces dates sont EN UTC.

@@ -1,8 +1,9 @@
 
 <?php include __DIR__ . '/toast.php'; ?>
 
-  </div><!-- /oc-content -->
-</div><!-- /jr-shell -->
+  </div><!-- /oc-content (.oc-page) -->
+  </div><!-- /.oc-body -->
+</div><!-- /.oc-shell -->
 
 <?php
 // Mode lecture seule au niveau de la page courante :
@@ -21,14 +22,19 @@ document.addEventListener('DOMContentLoaded', function() {
   var sidebar = document.getElementById('oc-sidebar');
   var overlay = document.getElementById('ocOverlay');
 
-  function openSidebar()  { sidebar.classList.add('open'); overlay.classList.add('show'); }
-  function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); }
+  /* ⚠️ SIDEBAR PEUT ÊTRE ABSENTE. Depuis le shell v2.1, une section sans
+     sous-entrées (Tableau de bord) ne rend pas de sous-menu du tout : sans
+     ces gardes, le premier clic sur le burger levait une exception qui
+     coupait TOUS les scripts d'habillage de la page. */
+  function openSidebar()  { if (sidebar) sidebar.classList.add('open'); if (overlay) overlay.classList.add('show'); }
+  function closeSidebar() { if (sidebar) sidebar.classList.remove('open'); if (overlay) overlay.classList.remove('show'); }
 
   if (burger)  burger.addEventListener('click', openSidebar);
   if (overlay) overlay.addEventListener('click', closeSidebar);
 
-  // Close sidebar when clicking a link (mobile)
-  document.querySelectorAll('.jr-nav a.item').forEach(function(link) {
+  // Fermeture du tiroir au clic sur une entrée (mobile).
+  // .jr-nav : espace coureur — .oc-sub : sous-menu de l'admin v2.1.
+  document.querySelectorAll('.jr-nav a.item, .oc-sub a.item').forEach(function(link) {
     link.addEventListener('click', closeSidebar);
   });
 
@@ -49,14 +55,22 @@ document.addEventListener('DOMContentLoaded', function() {
   var dropdown  = document.getElementById('ocDropdown');
 
   if (avatarBtn && dropdown) {
+    // is-open : la puce prend l'accent et le chevron pivote tant que le menu
+    // est ouvert. Sans ça, rien ne dit d'où sort le panneau.
+    function syncUserChip() { avatarBtn.classList.toggle('is-open', dropdown.classList.contains('show')); }
     avatarBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       dropdown.classList.toggle('show');
+      syncUserChip();
     });
     document.addEventListener('click', function(e) {
-      if (!dropdown.contains(e.target) && e.target !== avatarBtn) {
+      if (!dropdown.contains(e.target) && !avatarBtn.contains(e.target)) {
         dropdown.classList.remove('show');
+        syncUserChip();
       }
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { dropdown.classList.remove('show'); syncUserChip(); }
     });
   }
 
@@ -71,15 +85,18 @@ document.addEventListener('DOMContentLoaded', function() {
   var logoutQuick = document.getElementById('ocLogoutQuick');
   if (logoutQuick) logoutQuick.addEventListener('click', doLogout);
 
-  // ── Profil ──
-  var profileLink = document.getElementById('ocProfileLink');
-  if (profileLink) {
-    profileLink.addEventListener('click', function(e) {
+  /* ── Compte ──
+   * Les trois entrées du menu (Mon compte / Mot de passe & sécurité /
+   * Apparence) ouvrent la MÊME fenêtre, sur l'onglet que porte data-pf-tab.
+   * Une seule implémentation du compte, trois portes d'entrée. */
+  document.querySelectorAll('#ocProfileLink, .oc-profile-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
       e.preventDefault();
       if (dropdown) dropdown.classList.remove('show');
-      openProfileModal();
+      if (avatarBtn) avatarBtn.classList.remove('is-open');
+      openProfileModal(link.dataset.pfTab || 'password');
     });
-  }
+  });
 
   // ── Mode toggle (dashboard only) ──
   var modeToggle = document.getElementById('ocModeToggle');
@@ -192,11 +209,13 @@ function strToUint8(s) { return Uint8Array.from(s, function(c) { return c.charCo
 var overlay      = document.getElementById('profileModalOverlay');
 var _profileData = null;
 
-function openProfileModal() {
+// tab : onglet à ouvrir ('password' par défaut). Le menu du compte s'en sert
+// pour tomber directement sur « Mot de passe & sécurité » ou « Apparence ».
+function openProfileModal(tab) {
   if (!overlay) return;
   overlay.classList.add('open');
   overlay.setAttribute('aria-hidden', 'false');
-  switchTab('password');
+  switchTab(tab || 'password');
   loadProfileData();
 }
 function closeProfileModal() {

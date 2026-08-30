@@ -1102,7 +1102,7 @@ $jsConfig = json_encode([
 <div class="ed-wrap">
 
   <!-- ── Sidebar: contextual controls ── -->
-  <form action="" method="post" enctype="multipart/form-data" id="tplForm" class="ed-sidebar" style="display:flex;flex-direction:column">
+  <form data-oc-save="save_mail_template" action="" method="post" enctype="multipart/form-data" id="tplForm" class="ed-sidebar" style="display:flex;flex-direction:column">
     <?= csrf_field() ?>
     <input type="hidden" name="active_subtab" value="template">
     <input type="hidden" name="mtc_section_order" id="hOrder" value="<?= htmlspecialchars(implode(',', $mtcOrder)) ?>">
@@ -1221,12 +1221,6 @@ $jsConfig = json_encode([
     </div>
 
     </div><!-- /sidebar -->
-    <div style="padding:12px 16px;border-top:1px solid var(--border);background: var(--surface);flex-shrink:0;border-radius:0 0 12px 12px;text-align:center">
-      <button type="submit" name="save_mail_template" class="btn btn-primary w-auto" style="padding:8px 32px;font-size:13px;font-weight:600;white-space:nowrap">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px"><path d="M19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 H16 L21 8 V19 A2 2 0 0 1 19 21 Z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Sauvegarder
-      </button>
-    </div>
   </form>
 
   <!-- ── Preview ── -->
@@ -1393,7 +1387,7 @@ $jsConfig = json_encode([
       <div class="setting-card">
         <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>
         <p class="text-muted mb-3">Inclure un QR Code dans le mail de confirmation d'inscription. Le participant pourra le presenter le jour de l'evenement pour etre identifie ou recuperer son t-shirt.</p>
-        <form action="" method="post" class="row g-3">
+        <form data-oc-save="save_qrcode_config" action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="template">
           <div class="col-12">
             <label class="form-label fw-semibold">Mode d'inclusion</label>
@@ -1403,7 +1397,6 @@ $jsConfig = json_encode([
               <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>Pour les X premiers inscrits</option>
             </select>
           </div>
-          <div class="col-12 text-end"><button type="submit" name="save_qrcode_config" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
@@ -1498,11 +1491,10 @@ $jsConfig = json_encode([
     <div class="col-12 col-lg-6 panel-gmail" <?= $activeMailView!=='google'?'style="display:none"':'' ?>>
       <div class="setting-card">
         <h2><i class="bi bi-google me-2"></i>Param&egrave;tres Gmail</h2>
-        <form action="" method="post" class="row g-3">
+        <form data-oc-save="google" action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="google">
           <div class="col-12"><label class="form-label">Client ID</label><input type="text" class="form-control" name="client_id" value="<?= htmlspecialchars($client_id) ?>"></div>
           <div class="col-12"><label class="form-label">Client Secret</label><input type="text" class="form-control" name="client_secret" value="<?= htmlspecialchars($client_secret) ?>"></div>
-          <div class="col-12 text-end"><button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
@@ -1533,7 +1525,7 @@ $jsConfig = json_encode([
     <div class="col-12 col-lg-6 panel-smtp" <?= $activeMailView!=='smtp'?'style="display:none"':'' ?>>
       <div class="setting-card">
         <h2><i class="bi bi-server me-2"></i>Param&egrave;tres SMTP</h2>
-        <form action="" method="post" class="row g-3">
+        <form data-oc-save="save_smtp" action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="smtp">
           <input type="hidden" name="mail_provider" value="<?= htmlspecialchars($mail_provider) ?>">
           <div class="col-12">
@@ -1570,7 +1562,6 @@ $jsConfig = json_encode([
             <label class="form-label">Nom exp&eacute;diteur</label>
             <input type="text" class="form-control" name="smtp_from_name" value="<?= htmlspecialchars($smtp_from_name) ?>" placeholder="Forbach en Rose">
           </div>
-          <div class="col-12 text-end"><button type="submit" name="save_smtp" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
@@ -1607,11 +1598,10 @@ $jsConfig = json_encode([
     <div class="col-12 col-lg-6">
       <div class="setting-card">
         <h2><i class="bi bi-envelope-at me-2"></i>Coordonn&eacute;es</h2>
-        <form action="" method="post" class="row g-3">
+        <form data-oc-save="google" action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="google"><input type="hidden" name="mail_view" value="<?= htmlspecialchars($activeMailView) ?>">
           <div class="col-12"><label class="form-label">Email de contact</label><input type="email" class="form-control" name="mail_email" value="<?= htmlspecialchars($mail_email) ?>" placeholder="contact@forbachenrose.fr"></div>
           <div class="col-12"><label class="form-label">T&eacute;l&eacute;phone</label><input type="text" class="form-control" name="mail_phone" value="<?= htmlspecialchars($mail_phone) ?>"></div>
-          <div class="col-12 text-end"><button type="submit" name="google" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
@@ -1627,7 +1617,7 @@ $jsConfig = json_encode([
       <div class="setting-card">
         <h2><i class="bi bi-bell me-2"></i>Alertes par email</h2>
         <p class="text-muted mb-3">Choisissez les notifications a envoyer et les destinataires.</p>
-        <form action="" method="post" class="row g-3">
+        <form data-oc-save="save_notify_comment" action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
           <div class="col-12">
             <div class="list-group">
@@ -1707,7 +1697,6 @@ $jsConfig = json_encode([
             <input type="hidden" name="notify_recipients" id="notifyRecipientsHidden" value="<?= htmlspecialchars(implode(',', $notify_recipients)) ?>">
             <small class="text-muted">Selectionnez des admins ou saisissez un e-mail externe. Si vide, tous les admins recevront les notifications.</small>
           </div>
-          <div class="col-12 text-end"><button type="submit" name="save_notify_comment" class="btn btn-primary w-auto">Sauvegarder</button></div>
         </form>
       </div>
     </div>
@@ -1722,7 +1711,7 @@ $jsConfig = json_encode([
           <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener">dash.cloudflare.com/turnstile</a>
           puis collez les deux clés ci-dessous. Sans clés, un captcha mathématique de secours est utilisé.
         </p>
-        <form action="" method="post" class="row g-3">
+        <form data-oc-save="save_turnstile" action="" method="post" class="row g-3">
           <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
           <div class="col-12">
             <label class="form-label fw-semibold">Site Key (publique)</label>
@@ -1745,7 +1734,6 @@ $jsConfig = json_encode([
           </div>
           <div class="col-12 d-flex justify-content-end gap-2">
             <button type="button" id="btnTurnstileTest" class="btn btn-outline-secondary w-auto"><i class="bi bi-cloud-check me-1"></i>Tester les 2 clés</button>
-            <button type="submit" name="save_turnstile" class="btn btn-primary w-auto">Sauvegarder</button>
           </div>
           <div class="col-12">
             <div id="turnstileTestPanel" style="display:none;margin-top:.5rem;padding:1rem;background:var(--surface-2);border:1px solid var(--border);border-radius:.55rem;">
@@ -2668,6 +2656,15 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
   });
 })();
 </script>
+
+<?php /* Barre d'enregistrement : composant partagé.
+         Emails est en mode « plusieurs formulaires » — ses volets mêlent des
+         enregistrements et des actions indépendantes (connexion Google,
+         suppression d'un abonné) qui ne peuvent pas être imbriquées dans un
+         formulaire unique. Chaque formulaire à enregistrer porte
+         data-oc-save="nom_du_bouton" ; ceux qui partagent un nom partent
+         ensemble, en un seul envoi. */ ?>
+<?php include __DIR__ . '/../src/partials/save-bar.php'; ?>
 
 <?php require __DIR__ . '/../src/partials/admin-footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>

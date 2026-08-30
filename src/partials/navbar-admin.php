@@ -143,7 +143,9 @@ include __DIR__ . '/../content/theme.php';
   // sinon le fond blanc de Bootstrap apparaît un instant en mode sombre.
   var dark = <?= json_encode($jrTheme === 'dark') ?> ||
     (<?= json_encode($jrTheme === 'system') ?> && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
-  d.style.backgroundColor = dark ? '#05070D' : '#E9EDF4';
+  // Shell v2.1 : le fond de page est BLANC (les réglages sont à plat dessus),
+  // et non le gris bleuté de l'ancienne mise en page à cartes flottantes.
+  d.style.backgroundColor = dark ? '#05070D' : '#FFFFFF';
   <?php if ($jrAccentAttr !== ''): ?>d.setAttribute('data-accent', <?= json_encode($jrAccentAttr) ?>);<?php endif; ?>
   // Miroir localStorage → les pages login/install (pré-auth) suivent le dernier choix
   try {
@@ -165,6 +167,7 @@ $jrV = function (string $rel) { $p = dirname(__DIR__, 2) . '/' . $rel; return $r
 <link rel="stylesheet" href="../<?= $jrV('css/tokens.css') ?>">
 <link rel="stylesheet" href="../<?= $jrV('css/base.css') ?>">
 <link rel="stylesheet" href="../<?= $jrV('css/admin.css') ?>">
+<link rel="stylesheet" href="../<?= $jrV('css/admin-shell.css') ?>">
 <?php if ($jrFonts[$jrFont][1]): // Google Font ?>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=<?= str_replace(' ', '+', $jrFont) ?>:wght@400;500;600;700&display=swap">
 <?php endif; ?>
@@ -221,37 +224,64 @@ $ico = [
     'chat'      => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 ];
 
+/* ── Rangement : PAR OBJET SUR LEQUEL ON TRAVAILLE ────────────────────────────
+ * L'ancien classement mélangeait deux logiques : « c'est du contenu » d'un
+ * côté, « c'est un réglage » de l'autre. On se retrouvait avec la
+ * personnalisation du site dans Réglages et la page d'accueil dans Contenu,
+ * alors que les deux habillent la même chose — le site public. Un écran
+ * qu'on cherche dans deux endroits est un écran qu'on ne trouve pas.
+ *
+ * La règle est maintenant : on range selon CE QU'ON MODIFIE, jamais selon la
+ * nature technique de l'écran. Le site public d'un côté, les inscrits de
+ * l'autre, la journée de course, les mails, les chiffres, la machine.
+ *
+ * Conséquence assumée : les onglets de setting.php sont éclatés dans quatre
+ * sections. C'est voulu — le fait qu'ils vivent tous dans le même fichier PHP
+ * n'intéresse personne d'autre que nous. */
 $navSections = [
-    'Pilotage' => [
-        ['stats.php',      'Statistiques',    $ico['stats'],     ['roles' => ['admin', 'user', 'viewer']]],
-        ['page_stats.php', 'Visites',         $ico['eye'],       ['page' => 'page_stats']],
-    ],
+    /* Le travail quotidien avant la course. */
     'Inscriptions' => [
-        ['saisie.php',        'Saisie',          $ico['plus'],   ['roles' => ['saisie']]],
-        ['qr_code.php',       'QR Codes',        $ico['qr'],     ['page' => 'qr_code']],
-        ['tshirt-access.php', 'Accès bénévoles', $ico['tshirt'], ['roles' => ['admin']]],
-        // Espace coureur (lot 4) : ces deux écrans exposent les adresses et les
-        // appareils des coureurs — d'où une permission dédiée, décochée par
-        // défaut pour les rôles de consultation.
-        ['comptes-coureurs.php', 'Comptes coureurs', $ico['users2'], ['page' => 'dashboard', 'action' => 'dashboard.participants']],
-        ['transferts.php',       'Transferts',       $ico['send'],   ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
-        // Chronométrage : consulter, corriger, valider. Écran indispensable le
-        // jour où quelqu'un conteste son temps — il montre TOUTES les détections
-        // reçues, balise et GPS, et laquelle a servi au calcul.
-        ['resultats.php',        'Résultats',        $ico['timeline'], ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
-        // Applications mobiles : notifications et réveil avant la course. Rangé
-        // ici, avec les écrans du coureur, plutôt que dans Réglages — c'est un
-        // écran qu'on ouvre le jour J, pas un réglage qu'on pose une fois.
-        ['applications.php',     'Applications',     $ico['chat'],     ['page' => 'setting']],
+        ['saisie.php',           'Saisie',            $ico['plus'],   ['roles' => ['saisie']]],
+        ['comptes-coureurs.php', 'Comptes coureurs',  $ico['users2'], ['page' => 'dashboard', 'action' => 'dashboard.participants']],
+        ['transferts.php',       'Transferts',        $ico['send'],   ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
+        // Ouverture, tarifs, messages affichés : c'est le robinet des
+        // inscriptions, pas un réglage de site. Il vient donc ici.
+        ['setting.php?tab=inscription', 'Inscription', $ico['form'],  ['page' => 'setting', 'action' => 'settings.tab.inscription']],
+        // Les champs du formulaire : on les modifie en pensant aux inscrits.
+        ['setting.php?tab=formulaire',  'Formulaire',  $ico['form'],  ['page' => 'setting', 'action' => 'settings.tab.formulaire']],
+        // AssoConnect importe des INSCRITS. Rangé dans Réglages, on le
+        // cherchait dans Inscriptions.
+        ['setting.php?tab=import_auto', 'AssoConnect', $ico['sync'],  ['page' => 'setting', 'action' => 'settings.tab.import_auto']],
     ],
-    'Contenu' => [
-        ['news.php',     'Actualités',    $ico['news'],     ['page' => 'news']],
-        ['albums.php',   'Albums photos', $ico['albums'],   ['page' => 'albums']],
-        ['partners.php', 'Partenaires',   $ico['partners'], ['page' => 'partners']],
-        ['timeline.php', 'Timeline',      $ico['timeline'], ['page' => 'timeline']],
-        ['setting.php?tab=accueil', "Page d'accueil", $ico['home'], ['page' => 'setting', 'action' => 'settings.tab.accueil']],
-        ['assistant.php', 'Assistant / FAQ', $ico['chat'], ['page' => 'assistant']],
+
+    /* Les écrans qu'on ouvre le jour de la course, ou pour le préparer. */
+    'Jour J' => [
+        ['setting.php?tab=course', 'Course',          $ico['timeline'], ['page' => 'setting', 'action' => 'settings.tab.course']],
+        ['qr_code.php',            'QR Codes',        $ico['qr'],       ['page' => 'qr_code']],
+        ['tshirt-access.php',      'Accès bénévoles', $ico['tshirt'],   ['roles' => ['admin']]],
+        ['resultats.php',          'Résultats',       $ico['timeline'], ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
+        // Notifications et réveil avant la course : un écran du jour J, pas un
+        // réglage qu'on pose une fois.
+        ['applications.php',       'Applications',    $ico['chat'],     ['page' => 'setting']],
     ],
+
+    /* Tout ce que le visiteur voit. C'EST ICI QUE SE RÈGLE LE PROBLÈME :
+     * la page d'accueil et la personnalisation habillent la même chose,
+     * elles se rangent donc au même endroit. */
+    'Site public' => [
+        ['setting.php?tab=accueil',        "Page d'accueil",   $ico['home'],     ['page' => 'setting', 'action' => 'settings.tab.accueil']],
+        ['news.php',                       'Actualités',       $ico['news'],     ['page' => 'news']],
+        ['albums.php',                     'Albums photos',    $ico['albums'],   ['page' => 'albums']],
+        ['partners.php',                   'Partenaires',      $ico['partners'], ['page' => 'partners']],
+        ['timeline.php',                   'Timeline',         $ico['timeline'], ['page' => 'timeline']],
+        ['setting.php?tab=parcours',       'Parcours',         $ico['map'],      ['page' => 'setting', 'action' => 'settings.tab.parcours']],
+        ['setting.php?tab=reglementation', 'Réglementation',   $ico['gavel'],    ['page' => 'setting', 'action' => 'settings.tab.reglementation']],
+        ['setting.php?tab=legal',          'Pages légales',    $ico['logs'],     ['page' => 'setting', 'action' => 'settings.tab.legal']],
+        ['assistant.php',                  'Assistant / FAQ',  $ico['chat'],     ['page' => 'assistant']],
+        // Logos, couleurs, typographie : l'habillage du site public.
+        ['setting.php?tab=personnalisation', 'Personnalisation', $ico['palette'], ['page' => 'setting', 'action' => 'settings.tab.personnalisation']],
+    ],
+
     'Emails' => [
         ['mail-settings.php?pane=envoi',         'Envoi de mail',      $ico['send'],     ['page' => 'mail-settings', 'action' => 'mail.send']],
         ['mail-settings.php?pane=template',      'Template & contenu', $ico['template'], ['page' => 'mail-settings', 'action' => 'mail.write']],
@@ -259,29 +289,22 @@ $navSections = [
         ['mail-settings.php?pane=notifications', 'Notifications',      $ico['bell'],     ['page' => 'mail-settings', 'action' => 'mail.write']],
         ['mail-settings.php?pane=newsletter',    'Abonnés newsletter', $ico['users2'],   ['page' => 'mail-settings', 'action' => 'mail.newsletter']],
     ],
-    'Réglages' => [
-        ['setting.php?tab=personnalisation', 'Personnalisation', $ico['palette'], ['page' => 'setting', 'action' => 'settings.tab.personnalisation']],
-        // ⚠️ Course manquait à cette liste : l'onglet n'était atteignable que
-        // par la barre d'onglets de Réglages, ou par le lien depuis
-        // Applications. Un onglet invisible dans le menu passe pour absent.
-        ['setting.php?tab=course',           'Course',           $ico['timeline'], ['page' => 'setting', 'action' => 'settings.tab.course']],
-        ['setting.php?tab=inscription',      'Inscription',      $ico['form'],    ['page' => 'setting', 'action' => 'settings.tab.inscription']],
-        ['setting.php?tab=import_auto',      'AssoConnect',      $ico['sync'],    ['page' => 'setting', 'action' => 'settings.tab.import_auto']],
-        ['setting.php?tab=parcours',         'Parcours',         $ico['map'],     ['page' => 'setting', 'action' => 'settings.tab.parcours']],
-        ['setting.php?tab=reglementation',   'Réglementation',   $ico['gavel'],   ['page' => 'setting', 'action' => 'settings.tab.reglementation']],
-        ['setting.php?tab=legal',            'Pages légales',    $ico['logs'],    ['page' => 'setting', 'action' => 'settings.tab.legal']],
-        ['setting.php?tab=formulaire',       'Formulaire',       $ico['form'],    ['page' => 'setting', 'action' => 'settings.tab.formulaire']],
-        ['setting.php?tab=api',              'API',              $ico['plug'],    ['page' => 'setting', 'action' => 'settings.tab.api']],
+
+    'Pilotage' => [
+        ['stats.php',      'Statistiques', $ico['stats'], ['roles' => ['admin', 'user', 'viewer']]],
+        ['page_stats.php', 'Visites',      $ico['eye'],   ['page' => 'page_stats']],
     ],
-    'Sécurité & système' => [
-        ['utilisateurs.php', 'Utilisateurs & Droits', $ico['users2'], ['roles' => ['admin']]],
-        ['connexions.php',   'Connexions',            $ico['login'],  ['page' => 'connexions']],
-        ['logs.php',         'Logs',                  $ico['logs'],   ['page' => 'logs']],
-        // Conservation et effacement (lot 7) : réservé aux super-administrateurs.
-        // Effacer définitivement des données n'est pas une opération courante,
-        // et il faut pouvoir dire qui l'a déclenchée.
-        ['rgpd.php',         'Données personnelles',  $ico['shield'] ?? $ico['logs'], ['roles' => ['admin']]],
-        ['setting.php?tab=maintenance', 'Maintenance', $ico['wrench'], ['page' => 'setting', 'action' => 'settings.tab.maintenance']],
+
+    /* La machine : qui entre, ce qui est tracé, ce qu'on efface, ce qu'on
+     * expose. « API » et « Maintenance » sont des réglages d'installation,
+     * pas des réglages de course — ils rejoignent leurs semblables. */
+    'Système' => [
+        ['utilisateurs.php',            'Utilisateurs & Droits', $ico['users2'], ['roles' => ['admin']]],
+        ['connexions.php',              'Connexions',            $ico['login'],  ['page' => 'connexions']],
+        ['logs.php',                    'Logs',                  $ico['logs'],   ['page' => 'logs']],
+        ['rgpd.php',                    'Données personnelles',  $ico['shield'] ?? $ico['logs'], ['roles' => ['admin']]],
+        ['setting.php?tab=api',         'API',                   $ico['plug'],   ['page' => 'setting', 'action' => 'settings.tab.api']],
+        ['setting.php?tab=maintenance', 'Maintenance',           $ico['wrench'], ['page' => 'setting', 'action' => 'settings.tab.maintenance']],
     ],
 ];
 
@@ -316,15 +339,102 @@ foreach (['logo_fer_rose.png', 'logo.png'] as $lf) {
 $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscriptions') ? 'inscriptions' : 'formulaire';
 ?>
 
-<!-- ═══════ SHELL ═══════ -->
-<div class="jr-shell" id="oc-app-container">
+<!-- ═══════ SHELL v2.1 — onglets en haut, sous-menu flottant à gauche ═══════
+     ⚠️ CLASSES .oc-* ET NON .jr-shell / .jr-nav / .jr-main.
+     Ces trois-là habillent AUSSI public/espace-coureur/_layout-haut.php :
+     les réécrire aurait changé l'espace coureur du site public.
+     Habillage : css/admin-shell.css. -->
+<div class="oc-shell" id="oc-app-container">
 
-  <!-- ═══════ SIDEBAR ═══════ -->
-  <aside class="jr-nav" id="oc-sidebar">
-    <?php /* Le logo seul : il porte déjà le nom. Le texte à côté faisait
-             doublon et mangeait la place. Le nom reste dans title= et alt=
-             — rien nest perdu pour les lecteurs décran. */ ?>
-    <a class="jr-brand" href="dashboard.php" title="Forbach en Rose">
+  <?php
+  /* ── Pré-calcul de la navigation ───────────────────────────────────────────
+   * Les SECTIONS de $navSections deviennent les onglets de la barre du haut ;
+   * leurs entrées deviennent le sous-menu de gauche. On ne garde que ce que
+   * l'utilisateur a le droit de voir, et on repère la section active.        */
+  $renderSections = [];
+  $activeSection  = null;
+  foreach ($navSections as $sectionLabel => $items) {
+      $visible = [];
+      foreach ($items as [$href, $label, $icon, $access]) {
+          if (!$jrCanSee($access)) continue;
+          $isActive = $jrIsActive($href);
+          if ($href === 'saisie.php' && $userRole === 'saisie') {
+              $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
+          }
+          $visible[] = [$href, $label, $icon, $isActive];
+          if ($isActive && $activeSection === null) $activeSection = $sectionLabel;
+      }
+      if (!empty($visible)) $renderSections[$sectionLabel] = $visible;
+  }
+
+  // « Tableau de bord » : onglet à part entière, sans sous-menu.
+  $dashVisible = canAccessPage('dashboard');
+  $dashHref    = 'dashboard.php';
+  $dashLabel   = 'Tableau de bord';
+  $dashActive  = ($currentPage === 'dashboard.php');
+  if ($userRole === 'saisie') {
+      $dashLabel  = 'Mes inscriptions';
+      $dashHref   = 'saisie.php?tab=inscriptions';
+      $dashActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
+  }
+
+  /* Aucune entrée active (page hors menu) : on ouvre quand même la première
+   * section, sinon la colonne de gauche est vide sans qu'on sache pourquoi. */
+  if ($activeSection === null && !$dashActive && !empty($renderSections)) {
+      $activeSection = array_key_first($renderSections);
+  }
+  $subItems = ($activeSection !== null && !$dashActive) ? ($renderSections[$activeSection] ?? []) : [];
+
+  /* « Mise à jour BDD » rejoint le sous-menu « Système » : elle
+   * vivait en bas de l'ancienne barre latérale, qui n'existe plus. */
+  $showUpdateLink = ($userRole === 'admin' && file_exists(dirname(__DIR__, 2) . '/update.php'));
+
+  /* Cible d'un onglet = sa PREMIÈRE entrée visible. Cliquer « Réglages » doit
+   * ouvrir un écran, pas une page vide. */
+  $ocTabHref = static function (array $items): string {
+      return $items ? $items[0][0] : '#';
+  };
+
+  $ocInitial = mb_strtoupper(mb_substr($userName !== '' ? $userName : 'U', 0, 1));
+
+  /* ═══ Garde-fou « MODE TEST » (catch-all des mails) ═══
+   * Calculé ICI, avant le rendu, parce qu'il s'affiche dans le sous-menu.
+   *
+   * POURQUOI IL DOIT RESTER VISIBLE : le risque n'est pas que le garde-fou
+   * échoue — c'est de croire qu'on travaille sur la recette alors qu'on est
+   * en production, ou l'inverse. Quelqu'un qui déclenche un envoi groupé en
+   * pensant écrire à 300 inscrits doit voir tout de suite que rien ne partira.
+   *
+   * Réservé aux administrateurs : c'est une information d'environnement, pas
+   * un message destiné aux rôles de saisie ou de consultation. */
+  $ocCatchall = null;
+  $ocCatchallTexte = '';
+  if (!function_exists('mailCatchallStatus')) {
+      $mgFile = dirname(__DIR__) . '/mail/mail_guard.php';
+      if (is_file($mgFile)) { try { require_once $mgFile; } catch (\Throwable $e) {} }
+  }
+  if (function_exists('mailCatchallStatus') && currentRole() === 'admin') {
+      $etat = mailCatchallStatus();
+      if (!empty($etat['actif'])) {
+          $ocCatchall = $etat;
+          $ocCatchallTexte = $etat['bloquant']
+              ? 'Aucune adresse valide : aucun mail ne part.'
+              : 'Tous les mails partent vers ' . $etat['adresse'] . ', jamais aux inscrits.';
+      }
+  }
+  ?>
+
+  <!-- ═══════ BARRE DU HAUT ═══════ -->
+  <header class="oc-top">
+    <?php if (!empty($subItems)): ?>
+      <?php /* Le burger n'ouvre QUE le sous-menu. Sans sous-menu (Tableau de
+               bord), il n'ouvrirait rien : on ne l'affiche pas. */ ?>
+      <button class="oc-burger" id="ocBurger" type="button" aria-label="Ouvrir le sous-menu">
+        <span></span><span></span><span></span>
+      </button>
+    <?php endif; ?>
+
+    <a class="oc-brand" href="<?= htmlspecialchars($dashHref) ?>" title="Forbach en Rose">
       <?php if ($jrLogo): ?>
         <img src="<?= htmlspecialchars($jrLogo) ?>" alt="Forbach en Rose">
       <?php else: ?>
@@ -332,85 +442,43 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
       <?php endif; ?>
     </a>
 
-    <?php /* La recherche AVANT le menu : c'est le raccourci quand on sait ce
-             qu'on veut mais pas où c'est rangé. Elle a besoin de $jrCanSee,
-             défini plus haut dans ce fichier. */ ?>
-    <?php include __DIR__ . '/recherche-admin.php'; ?>
-
-    <nav>
-      <?php // ── « Tableau de bord » : seul, tout en haut, hors sections ── ?>
-      <?php if (canAccessPage('dashboard')): ?>
-        <?php
-        $dashHref = 'dashboard.php'; $dashLabel = 'Tableau de bord';
-        $dashActive = ($currentPage === 'dashboard.php');
-        if ($userRole === 'saisie') {
-            $dashLabel = 'Mes inscriptions';
-            $dashHref  = 'saisie.php?tab=inscriptions';
-            $dashActive = ($currentPage === 'saisie.php' && $saisieTab === 'inscriptions');
-        }
-        ?>
-        <a class="item is-top<?= $dashActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($dashHref) ?>">
-          <svg viewBox="0 0 24 24"><?= $ico['dashboard'] ?></svg>
-          <span><?= htmlspecialchars($dashLabel) ?></span>
-        </a>
+    <nav class="oc-tabs">
+      <?php if ($dashVisible): ?>
+        <a class="<?= $dashActive ? 'is-active' : '' ?>" href="<?= htmlspecialchars($dashHref) ?>"><?= htmlspecialchars($dashLabel) ?></a>
       <?php endif; ?>
-
-      <?php // ── Sections en ACCORDÉON : une seule ouverte (celle de la page active) ── ?>
-      <?php
-      // Pré-calcul : items visibles + section active
-      $renderSections = [];
-      $activeSection  = null;
-      foreach ($navSections as $sectionLabel => $items) {
-          $visible = [];
-          foreach ($items as [$href, $label, $icon, $access]) {
-              if (!$jrCanSee($access)) continue;
-              $isActive = $jrIsActive($href);
-              if ($href === 'saisie.php' && $userRole === 'saisie') {
-                  $isActive = ($currentPage === 'saisie.php' && $saisieTab === 'formulaire');
-              }
-              $visible[] = [$href, $label, $icon, $isActive];
-              if ($isActive && $activeSection === null) $activeSection = $sectionLabel;
-          }
-          if (!empty($visible)) $renderSections[$sectionLabel] = $visible;
-      }
-      // Aucune page active dans les groupes (ex : dashboard) → premier groupe ouvert
-      if ($activeSection === null && !empty($renderSections)) {
-          $activeSection = array_key_first($renderSections);
-      }
-      ?>
       <?php foreach ($renderSections as $sectionLabel => $visible): ?>
-        <div class="nav-group<?= $sectionLabel === $activeSection ? ' open' : '' ?>">
-          <button type="button" class="section section-toggle">
-            <span><?= htmlspecialchars($sectionLabel) ?></span>
-            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="group-items">
-            <div class="group-items-inner">
-              <?php foreach ($visible as [$href, $label, $icon, $isActive]): ?>
-                <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
-                  <svg viewBox="0 0 24 24"><?= $icon ?></svg>
-                  <span><?= htmlspecialchars($label) ?></span>
-                  <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
-                    <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
-                  <?php endif; ?>
-                </a>
-              <?php endforeach; ?>
-            </div>
-          </div>
-        </div>
+        <a class="<?= (!$dashActive && $sectionLabel === $activeSection) ? 'is-active' : '' ?>"
+           href="<?= htmlspecialchars($ocTabHref($visible)) ?>"><?= htmlspecialchars($sectionLabel) ?></a>
       <?php endforeach; ?>
-
-      <?php if ($userRole === 'admin' && file_exists(dirname(__DIR__, 2) . '/update.php')): ?>
-        <a class="item is-update mt-auto-update" href="../update.php">
-          <svg viewBox="0 0 24 24"><?= $ico['download'] ?></svg>
-          <span>Mise à jour BDD</span>
-        </a>
-      <?php endif; ?>
     </nav>
 
-    <!-- ═══════ Bloc utilisateur (bas de sidebar) ═══════ -->
-    <footer>
-      <div class="jr-usermenu" id="ocDropdown">
+    <div class="oc-topright">
+      <?php /* La recherche perd sa colonne : elle passe ici, et ses résultats
+               tombent en menu déroulant (css/admin-shell.css). Elle a besoin de
+               $jrCanSee, défini plus haut dans ce fichier. */ ?>
+      <div class="oc-search"><?php include __DIR__ . '/recherche-admin.php'; ?></div>
+
+      <button class="oc-user" id="ocAvatarBtn" type="button" title="<?= htmlspecialchars($userEmail) ?>">
+        <span class="ava"><?= htmlspecialchars($ocInitial) ?></span>
+        <span class="who">Bonjour <?= htmlspecialchars($userName) ?></span>
+        <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      <!-- ═══════ MENU DU COMPTE ═══════
+           Tout ce qui touche au compte tient ici, et NULLE PART AILLEURS.
+           Le bloc utilisateur et la déconnexion du bas de l'ancienne barre
+           latérale disaient deux fois la même chose. -->
+      <div class="oc-usermenu" id="ocDropdown">
+        <div class="head">
+          <span class="ava"><?= htmlspecialchars($ocInitial) ?></span>
+          <span class="id">
+            <span class="name"><?= htmlspecialchars($userName) ?></span>
+            <span class="mail"><?= htmlspecialchars($userEmail) ?></span>
+          </span>
+          <span class="role"><?= htmlspecialchars(ucfirst((string) $userRole)) ?></span>
+        </div>
+        <hr>
+
         <?php if ($currentPage === 'dashboard.php' && !empty($canTshirtMode)): ?>
         <a href="#" id="ocModeToggle">
           <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -422,29 +490,68 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
         </a>
         <hr>
         <?php endif; ?>
-        <a href="#" id="ocProfileLink">
+
+        <a href="#" id="ocProfileLink" data-pf-tab="password">
           <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <span>Mon profil</span>
+          <span>Mon compte</span>
         </a>
+        <a href="#" class="oc-profile-link" data-pf-tab="auth-methods">
+          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Mot de passe &amp; sécurité</span>
+        </a>
+        <a href="#" class="oc-profile-link" data-pf-tab="appearance">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/></svg>
+          <span>Apparence</span>
+        </a>
+
         <hr>
         <a href="#" id="ocLogoutLink" class="is-danger">
           <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           <span>Déconnexion</span>
         </a>
+        <div class="ver">Version 2.0.0</div>
       </div>
+    </div>
+  </header>
 
-      <button class="jr-userblock" id="ocAvatarBtn" type="button" title="<?= htmlspecialchars($userEmail) ?>">
-        <span class="who">
-          <span class="name"><?= htmlspecialchars($userName) ?></span>
-          <span class="role"><?= htmlspecialchars(ucfirst((string) $userRole)) ?></span>
-        </span>
-        <span class="jr-logout" id="ocLogoutQuick" title="Déconnexion" role="button">
-          <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        </span>
-      </button>
-      <div class="jr-version">Version 2.0.0</div>
-    </footer>
-  </aside>
+  <div class="oc-body<?= empty($subItems) ? ' is-wide' : '' ?>">
+
+    <?php if (!empty($subItems)): ?>
+    <!-- ═══════ SOUS-MENU (seul élément flottant de la page) ═══════ -->
+    <aside class="oc-sub" id="oc-sidebar">
+      <div class="title"><?= htmlspecialchars((string) $activeSection) ?></div>
+
+      <?php foreach ($subItems as [$href, $label, $icon, $isActive]): ?>
+        <a class="item<?= $isActive ? ' is-active' : '' ?>" href="<?= htmlspecialchars($href) ?>">
+          <svg viewBox="0 0 24 24"><?= $icon ?></svg>
+          <span><?= htmlspecialchars($label) ?></span>
+          <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
+            <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
+          <?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+
+      <?php if ($showUpdateLink && $activeSection === 'Système'): ?>
+        <a class="item" href="../update.php">
+          <svg viewBox="0 0 24 24"><?= $ico['download'] ?></svg>
+          <span>Mise à jour BDD</span>
+        </a>
+      <?php endif; ?>
+
+      <?php /* Le garde-fou des mails se range au bas du sous-menu. En bandeau
+               pleine largeur, il repoussait le titre de CHAQUE écran pour
+               répéter la même phrase ; ici il reste sous les yeux sans manger
+               le haut de la page. */ ?>
+      <?php if ($ocCatchall): ?>
+        <a class="oc-testmode<?= $ocCatchall['bloquant'] ? ' is-bloquant' : '' ?>"
+           href="mail-settings.php?tab=google" title="<?= htmlspecialchars($ocCatchallTexte) ?>">
+          <i class="bi bi-<?= $ocCatchall['bloquant'] ? 'shield-fill-exclamation' : 'cone-striped' ?>"></i>
+          <span class="lab">Mode test</span>
+          <span class="det"><?= htmlspecialchars($ocCatchallTexte) ?></span>
+        </a>
+      <?php endif; ?>
+    </aside>
+    <?php endif; ?>
 
   <?php // Rafraîchissement live de la pastille « Accès bénévoles » ?>
   <?php if (canDoAction('tshirt_access.approve')): ?>
@@ -471,105 +578,47 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
        NB : volontairement une <div> et PAS <main> — certaines pages admin
        (Réglages) chargent css/accueil.css pour l'aperçu du site public, qui
        style l'élément main (centrage, largeurs) et polluerait l'admin. -->
-  <div class="jr-main" id="oc-content">
+  <div class="oc-page" id="oc-content">
 
-    <?php
-    /* ═══ Bandeau « MODE TEST » — garde-fou catch-all des mails (P1) ═══
-     * Affiché en permanence, sur toutes les pages d'administration, dès que le
-     * garde-fou est actif.
-     *
-     * POURQUOI : le risque résiduel n'est pas que le garde-fou échoue — il est
-     * de croire qu'on travaille sur la recette alors qu'on est en production, ou
-     * l'inverse. Quelqu'un qui déclenche un envoi groupé en pensant écrire à
-     * 300 inscrits doit voir immédiatement que rien ne partira. */
-    if (!function_exists('mailCatchallStatus')) {
-        $mgFile = dirname(__DIR__) . '/mail/mail_guard.php';
-        if (is_file($mgFile)) { try { require_once $mgFile; } catch (\Throwable $e) {} }
-    }
-    // Réservé aux administrateurs : c'est une information d'environnement, pas
-    // un message destiné aux rôles de saisie ou de consultation.
-    if (function_exists('mailCatchallStatus') && currentRole() === 'admin'):
-        $ocCatchall = mailCatchallStatus();
-        if ($ocCatchall['actif']):
-    ?>
-      <?php /* Carte plutôt que bande pleine largeur : le bandeau collé au bord
-               supérieur écrasait le titre de la page et donnait un air d'alerte
-               système en panne. Ici, il se pose dans le flux comme les autres
-               cartes, garde sa couleur d'avertissement, et reste impossible à
-               manquer — c'est tout ce qu'on lui demande. */ ?>
-      <div class="jr-testmode<?= $ocCatchall['bloquant'] ? ' is-bloquant' : '' ?>">
-        <span class="jr-testmode-badge">
-          <i class="bi bi-<?= $ocCatchall['bloquant'] ? 'shield-fill-exclamation' : 'cone-striped' ?>"></i>
-          Mode test
-        </span>
-        <span class="jr-testmode-texte">
-          <?php if ($ocCatchall['bloquant']): ?>
-            Garde-fou actif <strong>sans adresse valide</strong> :
-            <strong>aucun mail ne part</strong>.
-          <?php else: ?>
-            Tous les mails sortants partent vers
-            <strong><?= htmlspecialchars($ocCatchall['adresse']) ?></strong> —
-            jamais aux inscrits.
-          <?php endif; ?>
-        </span>
-        <?php if (canAccessPage('mail-settings')): ?>
-          <a class="jr-testmode-lien" href="mail-settings.php?tab=google">
-            Modifier <i class="bi bi-arrow-right-short"></i>
-          </a>
+    <?php /* ═══ Bandeau « MODE TEST » ═══
+       Il vit désormais dans le SOUS-MENU (voir plus haut) : collé en haut du
+       contenu, il poussait le titre vers le bas sur tous les écrans alors
+       qu'il ne dit qu'une chose, toujours la même. Ici, on ne le rend en
+       pleine largeur que sur les écrans SANS sous-menu, où il n'aurait
+       nulle part où se ranger. */ ?>
+    <?php if (!empty($ocCatchall) && empty($subItems)): ?>
+      <a class="oc-testmode is-large<?= $ocCatchall['bloquant'] ? ' is-bloquant' : '' ?>" href="mail-settings.php?tab=google">
+        <i class="bi bi-<?= $ocCatchall['bloquant'] ? 'shield-fill-exclamation' : 'cone-striped' ?>"></i>
+        <span class="lab">Mode test</span>
+        <span class="det"><?= htmlspecialchars($ocCatchallTexte) ?></span>
+      </a>
+    <?php endif; ?>
+
+    <?php /* ⚠️ EN-TÊTE DE PAGE RENDU UNIQUEMENT SUR DEMANDE ($pageShowTitle).
+             21 des 23 écrans d'administration affichent DÉJÀ leur propre <h1>
+             avec son icône. En rendre un ici en plus donnait le titre deux
+             fois — « Actualités » puis « Actualités ». Les deux écrans qui
+             n'ont pas le leur (Réglages, Assistance) lèvent le drapeau.
+
+             $pageIcon   : nom d'icône Bootstrap, sans le préfixe « bi- ».
+             $pageLead   : phrase d'explication sous le titre.
+             $pageActions: HTML des actions à droite, déjà échappé par la page. */ ?>
+    <?php if (!empty($pageShowTitle)): ?>
+    <header class="oc-pagehead">
+      <div>
+        <h1>
+          <?php if (!empty($pageIcon)): ?><i class="bi bi-<?= htmlspecialchars($pageIcon) ?>"></i><?php endif; ?>
+          <?= htmlspecialchars($pageSubtitle !== '' ? $pageSubtitle : $pageTitle) ?>
+        </h1>
+        <?php if (!empty($pageLead)): ?>
+          <p class="sub"><?= htmlspecialchars($pageLead) ?></p>
         <?php endif; ?>
       </div>
-      <style>
-        .jr-testmode {
-          display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
-          margin: 0 0 1.25rem; padding: .7rem 1rem;
-          border-radius: 12px; line-height: 1.5; font-size: .875rem;
-          /* Teinte douce plutôt qu'aplat saturé : l'information doit se voir,
-             pas hurler à chaque chargement de page. */
-          background: color-mix(in srgb, var(--warn, #fd7e14) 12%, var(--card, #fff));
-          border: 1px solid color-mix(in srgb, var(--warn, #fd7e14) 35%, transparent);
-          color: var(--ink, #0f172a);
-        }
-        .jr-testmode.is-bloquant {
-          background: color-mix(in srgb, var(--danger, #dc3545) 12%, var(--card, #fff));
-          border-color: color-mix(in srgb, var(--danger, #dc3545) 40%, transparent);
-        }
-        .jr-testmode-badge {
-          display: inline-flex; align-items: center; gap: .4rem; flex: none;
-          padding: .25rem .6rem; border-radius: 999px;
-          background: var(--warn, #fd7e14); color: #fff;
-          font-size: .74rem; font-weight: 700; letter-spacing: .04em;
-          text-transform: uppercase; white-space: nowrap;
-        }
-        .jr-testmode.is-bloquant .jr-testmode-badge { background: var(--danger, #dc3545); }
-        .jr-testmode-texte { flex: 1 1 260px; min-width: 0; }
-        .jr-testmode-texte strong { font-weight: 650; }
-        .jr-testmode-lien {
-          flex: none; display: inline-flex; align-items: center;
-          color: inherit; text-decoration: none; font-weight: 600;
-          padding: .25rem .6rem; border-radius: 8px;
-          border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-          transition: background .15s ease;
-        }
-        .jr-testmode-lien:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
-        @media (max-width: 575px) {
-          .jr-testmode { font-size: .82rem; padding: .6rem .75rem; }
-        }
-      </style>
-    <?php
-        endif;
-    endif;
-    ?>
-
-    <header class="jr-topbar">
-      <div style="display:flex;align-items:center;gap:12px">
-        <button class="jr-burger" id="ocBurger" type="button" aria-label="Menu">
-          <span></span><span></span><span></span>
-        </button>
-        <div class="crumbs">
-          <h1><?= htmlspecialchars($pageSubtitle !== '' ? $pageSubtitle : $pageTitle) ?></h1>
-        </div>
-      </div>
+      <?php if (!empty($pageActions)): ?>
+        <div class="acts"><?= $pageActions ?></div>
+      <?php endif; ?>
     </header>
+    <?php endif; ?>
 
 <?php include __DIR__ . '/profile-modal.php'; ?>
 

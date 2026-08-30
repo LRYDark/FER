@@ -272,6 +272,10 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <?php include __DIR__ . '/_styles.php'; ?>
 </head>
 <body>
+<?php /* Seule page de l'espace à prendre toute la largeur : ses cinq blocs
+         sont rangés en deux colonnes, une colonne de lecture bornée les
+         écraserait. Partout ailleurs, la borne par défaut s'applique. */ ?>
+<?php $ecPleineLargeur = true; ?>
 <?php include __DIR__ . '/_layout-haut.php'; ?>
 
   <?php if ($erreur !== ''): ?>
@@ -281,6 +285,10 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <div class="alert is-ok"><i class="bi bi-check-circle"></i> <?= $h($succes) ?></div>
   <?php endif; ?>
 
+  <?php /* Deux colonnes : cinq blocs empilés faisaient une page à dérouler
+           pour cinq réglages courts. « Apparence » garde toute la largeur —
+           la rangée de couleurs d'accent ne tient pas dans une demi-colonne. */ ?>
+  <div class="ec-cols">
   <section class="card ec-bloc">
     <header>
       <div class="iconwell"><i class="bi bi-person"></i></div>
@@ -524,6 +532,7 @@ $h   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
       </div>
     </form>
   </section>
+  </div><!-- /ec-cols -->
 
 <?php include __DIR__ . '/_layout-bas.php'; ?>
 </body>
