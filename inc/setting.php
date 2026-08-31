@@ -3568,7 +3568,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
 
             <div class="col-md-6">
               <label class="form-label">Police d'écriture</label>
-              <input type="hidden" id="themeFont" name="theme_font_family" value="<?= htmlspecialchars($theme_font) ?>">
+              <?php /* data-oc-watch : ce champ caché n'est pas un drapeau d'état,
+                       c'est LE réglage de police. Sans cette marque, la barre du
+                       bas l'ignorait et « Enregistrer » restait grisé quand on ne
+                       changeait que la police. Voir src/partials/save-bar.php. */ ?>
+              <input type="hidden" id="themeFont" name="theme_font_family" data-oc-watch value="<?= htmlspecialchars($theme_font) ?>">
               <?php
                 $fontsUI = [
                   'system-ui' => 'Système (par défaut)',
@@ -6670,6 +6674,9 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
       item.addEventListener('click', function() {
         var val = this.dataset.value;
         font.value = val;
+        /* ⚠️ Poser .value ne déclenche AUCUN événement : sans cet envoi, la
+           barre du bas ne saurait pas qu'une police vient d'être choisie. */
+        font.dispatchEvent(new Event('change', { bubbles: true }));
         fpLabel.textContent = this.textContent.replace(/\s*custom\s*$/, '').trim();
         fpLabel.style.fontFamily = fontMap[val] || "'" + val + "', sans-serif";
         fpDrop.querySelectorAll('.font-picker-item').forEach(function(i) { i.classList.remove('active'); i.style.background = ''; });

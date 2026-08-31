@@ -1010,7 +1010,9 @@ $jsConfig = json_encode([
 <?php if ($canSend): ?>
 <div class="ed-pane <?= $activeSubTab==='envoi'?'active':'' ?>" id="paneEnvoi">
 <div class="bg-white p-4" style="border-radius:12px;">
-  <form id="fMail">
+  <?php /* data-oc-action : la barre du bas devient « Envoyer le mail ». Cet
+           écran n'enregistre rien, il agit. Voir src/partials/save-bar.php. */ ?>
+  <form id="fMail" data-oc-action="Envoyer le mail">
     <div class="row g-3">
       <!-- Destinataires -->
       <div class="col-12">
@@ -1086,11 +1088,9 @@ $jsConfig = json_encode([
       </div>
     </div>
 
-    <div class="mt-3">
-      <button type="submit" class="btn btn-success">
-        <i class="bi bi-send"></i> Envoyer le mail
-      </button>
-    </div>
+    <?php /* Le bouton d'envoi vit maintenant dans la barre du bas (mode
+             action de save-bar.php) : le répéter ici ferait deux boutons
+             pour un seul geste. */ ?>
   </form>
 </div>
 </div><!-- /paneEnvoi -->
@@ -1102,7 +1102,7 @@ $jsConfig = json_encode([
 <div class="ed-wrap">
 
   <!-- ── Sidebar: contextual controls ── -->
-  <form data-oc-save="save_mail_template" action="" method="post" enctype="multipart/form-data" id="tplForm" class="ed-sidebar" style="display:flex;flex-direction:column">
+  <form data-oc-save="save_mail_template" data-oc-dirty="ocTplDirty" action="" method="post" enctype="multipart/form-data" id="tplForm" class="ed-sidebar" style="display:flex;flex-direction:column">
     <?= csrf_field() ?>
     <input type="hidden" name="active_subtab" value="template">
     <input type="hidden" name="mtc_section_order" id="hOrder" value="<?= htmlspecialchars(implode(',', $mtcOrder)) ?>">
@@ -2009,6 +2009,16 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
     });
   });
 
+/* ⚠️ TOUT L'ÉDITEUR DE TEMPLATE TIENT DANS CETTE GARDE, et l'accolade se
+   referme juste avant « Confirm dialogs ». Le volet Template n'est rendu
+   qu'avec le droit mail.write : sans lui, #prevSections n'existe pas et la
+   première ligne qui le déréférençait faisait mourir TOUT le reste du script
+   — y compris les demandes de confirmation avant suppression, plus bas. Un
+   compte qui n'a que mail.send voyait donc un écran d'envoi à moitié inerte.
+   L'indentation n'a pas été reprise : la relire vaut mieux qu'un diff de
+   sept cents lignes où plus personne ne voit ce qui a changé. */
+if (container) {
+
   // ── Apply all styles to preview ──
   function applyAllStyles(){
     var C=CFG.colors, R=CFG.radius;
@@ -2556,10 +2566,23 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
     updateOrder();
   }
 
-  // ── Sync config to hidden fields before submit ──
-  $('#tplForm').addEventListener('submit', function(){
-    var h=$('#hFields'); h.innerHTML='';
-    function add(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;h.appendChild(i);}
+  /* ── Ce que le template enverra, et ce qui dit qu'il a changé ────────────
+   *
+   * ⚠️ RIEN DE CET ÉDITEUR NE VIT DANS UN CHAMP DE FORMULAIRE : les couleurs
+   * sont des <input> sans `name`, les textes du contenteditable, l'ordre des
+   * sections une position dans le DOM. La barre du bas ne voyait donc AUCUNE
+   * modification et « Enregistrer » restait grisé — le template était
+   * impossible à enregistrer.
+   *
+   * On expose deux choses à src/partials/save-bar.php :
+   *   • ocTplDirty()  — l'empreinte a-t-elle bougé depuis le chargement ?
+   *   • oc:serialize  — dépose les champs cachés juste avant l'envoi.
+   *     ⚠️ ÉCOUTER `submit` NE SUFFIT PAS : ni fetch() ni form.submit() ne le
+   *     déclenchent. Le template serait enregistré vide, sans erreur visible.
+   */
+  function tplCollecte(){
+    var out=[];
+    function add(n,v){ out.push([n, v==null?'':String(v)]); }
     Object.keys(CFG.colors).forEach(function(k){add('mtc_'+k,CFG.colors[k]);});
     add('mtc_radius_card',CFG.radius.card);
     add('mtc_radius_section',CFG.radius.section);
@@ -2594,8 +2617,40 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
       if(td&&td.style.backgroundColor) add('mtc_custom_bg_'+ci,rgbHex(td.style.backgroundColor));
       ci++;
     });
+    return out;
+  }
+
+  /* L'empreinte ajoute ce que tplCollecte() ne porte pas : l'ordre des
+     sections et l'image d'en-tête. Le fichier choisi, lui, est un <input
+     type="file"> nommé — la barre le voit déjà, l'ajouter ici compterait la
+     même modification deux fois. */
+  function tplEmpreinte(){
+    var ordre=[];
+    container.querySelectorAll('.prev-sec[data-section]').forEach(function(e){ ordre.push(e.dataset.section); });
+    return JSON.stringify([tplCollecte(), ordre.join(','), $('#hHeaderImg').value, $('#hImgDel').value]);
+  }
+
+  window.ocTplSerialize = function(){
+    var h=$('#hFields'); h.innerHTML='';
+    tplCollecte().forEach(function(p){
+      var i=document.createElement('input'); i.type='hidden'; i.name=p[0]; i.value=p[1]; h.appendChild(i);
+    });
     updateOrder();
-  });
+  };
+
+  /* ⚠️ L'EMPREINTE DE RÉFÉRENCE SE PREND APRÈS LE CHARGEMENT COMPLET, pas
+     ici : une partie de l'éditeur applique encore ses styles à la
+     prévisualisation après ce script. Prise trop tôt, elle aurait déclaré
+     l'écran « modifié » avant qu'on y touche. */
+  var tplRef = null;
+  function tplMemoriser(){ tplRef = tplEmpreinte(); }
+  if (document.readyState === 'complete') setTimeout(tplMemoriser, 0);
+  else window.addEventListener('load', function(){ setTimeout(tplMemoriser, 0); });
+
+  window.ocTplDirty = function(){ return tplRef !== null && tplEmpreinte() !== tplRef; };
+
+  $('#tplForm').addEventListener('submit',      window.ocTplSerialize);
+  $('#tplForm').addEventListener('oc:serialize', window.ocTplSerialize);
 
   // ── Sidebar tabs (Editor / Preview) ──
   $$('.sb-tab').forEach(function(tab){
@@ -2649,6 +2704,8 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
     });
   });
 
+} // fin de la garde « if (container) » — éditeur de template
+
   // ── Confirm dialogs ──
   document.addEventListener('submit', function(e){
     var f=e.target.closest('form[data-confirm]');
@@ -2657,13 +2714,26 @@ document.querySelectorAll('input[name="prov_view"]').forEach(function(radio) {
 })();
 </script>
 
-<?php /* Barre d'enregistrement : composant partagé.
-         Emails est en mode « plusieurs formulaires » — ses volets mêlent des
-         enregistrements et des actions indépendantes (connexion Google,
-         suppression d'un abonné) qui ne peuvent pas être imbriquées dans un
-         formulaire unique. Chaque formulaire à enregistrer porte
-         data-oc-save="nom_du_bouton" ; ceux qui partagent un nom partent
-         ensemble, en un seul envoi. */ ?>
+<?php /* Barre d'action : composant partagé (src/partials/save-bar.php).
+         Emails est l'écran qui a servi à la mettre au point, parce qu'il
+         contient les trois cas de figure — d'où ce rappel de ce que porte
+         chaque volet :
+
+           • Envoi de mail  → <form data-oc-action="Envoyer le mail"> :
+             la barre devient un bouton d'envoi. Rien à enregistrer ici.
+           • Template       → data-oc-save + data-oc-dirty="ocTplDirty" :
+             ses valeurs ne vivent pas dans ses champs, la barre ne les
+             verrait pas sans ce point d'accroche, et l'écran se remplit
+             au moment de l'envoi via l'événement `oc:serialize`.
+           • Fournisseur / Notifications → data-oc-save="nom_du_bouton" :
+             plusieurs formulaires, envoyés un par un ; ceux qui partagent
+             un nom partent ensemble, en un seul envoi.
+           • Abonnés newsletter → aucun formulaire à enregistrer : la barre
+             disparaît d'elle-même.
+
+         Les volets mêlent enregistrements et actions indépendantes
+         (connexion Google, suppression d'un abonné) : ils ne peuvent pas
+         être fusionnés en un formulaire unique comme l'est Réglages. */ ?>
 <?php include __DIR__ . '/../src/partials/save-bar.php'; ?>
 
 <?php require __DIR__ . '/../src/partials/admin-footer.php'; ?>
