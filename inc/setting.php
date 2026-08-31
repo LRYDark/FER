@@ -34,8 +34,9 @@ $postCardMap = [
     'save_footer_logo'    => ['personnalisation', null],
     'save_theme'          => ['personnalisation', null],
     'reset_theme'         => ['personnalisation', null],
-    'save_flash_colors'   => ['personnalisation', null],
-    'reset_flash_colors'  => ['personnalisation', null],
+    // Le bandeau Flash Info se règle avec le reste de la page d'accueil.
+    'save_flash_colors'   => ['accueil', null],
+    'reset_flash_colors'  => ['accueil', null],
     // Accueil
     'save_accueil_params'     => ['accueil', 'params'],
     'delete_picture_partner'  => ['accueil', 'params'],
@@ -106,7 +107,8 @@ $allTabs   = ['personnalisation','accueil','course','inscription','parcours','re
 $activeTab = 'personnalisation';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['save_maintenance']) || isset($_POST['save_session'])) $activeTab = 'maintenance';
-    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'personnalisation';
+    elseif (isset($_POST['save_navbar_logo']) || isset($_POST['save_footer_logo']) || isset($_POST['save_theme']) || isset($_POST['reset_theme']) || isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors']) || isset($_POST['save_footer_style'])) $activeTab = 'personnalisation';
+    elseif (isset($_POST['save_flash_colors']) || isset($_POST['reset_flash_colors'])) $activeTab = 'accueil';
     elseif (isset($_POST['save_hero']) || isset($_POST['save_accueil_params']) || isset($_POST['delete_picture_partner']) || isset($_POST['save_video_accueil']) || isset($_POST['save_custom_content'])) $activeTab = 'accueil';
     elseif (isset($_POST['save_course'])) $activeTab = 'course';
     elseif (isset($_POST['save_header']) || isset($_POST['save_inscription_params']) || isset($_POST['save_closed_message'])) $activeTab = 'inscription';
@@ -166,6 +168,18 @@ $theme_radius         = (int)($data['theme_border_radius']  ?? 12);
 $theme_font           = $data['theme_font_family']          ?? 'Inter';
 $flash_bg_color       = $data['flash_bg_color']             ?? '#db2777';
 $flash_text_color     = $data['flash_text_color']           ?? '#ffffff';
+/* Couleur propre à chaque grand aplat. NULL / absent = « suis le thème » —
+   les colonnes peuvent manquer si update.php n'a pas encore tourné. */
+$color_news_band      = $data['color_news_band']            ?? null;
+/* Le pied de page est le seul aplat réglé DEPUIS LES RÉGLAGES : les bandeaux
+   de l'accueil se règlent en sélectionnant l'élément dans l'éditeur. Le drapeau
+   ocFooterPerso, calculé plus bas, distingue « couleur du thème » (NULL) de
+   « couleur figée ». */
+$footer_logo_height   = (int) ($data['footer_logo_height']       ?? 56);
+if ($footer_logo_height < 24 || $footer_logo_height > 160) $footer_logo_height = 56;
+$color_partners       = $data['color_partners']             ?? null;
+$color_footer         = $data['color_footer']               ?? null;
+$color_newsletter     = $data['color_newsletter']           ?? null;
 
 // accueil
 $titleAccueil  = $data['titleAccueil']   ?? '';
@@ -811,6 +825,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_accueil_style'])
         // Pleine largeur du Hero (vidéo qui sort de la container du main).
         'hero_card_fullwidth' => ['0', '1'],
         'hero_card_fullwidth_mobile' => ['0', '1'],
+        /* Présentation de chaque section : bandeau pleine largeur (l'existant)
+         * ou carte grise posée dans la page. Une clé par type de section —
+         * chaque type n'apparaît qu'une fois sur la page d'accueil, il n'y a
+         * donc pas d'ambiguïté sur « quelle instance ». */
+        'reg_bar.bloc_style'     => ['bandeau', 'carte'],
+        'partners.bloc_style'    => ['bandeau', 'carte'],
+        'timeline.bloc_style'    => ['bandeau', 'carte'],
+        'news.bloc_style'        => ['bandeau', 'carte'],
+        'start_point.bloc_style' => ['bandeau', 'carte'],
+        'newsletter.bloc_style'  => ['bandeau', 'carte'],
+        'custom.bloc_style'      => ['bandeau', 'carte'],
+        /* Trait de couleur en haut de section : « 1 » = visible (état actuel),
+           « 0 » = masqué. Seules les deux sections qui en portent un.
+           Concerne uniquement les sections qui ont un trait dans le CSS. */
+        'news.bloc_trait'        => ['0', '1'],
+        'partners.bloc_trait'    => ['0', '1'],
     ];
     $key    = (string)($_POST['sizeKey'] ?? '');
     $device = (string)($_POST['device']  ?? 'desktop');
@@ -1092,6 +1122,29 @@ if (isset($_POST['save_theme'])) {
     addToast('success', 'Thème mis à jour !');
 }
 
+/* ═══ Publication du brouillon d accueil ═══
+ * Déclenchée par le bouton « Enregistrer » de la barre du bas, via le drapeau
+ * oc_publish_accueil de l onglet Accueil.
+ *
+ * ⚠️ NE PAS RÉUTILISER LE POINT D ENTRÉE publish_accueil : celui-là répond en
+ * JSON et coupe la requête (exit). Appelé au milieu d un enregistrement de
+ * formulaire, il aurait renvoyé du JSON à la place de la page.
+ *
+ * Sans brouillon, on ne fait rien et on ne dit rien : « Enregistrer » sur un
+ * écran non modifié ne doit pas afficher un message de publication. */
+if (isset($_POST['oc_publish_accueil'])) {
+    require_once __DIR__ . '/../src/content/accueil_layout.php';
+    try {
+        if (hasAccueilDraft($data)) {
+            publishAccueilDraft($pdo);
+            addToast('success', "Page d'accueil publiée !");
+        }
+    } catch (Throwable $e) {
+        error_log('[setting] publication accueil : ' . $e->getMessage());
+        addToast('danger', "La publication de la page d'accueil a échoué.");
+    }
+}
+
 if (isset($_POST['save_flash_colors'])) {
     $flash_bg_color   = $_POST['flash_bg_color']   ?? '#db2777';
     $flash_text_color = $_POST['flash_text_color'] ?? '#ffffff';
@@ -1102,6 +1155,111 @@ if (isset($_POST['save_flash_colors'])) {
         ->execute(['bg' => $flash_bg_color, 'txt' => $flash_text_color]);
 
     addToast('success', 'Couleurs du bandeau mises à jour !');
+}
+
+/* ═══ Pied de page : logo, taille, couleur ═══
+ * Déclenché par le bouton « Enregistrer » de l onglet (save_footer_logo gère
+ * le fichier lui-même, plus haut).
+ *
+ * ⚠️ « COULEUR DU THÈME » S ENREGISTRE EN NULL, JAMAIS EN RECOPIANT LA VALEUR.
+ * Recopier aurait figé le pied de page : changer ensuite la couleur secondaire
+ * ne l aurait plus déplacé, et personne n aurait compris pourquoi. */
+/* ═══ Pied de page, depuis l éditeur d accueil ═══
+ * Logo, hauteur et couleur en un seul envoi. Le pied de page est commun à
+ * tout le site : ces réglages ne passent PAS par le brouillon de l accueil,
+ * ils s appliquent immédiatement — le panneau le dit à l utilisateur. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_footer_from_editor'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!canDoAction('settings.tab.accueil')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    $hF = (int) ($_POST['footer_logo_height'] ?? 56);
+    if ($hF < 24 || $hF > 160) $hF = 56;
+    $modeF = $_POST['mode_footer'] ?? 'defaut';
+    $hexF  = trim((string) ($_POST['color_footer'] ?? ''));
+    $valF  = ($modeF === 'perso' && preg_match('/^#[0-9a-fA-F]{6}$/', $hexF)) ? strtolower($hexF) : null;
+
+    /* Le logo n est remplacé QUE si un fichier arrive : le panneau envoie les
+       trois réglages ensemble, un envoi sans fichier ne doit pas effacer le
+       logo en place. */
+    $nomLogo = $footer_logo;
+    if (!empty($_FILES['footer_logo']['name']) && $_FILES['footer_logo']['error'] === UPLOAD_ERR_OK) {
+        $ext = strtolower(pathinfo($_FILES['footer_logo']['name'], PATHINFO_EXTENSION));
+        $okExt = ['jpg','jpeg','png','gif','webp','svg'];
+        if (!in_array($ext, $okExt, true) || $_FILES['footer_logo']['size'] > 5 * 1024 * 1024) {
+            http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Format non autorisé ou fichier trop lourd (5 Mo max).']); exit;
+        }
+        $nom = 'footer_' . bin2hex(random_bytes(6)) . '.' . $ext;
+        if (!move_uploaded_file($_FILES['footer_logo']['tmp_name'], '../files/_logos/' . $nom)) {
+            http_response_code(500); echo json_encode(['ok' => false, 'err' => "Le fichier n a pas pu être enregistré."]); exit;
+        }
+        $nomLogo = $nom;
+    }
+
+    try {
+        $pdo->prepare('UPDATE setting SET footer_logo = :l, footer_logo_height = :h, color_footer = :c WHERE id = 1')
+            ->execute(['l' => $nomLogo, 'h' => $hF, 'c' => $valF]);
+        echo json_encode(['ok' => true, 'footer' => [
+            'logo' => $nomLogo, 'logoHeight' => $hF, 'color' => $valF ?: '', 'themeSecondary' => $theme_secondary,
+        ]]);
+    } catch (Throwable $e) {
+        http_response_code(500); echo json_encode(['ok' => false, 'err' => 'Colonnes absentes : lancez update.php.']);
+    }
+    exit;
+}
+
+/* ═══ Couleur d'un bandeau, depuis l'éditeur d'accueil ═══
+ * Appelé en AJAX quand on sélectionne une section dans l'aperçu et qu'on lui
+ * choisit une couleur. C'est le bon endroit : on règle la couleur en VOYANT
+ * l'élément, pas dans un onglet de réglages où il faut se rappeler duquel on
+ * parle.
+ *
+ * ⚠️ Chaîne VIDE = « couleur du thème », enregistrée en NULL. Recopier la
+ * couleur du thème figerait la section, qui ne suivrait plus le thème. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_section_color'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!canDoAction('settings.tab.accueil')) {
+        http_response_code(403); echo json_encode(['ok' => false, 'err' => 'Action non autorisée.']); exit;
+    }
+    /* Une section peut avoir plusieurs aplats réglables : la carte
+       « Rester informé » a son fond ET son ruban. Le « slot » dit lequel. */
+    $colonnes = [
+        'news:bg'            => 'color_news_band',
+        'partners:bg'        => 'color_partners',
+        'newsletter:bg'      => 'color_newsletter',
+        'newsletter:deco'    => 'color_newsletter_deco',
+    ];
+    $type = (string) ($_POST['sectionType'] ?? '') . ':' . (string) ($_POST['slot'] ?? 'bg');
+    if (!isset($colonnes[$type])) {
+        http_response_code(400); echo json_encode(['ok' => false, 'err' => 'Section sans couleur de fond.']); exit;
+    }
+    $hex = trim((string) ($_POST['color'] ?? ''));
+    $val = preg_match('/^#[0-9a-fA-F]{6}$/', $hex) ? strtolower($hex) : null;
+    try {
+        $pdo->prepare('UPDATE setting SET `' . $colonnes[$type] . '` = :c WHERE id = 1')->execute(['c' => $val]);
+        echo json_encode(['ok' => true, 'color' => $val]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'err' => "Colonne absente : lancez update.php."]);
+    }
+    exit;
+}
+
+if (isset($_POST['save_footer_style'])) {
+    $modeF = $_POST['mode_footer'] ?? 'defaut';
+    $hexF  = trim((string) ($_POST['color_footer'] ?? ''));
+    $valF  = ($modeF === 'perso' && preg_match('/^#[0-9a-fA-F]{6}$/', $hexF)) ? strtolower($hexF) : null;
+    $hF    = (int) ($_POST['footer_logo_height'] ?? 56);
+    if ($hF < 24 || $hF > 160) $hF = 56;
+    try {
+        $pdo->prepare('UPDATE setting SET color_footer = :c, footer_logo_height = :h WHERE id = 1')
+            ->execute(['c' => $valF, 'h' => $hF]);
+        $color_footer = $valF;
+        $footer_logo_height = $hF;
+        addToast('success', 'Pied de page mis à jour !');
+    } catch (Throwable $e) {
+        addToast('danger', 'Colonnes absentes : lancez update.php.');
+    }
 }
 
 if (isset($_POST['reset_flash_colors'])) {
@@ -2246,18 +2404,17 @@ $pageActions = '<a class="oc-btn" href="../public/accueil" target="_blank" rel="
      distinguent que par un aplat à peine plus soutenu. Les couleurs
      dérivent des tokens (color-mix) pour que le thème sombre suive. */
   .setting-card {
-    background: color-mix(in srgb, var(--surface-2) 48%, var(--canvas));
+    /* Fond : var(--oc-float), posé dans css/admin-shell.css pour TOUTES les
+       cartes de l administration. Ne pas le redéfinir ici. */
     border: 0;
     border-radius: 16px;
     padding: 20px 22px;
     margin-bottom: 14px;
   }
-  .setting-card h2 {
-    font-size: 15.5px; font-weight: 600; color: var(--ink);
-    margin: 0 0 14px;
-    padding-bottom: 0;
-    border-bottom: 0;
-  }
+  <?php /* Le titre de carte est défini UNE SEULE FOIS, dans css/admin-shell.css,
+           pour tous les écrans de l'administration. Il vivait ici, et les
+           autres pages gardaient celui d'admin.css : deux tailles de titre
+           selon l'écran, sans raison. */ ?>
   /* Les conteneurs de boutons vidés par la barre d'enregistrement globale ne
      doivent pas laisser un blanc au bas des cartes. */
   .setting-card .row > .col-12:empty,
@@ -2387,8 +2544,13 @@ $pageActions = '<a class="oc-btn" href="../public/accueil" target="_blank" rel="
     border-radius: 10px;
     overflow: hidden;
     position: sticky;
-    top: 12px;
-    max-height: calc(100vh - 100px);
+    top: calc(var(--oc-top-h, 64px) + 12px);
+    /* ⚠️ HAUTEUR DE LA FENÊTRE, PAS DE LA CARTE, ET ARRÊTÉE AU-DESSUS DE LA
+       BARRE D ENREGISTREMENT. Le panneau suivait la hauteur du contenu et
+       passait donc sous la barre flottante du bas, qui masquait ses dernières
+       entrées. On retire la barre du haut (64 px) ET l encombrement de la
+       barre du bas (68 px de hauteur + 20 px de décollement + une marge). */
+    max-height: calc(100vh - var(--oc-top-h, 64px) - 108px);
     display: flex;
     flex-direction: column;
   }
@@ -2461,7 +2623,17 @@ $pageActions = '<a class="oc-btn" href="../public/accueil" target="_blank" rel="
     width: 300px; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
     display: flex; flex-direction: column;
-    max-height: 80vh; position: sticky; top: 12px;
+    /* ⚠️ ANCRAGE SOUS LA BARRE DU HAUT, PAS EN HAUT DE LA FENÊTRE.
+       La barre du shell est collée en haut sur 64 px : un « top: 12px » colle
+       le panneau DERRIÈRE elle, et il disparaît dès qu on défile. La hauteur
+       maximale retire la même barre, sinon le bas du panneau sort de l écran. */
+    position: sticky; top: calc(var(--oc-top-h, 64px) + 12px);
+    /* ⚠️ HAUTEUR DE LA FENÊTRE, PAS DE LA CARTE, ET ARRÊTÉE AU-DESSUS DE LA
+       BARRE D ENREGISTREMENT. Le panneau suivait la hauteur du contenu et
+       passait donc sous la barre flottante du bas, qui masquait ses dernières
+       entrées. On retire la barre du haut (64 px) ET l encombrement de la
+       barre du bas (68 px de hauteur + 20 px de décollement + une marge). */
+    max-height: calc(100vh - var(--oc-top-h, 64px) - 108px);
   }
   .ife-sb-tabs { display: flex; border-bottom: 1px solid var(--border); }
   .ife-sb-tab {
@@ -2749,7 +2921,9 @@ $pageActions = '<a class="oc-btn" href="../public/accueil" target="_blank" rel="
        margin-top négatif : remonte la barre flottée pour la CENTRER sur le texte
        du titre (la barre ~38px est plus haute que le texte) — elle ne coupe donc
        plus le trait sans avoir à descendre celui-ci. */
-    position: sticky; top: -20px;
+    /* Même raison que le panneau latéral : elle se collait sous la barre du
+       haut du shell et devenait invisible au défilement. */
+    position: sticky; top: calc(var(--oc-top-h, 64px) + 8px);
     float: right;
     margin: -15px 0 6px 12px;
     display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
@@ -3202,7 +3376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
            lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
            Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
            même cycle, chacun lisant ses propres champs. */ ?>
-  <form class="oc-tabform" id="ocForm-personnalisation" data-tab="personnalisation" data-save-flags="save_navbar_logo=1|save_footer_logo=1|save_theme=1|save_flash_colors=1" action="" method="post" enctype="multipart/form-data">
+  <form class="oc-tabform" id="ocForm-personnalisation" data-tab="personnalisation" data-save-flags="save_navbar_logo=1|save_footer_logo=1|save_theme=1|save_footer_style=1" action="" method="post" enctype="multipart/form-data">
   <?= csrf_field() ?>
   <div class="row g-4">
 
@@ -3228,16 +3402,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
               <?php endif; ?>
             </div>
           </div>
-          <div class="col-12 text-end">
-          </div>
         </div>
       </div>
     </div><!-- /col-lg-6 -->
 
-    <!-- Carte : Logo du footer -->
+    <?php $ocFooterPerso = is_string($color_footer) && preg_match('/^#[0-9a-fA-F]{6}$/', $color_footer); ?>
+    <?php /* ═══ Footer ═══
+             Tout ce qui habille le pied de page tient dans UNE carte : son
+             logo, sa taille, sa couleur de fond. Ils étaient répartis entre
+             deux endroits, et on cherchait la couleur là où était le logo. */ ?>
     <div class="col-12 col-lg-6">
       <div class="setting-card">
-        <h2>Logo du footer</h2>
+        <h2>Footer</h2>
         <div class="row g-3 needs-validation">
           <?= csrf_field() ?>
           <div class="col-12">
@@ -3257,6 +3433,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
             </div>
           </div>
           <div class="col-12 text-end">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Hauteur du logo</label>
+            <div class="d-flex align-items-center gap-2">
+              <input type="range" class="form-range" name="footer_logo_height" id="footerLogoH"
+                     min="24" max="160" step="4" value="<?= (int) $footer_logo_height ?>">
+              <code id="footerLogoHVal"><?= (int) $footer_logo_height ?> px</code>
+            </div>
+          </div>
+
+          <?php /* « Couleur du thème » s enregistre en NULL, jamais en
+                   recopiant la valeur : recopier figerait le pied de page, qui
+                   ne suivrait plus un changement de couleur secondaire. */ ?>
+          <div class="col-12">
+            <label class="form-label">Couleur de fond</label>
+            <div class="row g-2 align-items-center oc-aplat" data-aplat="footer">
+              <div class="col-12 col-sm-7">
+                <select class="form-select oc-aplat-mode" name="mode_footer">
+                  <option value="defaut" <?= $ocFooterPerso ? '' : 'selected' ?>>Couleur du thème (secondaire)</option>
+                  <option value="perso"  <?= $ocFooterPerso ? 'selected' : '' ?>>Couleur personnalisée</option>
+                </select>
+              </div>
+              <div class="col-12 col-sm-5">
+                <div class="d-flex align-items-center gap-2 oc-aplat-couleur"<?= $ocFooterPerso ? '' : ' hidden' ?>>
+                  <input type="color" class="form-control form-control-color" name="color_footer"
+                         value="<?= htmlspecialchars($ocFooterPerso ? $color_footer : $theme_secondary) ?>"
+                         style="width:52px;height:38px">
+                  <code class="oc-aplat-hex"><?= htmlspecialchars($ocFooterPerso ? $color_footer : $theme_secondary) ?></code>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3423,6 +3630,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
       </div>
     </div><!-- /col-12 -->
 
+  </div><!-- /row -->
+  </form>
+</div><!-- /tab-personnalisation -->
+<?php endif; // canTab('personnalisation') ?>
+
+<!-- ═══ TAB: Accueil ═══ -->
+<?php if ($canTab('accueil')): ?>
+<div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
+  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
+           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
+           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
+           même cycle, chacun lisant ses propres champs. */ ?>
+  <form class="oc-tabform" id="ocForm-accueil" data-tab="accueil" data-save-flags="save_accueil_params=1|save_flash_colors=1|oc_publish_accueil=1" action="" method="post" enctype="multipart/form-data">
+  <?= csrf_field() ?>
+  <div class="row g-4">
+
+    <?php /* Le bandeau « l'assistant virtuel a déménagé » a été retiré : il
+             annonçait un déplacement fait depuis longtemps, et occupait la
+             première place de l'onglet Accueil à chaque ouverture. La page est
+             dans le menu (Contenu → Assistant / FAQ) et dans la recherche —
+             plus personne ne la cherche ici. */ ?>
+
+    <!-- Carte 1 : Titre / Image sur la vidéo (SUPPRIMÉE — édition désormais via l'éditeur visuel "Mise en page de l'accueil" plus bas) -->
+
+    <!-- Carte 2 : Paramètres page accueil -->
+    <?php if ($canCard('accueil', 'params')): ?>
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Paramètres page accueil</h2>
+        <div class="row g-3 needs-validation">
+          <?= csrf_field() ?>
+
+          <div class="col-md-6"><label class="form-label">Lien Facebook</label>
+            <input type="text" class="form-control" name="link_facebook" placeholder="Lien Facebook" value="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <div class="col-md-6"><label class="form-label">Lien Instagram</label>
+            <input type="text" class="form-control" name="link_instagram" placeholder="Lien Instagram" value="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <div class="col-md-6"><label class="form-label">Lien de la Ligue contre le cancer</label>
+            <?php /* `?? ''` : le réglage est NULL tant que personne ne l'a saisi, et
+                     htmlspecialchars(null) est déprécié depuis PHP 8.1 — chaque
+                     affichage de cette page remplissait alors php-error.log. */ ?>
+            <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la Ligue contre le cancer" value="<?= htmlspecialchars($link_cancer ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+          <!-- Image des partenaires : SUPPRIMÉ — édition désormais via clic sur l'image dans l'éditeur "Mise en page de l'accueil" -->
+          <div class="col-md-6">
+            <label class="form-label">Date de la course</label>
+            <input type="date" class="form-control" name="date_course" value="<?= htmlspecialchars($date_formatted, ENT_QUOTES, 'UTF-8'); ?>">
+          </div>
+
+          <div class="col-12"><hr class="my-2"><h6 class="text-muted mb-0">Bandeau Flash Info</h6></div>
     <?php /* Le bandeau Flash Info se règle une fois pour toutes, et ses deux
              couleurs n'ont rien à voir avec le thème du site. Le replier libère
              la carte du thème, qui est celle qu'on vient modifier. */ ?>
@@ -3479,58 +3737,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
       </div>
      </div>
     </div><!-- /modalFlashCouleurs -->
-
-  </div><!-- /row -->
-  </form>
-</div><!-- /tab-personnalisation -->
-<?php endif; // canTab('personnalisation') ?>
-
-<!-- ═══ TAB: Accueil ═══ -->
-<?php if ($canTab('accueil')): ?>
-<div class="settings-section <?= $activeTab === 'accueil' ? 'active' : '' ?>" id="tab-accueil">
-  <?php /* UN SEUL FORMULAIRE PAR ONGLET : la barre d'enregistrement du bas
-           lui injecte les drapeaux save_* de ses cartes et l'envoie d'un coup.
-           Les gestionnaires PHP ne redirigent pas — ils s'enchaînent dans le
-           même cycle, chacun lisant ses propres champs. */ ?>
-  <form class="oc-tabform" id="ocForm-accueil" data-tab="accueil" data-save-flags="save_accueil_params=1" action="" method="post" enctype="multipart/form-data">
-  <?= csrf_field() ?>
-  <div class="row g-4">
-
-    <?php /* Le bandeau « l'assistant virtuel a déménagé » a été retiré : il
-             annonçait un déplacement fait depuis longtemps, et occupait la
-             première place de l'onglet Accueil à chaque ouverture. La page est
-             dans le menu (Contenu → Assistant / FAQ) et dans la recherche —
-             plus personne ne la cherche ici. */ ?>
-
-    <!-- Carte 1 : Titre / Image sur la vidéo (SUPPRIMÉE — édition désormais via l'éditeur visuel "Mise en page de l'accueil" plus bas) -->
-
-    <!-- Carte 2 : Paramètres page accueil -->
-    <?php if ($canCard('accueil', 'params')): ?>
-    <div class="col-12">
-      <div class="setting-card">
-        <h2>Paramètres page accueil</h2>
-        <div class="row g-3 needs-validation">
-          <?= csrf_field() ?>
-
-          <div class="col-md-6"><label class="form-label">Lien Facebook</label>
-            <input type="text" class="form-control" name="link_facebook" placeholder="Lien Facebook" value="<?= htmlspecialchars($link_facebook, ENT_QUOTES, 'UTF-8'); ?>">
-          </div>
-          <div class="col-md-6"><label class="form-label">Lien Instagram</label>
-            <input type="text" class="form-control" name="link_instagram" placeholder="Lien Instagram" value="<?= htmlspecialchars($link_instagram, ENT_QUOTES, 'UTF-8'); ?>">
-          </div>
-          <div class="col-md-6"><label class="form-label">Lien de la Ligue contre le cancer</label>
-            <?php /* `?? ''` : le réglage est NULL tant que personne ne l'a saisi, et
-                     htmlspecialchars(null) est déprécié depuis PHP 8.1 — chaque
-                     affichage de cette page remplissait alors php-error.log. */ ?>
-            <input type="text" class="form-control" name="link_cancer" placeholder="Lien de la Ligue contre le cancer" value="<?= htmlspecialchars($link_cancer ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-          </div>
-          <!-- Image des partenaires : SUPPRIMÉ — édition désormais via clic sur l'image dans l'éditeur "Mise en page de l'accueil" -->
-          <div class="col-md-6">
-            <label class="form-label">Date de la course</label>
-            <input type="date" class="form-control" name="date_course" value="<?= htmlspecialchars($date_formatted, ENT_QUOTES, 'UTF-8'); ?>">
-          </div>
-
-          <div class="col-12"><hr class="my-2"><h6 class="text-muted mb-0">Bandeau Flash Info</h6></div>
           <div class="col-md-8"><label class="form-label">Texte du bandeau défilant</label>
             <input type="text" class="form-control" name="flash_info_text" placeholder="Ex : Inscriptions ouvertes ! Rendez-vous le 5 juillet..." value="<?= htmlspecialchars($flash_info_text, ENT_QUOTES, 'UTF-8'); ?>" maxlength="500">
           </div>
@@ -3758,10 +3964,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regenerate_worker_tok
                 <i class="bi bi-circle-fill"></i>
                 <span>Modifications non publiées</span>
               </div>
-              <!-- Bouton principal : pousse le brouillon en production -->
-              <button type="button" class="btn btn-success w-100" id="btnPublishLayout">
-                <i class="bi bi-send me-1"></i>Publier sur le site
-              </button>
+              <?php /* ⚠️ PLUS DE BOUTON « PUBLIER » ICI.
+                       Deux boutons d enregistrement sur le même écran — celui du
+                       panneau et celui de la barre du bas — obligeaient à savoir
+                       lequel fait quoi. C est désormais « Enregistrer » de la
+                       barre qui publie le brouillon, comme pour tout le reste
+                       des réglages. Le badge ci-dessus reste : il dit qu il y a
+                       quelque chose à enregistrer. */ ?>
               <!-- Bouton secondaire : annule le brouillon (revient à la version publiée) -->
               <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2" id="btnDiscardDraft" style="display:none;">
                 <i class="bi bi-x-circle me-1"></i>Annuler les modifications
@@ -6592,6 +6801,34 @@ document.querySelectorAll('#settingsTabs .nav-link').forEach(function(tab) {
   ftxt.addEventListener('input', up);
 })();
 
+// ─── Hauteur du logo du pied de page : le libellé suit le curseur ───
+(function () {
+  var h = document.getElementById('footerLogoH');
+  var v = document.getElementById('footerLogoHVal');
+  if (!h || !v) return;
+  h.addEventListener('input', function () { v.textContent = h.value + ' px'; });
+})();
+
+// ─── Couleur des grands aplats : « thème » ou couleur choisie ───
+(function () {
+  document.querySelectorAll('.oc-aplat').forEach(function (ligne) {
+    var mode    = ligne.querySelector('.oc-aplat-mode');
+    var bloc    = ligne.querySelector('.oc-aplat-couleur');
+    var champ   = ligne.querySelector('input[type="color"]');
+    var etiq    = ligne.querySelector('.oc-aplat-hex');
+    if (!mode || !bloc || !champ) return;
+
+    /* Masqué et non retiré : un champ absent du document n'est pas envoyé, et
+       repasser en « personnalisée » perdrait la couleur qu'on venait de
+       choisir. C'est le serveur qui décide d'ignorer la valeur quand le mode
+       est « thème ». */
+    function sync() { bloc.hidden = (mode.value !== 'perso'); }
+    mode.addEventListener('change', sync);
+    champ.addEventListener('input', function () { if (etiq) etiq.textContent = champ.value; });
+    sync();
+  });
+})();
+
 // ─── Galerie parcours ───
 document.addEventListener('DOMContentLoaded', function() {
   var maxImages = 30;
@@ -6933,6 +7170,25 @@ window.AccueilEditor.allowedWidths = <?= json_encode($allowedWidths) ?>;
 window.AccueilEditor.hasDraft = <?= hasAccueilDraft($data) ? 'true' : 'false' ?>;
 // Styles courants (lecture brouillon avec fallback publié) — utilisé par les toggles
 // d'options de section (ex: news.card_style)
+/* Couleur de fond de chaque bandeau, pour le sélecteur de l éditeur.
+   Elle ne vit PAS dans accueilStyles : c est une colonne de la table setting,
+   partagée avec le rendu public. Chaîne vide = « couleur du thème ». */
+/* Réglages du pied de page pour son panneau dans l éditeur. Ils vivent dans
+   la table setting et valent pour TOUT le site : pas de brouillon ici. */
+window.AccueilEditor.footer = <?= json_encode([
+  'logo'           => $footer_logo ?: null,
+  'logoHeight'     => (int) $footer_logo_height,
+  'color'          => $color_footer ?: '',
+  'themeSecondary' => $theme_secondary,
+]) ?>;
+window.AccueilEditor.sectionColors = <?= json_encode([
+  'news'       => $color_news_band  ?? null,
+  'partners'   => $color_partners   ?? null,
+  'newsletter' => $color_newsletter ?? null,
+  'newsletter_deco' => $data['color_newsletter_deco'] ?? null,
+  '_theme_secondary' => $theme_secondary,
+  '_theme_primary'   => $theme_primary,
+]) ?>;
 window.AccueilEditor.accueilStyles = <?php
   $stylesForJs = [];
   $stylesRaw = $data['accueil_styles_draft'] ?? null;

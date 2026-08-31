@@ -828,9 +828,29 @@ if (!empty($textsRaw)) {
             echo '<div class="' . $colClass . '" style="--col-w:' . $w . '"' . $colAttrs . '>';
             // En éditeur, on rend même les sections masquées (avec opacity via CSS)
             $sec = $col['section'];
+            /* ── Présentation : bandeau (défaut) ou carte grise ───────────────
+             * Le choix est fait UNE FOIS ICI, autour du rendu, plutôt que dans
+             * chacune des sept fonctions de rendu : elles n'ont pas à savoir
+             * dans quel contenant elles atterrissent, et une section ajoutée
+             * plus tard hérite du réglage sans une ligne de plus. */
+            $secStyle = (string)($accueilStyles[$sec['type'] . '.bloc_style'] ?? 'bandeau');
+            $enCarte  = ($secStyle === 'carte');
+            /* Trait de couleur en haut de section : visible par défaut, donc on
+               ne pose la classe que lorsqu'il est explicitement désactivé. */
+            $sansTrait = ((string)($accueilStyles[$sec['type'] . '.bloc_trait'] ?? '1') === '0');
+            /* ⚠️ EN MODE CARTE, LE TRAIT SE DESSINE SUR LA CARTE, PAS SUR LA
+               SECTION. La carte a un remplissage : un trait posé sur la section
+               flotte au milieu, à distance des bords, au lieu d épouser les
+               coins arrondis. On le déplace donc sur le conteneur. */
+            $aTrait = in_array($sec['type'], ['news', 'partners'], true) && !$sansTrait;
+            $classesWrap = trim(($enCarte ? 'accueil-carte ' : '')
+                               . ($sansTrait ? 'accueil-sans-trait ' : '')
+                               . (($enCarte && $aTrait) ? 'accueil-trait' : ''));
+            if ($classesWrap !== '') echo '<div class="' . $classesWrap . '">';
             if ($isEditorMode || !empty($sec['visible'])) {
                 renderAccueilSection($sec, $sectionCtx);
             }
+            if ($classesWrap !== '') echo '</div>';
             echo '</div>';
         }
         echo '</div>';
@@ -843,7 +863,16 @@ if (!empty($textsRaw)) {
 
   
 
+<?php /* En mode éditeur, le pied de page devient sélectionnable comme une
+         section : il n'est pas dans le layout, on l'enveloppe donc d'un
+         marqueur que le gestionnaire de clic reconnaît. */ ?>
+<?php /* display:contents — le conteneur existe dans le document pour que le clic
+         le retrouve, mais ne participe PAS à la mise en page : le pied de page
+         sort de son conteneur avec la ruse du 100vw, et une boîte de plus
+         autour de lui pouvait décaler ou rallonger la page. */ ?>
+<?php if ($isEditorMode): ?><div data-editor-footer="1" style="display:contents"><?php endif; ?>
 <?php include __DIR__ . '/../src/partials/footer-modern.php'; ?>
+<?php if ($isEditorMode): ?></div><?php endif; ?>
 
   <script src="../js/fer-modern.js"></script>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
@@ -2215,6 +2244,21 @@ foreach ($accueilLayout as $_row) {
   window.addEventListener('load', function() { setTimeout(function() { lastDocHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight); sendLayoutStructure(); }, 100); });
   window.addEventListener('resize', debouncedSend);
 
+  /* ⚠️ LA HAUTEUR DOIT AUSSI SUIVRE QUAND LE CONTENU RACCOURCIT.
+     Elle n'était renvoyée qu'au chargement et au redimensionnement de la
+     FENÊTRE. Or le contenu change tout seul : une section passée en carte,
+     un bloc masqué, une image qui finit de charger. L'iframe gardait alors
+     sa hauteur d'avant et laissait une grande zone vide sous le pied de
+     page — sans que rien ne la déclenche à nouveau.
+
+     ResizeObserver sur <body> couvre tous ces cas d'un coup, et passe par le
+     même envoi débouncé : pas de boucle avec l'ajustement du parent. */
+  if (window.ResizeObserver) {
+    try {
+      new ResizeObserver(debouncedSend).observe(document.body);
+    } catch (e) { /* navigateur trop ancien : on garde load + resize */ }
+  }
+
   // Récupère les infos d'un élément data-edit-field.
   // sizeCurrent reflète la valeur du DEVICE courant — TOTALEMENT indépendant :
   // - En mobile : on lit UNIQUEMENT data-edit-size-current-mobile. Si absent, valeur 100%
@@ -2279,6 +2323,14 @@ foreach ($accueilLayout as $_row) {
         }, '*');
         return;
       }
+    }
+
+    /* Le pied de page d abord : il vit HORS du layout, aucun data-editor-row-id
+       ne le couvre, et sans ce test un clic dessus ne sélectionnait rien. */
+    if (e.target.closest('[data-editor-footer]')) {
+      e.preventDefault();
+      parent.postMessage({ type: 'editor-click-footer' }, '*');
+      return;
     }
 
     var col = e.target.closest('[data-editor-col-idx]');

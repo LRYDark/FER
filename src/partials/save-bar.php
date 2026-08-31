@@ -113,7 +113,21 @@ $saveBarSite = !empty($saveBarSite);
     return n;
   }
 
-  function compter() { return scope().liste.reduce(function (t, f) { return t + compterForm(f); }, 0); }
+  /* ⚠️ TOUT NE PASSE PAS PAR UN CHAMP DE FORMULAIRE.
+     L'éditeur d'accueil enregistre ses changements de mise en page dans un
+     brouillon, en direct : aucun champ ne bouge, la barre ne voyait donc rien
+     et « Enregistrer » restait grisé — la publication devenait impossible.
+     Une page peut signaler un travail en attente via window.ocPendingChanges. */
+  function enAttenteHorsFormulaire() {
+    try { return (typeof window.ocPendingChanges === 'function') && !!window.ocPendingChanges(); }
+    catch (e) { return false; }
+  }
+
+  function compter() {
+    var n = scope().liste.reduce(function (t, f) { return t + compterForm(f); }, 0);
+    if (enAttenteHorsFormulaire()) n++;
+    return n;
+  }
 
   var enCours = false;
   function rafraichir() {
@@ -123,7 +137,13 @@ $saveBarSite = !empty($saveBarSite);
        enregistré » en permanence occupe la barre pour dire qu'il ne s'est
        rien passé ; l'état au repos, c'est l'absence de message. */
     etat.hidden = (n === 0);
-    txt.textContent = n + ' modification' + (n > 1 ? 's' : '') + ' non enregistrée' + (n > 1 ? 's' : '');
+    /* Un brouillon de mise en page seul ne se décrit pas comme « 1
+       modification » : on nomme ce qui est en attente. */
+    if (n === 1 && enAttenteHorsFormulaire()) {
+      txt.textContent = 'Mise en page non publiée';
+    } else {
+      txt.textContent = n + ' modification' + (n > 1 ? 's' : '') + ' non enregistrée' + (n > 1 ? 's' : '');
+    }
     btnSave.disabled = btnReset.disabled = (n === 0);
     if (btnSite) btnSite.disabled = (n === 0);
   }
@@ -131,6 +151,10 @@ $saveBarSite = !empty($saveBarSite);
   /* Écoute sur le document, pas sur chaque formulaire : les événements
      remontent, et un formulaire affiché après coup est pris en compte sans
      qu'on ait à le rebrancher. */
+  /* Point d'entrée pour les pages qui modifient l'état hors formulaire
+     (l'éditeur d'accueil appelle ceci quand son brouillon change). */
+  window.ocRefreshSaveBar = rafraichir;
+
   document.addEventListener('input',  rafraichir);
   document.addEventListener('change', rafraichir);
   rafraichir();
@@ -268,8 +292,15 @@ $saveBarSite = !empty($saveBarSite);
   });
 
   // Garde-fou : quitter l'écran en laissant des modifications non enregistrées.
+  /* ⚠️ L AVERTISSEMENT NE PORTE QUE SUR LES CHAMPS NON ENVOYÉS.
+     Un brouillon de mise en page est DÉJÀ enregistré côté serveur — il attend
+     seulement d être publié. Le compter ici aurait fait apparaître « quitter
+     la page ? » à chaque navigation tant qu un brouillon existe, pour un
+     travail qui n est pas en danger. */
   window.addEventListener('beforeunload', function (e) {
-    if (!enCours && compter() > 0) { e.preventDefault(); e.returnValue = ''; }
+    if (enCours) return;
+    var champs = scope().liste.reduce(function (t, f) { return t + compterForm(f); }, 0);
+    if (champs > 0) { e.preventDefault(); e.returnValue = ''; }
   });
 })();
 </script>

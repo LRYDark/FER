@@ -10,11 +10,9 @@ if (!empty($GLOBALS['debogage']) || (!empty($data) && !empty($data['debogage']))
 } else {
     // Charger depuis la BDD si pas encore disponible
     $debugActive = false;
-    if (isset($pdo)) {
-        try {
-            $stmtDbg = $pdo->query('SELECT debogage FROM setting WHERE id = 1 LIMIT 1');
-            $debugActive = (bool) ($stmtDbg->fetchColumn());
-        } catch (\Throwable $e) {}
+    // Lecture partagée : la ligne est déjà en cache à ce stade.
+    if (isset($pdo) && function_exists('settingRow')) {
+        $debugActive = (bool) (settingRow($pdo)['debogage'] ?? false);
     }
 }
 ?>
@@ -138,11 +136,46 @@ if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['connexions_flash
     unset($_SESSION['connexions_flash']);
 }
 
-// ── Afficher les toasts en attente ──
+/* ── Regroupement des confirmations ───────────────────────────────────────
+ *
+ * ⚠️ UN ENREGISTREMENT = UN MESSAGE, PAS UN PAR REQUÊTE SQL.
+ *
+ * Depuis que le bouton « Enregistrer » envoie tous les réglages d'un écran
+ * en une fois, chaque gestionnaire PHP pose sa propre confirmation : on se
+ * retrouvait avec « Paramètres enregistrés ! » puis « Couleurs du bandeau
+ * mises à jour ! » puis les suivantes, empilées dans le coin.
+ *
+ * On ne fusionne QUE les succès. Les avertissements et les erreurs restent
+ * affichés un par un : chacun dit une chose différente, et en perdre un
+ * derrière un résumé, c'est laisser passer un échec sans le voir.
+ *
+ * Le regroupement se fait ICI, au rendu, et pas dans les gestionnaires : ils
+ * sont une trentaine, répartis sur toutes les pages d'administration, et
+ * chacun garde ainsi son message quand il est déclenché seul. */
 if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['toasts'])) {
+    $tSucces = [];
+    $tAutres = [];
+    foreach ($_SESSION['toasts'] as $t) {
+        if (($t['type'] ?? '') === 'success') $tSucces[] = $t; else $tAutres[] = $t;
+    }
+    if (count($tSucces) > 1) {
+        /* Le pluriel porte sur le nombre de réglages touchés, pas sur le
+           nombre de requêtes : « 3 réglages enregistrés » se comprend, pas
+           « 3 confirmations ». */
+        $tSucces = [[
+            'msg'   => count($tSucces) . ' réglages enregistrés',
+            'type'  => 'success',
+            'delay' => 4000,
+        ]];
+    }
+    /* Les erreurs d'abord dans la file : le conteneur est en
+       column-reverse, elles finissent donc EN HAUT de la pile, là où l'œil
+       va en premier. */
+    $tFile = array_merge($tSucces, $tAutres);
+
     echo '<script nonce="' . $GLOBALS['csp_nonce'] . '">';
     echo 'document.addEventListener("DOMContentLoaded", function(){';
-    foreach ($_SESSION['toasts'] as $t) {
+    foreach ($tFile as $t) {
         echo 'showToast(' . json_encode($t['msg']) . ',' . json_encode($t['type']) . ',' . ($t['delay'] ?? 4000) . ');';
     }
     echo '});';

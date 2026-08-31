@@ -190,7 +190,12 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      section encadrée à l'intérieur faisait une boîte dans une boîte, et l'œil
      comptait les cadres au lieu de lire. Le titre et l'espace suffisent à
      séparer — c'est le même parti que l'application. */
-  .ec-nu {
+  /* ⚠️ DEUX NIVEAUX OBLIGATOIRES, comme pour .ec-bloc plus bas.
+     admin-shell.css pose « .oc-shell .card { background: … } » ; ces blocs
+     sont des <section class="card ec-nu">, et un sélecteur simple perdait
+     contre lui. Le gris revenait donc derrière Mes résultats et Mes
+     appareils, alors que « nu » veut justement dire « sans habillage ». */
+  .ec-shell .ec-nu {
     background: transparent;
     border: 0;
     box-shadow: none;
@@ -226,11 +231,27 @@ document.documentElement.setAttribute('data-accent', <?= json_encode($ecDataAcc)
      ⚠️ MÊME EXPRESSION QUE `.setting-card` (css/admin-shell.css), pas une
      valeur en dur : les deux doivent bouger ensemble, et le thème sombre suit
      sans règle supplémentaire. */
-  .ec-bloc {
-    background: color-mix(in srgb, var(--surface-2) 48%, var(--canvas));
+  /* ⚠️ TRANSPARENT PAR DÉFAUT. Le gris ne vaut que pour les blocs qui
+     contiennent des FORMULAIRES (Mon compte). Ailleurs — Mes résultats, Mes
+     appareils, Mes inscriptions — le bloc enveloppe déjà une liste de cartes :
+     un aplat autour donnait une boîte dans une boîte. */
+  /* ⚠️ SÉLECTEURS EN DEUX NIVEAUX (.ec-shell .ec-bloc), ET C EST NÉCESSAIRE.
+     admin-shell.css pose « .oc-shell .card { background: … } » pour les cartes
+     de l administration. L espace coureur partage la coquille .oc-shell : cette
+     règle, plus spécifique qu un simple .ec-bloc, gagnait — le gris revenait
+     derrière Mes résultats et Mes appareils malgré le transparent demandé.
+     À spécificité égale, c est cette feuille qui l emporte : elle est chargée
+     après admin-shell.css. */
+  .ec-shell .ec-bloc {
+    background: transparent;
     box-shadow: none;
     border: 0;
     border-radius: 16px;
+  }
+  /* Mon compte : ses cinq blocs sont rangés en colonnes, et ce sont eux qui
+     portent l aplat gris demandé. */
+  .ec-shell .ec-cols .ec-bloc {
+    background: var(--oc-float);
   }
 
   /* ── Une carte par édition ───────────────────────────────────────────────

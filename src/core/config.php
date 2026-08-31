@@ -934,6 +934,34 @@ function fer_emailHmac(?string $email): ?string {
 }
 
 /**
+ * La ligne de réglages (setting.id = 1), lue UNE SEULE FOIS par requête.
+ *
+ * ⚠️ POURQUOI CE CACHE. La table ne contient qu'une ligne, mais elle était
+ * relue séparément par le thème, le pied de page, la barre de navigation, les
+ * notifications et la configuration : six requêtes ou plus par page, toutes
+ * identiques, pour la même ligne.
+ *
+ * ⚠️ ET POURQUOI IL EST SÛR. Le cache se remplit au PREMIER APPEL, pas au
+ * chargement du fichier. Sur les écrans d'administration, les gestionnaires
+ * d'enregistrement s'exécutent AVANT le rendu : le premier appel a donc lieu
+ * après les écritures, et lit des valeurs fraîches. $refresh force la
+ * relecture pour le cas où l'on devrait lire après avoir écrit.
+ */
+function settingRow(PDO $pdo, bool $refresh = false): array
+{
+    static $row = null;
+    if ($row !== null && !$refresh) return $row;
+    try {
+        $row = $pdo->query('SELECT * FROM setting WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        // Table absente (installation en cours) : on sert un tableau vide
+        // plutôt que de faire échouer toute la page.
+        $row = [];
+    }
+    return $row;
+}
+
+/**
  * Ajoute un toast à afficher au prochain chargement de page.
  */
 function addToast(string $type, string $msg, int $delay = 4000): void

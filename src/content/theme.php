@@ -24,18 +24,42 @@ if (!isset($__themeLoaded)) {
     $__theme['dark_secondary'] = '#e2e8f0';
 
     try {
-        $__stmt = $pdo->query("SELECT theme_primary_color, theme_secondary_color, theme_dark_primary_color, theme_dark_secondary_color, theme_border_radius, theme_font_family FROM setting WHERE id = 1 LIMIT 1");
-        $__row = $__stmt->fetch(PDO::FETCH_ASSOC);
+        // Ligne de réglages partagée : plus de requête propre au thème.
+        $__row = function_exists('settingRow') ? settingRow($pdo) : null;
         if ($__row) {
-            $__theme['primary']        = $__row['theme_primary_color']        ?: '#db2777';
-            $__theme['secondary']      = $__row['theme_secondary_color']      ?: '#0f172a';
+            /* ?? avant ?: — la ligne vient d un SELECT *, une colonne absente sur une
+               ancienne base donnerait une alerte au lieu du défaut. */
+            $__theme['primary']        = ($__row['theme_primary_color']   ?? '') ?: '#db2777';
+            $__theme['secondary']      = ($__row['theme_secondary_color'] ?? '') ?: '#0f172a';
             $__theme['dark_primary']   = $__row['theme_dark_primary_color']   ?? '#f472b6';
             $__theme['dark_secondary'] = $__row['theme_dark_secondary_color'] ?? '#e2e8f0';
             $__theme['radius']         = (int)($__row['theme_border_radius']  ?? 12);
-            $__theme['font']           = $__row['theme_font_family']          ?: 'Inter';
+            $__theme['font']           = ($__row['theme_font_family'] ?? '') ?: 'Inter';
         }
     } catch (PDOException $e) {
         // Colonnes pas encore créées, on utilise les defaults
+    }
+
+    /* ── Couleur propre à chaque grand aplat ──────────────────────────────
+     * REQUÊTE SÉPARÉE, et c est volontaire : ces colonnes sont plus récentes
+     * que les précédentes. Les lire dans la même requête aurait fait échouer
+     * TOUT le thème sur une base où update.php n a pas encore tourné.
+     *
+     * VIDE = la couleur du thème. On ne recopie jamais la valeur du thème
+     * dans ces colonnes : sinon changer la couleur secondaire ne toucherait
+     * plus le bandeau ni le pied de page. */
+    $__aplats = ['news_band' => null, 'partners' => null, 'footer' => null, 'newsletter' => null, 'newsletter_deco' => null];
+    try {
+        // Même ligne que celle déjà lue plus haut : aucune requête de plus.
+        $__r = function_exists('settingRow') ? settingRow($pdo) : null;
+        if ($__r) {
+            foreach (['news_band', 'partners', 'footer', 'newsletter', 'newsletter_deco'] as $__k) {
+                $__v = trim((string) ($__r['color_' . $__k] ?? ''));
+                if (preg_match('/^#[0-9a-fA-F]{6}$/', $__v)) $__aplats[$__k] = $__v;
+            }
+        }
+    } catch (Throwable $e) {
+        // Colonnes absentes : chaque aplat garde la couleur du thème.
     }
 
     /**
@@ -165,6 +189,23 @@ if (!isset($__themeLoaded)) {
   --radius-sm: <?= max(0, $__theme['radius'] - 4) ?>px;
   --radius-lg: <?= $__theme['radius'] > 0 ? $__theme['radius'] + 4 : 0 ?>px;
   --font-family: <?= $__fontStack ?>;
+
+  /* ── Aplats personnalisables ─────────────────────────────────────────────
+     Chaque élément lit SA variable ; la valeur de repli est la couleur du
+     thème qu il utilisait déjà. Un site qui n a jamais touché à ces réglages
+     ne bouge donc pas d un pixel. Le texte est recalculé sur la couleur
+     RÉELLE, sinon un aplat clair choisi à la main garderait du texte blanc. */
+  --c-news-band: <?= $__aplats['news_band'] ?? $__theme['secondary'] ?>;
+  --c-news-band-text: <?= themeRelativeLuminance($__aplats['news_band'] ?? $__theme['secondary']) > 0.4 ? '#1e293b' : '#ffffff' ?>;
+  --c-partners: <?= $__aplats['partners'] ?? $__theme['secondary'] ?>;
+  --c-partners-text: <?= themeRelativeLuminance($__aplats['partners'] ?? $__theme['secondary']) > 0.4 ? '#1e293b' : '#ffffff' ?>;
+  --c-footer: <?= $__aplats['footer'] ?? $__theme['secondary'] ?>;
+  --c-footer-text: <?= themeRelativeLuminance($__aplats['footer'] ?? $__theme['secondary']) > 0.4 ? '#1e293b' : '#ffffff' ?>;
+  --c-newsletter: <?= $__aplats['newsletter'] ?? $__theme['primary'] ?>;
+  /* Ruban : sans réglage il suit la couleur du texte de la carte, ce qu il
+     faisait déjà via currentColor. */
+  --c-newsletter-deco: <?= $__aplats['newsletter_deco'] ?? 'currentColor' ?>;
+  --c-newsletter-text: <?= themeRelativeLuminance($__aplats['newsletter'] ?? $__theme['primary']) > 0.4 ? '#1e293b' : '#ffffff' ?>;
 }
 <?php if (empty($themeVarsOnly)) : /* ── Overrides composants : SITE PUBLIC uniquement.
    L'admin (navbar-admin définit $themeVarsOnly = true) ne reçoit QUE les

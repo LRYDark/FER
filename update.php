@@ -520,6 +520,16 @@ $migrations = [
     "ALTER TABLE `setting` ADD COLUMN `theme_secondary_color` VARCHAR(7) DEFAULT '#0f172a'",
     "ALTER TABLE `setting` ADD COLUMN `theme_border_radius` INT DEFAULT 12",
     "ALTER TABLE `setting` ADD COLUMN `theme_font_family` VARCHAR(100) DEFAULT 'Inter'",
+    // Couleur propre à chaque grand aplat (bandeau actualités, pied de page,
+    // carte « Rester informé »). NULL = la couleur du thème s applique.
+    "ALTER TABLE `setting` ADD COLUMN `color_news_band` VARCHAR(7) DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `color_partners` VARCHAR(7) DEFAULT NULL",
+    // Hauteur du logo du pied de page, réglée dans la carte « Footer ».
+    "ALTER TABLE `setting` ADD COLUMN `footer_logo_height` INT DEFAULT 56",
+    "ALTER TABLE `setting` ADD COLUMN `color_footer` VARCHAR(7) DEFAULT NULL",
+    "ALTER TABLE `setting` ADD COLUMN `color_newsletter` VARCHAR(7) DEFAULT NULL",
+    // Couleur du ruban de la carte « Rester informé » (SVG en currentColor).
+    "ALTER TABLE `setting` ADD COLUMN `color_newsletter_deco` VARCHAR(7) DEFAULT NULL",
     // `theme_dark_enabled` : la ligne d'ajout a été retirée — jamais écrit,
     // jamais lu. Le retrait des bases qui l'ont se fait plus bas, sous
     // condition : un DROP inconditionnel échouerait à chaque passage sur une

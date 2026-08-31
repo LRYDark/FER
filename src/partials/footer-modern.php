@@ -12,16 +12,23 @@
 <footer class="site-footer">
   <div class="footer-container">
     <?php
-      if (!isset($footer_logo) && isset($pdo)) {
-          try {
-              $stmtFL = $pdo->prepare('SELECT footer_logo FROM setting WHERE id = 1 LIMIT 1');
-              $stmtFL->execute();
-              $footer_logo = $stmtFL->fetchColumn() ?: null;
-          } catch (\Throwable $e) { $footer_logo = null; }
+      /* Une seule lecture de la ligne de réglages, partagée avec le reste
+         de la page (settingRow met le résultat en cache). Il y avait ici
+         DEUX requêtes pour deux colonnes de la même ligne. */
+      $fRow = function_exists('settingRow') && isset($pdo) ? settingRow($pdo) : [];
+      if (!isset($footer_logo)) {
+          $footer_logo = $fRow['footer_logo'] ?? null;
       }
       $footerLogoFile = $footer_logo ?: 'logo_blanc.png';
+      /* Hauteur réglée dans Réglages → Personnalisation → Footer. Bornée ici
+         aussi : la valeur arrive de la base, pas forcément du formulaire. */
+      if (!isset($footer_logo_height)) {
+          $footer_logo_height = (int) ($fRow['footer_logo_height'] ?? 56);
+      }
+      $fh = (int) ($footer_logo_height ?? 56);
+      if ($fh < 24 || $fh > 160) $fh = 56;
     ?>
-    <style>.footer-content::after{background:url('../files/_logos/<?= rawurlencode($footerLogoFile) ?>') no-repeat center/contain;}</style>
+    <style>.footer-content::after{background:url('../files/_logos/<?= rawurlencode($footerLogoFile) ?>') no-repeat center/contain;height:<?= $fh ?>px;}</style>
     <div class="footer-content">
       <div class="footer-left">
         <div class="footer-brand">
