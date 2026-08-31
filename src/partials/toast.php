@@ -4,6 +4,32 @@
  * Inclus automatiquement par admin-footer.php
  */
 
+/* ⚠️ UNE RÉPONSE XHR NE DOIT RIEN CONSOMMER, ET C'EST TOUT L'OBJET DE CES
+ * TROIS LIGNES.
+ *
+ * La barre d'enregistrement (src/partials/save-bar.php) envoie chaque
+ * formulaire modifié en fetch(), puis recharge la page. La réponse de ce
+ * fetch est un rendu COMPLET de l'écran — pied de page compris, donc ce
+ * fichier — et personne ne la lit : elle est jetée.
+ *
+ * Or, plus bas, ce fichier VIDE $_SESSION['toasts'] après les avoir affichés.
+ * Le message « Configuration enregistrée » partait donc dans le HTML jeté, et
+ * au rechargement il ne restait plus rien à montrer : l'enregistrement
+ * réussissait sans un mot de confirmation. C'est exactement le « pas de toast
+ * après avoir cliqué Enregistrer » constaté sur Emails et Applications.
+ *
+ * La règle vaut pour TOUT envoi XHR qui retombe sur une page complète — le
+ * réordonnancement des albums et des partenaires est dans le même cas, et
+ * mangeait lui aussi les messages en attente. Ce qui n'est lu par personne ne
+ * doit rien retirer de la session.
+ *
+ * Réglages, lui, n'était pas touché : il part en envoi de formulaire classique
+ * et lit donc la réponse qu'il consomme.
+ */
+if (function_exists('isAjaxRequest') && isAjaxRequest()) {
+    return;
+}
+
 // ── Bandeau debug ──
 if (!empty($GLOBALS['debogage']) || (!empty($data) && !empty($data['debogage']))) {
     $debugActive = true;

@@ -1380,27 +1380,6 @@ $jsConfig = json_encode([
 
 
 </div><!-- /ed-wrap -->
-
-  <!-- ═══ Carte « QR Code dans les mails » (déplacée de Notifications, v2 : contenu des mails) ═══ -->
-  <div class="row g-4 mt-2" style="flex:0 0 100%">
-    <div class="col-12 col-lg-6">
-      <div class="setting-card">
-        <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>
-        <p class="text-muted mb-3">Inclure un QR Code dans le mail de confirmation d'inscription. Le participant pourra le presenter le jour de l'evenement pour etre identifie ou recuperer son t-shirt.</p>
-        <form data-oc-save="save_qrcode_config" action="" method="post" class="row g-3">
-          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="template">
-          <div class="col-12">
-            <label class="form-label fw-semibold">Mode d'inclusion</label>
-            <select class="form-select" name="qrcode_mail_mode">
-              <option value="none" <?= $qrcode_mail_mode==='none'?'selected':'' ?>>Aucun — pas de QR Code</option>
-              <option value="all" <?= $qrcode_mail_mode==='all'?'selected':'' ?>>Pour tous les inscrits</option>
-              <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>Pour les X premiers inscrits</option>
-            </select>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
 </div><!-- /paneTemplate -->
 
 <!-- ═══ GOOGLE / SMTP PANE ═══ -->
@@ -1744,6 +1723,33 @@ $jsConfig = json_encode([
           </div>
         </form>
       </div>
+
+      <?php /* ⚠️ CETTE CARTE A DÉJÀ FAIT L'ALLER-RETOUR. Elle avait été rangée
+               dans « Template » au motif qu'elle touche au contenu des mails.
+               Sauf qu'on ne vient pas dans Template pour régler ce que le
+               système envoie : on y vient pour dessiner. Le QR code de
+               confirmation est un comportement d'envoi, comme les alertes
+               au-dessus — il se règle ici. */ ?>
+      <div class="setting-card mt-4" id="carteQrMail">
+        <h2><i class="bi bi-qr-code me-2"></i>QR Code dans les mails</h2>
+        <p class="text-muted mb-3">Inclure un QR Code dans le mail de confirmation d'inscription. Le participant pourra le presenter le jour de l'evenement pour etre identifie ou recuperer son t-shirt.</p>
+        <form data-oc-save="save_qrcode_config" action="" method="post" class="row g-3">
+          <?php /* active_subtab = notifications, et PAS template : c'est lui qui
+                   décide du volet rouvert après enregistrement. Le laisser sur
+                   l'ancien nom aurait renvoyé sur l'éditeur de gabarit à chaque
+                   fois qu'on touche à ce réglage. */ ?>
+          <?= csrf_field() ?><input type="hidden" name="active_subtab" value="notifications">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Mode d'inclusion</label>
+            <select class="form-select" name="qrcode_mail_mode">
+              <option value="none" <?= $qrcode_mail_mode==='none'?'selected':'' ?>>Aucun — pas de QR Code</option>
+              <option value="all" <?= $qrcode_mail_mode==='all'?'selected':'' ?>>Pour tous les inscrits</option>
+              <option value="first_x" <?= $qrcode_mail_mode==='first_x'?'selected':'' ?>>Pour les X premiers inscrits</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
     </div>
   </div>
 </div>

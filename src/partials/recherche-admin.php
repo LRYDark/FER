@@ -131,7 +131,16 @@ $rechercheIndex = [
     ['titre' => "Modèle et contenu de l'email",
      'ou' => 'Emails → Template', 'url' => 'mail-settings.php?pane=template', 'ancre' => '',
      'mots' => 'template gabarit modele mail email contenu mise en page couleur logo
-                confirmation inscription qr code',
+                confirmation inscription',
+     'droit' => ['page' => 'mail-settings', 'action' => 'mail.write']],
+
+    /* ⚠️ ENTRÉE À PART, ET PAS DE SIMPLES MOTS-CLÉS AJOUTÉS AILLEURS. « qr »
+       renvoyait vers l'éditeur de gabarit, où le réglage ne vit plus : on
+       arrivait sur le bon volet et on ne trouvait rien. */
+    ['titre' => 'QR Code dans les mails de confirmation',
+     'ou' => 'Emails → Alertes', 'url' => 'mail-settings.php?pane=notifications', 'ancre' => 'carteQrMail',
+     'mots' => 'qr qrcode code confirmation inscription mail email tshirt t-shirt
+                retrait identification scan premiers',
      'droit' => ['page' => 'mail-settings', 'action' => 'mail.write']],
 
     ['titre' => 'Alertes par email (aux administrateurs)',
