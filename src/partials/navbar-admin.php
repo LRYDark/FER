@@ -192,7 +192,27 @@ body { font-family: <?= $jrFonts[$jrFont][0] ?>; }
 /* ── Définition de la sidebar : sections → items ──────────────────────────────
  * access : ['page' => cléPage] (canAccessPage) — ['roles' => [...]] (rôle dur)
  *          + optionnel 'action' => permission canDoAction supplémentaire.
- * href peut contenir ?tab= : l'item est actif si page + tab correspondent.   */
+ * href peut contenir ?tab= : l'item est actif si page + tab correspondent.
+ *
+ * ⚠️ CHAQUE ITEM DOIT DÉCLARER EXACTEMENT LE DROIT QUE SA PAGE EXIGE, pas un
+ * droit approchant. Une page gardée par `requirePage('stats')` se déclare
+ * ['page' => 'stats'] ; ['roles' => [...]] est réservé aux trois écrans que le
+ * serveur garde VRAIMENT par rôle — saisie.php et utilisateurs.php, qui
+ * appellent requireRole(), et rgpd.php, qui teste currentRole() à la main.
+ *
+ * POURQUOI : une liste de rôles écrite ici est une SECONDE règle d'accès, qui
+ * dérive de celle du serveur dès qu'un droit est accordé à la main dans
+ * Utilisateurs & Droits. C'est arrivé : « Statistiques » portait
+ * ['roles' => ['admin','user','viewer']] alors que stats.php exige
+ * canAccessPage('stats'). Un compte `saisie` à qui on avait donné la page
+ * pouvait l'ouvrir, la recherche la lui proposait — mais l'onglet « Pilotage »
+ * restait invisible, donc la page était inatteignable au menu. L'inverse est
+ * tout aussi faux : retirer `stats` à un rôle laissait l'entrée au menu, et
+ * cliquer renvoyait au tableau de bord.
+ *
+ * Un onglet du haut s'affiche dès qu'AU MOINS UNE de ses entrées est visible :
+ * corriger le droit de l'entrée suffit à faire réapparaître sa section.
+ * docs/test-integrite.php (§ 17 bis) compare ces droits à ceux des pages.    */
 $ico = [
     'dashboard' => '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
     'stats'     => '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
@@ -257,7 +277,7 @@ $navSections = [
     'Jour J' => [
         ['setting.php?tab=course', 'Course',          $ico['timeline'], ['page' => 'setting', 'action' => 'settings.tab.course']],
         ['qr_code.php',            'QR Codes',        $ico['qr'],       ['page' => 'qr_code']],
-        ['tshirt-access.php',      'Accès bénévoles', $ico['tshirt'],   ['roles' => ['admin']]],
+        ['tshirt-access.php',      'Accès bénévoles', $ico['tshirt'],   ['page' => 'tshirt_access']],
         ['resultats.php',          'Résultats',       $ico['timeline'], ['page' => 'dashboard', 'action' => 'dashboard.transfers']],
         // Notifications et réveil avant la course : un écran du jour J, pas un
         // réglage qu'on pose une fois.
@@ -290,7 +310,7 @@ $navSections = [
     ],
 
     'Pilotage' => [
-        ['stats.php',      'Statistiques', $ico['stats'], ['roles' => ['admin', 'user', 'viewer']]],
+        ['stats.php',      'Statistiques', $ico['stats'], ['page' => 'stats']],
         ['page_stats.php', 'Visites',      $ico['eye'],   ['page' => 'page_stats']],
     ],
 
@@ -301,7 +321,7 @@ $navSections = [
         ['utilisateurs.php',            'Utilisateurs & Droits', $ico['users2'], ['roles' => ['admin']]],
         ['connexions.php',              'Connexions',            $ico['login'],  ['page' => 'connexions']],
         ['logs.php',                    'Logs',                  $ico['logs'],   ['page' => 'logs']],
-        ['rgpd.php',                    'Données personnelles',  $ico['shield'] ?? $ico['logs'], ['roles' => ['admin']]],
+        ['rgpd.php',                    'Données personnelles',  $ico['shield'] ?? $ico['logs'], ['page' => 'dashboard', 'roles' => ['admin']]],
         ['setting.php?tab=api',         'API',                   $ico['plug'],   ['page' => 'setting', 'action' => 'settings.tab.api']],
         ['setting.php?tab=maintenance', 'Maintenance',           $ico['wrench'], ['page' => 'setting', 'action' => 'settings.tab.maintenance']],
     ],

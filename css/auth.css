@@ -199,6 +199,10 @@
   /* variante « toujours visible » de l'installateur (pas de .show requis) */
   display: block;
 }
+/* …mais une alerte vide ne dessine aucun bandeau : reset-password.php et
+   change-password.php posent leurs boîtes #err / #ok à l'avance et ne les
+   remplissent qu'au retour du serveur. */
+.oc-alert:empty { display: none; }
 .oc-alert-info { background: var(--info-soft); color: var(--ink); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
 
 .oc-btn-secondary {
