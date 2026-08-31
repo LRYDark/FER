@@ -76,6 +76,15 @@ bug réel rencontré sur ce projet :
 
 ## Comment les lancer
 
+> **En ligne de commande, jamais par une URL.** Le `.htaccess` du dossier
+> (`Require all denied`) rend ces fichiers inaccessibles par le web — c'est
+> voulu : `audit-bdd.php` fait `DROP DATABASE`, et `test-integrite.php` lance
+> `php -l` sur tout le site. Les deux refusent d'ailleurs de s'exécuter hors
+> CLI, au cas où le `.htaccess` serait absent ou ignoré.
+>
+> **Depuis le dépôt de développement**, pas depuis un site déployé : les deux
+> bancs interrogent l'historique git, que le déploiement ne contient pas.
+
 ```bash
 # test-integrite.php : rien à préparer
 php docs/test-integrite.php
@@ -86,12 +95,55 @@ mysqld --datadir=/un/dossier/temporaire/data --port=3399 --console
 php docs/audit-bdd.php
 ```
 
-L'instance du port **3399** est jetable et **ne touche jamais votre base
-réelle** : l'audit crée ses propres bases, les remplit de fausses données,
-vérifie, et repart sans rien laisser.
+Les chemins sont déduits de l'emplacement du fichier : aucun réglage à faire,
+sous Windows comme sous Linux.
+
+### Viser un autre serveur MySQL
+
+Par défaut, `audit-bdd.php` cherche `127.0.0.1:3399` avec l'utilisateur `root`
+et un mot de passe vide. Trois variables d'environnement suffisent à le pointer
+ailleurs — par exemple sur le MySQL d'un conteneur de test :
+
+```bash
+FER_AUDIT_DSN='mysql:host=127.0.0.1;port=3306' \
+FER_AUDIT_USER=root FER_AUDIT_PASS=motdepasse \
+php docs/audit-bdd.php
+```
+
+L'utilisateur doit avoir le droit de **créer et supprimer des bases**.
+
+### Le garde-fou contre l'effacement
+
+L'audit détruit et recrée `fer_install` et `fer_update` à chaque passage. Pour
+qu'une base de production portant l'un de ces noms ne parte pas avec, il pose un
+marqueur `_audit_bdd_jetable` dans chaque base qu'il crée : une base **pleine et
+sans marqueur** le fait s'arrêter net, sans rien toucher. Une base absente ou
+vide passe sans rien demander — le premier lancement fonctionne normalement.
+
+Ce garde-fou est un filet, pas une autorisation : **ne pointez pas ce banc sur
+le serveur qui porte le site.**
 
 Chaque banc affiche `OK` / `ECHEC` ligne par ligne, puis un bilan, et renvoie un
 code de sortie 0 si tout est vert.
+
+---
+
+## À ne pas confondre : `update.php?tool=check-integrity`
+
+Un **troisième** contrôle existe, et il n'est pas dans ce dossier :
+`update.php?tool=check-integrity`, accessible depuis l'écran de mise à jour.
+
+Il ne regarde ni le code ni les deux chemins d'installation : il inspecte **les
+données de votre base réelle** — lignes de résultats, transferts ou traces qui
+pointent vers une inscription inexistante, inscriptions sans `inscription_no`,
+dérive de schéma entre tables d'inscriptions. C'est le contrôle à lancer **sur
+le site en production**, et il est en lecture seule.
+
+| Outil | Où | Quoi |
+|---|---|---|
+| `update.php?tool=check-integrity` | site réel, par URL | cohérence des **données** en base |
+| `docs/test-integrite.php` | dépôt, en CLI | cohérence du **code** |
+| `docs/audit-bdd.php` | dépôt + MySQL jetable, en CLI | les deux **chemins d'installation** convergent |
 
 ---
 

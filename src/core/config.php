@@ -654,6 +654,38 @@ function checkMaintenance()
     }
 }
 
+/**
+ * L'espace coureur est-il ouvert ? (Réglages → Maintenance)
+ *
+ * Un seul interrupteur, `setting.espace_coureur_actif`, lu par TOUT ce qui
+ * mène à l'espace : le garde-fou de ce fichier, les deux boutons de la barre de
+ * navigation, le lien du pied de page et la page de téléchargement. Une seule
+ * source, donc pas de bouton qui survit à la fermeture.
+ *
+ * ⚠️ COLONNE ABSENTE = ESPACE OUVERT. Sur une base pas encore migrée, la
+ * requête échoue : fermer l'espace « par précaution » couperait l'accès des
+ * coureurs à leur QR code pour une simple migration en retard. Le défaut va
+ * dans le sens de la disponibilité, exactement comme checkMaintenance().
+ *
+ * Résultat mis en cache : la barre de navigation et le pied de page
+ * l'interrogent sur la même page.
+ */
+function espace_coureur_actif(): bool
+{
+    static $actif = null;
+    if ($actif !== null) return $actif;
+
+    global $pdo;
+    try {
+        $v = $pdo->query('SELECT espace_coureur_actif FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
+        // NULL (ligne absente) → ouvert, même raison que ci-dessus.
+        $actif = ($v === false || $v === null) ? true : ((int) $v === 1);
+    } catch (\Throwable $e) {
+        $actif = true;
+    }
+    return $actif;
+}
+
 function currentOrganisation(): ?string
 {
     // A-t-on un utilisateur connecté ?
@@ -1570,3 +1602,27 @@ header(
     "object-src 'none'; " .
     "base-uri 'self';"
 );
+
+/* ═════════ Espace coureur fermé : on n'entre pas ════════════════════════════
+ *
+ * Le contrôle est ICI, et pas dans chacune des pages de public/espace-coureur/,
+ * parce qu'il n'y a qu'une seule façon d'entrer dans l'espace : définir
+ * FER_SESSION_COUREUR avant d'inclure ce fichier. Toutes ses pages le font —
+ * c'est ce qui leur donne leur session distincte — et aucune autre page du site
+ * ne le fait. Le garde-fou couvre donc l'espace ENTIER, y compris les pages
+ * qu'on écrira demain, sans dépendre de la discipline de qui les écrira.
+ *
+ * ⚠️ AUCUNE DÉROGATION POUR L'ADMINISTRATION, contrairement à checkMaintenance().
+ * Une session d'administration porte le cookie `PHPSESSID`, celle d'un coureur
+ * `FERCOUREUR` : dans ce contexte $_SESSION['uid'] n'existe pas, il n'y a donc
+ * rien à excepter. La fermeture est la même pour tout le monde, ce qui est
+ * aussi la seule façon de vérifier ce que voient les coureurs.
+ *
+ * Redirection RELATIVE : ce garde-fou ne se déclenche que depuis
+ * public/espace-coureur/, toujours à la même profondeur — et une URL absolue
+ * bâtie sur l'en-tête Host casserait sur une installation en sous-répertoire.
+ * ────────────────────────────────────────────────────────────────────────── */
+if (defined('FER_SESSION_COUREUR') && FER_SESSION_COUREUR && !espace_coureur_actif()) {
+    header('Location: ../accueil.php');
+    exit;
+}

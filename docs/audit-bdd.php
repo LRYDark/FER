@@ -15,14 +15,59 @@
  *   4. La migration est-elle rejouable sans effet de bord (idempotence) ?
  */
 
-const DSN_SRV = 'mysql:host=127.0.0.1;port=3399';
-const USER    = 'root';
-const PASS    = '';
+/* ═════════ Où et comment ce banc s'exécute ══════════════════════════════════
+ *
+ * ⚠️ EN LIGNE DE COMMANDE UNIQUEMENT, ET CE N'EST PAS UNE PRÉCAUTION DE STYLE.
+ * Ce fichier fait `DROP DATABASE`. Servi par une URL, il suffirait de connaître
+ * l'adresse pour effacer une base. Le `.htaccess` du dossier le refuse déjà ;
+ * ce test-ci est la seconde barrière, celle qui tient encore si le fichier est
+ * copié ailleurs ou si le serveur ignore les .htaccess.
+ *
+ *   php docs/audit-bdd.php
+ *
+ * ⚠️ SUR UN SERVEUR MySQL JETABLE. Les bases `fer_install` et `fer_update` sont
+ * détruites et recréées à chaque passage. Ne pointez jamais ce banc sur le
+ * serveur qui porte le site — recreer() refuse d'écraser une base qu'il n'a pas
+ * créée lui-même, mais ne comptez pas sur ce seul garde-fou.
+ *
+ * Réglable sans toucher au fichier :
+ *   FER_AUDIT_DSN='mysql:host=127.0.0.1;port=3306' \
+ *   FER_AUDIT_USER=root FER_AUDIT_PASS=secret php docs/audit-bdd.php
+ * ───────────────────────────────────────────────────────────────────────── */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit("audit-bdd.php ne s'exécute qu'en ligne de commande : php docs/audit-bdd.php\n");
+}
+
+/* Racine du projet, déduite de l'emplacement de ce fichier (docs/). Aucun chemin
+ * en dur : le banc doit tourner sur le poste de développement comme sur un
+ * serveur de test, sous Windows comme sous Linux. */
+define('FER_ROOT', dirname(__DIR__));
+
+define('DSN_SRV', getenv('FER_AUDIT_DSN') ?: 'mysql:host=127.0.0.1;port=3399');
+define('USER',    getenv('FER_AUDIT_USER') ?: 'root');
+define('PASS',    getenv('FER_AUDIT_PASS') !== false ? getenv('FER_AUDIT_PASS') : '');
+
+/* Marqueur posé dans chaque base créée par ce banc. Sa présence est ce qui
+ * autorise le DROP au passage suivant : une base pleine SANS marqueur n'a pas
+ * été créée ici, et n'a donc aucune raison d'être détruite. */
+const MARQUEUR = '_audit_bdd_jetable';
 
 function srv(): PDO {
     static $p = null;
     if ($p === null) {
-        $p = new PDO(DSN_SRV, USER, PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        try {
+            $p = new PDO(DSN_SRV, USER, PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        } catch (PDOException $e) {
+            fwrite(STDERR,
+                "Connexion au serveur MySQL impossible (" . DSN_SRV . ").\n"
+                . $e->getMessage() . "\n\n"
+                . "Ce banc a besoin d'un serveur MySQL JETABLE, pas de celui du site.\n"
+                . "Indiquez-le ainsi :\n"
+                . "  FER_AUDIT_DSN='mysql:host=127.0.0.1;port=3306' FER_AUDIT_USER=root \\\n"
+                . "  FER_AUDIT_PASS=motdepasse php docs/audit-bdd.php\n");
+            exit(1);
+        }
     }
     return $p;
 }
@@ -32,9 +77,43 @@ function db(string $name): PDO {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 }
+/**
+ * Détruit et recrée une base de travail.
+ *
+ * ⚠️ REFUSE D'ÉCRASER UNE BASE QU'IL N'A PAS CRÉÉE. Une base nommée
+ * `fer_install` peut très bien être un vrai site : si elle contient des tables
+ * mais pas notre marqueur, on s'arrête plutôt que de la détruire. Une base
+ * absente ou vide passe sans rien demander — le premier lancement fonctionne
+ * donc normalement.
+ */
 function recreer(string $name): void {
+    $existe = (int) srv()->query(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA
+          WHERE SCHEMA_NAME = " . srv()->quote($name))->fetchColumn();
+
+    if ($existe > 0) {
+        $tables = (int) srv()->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = " . srv()->quote($name))->fetchColumn();
+        $marque = (int) srv()->query(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = " . srv()->quote($name) . "
+                AND TABLE_NAME = " . srv()->quote(MARQUEUR))->fetchColumn();
+
+        if ($tables > 0 && $marque === 0) {
+            fwrite(STDERR,
+                "REFUS : la base `$name` contient $tables table(s) et ne porte pas le marqueur\n"
+                . "« " . MARQUEUR . " ». Elle n'a donc pas été créée par ce banc — ce peut être\n"
+                . "un vrai site. Rien n'a été touché.\n\n"
+                . "Pointez le banc sur un serveur MySQL jetable (FER_AUDIT_DSN), ou renommez\n"
+                . "cette base si elle ne sert plus.\n");
+            exit(1);
+        }
+    }
+
     srv()->exec("DROP DATABASE IF EXISTS `$name`");
     srv()->exec("CREATE DATABASE `$name` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+    srv()->exec("CREATE TABLE `$name`.`" . MARQUEUR . "` (`x` TINYINT) ENGINE=InnoDB");
 }
 
 /** Extrait et évalue une fonction « return array » d'un fichier source. */
@@ -197,7 +276,8 @@ function jouerLot6(PDO $pdo, string $src): void {
         }
         // __DIR__ vaut docs/ sous eval() : le bloc FAQ lit install.php par ce
         // chemin, on le corrige pour qu'il pointe sur la racine du projet.
-        eval(str_replace("__DIR__ . '/install.php'", "'W:/FER/install.php'", $m[0]));
+        eval(str_replace("__DIR__ . '/install.php'",
+                         var_export(FER_ROOT . '/install.php', true), $m[0]));
     }
 }
 
@@ -234,9 +314,26 @@ function schema(PDO $pdo, string $table): ?string {
     return trim($s);
 }
 
-$srcInstall = file_get_contents('W:/FER/install.php');
-$srcUpdate  = file_get_contents('W:/FER/update.php');
-$srcRef     = shell_exec('cd /d W:\FER && git show f260914b:install.php 2>nul');
+$srcInstall = @file_get_contents(FER_ROOT . '/install.php');
+$srcUpdate  = @file_get_contents(FER_ROOT . '/update.php');
+if ($srcInstall === false || $srcUpdate === false) {
+    fwrite(STDERR, "install.php ou update.php introuvable dans " . FER_ROOT . "\n"
+                 . "Lancez le banc depuis le dépôt : php docs/audit-bdd.php\n");
+    exit(1);
+}
+
+/* La version de RÉFÉRENCE d'install.php — celle d'avant le lot 1 — vient de
+ * l'historique git : c'est elle qui simule le point de départ d'un site en
+ * production. `git -C` évite un `cd` propre à un système d'exploitation. */
+$srcRef = shell_exec('git -C ' . escapeshellarg(FER_ROOT) . ' show f260914b:install.php');
+if (!is_string($srcRef) || !str_contains($srcRef, 'function getCreateTableStatements')) {
+    fwrite(STDERR,
+        "Impossible de lire la version de référence d'install.php (commit f260914b).\n"
+        . "Ce banc a besoin du dépôt git complet et de la commande `git` dans le PATH.\n"
+        . "Sur un serveur où le site est déployé sans son historique, il ne peut pas tourner :\n"
+        . "lancez-le depuis le dépôt de développement.\n");
+    exit(1);
+}
 
 $ko = 0;
 
@@ -246,9 +343,30 @@ $ko = 0;
 echo "=== BASE A : install.php actuel sur base vierge ===\n";
 recreer('fer_install');
 $A = db('fer_install');
+/* On rejoue l'installation DANS SON ORDRE RÉEL, graines comprises : tables,
+ * puis la FAQ extraite de update.php, puis les données de départ, puis les
+ * graines qui écrivent dans `setting`. Sans cette fidélité, le banc validerait
+ * une installation que personne n'exécute jamais — et les identifiants de la
+ * FAQ, qui dépendent de cet ordre, ne seraient pas ceux d'un vrai site. */
+if (preg_match('/function getSeedsFromUpdate\(PDO \$pdo\): array\s*\{.*?\n\}/s', $srcInstall, $mSeeds)) {
+    eval(str_replace("__DIR__ . '/update.php'",
+                     var_export(FER_ROOT . '/update.php', true), $mSeeds[0]));
+} else {
+    echo "⚠  getSeedsFromUpdate() introuvable dans install.php — graines non testées\n";
+}
+$graines = function_exists('getSeedsFromUpdate')
+    ? getSeedsFromUpdate($A)
+    : ['faq' => [], 'setting' => [], 'avertissement' => null];
+if (!empty($graines['avertissement'])) {
+    echo "⚠  " . $graines['avertissement'] . "\n";
+    $ko++;
+}
+
 $errA = array_merge(
     jouer($A, tableauDe($srcInstall, 'getCreateTableStatements'), 'tables', true),
-    jouer($A, tableauDe($srcInstall, 'getDefaultInserts'), 'données de départ', true)
+    jouer($A, $graines['faq'], 'FAQ (extraite de update.php)', true),
+    jouer($A, tableauDe($srcInstall, 'getDefaultInserts'), 'données de départ', true),
+    jouer($A, $graines['setting'], 'graines de réglages', true)
 );
 if ($errA) { echo "❌ Erreurs :\n   - " . implode("\n   - ", $errA) . "\n"; $ko += count($errA); }
 else echo "✅ Installation neuve sans erreur\n";
@@ -387,23 +505,73 @@ if ($schemaRegAvant === $schemaRegApres) {
 }
 
 echo "\n=== 3. Convergence install ↔ update ===\n";
-$TABLES = ['editions','participants','participant_registrations','participant_auth_codes',
-           'participant_devices','registration_transfers','resultats','traces_gps','detections','setting'];
-foreach ($TABLES as $t) {
+
+/* ⚠️ ON COMPARE TOUTES LES TABLES, PAS UNE LISTE ÉCRITE À LA MAIN.
+ *
+ * Ce contrôle ne portait que sur dix tables choisies. Résultat : le jour où
+ * `participant_notifications_lues` et `participant_notifications_masquees` n'ont
+ * pas été créées du tout sur la base migrée — clés étrangères déclarées avant la
+ * table référencée — la convergence est restée verte. Deux tables entièrement
+ * absentes, et l'audit ne disait rien : il ne les regardait pas.
+ *
+ * Une liste à maintenir est une liste qu'on oublie de maintenir. On énumère donc
+ * les tables RÉELLEMENT présentes des deux côtés.
+ *
+ * Deux exclusions, et deux seulement :
+ *   • le marqueur des bases jetables, posé par ce banc lui-même ;
+ *   • les archives annuelles `registrations_AAAA` — la base B en a une parce que
+ *     le banc la fabrique pour simuler un site en service, la base A n'en a pas
+ *     puisqu'une installation neuve n'a pas d'historique. C'est voulu.
+ */
+$listeTables = function (PDO $pdo): array {
+    $t = $pdo->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                       WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME")
+             ->fetchAll(PDO::FETCH_COLUMN);
+    return array_values(array_filter($t, fn($n) =>
+        $n !== MARQUEUR && !preg_match('/^registrations_\d{4}$/', $n)));
+};
+$tablesA = $listeTables($A);
+$tablesB = $listeTables($B);
+
+foreach (array_diff($tablesA, $tablesB) as $t) {
+    echo "❌ $t : présente sur une installation neuve, ABSENTE après migration\n"; $ko++;
+}
+foreach (array_diff($tablesB, $tablesA) as $t) {
+    echo "❌ $t : présente après migration, ABSENTE sur une installation neuve\n"; $ko++;
+}
+
+$communes = array_intersect($tablesA, $tablesB);
+$divergentes = 0;
+foreach ($communes as $t) {
     $sa = schema($A, $t); $sb = schema($B, $t);
-    if ($sa === null) { echo "❌ $t : absente de la base install\n"; $ko++; continue; }
-    if ($sb === null) { echo "❌ $t : absente de la base update\n";  $ko++; continue; }
-    if ($sa === $sb) { echo "✅ $t\n"; continue; }
+    if ($sa === $sb) continue;
     echo "❌ $t : schémas DIFFÉRENTS\n";
     $la = preg_split('/,\s*(?=`)/', $sa); $lb = preg_split('/,\s*(?=`)/', $sb);
-    foreach (array_diff($la, $lb) as $d) echo "   install : $d\n";
-    foreach (array_diff($lb, $la) as $d) echo "   update  : $d\n";
-    $ko++;
+    $seulA = array_diff($la, $lb);
+    $seulB = array_diff($lb, $la);
+    foreach ($seulA as $d) echo "   install : $d\n";
+    foreach ($seulB as $d) echo "   update  : $d\n";
+    /* Même ensemble de colonnes des deux côtés mais chaînes différentes = c'est
+       l'ORDRE qui diffère. Sans ce cas, l'audit affichait « schémas DIFFÉRENTS »
+       suivi de rien du tout, et il n'y avait pas moyen de savoir quoi corriger. */
+    if (!$seulA && !$seulB) {
+        echo "   → même ensemble de colonnes, ORDRE différent :\n";
+        $nomA = []; $nomB = [];
+        foreach ($la as $d) if (preg_match('/^`(\w+)`/', trim($d), $m)) $nomA[] = $m[1];
+        foreach ($lb as $d) if (preg_match('/^`(\w+)`/', trim($d), $m)) $nomB[] = $m[1];
+        foreach ($nomA as $i => $c) {
+            $j = array_search($c, $nomB, true);
+            if ($j !== false && $j !== $i) echo "      $c : position $i côté install, $j après migration\n";
+        }
+    }
+    $ko++; $divergentes++;
 }
+printf("%s %d table(s) comparée(s), %d divergente(s)\n",
+       $divergentes ? '❌' : '✅', count($communes), $divergentes);
 
 echo "\n=== 4. Idempotence : seconde exécution de la migration ===\n";
 $schemasAvant2 = [];
-foreach ($TABLES as $t) $schemasAvant2[$t] = schema($B, $t);
+foreach ($tablesB as $t) $schemasAvant2[$t] = schema($B, $t);
 $compteAvant2 = (int) $B->query('SELECT COUNT(*) FROM registrations')->fetchColumn();
 $editionsAvant = $B->query('SELECT annee, is_active FROM editions ORDER BY annee')->fetchAll();
 
@@ -412,7 +580,7 @@ peuplerEditions($B, $srcUpdate, false);   // 2e passage : table déjà là → a
 if ($errM2) { echo "❌ Erreurs au rejeu :\n   - " . implode("\n   - ", $errM2) . "\n"; $ko += count($errM2); }
 
 $diff = 0;
-foreach ($TABLES as $t) if ($schemasAvant2[$t] !== schema($B, $t)) { echo "❌ $t : schéma modifié au 2e passage\n"; $diff++; }
+foreach ($tablesB as $t) if ($schemasAvant2[$t] !== schema($B, $t)) { echo "❌ $t : schéma modifié au 2e passage\n"; $diff++; }
 $compteApres2 = (int) $B->query('SELECT COUNT(*) FROM registrations')->fetchColumn();
 if ($compteApres2 !== $compteAvant2) { echo "❌ registrations : $compteAvant2 → $compteApres2 au 2e passage\n"; $diff++; }
 $editionsApres = $B->query('SELECT annee, is_active FROM editions ORDER BY annee')->fetchAll();
