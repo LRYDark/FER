@@ -1051,10 +1051,10 @@ if ($route==='forgot-password' && $_SERVER['REQUEST_METHOD']==='POST'){
         try {
             require_once __DIR__ . '/src/mail/googleMail.php';
             if (isMailConfigured()) {
-                // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
-                $resetUrl = getAppBaseUrl()
-                          . dirname(dirname($_SERVER['SCRIPT_NAME']))
-                          . '/reset-password.php?token=' . $token;
+                // 🔒 [SEC-01] appUrl() s'appuie sur getAppBaseUrl(), pas sur HTTP_HOST
+                // brut (CWE-644), et ajoute le sous-repertoire d'installation : le lien
+                // reste juste que le site soit a la racine du domaine ou dans /FER.
+                $resetUrl = appUrl('reset-password.php') . '?token=' . $token;
 
                 sendMail(
                     $user['email'],
@@ -1485,10 +1485,10 @@ if ($route === 'users') {
         try {
             require_once __DIR__ . '/src/mail/googleMail.php';
             if (isMailConfigured()) {
-                // 🔒 [SEC-01] getAppBaseUrl() au lieu de HTTP_HOST brut (CWE-644)
-                $resetUrl = getAppBaseUrl()
-                          . dirname(dirname($_SERVER['SCRIPT_NAME']))
-                          . '/reset-password.php?token=' . $token;
+                // 🔒 [SEC-01] appUrl() s'appuie sur getAppBaseUrl(), pas sur HTTP_HOST
+                // brut (CWE-644), et ajoute le sous-repertoire d'installation : le lien
+                // reste juste que le site soit a la racine du domaine ou dans /FER.
+                $resetUrl = appUrl('reset-password.php') . '?token=' . $token;
 
                 $emailSent = sendMail(
                     $userEmail,

@@ -148,7 +148,7 @@ $rechercheIndex = [
     ['titre' => 'Catch-all des emails (mode test)',
      'ou' => 'Emails → Fournisseur', 'url' => 'mail-settings.php?pane=google', 'ancre' => '',
      'mots' => 'catchall catch-all test redirection mail email securite garde-fou',
-     'droit' => ['roles' => ['admin']]],
+     'droit' => ['page' => 'mail-settings', 'action' => 'mail.write', 'roles' => ['admin']]],
 
     /* ── Inscriptions ────────────────────────────────────────────────────── */
     ['titre' => "Paramètres d'inscription (tarif, ouverture)",
@@ -285,7 +285,7 @@ $rechercheIndex = [
      'ou' => 'Sécurité & système', 'url' => 'rgpd.php', 'ancre' => '',
      'mots' => 'rgpd donnee donnees personnelle purge effacement conservation duree
                 gps trace suppression confidentialite',
-     'droit' => ['roles' => ['admin']]],
+     'droit' => ['page' => 'dashboard', 'roles' => ['admin']]],
 
     ['titre' => 'Mode maintenance',
      'ou' => 'Réglages → Maintenance', 'url' => 'setting.php?tab=maintenance', 'ancre' => '',
@@ -308,7 +308,7 @@ $rechercheIndex = [
      'ou' => 'Sécurité & système', 'url' => 'tshirt-access.php', 'ancre' => '',
      'mots' => 'benevole benevoles acces tshirt t-shirt remise demande valider
                 refuser appareil revoquer scan',
-     'droit' => ['roles' => ['admin']]],
+     'droit' => ['page' => 'tshirt_access']],
 ];
 
 /* ⚠️ FILTRAGE CÔTÉ SERVEUR. Ce qui n'est pas accessible n'est pas envoyé au

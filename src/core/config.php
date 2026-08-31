@@ -1359,6 +1359,39 @@ function getAppBaseUrl(): string {
     return $scheme . '://' . $host;
 }
 
+/**
+ * Sous-repertoire d'installation, sans slash final : '' quand le site est a la
+ * racine du domaine (production), '/FER' quand il vit dans un sous-dossier
+ * (serveur de test). getAppBaseUrl() ne rend que le schema et le domaine ;
+ * sans ce complement, tout lien absolu construit a la main est mort sur l'un
+ * des deux environnements.
+ *
+ * La racine du projet est comparee au DOCUMENT_ROOT ; si l'un des deux manque
+ * (CLI, cron), on considere que le site est a la racine du domaine.
+ */
+function getAppBaseDir(): string {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $projectRoot = realpath(dirname(__DIR__, 2));
+    $docRoot     = !empty($_SERVER['DOCUMENT_ROOT']) ? realpath($_SERVER['DOCUMENT_ROOT']) : false;
+
+    if ($projectRoot !== false && $docRoot !== false
+        && $projectRoot !== $docRoot && str_starts_with($projectRoot, $docRoot)) {
+        return $cache = rtrim(str_replace(DIRECTORY_SEPARATOR, '/', substr($projectRoot, strlen($docRoot))), '/');
+    }
+    return $cache = '';
+}
+
+/**
+ * URL absolue d'une page du site, a partir d'un chemin relatif a sa racine.
+ *   appUrl('reset-password.php') -> https://exemple.fr/reset-password.php
+ *                                ou https://exemple.fr/FER/reset-password.php
+ */
+function appUrl(string $path): string {
+    return rtrim(getAppBaseUrl(), '/') . getAppBaseDir() . '/' . ltrim($path, '/');
+}
+
 // 🔒 [SEC-08] Assainissement HTML via DOMDocument — whitelist tags + attributs (CWE-79)
 function sanitizeHtml(?string $html): string {
     if ($html === null || $html === '') return '';

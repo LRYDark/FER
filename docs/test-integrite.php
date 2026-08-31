@@ -808,6 +808,71 @@ verifie('l\'index est filtré par les droits avant d\'être envoyé',
 verifie('la barre annonce qu\'elle cherche un réglage',
     str_contains($rech, 'Rechercher un réglage'));
 
+/* ── 17 bis. Le menu déclare LE droit de sa page, pas un droit approchant ────
+ *
+ * LE BUG QUE CE CONTRÔLE EXISTE POUR ATTRAPER, et qui s'est produit :
+ * « Statistiques » était déclaré au menu avec ['roles' => ['admin','user',
+ * 'viewer']] alors que stats.php se garde avec requirePage('stats'). Un compte
+ * `saisie` à qui on avait accordé la page à la main pouvait l'ouvrir, et la
+ * recherche la lui proposait — mais son entrée restait invisible au menu, donc
+ * l'onglet « Pilotage » aussi (un onglet du haut n'existe que si au moins une
+ * de ses entrées est visible). La page était accessible et introuvable.
+ *
+ * Une liste de rôles écrite dans le menu est une SECONDE règle d'accès. Elle
+ * dit la même chose que le serveur le jour où on l'écrit, et elle en diverge
+ * dès qu'un droit est accordé ou retiré à la main dans Utilisateurs & Droits.
+ * Les deux sens sont fautifs : trop stricte, elle cache un écran autorisé ;
+ * trop laxiste, elle propose un lien qui renvoie au tableau de bord.
+ *
+ * LA RÈGLE : si une page appelle requirePage('K'), toute entrée qui y mène —
+ * menu ou index de recherche — doit déclarer 'page' => 'K'. Elle peut ajouter
+ * des conditions ('action', 'roles' : rgpd.php exige la page dashboard PUIS le
+ * rôle admin), jamais en remplacer une. Seuls saisie.php et utilisateurs.php
+ * échappent à la règle : ils se gardent par requireRole(), donc par rôle.
+ * ──────────────────────────────────────────────────────────────────────────── */
+echo "\n=== 17 bis. Droits du menu et de la recherche ===\n";
+
+/* Ce que chaque écran exige VRAIMENT, lu dans son propre code. */
+$exigeParPage = [];                       // 'stats.php' => 'stats'
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
+    if (preg_match("/requirePage\('([a-z_-]+)'\)/", (string) file_get_contents($f), $m)) {
+        $exigeParPage[basename($f)] = $m[1];
+    }
+}
+
+/* Ce que le menu et la recherche DÉCLARENT. Le menu tient un item par ligne ;
+   l'index de recherche étale 'url' et 'droit' sur plusieurs lignes — d'où deux
+   lectures, et non une seule qui conviendrait mal aux deux. */
+$declarations = [];                       // [origine, fichier.php, droits déclarés]
+foreach (explode("\n", $nav) as $ligne) {
+    if (preg_match("/\['([a-z0-9_-]+\.php)(?:\?[^']*)?',.*(\['(?:page|roles)' => .*)$/", $ligne, $m)) {
+        $declarations[] = ['menu', $m[1], $m[2]];
+    }
+}
+foreach (preg_split("/\n\s*\['titre' => /", $rech) as $bloc) {
+    if (preg_match("/'url' => '([a-z0-9_-]+\.php)/", $bloc, $mu)
+        && preg_match("/'droit' => (\[[^\n]*\])\],/", $bloc, $md)) {
+        $declarations[] = ['recherche', $mu[1], $md[1]];
+    }
+}
+
+/* ⚠️ Un banc qui lit zéro entrée annonce « OK » sans avoir rien vérifié. Si les
+   deux index sont réécrits dans une autre forme, ce contrôle doit rougir pour
+   qu'on vienne réparer la lecture — pas passer en silence. */
+verifie('les deux index sont lus (menu + recherche)',
+    count($declarations) >= 60, count($declarations) . ' entrée(s) lue(s)');
+
+$divergences = [];
+foreach ($declarations as [$origine, $fichier, $droits]) {
+    if (!isset($exigeParPage[$fichier])) continue;   // gardée par rôle : hors règle
+    $cle = $exigeParPage[$fichier];
+    if (!str_contains($droits, "'page' => '$cle'")) {
+        $divergences[] = "$origine → $fichier exige '$cle' mais déclare $droits";
+    }
+}
+verifie('chaque entrée déclare la page exigée par son écran',
+    empty($divergences), implode(' | ', $divergences));
+
 /* ── 18. Les points d'entrée JSON ───────────────────────────────────────────
  *
  * LA RÈGLE : `api/` regroupe ce à quoi un LOGICIEL se connecte, avec un jeton.
