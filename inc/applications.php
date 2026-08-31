@@ -602,17 +602,31 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
   var cache = document.getElementById('course_heure');
   if (!date || !heure || !cache) return;
 
-  cache.form.addEventListener('submit', function () {
+  /* ⚠️ `submit` NE SUFFIT PAS, ET LE MANQUE NE SE VOYAIT PAS. La barre du bas
+     envoie ce formulaire en fetch() ; or ni fetch() ni form.submit() ne
+     déclenchent `submit`. L'heure recomposée restait donc vide, le serveur
+     enregistrait une heure de départ nulle, et rien à l'écran ne le disait.
+     `oc:serialize` est l'événement que la barre déclenche exprès pour ça —
+     voir src/partials/save-bar.php. On écoute LES DEUX : `submit` sert
+     encore si le formulaire part par son propre bouton. */
+  function recomposerHeure() {
     cache.value = (date.value && heure.value) ? date.value + ' ' + heure.value : '';
-  });
+  }
+  cache.form.addEventListener('submit',      recomposerHeure);
+  cache.form.addEventListener('oc:serialize', recomposerHeure);
 })();
 </script>
 
 <?php /* Barre d'enregistrement partagée : les trois cartes de configuration
          (application, course, clé FCM) portent data-oc-save. Le formulaire de
          création de message garde SON bouton : il crée quelque chose, ce
-         n'est pas un réglage qu'on enregistre au passage. */ ?>
-<?php include __DIR__ . '/../src/partials/save-bar.php'; ?>
+         n'est pas un réglage qu'on enregistre au passage.
+
+         $pageReadOnly : sans lui, un compte sans le droit d'écriture voyait
+         quand même la barre — elle ne peut pas être désactivée par le
+         garde-fou de admin-footer.php, qui ne surveille que les boutons
+         type="submit" et l'événement `submit`, dont elle ne se sert pas. */ ?>
+<?php $pageReadOnly = !$canWrite; include __DIR__ . '/../src/partials/save-bar.php'; ?>
 
 <?php include __DIR__ . '/../src/partials/admin-footer.php'; ?>
 </body>

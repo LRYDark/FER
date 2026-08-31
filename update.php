@@ -3106,14 +3106,31 @@ $countErr  = count(array_filter($results, fn($r) => $r['status'] === 'error'));
         fichier du serveur. Vous pourrez le réinstaller lors de la prochaine mise à jour.
       </div>
       <div class="upd-actions">
-        <form method="post" action="update.php" style="margin:0;"
-              onsubmit="return confirm('Supprimer définitivement update.php du serveur ?');">
+        <?php /* ⚠️ PAS D'onsubmit="return confirm(…)" ICI. La CSP du site
+                 (src/core/config.php) autorise script-src 'self' 'nonce-…'
+                 SANS 'unsafe-inline' : l'attribut est bloqué par le
+                 navigateur, sans erreur visible. La confirmation ne
+                 s'affichait donc jamais et le fichier partait au premier
+                 clic. confirm-script.php, qui gère data-confirm partout
+                 ailleurs, n'est inclus que par admin-footer.php — cette page
+                 ne l'a pas. D'où l'écouteur porteur du nonce, juste en
+                 dessous, qui est la seule forme que la CSP laisse passer. */ ?>
+        <form method="post" action="update.php" style="margin:0;" id="updDeleteSelf">
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="delete_self">
           <button type="submit" class="upd-btn-danger">
             <i class="bi bi-trash3"></i> Oui, supprimer update.php
           </button>
         </form>
+        <script nonce="<?= htmlspecialchars($GLOBALS['csp_nonce'] ?? '') ?>">
+        (function () {
+          var f = document.getElementById('updDeleteSelf');
+          if (!f) return;
+          f.addEventListener('submit', function (e) {
+            if (!window.confirm('Supprimer définitivement update.php du serveur ?')) e.preventDefault();
+          });
+        })();
+        </script>
         <a href="inc/dashboard.php" class="oc-btn-secondary" style="width:auto;text-decoration:none">
           <i class="bi bi-x-lg"></i> Non, garder le fichier
         </a>
