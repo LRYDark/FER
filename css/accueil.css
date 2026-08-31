@@ -695,10 +695,29 @@
       max-width: 100vw;
       margin-left: calc(50% - 50vw);
       margin-right: calc(50% - 50vw);
+      /* ⚠️ ON GARDE LA MARGE HAUTE DE .demo-wrap (4.6875rem), ON NE LA MET PAS
+         À ZÉRO. La barre de navigation est fixe, AU-DESSUS du
+         contenu : à zéro, la vidéo passe DESSOUS et son haut — badges compris —
+         disparaît derrière elle. Cette marge est exactement la hauteur occupée
+         par la barre : la vidéo commence donc pile où la barre finit. */
+    }
+    /* ⚠️ LA MARGE DOIT SURVIVRE À LA REMISE À ZÉRO DES LIGNES.
+       Plus haut, une règle annule les marges de toute section placée dans une
+       ligne du layout, pour que la ligne soit seule maître de l espacement.
+       Elle est légitime — sauf ici : sans cette marge, la vidéo passe sous la
+       barre de navigation, qui est fixe au-dessus du contenu, et son haut
+       (badges compris) disparaît. On la rétablit explicitement, avec la même
+       force, et uniquement pour le héro en pleine largeur. */
+    .accueil-rows-wrapper > .accueil-row > .accueil-col > .demo-wrap.fullwidth-desktop,
+    .demo-wrap.fullwidth-desktop{
+      margin-top: 4.6875rem !important;
     }
     .demo-wrap.fullwidth-desktop .demo-card{
-      border-radius: 0;
+      /* Seuls les DEUX COINS DU BAS sont arrondis : en haut la vidéo touche la
+         barre de navigation, un arrondi y dessinerait une encoche. */
+      border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px);
     }
+
     @media (max-width: 1040px){
       .demo-wrap.fullwidth-mobile{
         width: 100vw;
@@ -707,7 +726,7 @@
         margin-right: calc(50% - 50vw);
       }
       .demo-wrap.fullwidth-mobile .demo-card{
-        border-radius: 0;
+        border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px);
         height: var(--hero-card-height-mobile, var(--hero-card-height, clamp(42.5rem, 70vh, 65rem)));
       }
       /* Hauteur mobile spécifique : prend --hero-card-height-mobile si défini, sinon
@@ -1522,7 +1541,10 @@
       align-items: center;
       gap: 2rem;
       padding: 3rem clamp(1.5rem, 4vw, 4rem);
-      background: var(--primary, #db2777);
+      background: var(--c-newsletter, var(--primary, #db2777)); /* couleur propre à la carte */
+      /* Texte recalculé sur la couleur RÉELLE du fond : un aplat clair choisi
+         à la main garderait sinon du texte blanc, illisible. */
+      color: var(--c-newsletter-text, #ffffff);
       border-radius: var(--radius-lg, 24px);
       overflow: hidden;
       font-family: var(--font-family, system-ui, sans-serif);
@@ -1709,13 +1731,18 @@
        Positionné en absolu : le ruban peut être grand et déborder légèrement en
        haut/bas sans agrandir la carte (overflow:hidden de .newsletter-card le rogne). */
     .newsletter-deco {
+      /* Le ruban est un SVG en currentColor : sa couleur se règle donc ici,
+         indépendamment du texte de la carte. */
+      color: var(--c-newsletter-deco, currentColor);
       position: absolute;
       top: 50%;
       right: 0;
       transform: translateY(-50%);
       z-index: 0;
       line-height: 0;
-      color: var(--secondary-text, #ffffff);
+      /* Écrasait --c-newsletter-deco déclaré plus haut dans le même bloc :
+         la dernière déclaration gagne. La couleur du ruban se règle ici. */
+      color: var(--c-newsletter-deco, var(--c-newsletter-text, #ffffff));
       opacity: .95;
     }
     .newsletter-deco .newsletter-ribbon {
@@ -1818,8 +1845,8 @@
       right: 50%;
       margin-left: -50vw;
       margin-right: -50vw;
-      background: var(--secondary, #0f172a);
-      color: var(--secondary-text, #ffffff);
+      background: var(--c-partners, var(--secondary, #0f172a)); /* couleur propre au bandeau partenaires */
+      color: var(--c-partners-text, var(--secondary-text, #ffffff));
       padding: 0;
       margin-top: 7.5rem;
       margin-bottom: 0;
@@ -1834,6 +1861,11 @@
       right: 0;
       height: 0.375rem;
       background: var(--pink);
+      /* Le trait épouse les coins de la section : sans ces rayons, il
+         dépassait en angle droit dès que la section était arrondie (mode
+         carte). "inherit" suit donc le rayon du thème sans le recopier. */
+      border-top-left-radius: inherit;
+      border-top-right-radius: inherit;
     }
     
     .community-container{
@@ -1975,8 +2007,21 @@
       right: 50%;
       margin-left: -50vw;
       margin-right: -50vw;
-      background: var(--secondary, #0f172a);
-      color: var(--secondary-text, #ffffff);
+      /* ── Surfaces des cellules d actualité ────────────────────────────────
+         Elles étaient des voiles BLANCS (rgba(255,255,255,.06)) : pensés pour
+         un fond sombre, invisibles sur un gris clair. Elles passent par des
+         variables, redéfinies plus bas quand la section est en carte grise.
+         --news-surface est la couleur RÉSULTANTE d une cellule : la pastille
+         « Actualité » s en sert pour son halo de découpe, qui doit être
+         exactement la couleur derrière elle. */
+      --news-cellule:        rgba(255,255,255,.06);
+      --news-cellule-forte:  rgba(255,255,255,.08);
+      --news-cellule-douce:  rgba(255,255,255,.03);
+      --news-cellule-survol: rgba(255,255,255,.12);
+      --news-surface: color-mix(in srgb, var(--c-news-band, var(--secondary, #0f172a)) 92%, #ffffff 8%);
+      --news-vide: linear-gradient(135deg, #1f2937, #111827);
+      background: var(--c-news-band, var(--secondary, #0f172a)); /* couleur propre au bandeau */
+      color: var(--c-news-band-text, var(--secondary-text, #ffffff));
       padding: 0;
       margin-top: 0;
       margin-bottom: 0;
@@ -1990,6 +2035,11 @@
       right: 0;
       height: 0.375rem;
       background: var(--pink);
+      /* Le trait épouse les coins de la section : sans ces rayons, il
+         dépassait en angle droit dès que la section était arrondie (mode
+         carte). "inherit" suit donc le rayon du thème sans le recopier. */
+      border-top-left-radius: inherit;
+      border-top-right-radius: inherit;
     }
 
     .news-band-container{
@@ -2094,7 +2144,7 @@
       align-items: stretch;
       gap: 0;
       padding: 0;
-      background: rgba(255,255,255,.06);
+      background: var(--news-cellule, rgba(255,255,255,.06));
       border-radius: var(--radius-lg);
       overflow: hidden;
       text-decoration: none;
@@ -2104,14 +2154,14 @@
       height: 100%;
     }
     .news-card-h:hover {
-      background: rgba(255,255,255,.10);
+      background: var(--news-cellule-survol, rgba(255,255,255,.10));
       transform: translateY(-2px);
     }
     .news-card-h-img {
       flex: 0 0 180px;        /* desktop : 180px (mobile 130px ci-dessous) */
       align-self: stretch;
       overflow: hidden;
-      background: rgba(255,255,255,.03);
+      background: var(--news-cellule-douce, rgba(255,255,255,.03));
       /* Coins droits arrondis (les gauches sont déjà clippés par card overflow:hidden) */
       border-radius: 0 var(--radius, 12px) var(--radius, 12px) 0;
       /* CAP la hauteur visible : sans ça, l'intrinsèque d'une image portrait
@@ -2185,7 +2235,7 @@
        laisser la pill dépasser (l'image elle-même est clippée par .news-card-img-inner). */
     .news-card-img {
       width: 100%; height: 180px;
-      background: rgba(255,255,255,.03);
+      background: var(--news-cellule-douce, rgba(255,255,255,.03));
       position: relative;
       overflow: visible; /* pour que la pill .news-kicker dépasse */
     }
@@ -2207,8 +2257,8 @@
       z-index: 3;
       margin: 0;
       /* color-mix : reproduit exactement la couleur visible de la card (white 8% sur secondary) */
-      border: 5px solid color-mix(in srgb, var(--secondary, #0f172a) 92%, #ffffff 8%) !important;
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--secondary, #0f172a) 92%, #ffffff 8%);
+      border: 5px solid var(--news-surface, color-mix(in srgb, var(--secondary, #0f172a) 92%, #ffffff 8%)) !important;
+      box-shadow: 0 0 0 1px var(--news-surface, color-mix(in srgb, var(--secondary, #0f172a) 92%, #ffffff 8%));
     }
     /* Plus d'espace en haut du news-body quand il y a une image au-dessus → laisse
        respirer la pill qui dépasse et le titre d'article qui suit. */
@@ -2218,7 +2268,7 @@
       display:flex;
       flex-direction: column;
       border-radius: var(--radius-lg);
-      background: rgba(255,255,255,.08);
+      background: var(--news-cellule-forte, rgba(255,255,255,.08));
       text-decoration: none;
       overflow: hidden;
       min-height: 8.75rem;
@@ -2227,14 +2277,14 @@
 
     .news-card:hover{
       transform: translateY(-3px);
-      background: rgba(255,255,255,.12);
+      background: var(--news-cellule-survol, rgba(255,255,255,.12));
       border-color: color-mix(in srgb, var(--primary) 60%, transparent);
     }
 
     .news-media{
       width: 100%;
       height: 11.875rem;
-      background: linear-gradient(135deg, #1f2937, #111827);
+      background: var(--news-vide, linear-gradient(135deg, #1f2937, #111827));
       overflow: hidden;
       display: none;
     }
@@ -2713,3 +2763,156 @@
       color: rgba(255,255,255,.65);
     }
 
+    /* ═══ Section présentée en CARTE GRISE plutôt qu en bandeau ═══
+       Réglages → Mise en page, option « Présentation » de chaque section.
+
+       ⚠️ LE PLUS IMPORTANT EST D ANNULER LE PLEINE-LARGEUR. Plusieurs sections
+       (bandeau actualités, notamment) sortent de leur conteneur avec la ruse
+       du 100vw + marges négatives. Posées telles quelles dans une carte, elles
+       en débordaient des deux côtés et la carte ne se voyait plus. */
+    .accueil-carte{
+      /* Repère du trait de couleur dessiné en ::before ci-dessous. */
+      position: relative;
+      background: color-mix(in srgb, var(--page-text, #0f172a) 4%, #fff);
+      border-radius: var(--radius-lg, 24px);
+      padding: clamp(1.5rem, 3vw, 2.75rem);
+      overflow: hidden;
+      color: var(--page-text, #0f172a);
+
+      /* ⚠️ LE TEXTE DOIT SUIVRE LE FOND, SANS QU ON RETOUCHE CHAQUE SECTION.
+         Ces blocs sont écrits pour un aplat SOMBRE : leur texte est blanc, soit
+         par une variable (--c-news-band-text, --secondary-text), soit en dur.
+         Posés sur un gris très clair, ils devenaient invisibles.
+         On redéfinit donc les variables de texte POUR TOUS LES DESCENDANTS —
+         une section ajoutée demain hérite du bon contraste sans une ligne de
+         plus — puis on rattrape les rares blancs écrits en dur, juste après. */
+      --c-news-band-text: var(--page-text, #0f172a);
+      --c-partners-text: var(--page-text, #0f172a);
+      --c-newsletter-text: var(--page-text, #0f172a);
+      --secondary-text: var(--page-text, #0f172a);
+      /* ⚠️ PAS DE --primary-text ICI. Cette variable est le texte POSÉ SUR un
+         aplat de couleur — le libellé d un bouton rose, par exemple. La
+         redéfinir en sombre rendait « Je m abonne » invisible sur son bouton.
+         Seules les variables de texte DE SECTION sont concernées. */
+    }
+    .accueil-carte > *,
+    .accueil-carte .news-band,
+    .accueil-carte .community-section,
+    .accueil-carte .newsletter-card{
+      width: auto;
+      max-width: none;
+      /* ⚠️ relative ET NON static. On annule ici la ruse du pleine-largeur
+         (100vw + marges négatives) en neutralisant left/right/margin — mais la
+         section doit RESTER positionnée : le trait de couleur du haut est en
+         position:absolute et s ancre sur elle. En static, il partait se caler
+         sur un ancêtre lointain, puis disparaissait, rogné par le overflow
+         de la carte. */
+      position: relative;
+      left: auto;
+      right: auto;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    /* Dans une carte, la section ne porte plus son propre aplat : c est la
+       carte qui donne le fond, et deux fonds l un sur l autre feraient une
+       boîte dans une boîte. */
+    .accueil-carte .news-band,
+    .accueil-carte .community-section,
+    .accueil-carte .newsletter-card{
+      background: transparent;
+      color: inherit;
+      border-radius: 0;
+      padding-left: 0;
+      padding-right: 0;
+    }
+    /* Les blancs écrits en dur, pensés pour le fond sombre. Les accents roses
+       (source, lien « Lire »), eux, portent !important et survivent — c est
+       voulu : ils restent lisibles sur gris clair. Ni les liens ni les boutons
+       ne sont dans cette liste : ils gardent leur fond et leur texte blanc. */
+    .accueil-carte h1, .accueil-carte h2, .accueil-carte h3,
+    .accueil-carte p,  .accueil-carte li, .accueil-carte label,
+    .accueil-carte small,
+    .accueil-carte .news-band-title,
+    .accueil-carte .news-card-h-title{
+      color: var(--page-text, #0f172a);
+    }
+    /* En thème sombre, la carte s éclaircit et le texte repasse en clair : sans
+       cette ligne, les règles ci-dessus écriraient en gris foncé sur fond
+       foncé — l inverse exact du problème qu elles corrigent. */
+    body.dark-theme .accueil-carte{
+      background: color-mix(in srgb, #fff 6%, transparent);
+      --page-text: #ffffff;
+    }
+
+    /* ═══ Bandeau partenaires en carte grise ═══
+       Le bandeau met image et texte côte à côte, mais bascule en colonne sous
+       un certain seuil. Dans une carte, la largeur utile est plus faible : il
+       repassait en pile — image en haut, texte dessous — alors que c est
+       précisément la mise en côte à côte qui fait la carte. On la rétablit dès
+       qu il y a la place, et on resserre l écart, taillé pour la pleine page. */
+    .accueil-carte .community-container{
+      padding: 0;
+      gap: 2.5rem;
+    }
+    @media (min-width: 700px){
+      .accueil-carte .community-container:not(.no-partner-img){
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* ═══ Cellules d actualité sur carte grise ═══
+       Un voile blanc sur un gris clair ne se voit pas : on inverse en voile
+       SOMBRE, très léger — juste assez pour que la cellule se détache de la
+       carte sans redevenir une boîte. */
+    .accueil-carte .news-band{
+      --news-cellule:        rgba(0, 0, 0, .06);
+      --news-cellule-forte:  rgba(0, 0, 0, .055);
+      --news-cellule-douce:  rgba(0, 0, 0, .025);
+      --news-cellule-survol: rgba(0, 0, 0, .075);
+      /* Couleur RÉELLE d une cellule posée sur la carte : c est elle que la
+         pastille « Actualité » doit reprendre pour son halo, sinon elle garde
+         le bleu nuit du bandeau au milieu du gris. */
+      /* Doit valoir EXACTEMENT la couleur d une cellule posée sur la carte,
+         soit le fond de carte (4 %) plus le voile de la cellule (6 %). La
+         pastille « Actualité » s en sert pour son halo de découpe : trop clair,
+         le halo disparaît sur la photo ; trop sombre, il fait une bordure.
+         11 % est la valeur qui redonne l effet visible en mode bandeau. */
+      --news-surface: color-mix(in srgb, var(--page-text, #0f172a) 11%, #fff);
+      --news-vide: color-mix(in srgb, var(--page-text, #0f172a) 7%, #fff);
+    }
+
+    /* Trait de couleur en haut de section : masquable depuis l'éditeur.
+       On masque le pseudo-élément plutôt que de le retirer du rendu : le
+       réglage doit pouvoir revenir en arrière sans rien reconstruire. */
+    .accueil-sans-trait .news-band::before,
+    .accueil-sans-trait .community-section::before{
+      display: none;
+    }
+
+    /* ═══ Trait de couleur d une section présentée en carte ═══
+       ⚠️ IL EST DESSINÉ SUR LA CARTE, PAS SUR LA SECTION.
+       La carte a un remplissage de 1,5 à 2,75 rem : un trait posé sur la
+       section commençait après ce remplissage et flottait au milieu, loin
+       des bords. Sur la carte, il touche le haut et suit ses coins.
+
+       La section, elle, masque le sien en mode carte — sinon il y en aurait
+       deux, l un flottant et l autre collé. */
+    .accueil-carte .news-band::before,
+    .accueil-carte .community-section::before{
+      display: none;
+    }
+    .accueil-carte.accueil-trait::before{
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 0.375rem;
+      background: var(--pink);
+      /* Les coins de la carte, repris tels quels : le overflow:hidden de la
+         carte suffirait à rogner, mais un rayon explicite évite le liseré
+         d antialiasing visible sur certains navigateurs. */
+      border-top-left-radius: inherit;
+      border-top-right-radius: inherit;
+      z-index: 1;
+    }

@@ -104,10 +104,9 @@ $jrFont       = $jrPrefs['admin_font']   ?? 'inter';
 
 // Couleur du preset « rose » = couleur primaire du site public (défaut FER)
 $jrSitePrimary = '#db2777';
-try {
-    $c = $pdo->query('SELECT theme_primary_color FROM setting WHERE id = 1 LIMIT 1')->fetchColumn();
-    if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $jrSitePrimary = $c;
-} catch (\Throwable $e) {}
+// Lecture partagée avec le thème et le reste de la page : une seule requête.
+$c = settingRow($pdo)['theme_primary_color'] ?? null;
+if ($c && preg_match('/^#[0-9a-fA-F]{6}$/', $c)) $jrSitePrimary = $c;
 
 $jrAccentAttr = '';        // data-accent (presets tokens.css)
 $jrAccentCss  = null;      // override des 6 variables (rose / custom)

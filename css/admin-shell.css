@@ -433,6 +433,35 @@ html, body { background: var(--canvas); }
 .oc-shell .stat-card .btn,
 .oc-shell .card .btn { border: 0; }
 
+/* ---- Gris des cartes : LE MÊME QUE CELUI DU SOUS-MENU ----
+   Il y en avait trois : le `--card` d'admin.css sur les autres écrans, un
+   mélange à 48 % dans les Réglages, et celui du sous-menu à 52 %. Trois gris
+   qu'on ne distingue pas un par un, mais qu'on voit en passant d'une page à
+   l'autre. Ils pointent maintenant tous sur `--oc-float`, la même variable que
+   la carte flottante du sous-menu : ils ne peuvent plus diverger. */
+.oc-shell .setting-card,
+.oc-shell .card-dashboard,
+.oc-shell .stat-card,
+.oc-shell .card { background: var(--oc-float); }
+
+/* ---- Titre de carte : UNE SEULE DÉFINITION POUR TOUTE L'ADMINISTRATION ----
+   admin.css donnait 1.05rem/650 aux cartes, et les Réglages se posaient
+   par-dessus un 15.5px/600 qui leur était propre : deux tailles de titre
+   selon l'écran, sans que rien ne le justifie. Même graisse que l'entrée
+   active du sous-menu (600), et un filet en moins — le titre se détache par
+   sa graisse, pas par un trait. */
+.oc-shell .setting-card h2,
+.oc-shell .card-dashboard h2,
+.oc-shell .stat-card h2,
+.oc-shell .card h2 {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 14px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 /* ---- Contenu : à plat, jamais dans une carte ---- */
 .oc-page {
   min-width: 0;

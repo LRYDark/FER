@@ -63,6 +63,8 @@
       } else {
         buildOverlays(e.data.rows);
       }
+    } else if (e.data.type === 'editor-click-footer') {
+      selectFooter();
     } else if (e.data.type === 'editor-click-section') {
       selectRow(e.data.rowId);
     } else if (e.data.type === 'editor-edit-custom-col') {
@@ -1752,6 +1754,143 @@
     if (emptyEl) emptyEl.style.display = '';
   }
 
+  /* ═══ Sélection du PIED DE PAGE ═══════════════════════════════════════════
+   * Le pied de page n'est pas une section du layout : il n'a ni ligne, ni
+   * colonne, ni entrée dans layoutData. On lui construit donc son propre
+   * panneau, plutôt que de le faire entrer de force dans le modèle des lignes
+   * — ce qui aurait donné des poignées « monter / descendre / supprimer » sur
+   * un élément qu'on ne peut ni déplacer ni retirer.
+   *
+   * Ses réglages vivent dans la table `setting` (partagés par TOUTES les
+   * pages du site), pas dans le brouillon de l'accueil : une modification ici
+   * s'applique donc partout, immédiatement, sans passer par « Publier ».
+   * C'est dit dans le panneau, sinon la différence de comportement avec le
+   * reste de l'éditeur serait un piège. */
+  function selectFooter() {
+    selectedRowId = null;
+    overlay.querySelectorAll('.ife-row-overlay').forEach(function (el) {
+      el.classList.remove('is-selected');
+    });
+
+    document.getElementById('ifeSbEmpty').style.display = 'none';
+    document.getElementById('ifeSbProps').style.display = '';
+    document.getElementById('ifeSbTitle').textContent = 'Pied de page';
+
+    // Rien de tout cela ne s'applique au pied de page.
+    ['ifeSbVisRow', 'ifeSbWidthRow', 'ifeSbGridRow', 'ifeSbSizeRow', 'ifeSbSpacingRow'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    ['ifeSbBtnDelete', 'ifeSbBtnEdit'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    clearSidebarDynamicWidgets();
+
+    var f = window.AccueilEditor.footer || {};
+    var perso = /^#[0-9a-fA-F]{6}$/.test(f.color || '');
+    var defaut = f.themeSecondary || '#0f172a';
+    var hauteur = parseInt(f.logoHeight, 10);
+    if (isNaN(hauteur) || hauteur < 24 || hauteur > 160) hauteur = 56;
+
+    var panel = document.createElement('div');
+    panel.id = 'ifeSbSectionOptions';
+    panel.className = 'ife-sb-section-options';
+    panel.innerHTML = ''
+      + '<div class="ife-sb-section-label">Logo</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+      +   (f.logo
+            ? '<img src="../files/_logos/' + encodeURIComponent(f.logo) + '" alt="" style="height:34px;max-width:110px;object-fit:contain;background:#0f172a;border-radius:6px;padding:4px">'
+            : '<span class="text-muted" style="font-size:12px">Aucun logo</span>')
+      + '</div>'
+      + '<input type="file" id="ifeFtLogo" accept="image/*" class="form-control form-control-sm">'
+      + '<small class="text-muted">Remplace le logo sur toutes les pages.</small>'
+
+      + '<div class="ife-sb-section-label" style="margin-top:14px">Hauteur du logo</div>'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      +   '<input type="range" class="form-range" id="ifeFtH" min="24" max="160" step="4" value="' + hauteur + '">'
+      +   '<code id="ifeFtHVal">' + hauteur + ' px</code>'
+      + '</div>'
+
+      + '<div class="ife-sb-section-label" style="margin-top:14px">Couleur de fond</div>'
+      + '<div class="btn-group btn-group-sm w-100">'
+      +   '<button type="button" class="btn btn-outline-secondary' + (perso ? '' : ' active') + '" data-ftmode="defaut">Couleur du thème</button>'
+      +   '<button type="button" class="btn btn-outline-secondary' + (perso ? ' active' : '') + '" data-ftmode="perso">Personnalisée</button>'
+      + '</div>'
+      + '<div id="ifeFtPick" style="display:' + (perso ? 'flex' : 'none') + ';align-items:center;gap:8px;margin-top:8px">'
+      +   '<input type="color" class="form-control form-control-color" id="ifeFtCol" value="' + (perso ? f.color : defaut) + '" style="width:52px;height:34px">'
+      +   '<code id="ifeFtHex">' + (perso ? f.color : defaut) + '</code>'
+      + '</div>'
+      + '<div id="ifeFtMsg" style="display:none;margin-top:8px;font-size:12px;line-height:1.4"></div>'
+      + '<small class="text-muted" style="display:block;margin-top:10px">'
+      +   'Le pied de page est commun à tout le site&nbsp;: ces réglages s\'appliquent '
+      +   'immédiatement sur toutes les pages, sans passer par «&nbsp;Publier&nbsp;».'
+      + '</small>';
+
+    var existing = document.getElementById('ifeSbSectionOptions');
+    if (existing) existing.remove();
+    var propsEl = document.getElementById('ifeSbProps');
+    if (propsEl) propsEl.appendChild(panel);
+
+    function msg(txt, erreur) {
+      var el = document.getElementById('ifeFtMsg');
+      if (!el) return;
+      el.textContent = txt || '';
+      el.style.color = erreur ? '#b91c1c' : '#15803d';
+      el.style.display = txt ? 'block' : 'none';
+    }
+
+    /* Un seul envoi pour les trois réglages : le serveur les traite ensemble,
+       et une réponse partielle serait plus difficile à interpréter qu'un échec
+       franc. Le fichier n'est joint que s'il y en a un à envoyer. */
+    function envoyerFooter(extra) {
+      var csrf = getCsrf();
+      var fd = new FormData();
+      fd.append('save_footer_from_editor', '1');
+      fd.append('csrf_token', csrf);
+      fd.append('footer_logo_height', document.getElementById('ifeFtH').value);
+      var modeBtn = panel.querySelector('[data-ftmode].active');
+      var mode = modeBtn ? modeBtn.dataset.ftmode : 'defaut';
+      fd.append('mode_footer', mode);
+      fd.append('color_footer', document.getElementById('ifeFtCol').value);
+      if (extra && extra.file) fd.append('footer_logo', extra.file);
+
+      msg('Enregistrement…', false);
+      fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || !j.ok) { msg((j && j.err) || 'Enregistrement impossible.', true); return; }
+          window.AccueilEditor.footer = j.footer || window.AccueilEditor.footer;
+          msg('Enregistré.', false);
+          setTimeout(function () { if (typeof reloadIframe === 'function') reloadIframe(); }, 200);
+        })
+        .catch(function () { msg('Enregistrement impossible (erreur réseau).', true); });
+    }
+
+    var champH = document.getElementById('ifeFtH');
+    champH.addEventListener('input', function () { document.getElementById('ifeFtHVal').textContent = champH.value + ' px'; });
+    // change et non input : on n'envoie qu'au relâchement du curseur.
+    champH.addEventListener('change', function () { envoyerFooter(); });
+
+    panel.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-ftmode]');
+      if (!b) return;
+      var p = (b.dataset.ftmode === 'perso');
+      panel.querySelectorAll('[data-ftmode]').forEach(function (x) { x.classList.toggle('active', x === b); });
+      document.getElementById('ifeFtPick').style.display = p ? 'flex' : 'none';
+      envoyerFooter();
+    });
+
+    var champC = document.getElementById('ifeFtCol');
+    champC.addEventListener('input', function () { document.getElementById('ifeFtHex').textContent = champC.value; });
+    champC.addEventListener('change', function () { envoyerFooter(); });
+
+    document.getElementById('ifeFtLogo').addEventListener('change', function (ev) {
+      var file = ev.target.files && ev.target.files[0];
+      if (file) envoyerFooter({ file: file });
+    });
+  }
+
   function selectRow(rowId) {
     selectedRowId = rowId;
     overlay.querySelectorAll('.ife-row-overlay').forEach(function(el) {
@@ -1844,11 +1983,180 @@
     var hasNews = row.columns.some(function(c) { return c.section.type === 'news'; });
     var hasStartPoint = row.columns.some(function(c) { return c.section.type === 'start_point'; });
     var hasRegBar = row.columns.some(function(c) { return c.section.type === 'reg_bar'; });
-    if (!hasNews && !hasStartPoint && !hasRegBar) return;
     var styles = window.AccueilEditor.accueilStyles || {};
     var panel = document.createElement('div');
     panel.id = 'ifeSbSectionOptions';
     panel.className = 'ife-sb-section-options';
+
+    /* ── Présentation : bandeau pleine largeur ou carte grise ──────────────
+       Proposée pour TOUTES les sections, et plus seulement pour celles qui
+       avaient déjà des options : le choix de présentation ne dépend pas du
+       contenu de la section. La clé est « <type>.bloc_style ».
+
+       ⚠️ Le panneau n est plus créé conditionnellement : il l était après le
+       retour anticipé, ce qui empêchait toute option commune. */
+    var typePres = row.columns.length ? row.columns[0].section.type : '';
+    if (typePres) {
+      var clePres = typePres + '.bloc_style';
+      var valPres = styles[clePres] || 'bandeau';
+      var presBlock = document.createElement('div');
+      presBlock.innerHTML = ''
+        + '<div class="ife-sb-section-label">Présentation</div>'
+        + '<div class="btn-group btn-group-sm w-100" id="ifeSbPres">'
+        +   '<button type="button" class="btn btn-outline-secondary' + (valPres === 'bandeau' ? ' active' : '') + '" data-pres="bandeau">Bandeau</button>'
+        +   '<button type="button" class="btn btn-outline-secondary' + (valPres === 'carte' ? ' active' : '') + '" data-pres="carte">Carte grise</button>'
+        + '</div>'
+        + '<small class="text-muted">Le bandeau occupe toute la largeur ; la carte se pose dans la page, sur un gris très clair.<br><strong>Visible sur le site après « Publier ».</strong></small>';
+      presBlock.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-pres]');
+        if (!btn) return;
+        var val = btn.dataset.pres;
+        if (val === (styles[clePres] || 'bandeau')) return;
+        styles[clePres] = val;
+        window.AccueilEditor.accueilStyles = styles;
+        presBlock.querySelectorAll('[data-pres]').forEach(function (b2) { b2.classList.toggle('active', b2 === btn); });
+        saveStyleKey(clePres, val);
+        // Même rafraîchissement que les autres options de section : le rendu
+        // de la carte se fait côté serveur, l'aperçu doit être rechargé.
+        setTimeout(function () { if (typeof reloadIframe === 'function') reloadIframe(); }, 200);
+      });
+      panel.appendChild(presBlock);
+
+      /* ── Trait de couleur en haut de section ──────────────────────────
+         Seules deux sections en portent un dans le CSS ; proposer la case
+         sur les autres promettrait un réglage sans effet. */
+      if (typePres === 'news' || typePres === 'partners') {
+        var cleTrait = typePres + '.bloc_trait';
+        // Visible par défaut : c'est l'état actuel du site.
+        var traitOn = (styles[cleTrait] || '1') !== '0';
+        var traitBlock = document.createElement('div');
+        traitBlock.style.marginTop = '12px';
+        traitBlock.innerHTML = ''
+          + '<div class="ife-sb-toggle-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
+          +   '<label for="ifeSbTrait" style="margin:0">Trait de couleur en haut</label>'
+          +   '<div class="form-check form-switch" style="margin:0">'
+          +     '<input class="form-check-input" type="checkbox" id="ifeSbTrait"' + (traitOn ? ' checked' : '') + '>'
+          +   '</div>'
+          + '</div>'
+          + '<small class="text-muted"><strong>Visible sur le site après « Publier ».</strong></small>';
+        traitBlock.querySelector('#ifeSbTrait').addEventListener('change', function (e) {
+          var val = e.target.checked ? '1' : '0';
+          styles[cleTrait] = val;
+          window.AccueilEditor.accueilStyles = styles;
+          saveStyleKey(cleTrait, val);
+          setTimeout(function () { if (typeof reloadIframe === 'function') reloadIframe(); }, 200);
+        });
+        panel.appendChild(traitBlock);
+      }
+
+      /* ── Couleur de fond de la section ─────────────────────────────────
+         Uniquement pour les sections qui portent un aplat plein : les autres
+         se posent sur le fond de la page, il n y a rien à colorer.
+
+         La couleur ne vit pas dans accueilStyles mais dans une colonne de la
+         table setting, partagée avec le rendu public — d où son propre envoi. */
+      var COULEURS = { news: 1, partners: 1, newsletter: 1 };
+      if (COULEURS[typePres]) {
+        var cols = window.AccueilEditor.sectionColors || {};
+        var defaut = (typePres === 'newsletter') ? (cols._theme_primary || '#db2777') : (cols._theme_secondary || '#0f172a');
+        var actuelle = cols[typePres] || '';
+        var perso = /^#[0-9a-fA-F]{6}$/.test(actuelle);
+        var colBlock = document.createElement('div');
+        colBlock.style.marginTop = '12px';
+        colBlock.innerHTML = ''
+          + '<div class="ife-sb-section-label">Couleur de fond</div>'
+          + '<div class="btn-group btn-group-sm w-100" id="ifeSbColMode">'
+          +   '<button type="button" class="btn btn-outline-secondary' + (perso ? '' : ' active') + '" data-colmode="defaut">Couleur du thème</button>'
+          +   '<button type="button" class="btn btn-outline-secondary' + (perso ? ' active' : '') + '" data-colmode="perso">Personnalisée</button>'
+          + '</div>'
+          + '<small class="text-muted">S\'applique tout de suite sur le site, sans passer par « Publier ».</small>'
+          + '<div id="ifeSbColPick" style="display:' + (perso ? 'flex' : 'none') + ';align-items:center;gap:8px;margin-top:8px">'
+          +   '<input type="color" class="form-control form-control-color" id="ifeSbColInput" value="' + (perso ? actuelle : defaut) + '" style="width:52px;height:34px">'
+          +   '<code id="ifeSbColHex">' + (perso ? actuelle : defaut) + '</code>'
+          + '</div>';
+
+        /* ⚠️ LE MESSAGE VA DANS LE PANNEAU, PAS DANS UNE ALERTE.
+           Une alerte se ferme d un clic réflexe et ne laisse aucune trace : on
+           croit que le réglage est passé alors qu il a échoué. Ici, le message
+           reste sous le sélecteur jusqu à ce que ça marche. */
+        var zoneMsg = document.createElement('div');
+        zoneMsg.style.cssText = 'display:none;margin-top:8px;font-size:12px;color:#b91c1c;line-height:1.4';
+        function messageCouleur(txt) {
+          zoneMsg.textContent = txt || '';
+          zoneMsg.style.display = txt ? 'block' : 'none';
+        }
+
+        function envoyerCouleur(slot, val) {
+          var csrf = getCsrf();
+          var fd = new FormData();
+          fd.append('save_section_color', '1');
+          fd.append('sectionType', typePres);
+          fd.append('slot', slot);
+          fd.append('color', val);
+          fd.append('csrf_token', csrf);
+          fetch('', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              if (!j || !j.ok) { messageCouleur((j && j.err) || 'La couleur n a pas pu être enregistrée.'); return; }
+              messageCouleur('');
+              cols[slot === 'deco' ? (typePres + '_deco') : typePres] = j.color || '';
+              window.AccueilEditor.sectionColors = cols;
+              /* Le fond est calculé côté serveur (couleur du texte comprise) :
+                 l aperçu doit être rechargé, pas repeint à la main. */
+              setTimeout(function () { if (typeof reloadIframe === 'function') reloadIframe(); }, 200);
+            })
+            .catch(function () { messageCouleur('La couleur n a pas pu être enregistrée (erreur réseau).'); });
+        }
+
+        colBlock.addEventListener('click', function (e) {
+          var b2 = e.target.closest('[data-colmode]');
+          if (!b2) return;
+          var perso2 = (b2.dataset.colmode === 'perso');
+          colBlock.querySelectorAll('[data-colmode]').forEach(function (x) { x.classList.toggle('active', x === b2); });
+          colBlock.querySelector('#ifeSbColPick').style.display = perso2 ? 'flex' : 'none';
+          envoyerCouleur('bg', perso2 ? colBlock.querySelector('#ifeSbColInput').value : '');
+        });
+        var champCol = colBlock.querySelector('#ifeSbColInput');
+        champCol.addEventListener('input', function () { colBlock.querySelector('#ifeSbColHex').textContent = champCol.value; });
+        /* change et non input : on n envoie qu au relâchement du sélecteur,
+           sinon chaque nuance survolée déclenchait un aller-retour serveur. */
+        champCol.addEventListener('change', function () { envoyerCouleur('bg', champCol.value); });
+        colBlock.appendChild(zoneMsg);
+        panel.appendChild(colBlock);
+
+        /* Le ruban de « Rester informé » est un SVG en currentColor : sans
+           réglage propre, il prenait la couleur du texte de la carte et
+           devenait sombre dès que la carte passait en gris. */
+        if (typePres === 'newsletter') {
+          var deco = cols.newsletter_deco || '';
+          var decoPerso = /^#[0-9a-fA-F]{6}$/.test(deco);
+          var decoBlock = document.createElement('div');
+          decoBlock.style.marginTop = '12px';
+          decoBlock.innerHTML = ''
+            + '<div class="ife-sb-section-label">Couleur du ruban</div>'
+            + '<div class="btn-group btn-group-sm w-100">'
+            +   '<button type="button" class="btn btn-outline-secondary' + (decoPerso ? '' : ' active') + '" data-decomode="defaut">Comme le texte</button>'
+            +   '<button type="button" class="btn btn-outline-secondary' + (decoPerso ? ' active' : '') + '" data-decomode="perso">Personnalisée</button>'
+            + '</div>'
+            + '<div id="ifeSbDecoPick" style="display:' + (decoPerso ? 'flex' : 'none') + ';align-items:center;gap:8px;margin-top:8px">'
+            +   '<input type="color" class="form-control form-control-color" id="ifeSbDecoInput" value="' + (decoPerso ? deco : defaut) + '" style="width:52px;height:34px">'
+            +   '<code id="ifeSbDecoHex">' + (decoPerso ? deco : defaut) + '</code>'
+            + '</div>';
+          decoBlock.addEventListener('click', function (e) {
+            var b3 = e.target.closest('[data-decomode]');
+            if (!b3) return;
+            var p3 = (b3.dataset.decomode === 'perso');
+            decoBlock.querySelectorAll('[data-decomode]').forEach(function (x) { x.classList.toggle('active', x === b3); });
+            decoBlock.querySelector('#ifeSbDecoPick').style.display = p3 ? 'flex' : 'none';
+            envoyerCouleur('deco', p3 ? decoBlock.querySelector('#ifeSbDecoInput').value : '');
+          });
+          var champDeco = decoBlock.querySelector('#ifeSbDecoInput');
+          champDeco.addEventListener('input', function () { decoBlock.querySelector('#ifeSbDecoHex').textContent = champDeco.value; });
+          champDeco.addEventListener('change', function () { envoyerCouleur('deco', champDeco.value); });
+          panel.appendChild(decoBlock);
+        }
+      }
+    }
 
     if (hasRegBar) {
       var rbBlock = document.createElement('div');
@@ -2841,7 +3149,28 @@
     var btnDiscard = document.getElementById('btnDiscardDraft');
     if (badge)      badge.style.display      = hasDraft ? '' : 'none';
     if (btnDiscard) btnDiscard.style.display = hasDraft ? '' : 'none';
+    /* La barre d enregistrement du bas doit se réveiller : un changement de
+       mise en page ne touche aucun champ de formulaire, elle ne le verrait
+       donc jamais et « Enregistrer » resterait grisé — rien ne serait
+       publiable. */
+    /* Suit l état du brouillon APRÈS l initialisation, dans les deux sens :
+       levé au premier changement, et rabaissé après publication — sinon le
+       bouton serait resté actif alors qu il n y a plus rien à publier. */
+    if (initialise) brouillonTouche = !!hasDraft;
+    initialise = true;
+    if (typeof window.ocRefreshSaveBar === 'function') window.ocRefreshSaveBar();
   }
+  // Passe à true après le premier appel : celui de l initialisation ne compte pas.
+  var initialise = false;
+
+  /* ⚠️ SIGNAL LIÉ À CETTE SESSION D ÉDITION, PAS À L EXISTENCE D UN BROUILLON.
+     Un brouillon peut déjà être là en arrivant sur la page. S il activait le
+     bouton, celui-ci serait dégrisé avant qu on ait touché à quoi que ce soit —
+     alors que « Enregistrer » doit décrire ce QUE L ON VIENT DE FAIRE.
+     Le drapeau ne se lève donc qu au premier changement réel de la session ;
+     l appel initial de setDraftState, lui, ne le lève pas. */
+  var brouillonTouche = false;
+  window.ocPendingChanges = function () { return brouillonTouche; };
   // État initial (passé depuis PHP via window.AccueilEditor.hasDraft).
   // Le suivi pendant l'édition est fait DIRECTEMENT dans saveLayoutAndReload ci-dessus.
   setDraftState(window.AccueilEditor.hasDraft);

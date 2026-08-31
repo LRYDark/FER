@@ -545,7 +545,18 @@ function getCreateTableStatements(): array
           `theme_dark_secondary_color` VARCHAR(7) DEFAULT '#e2e8f0',
           `theme_border_radius` INT DEFAULT 12,
           `theme_font_family` VARCHAR(100) DEFAULT 'Inter',
+          /* Couleurs des trois grands aplats de la page publique.
+           * VIDE = « couleur du thème » — jamais une valeur recopiée : si
+           * quelqu un change la couleur secondaire, le bandeau et le pied de
+           * page doivent suivre sans qu on ait à les retoucher un par un.
+           * Une valeur ici veut dire « cet élément a SA couleur ». */
+          `color_news_band` VARCHAR(7) DEFAULT NULL,
+          `color_partners` VARCHAR(7) DEFAULT NULL,
+          `color_footer` VARCHAR(7) DEFAULT NULL,
+          `color_newsletter` VARCHAR(7) DEFAULT NULL,
+          `color_newsletter_deco` VARCHAR(7) DEFAULT NULL,
           `footer_logo` VARCHAR(255) DEFAULT 'logo_blanc.png',
+          `footer_logo_height` INT DEFAULT 56,
           `registration_auto_open` DATETIME DEFAULT NULL,
           `registration_auto_close` DATETIME DEFAULT NULL,
           `mail_provider` ENUM('google','smtp') NOT NULL DEFAULT 'google',

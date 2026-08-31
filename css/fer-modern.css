@@ -1362,8 +1362,8 @@ p.sub{
   right: 50%;
   margin-left: -50vw;
   margin-right: -50vw;
-  background: var(--secondary, #0f172a);
-  color: var(--secondary-text, #ffffff);
+  background: var(--c-footer, var(--secondary, #0f172a)); /* couleur propre au pied de page */
+  color: var(--c-footer-text, var(--secondary-text, #ffffff));
   padding: 3.625rem 0 0;
   margin-top: 0;
   border-top: 1px solid rgba(128,128,128,.15);
@@ -2445,3 +2445,8 @@ body.dark-theme .news-spinner::after{
 @media (max-width: 1040px){
   .btn.nav-connexion{ display: none; }
 }
+
+/* Curseur sur le pied de page quand il est sélectionnable dans l éditeur.
+   Il était porté par le conteneur, qui est désormais en display:contents et
+   ne peut plus rien styler. */
+[data-editor-footer] .site-footer { cursor: pointer; }
