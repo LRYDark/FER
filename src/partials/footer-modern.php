@@ -99,9 +99,17 @@
         <?php /* Espace coureur & application (lot 6). Le lien est ici plutôt que
                  dans la barre de navigation : celle-ci porte déjà un bouton
                  « Espace coureur », et deux entrées pour la même destination
-                 en haut de page se disputeraient l'attention. */ ?>
+                 en haut de page se disputeraient l'attention.
+
+                 Espace fermé (Réglages → Maintenance) : le lien s'en va AVEC son
+                 séparateur, sinon le pied de page afficherait deux barres
+                 collées. La page de téléchargement part avec lui : sans espace
+                 coureur, elle ne présenterait plus qu'une application dont on ne
+                 pourrait pas se servir. */ ?>
+        <?php if (espace_coureur_actif()): ?>
         <a href="telecharger-app">Espace coureur &amp; application</a>
         |
+        <?php endif; ?>
         <a href="../login.php">Administration</a>
         <span class="footer-separator">•</span>
         <a href="mentions-legales">Mentions légales</a>

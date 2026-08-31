@@ -272,8 +272,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
                 foreach (getCreateTableStatements() as $sql) {
                     $testPdo->exec($sql);
                 }
+                /* FAQ + politique de confidentialité : leurs textes vivent dans
+                 * update.php, on les rejoue ici (cf. getSeedsFromUpdate).
+                 * Chaque instruction est isolée : une graine de contenu qui
+                 * échoue ne doit pas faire échouer l'installation entière, ni
+                 * emporter les suivantes avec elle. */
+                $seeds = getSeedsFromUpdate($testPdo);
+                $seedEchecs = 0;
+                $jouer = function (array $liste) use ($testPdo, &$seedEchecs) {
+                    foreach ($liste as $sql) {
+                        try { $testPdo->exec($sql); }
+                        catch (PDOException $e) { $seedEchecs++; }
+                    }
+                };
+
+                // AVANT : les questions de la FAQ prennent ainsi les identifiants
+                // 1 à 24, comme sur un site migré (cf. getSeedsFromUpdate).
+                $jouer($seeds['faq']);
+
                 foreach (getDefaultInserts() as $sql) {
                     $testPdo->exec($sql);
+                }
+
+                // APRÈS : la ligne `setting` id=1 existe désormais.
+                $jouer($seeds['setting']);
+
+                $seedAvertissement = $seeds['avertissement'];
+                if ($seedEchecs > 0) {
+                    $seedAvertissement = trim(($seedAvertissement ?? '') . ' '
+                        . $seedEchecs . ' contenu(s) par défaut n\'ont pas pu être installés. '
+                        . 'Lancez update.php une fois — il les ajoutera sans rien écraser.');
                 }
 
                 $_SESSION['install'] = [
@@ -284,6 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
                     'db_mode' => 'new',
                     'db_existed' => $dbExisted,
                     'db_existing_tables' => count($existingTables),
+                    'seed_avertissement' => $seedAvertissement,
                 ];
                 $dbSuccess = true;
                 $step = 3;
@@ -545,18 +574,14 @@ function getCreateTableStatements(): array
           `theme_dark_secondary_color` VARCHAR(7) DEFAULT '#e2e8f0',
           `theme_border_radius` INT DEFAULT 12,
           `theme_font_family` VARCHAR(100) DEFAULT 'Inter',
-          /* Couleurs des trois grands aplats de la page publique.
-           * VIDE = « couleur du thème » — jamais une valeur recopiée : si
-           * quelqu un change la couleur secondaire, le bandeau et le pied de
-           * page doivent suivre sans qu on ait à les retoucher un par un.
-           * Une valeur ici veut dire « cet élément a SA couleur ». */
-          `color_news_band` VARCHAR(7) DEFAULT NULL,
-          `color_partners` VARCHAR(7) DEFAULT NULL,
-          `color_footer` VARCHAR(7) DEFAULT NULL,
-          `color_newsletter` VARCHAR(7) DEFAULT NULL,
-          `color_newsletter_deco` VARCHAR(7) DEFAULT NULL,
+          /* ⚠️ Les couleurs d'aplat et `footer_logo_height` ONT L'AIR DE MANQUER
+           * ICI, à côté de `footer_logo` où elles seraient logiques. Elles sont
+           * plus bas, juste après `chatbot_enabled` — et ce n'est pas un oubli.
+           * update.php les ajoute par ALTER, donc À LA FIN de la table ; les
+           * poser ici donnerait à une base neuve un ordre de colonnes différent
+           * de celui d'un site migré. docs/audit-bdd.php compare les deux
+           * schémas et a refusé exactement cette version-ci. */
           `footer_logo` VARCHAR(255) DEFAULT 'logo_blanc.png',
-          `footer_logo_height` INT DEFAULT 56,
           `registration_auto_open` DATETIME DEFAULT NULL,
           `registration_auto_close` DATETIME DEFAULT NULL,
           `mail_provider` ENUM('google','smtp') NOT NULL DEFAULT 'google',
@@ -597,6 +622,27 @@ function getCreateTableStatements(): array
           `legal_mentions` LONGTEXT DEFAULT NULL,
           `legal_privacy` LONGTEXT DEFAULT NULL,
           `chatbot_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+          /* Couleurs des grands aplats de la page publique, et hauteur du logo
+           * du pied de page.
+           *
+           * VIDE = « couleur du thème » — jamais une valeur recopiée : si
+           * quelqu'un change la couleur secondaire, le bandeau et le pied de
+           * page doivent suivre sans qu'on ait à les retoucher un par un.
+           * Une valeur ici veut dire « cet élément a SA couleur ».
+           *
+           * ⚠️ CET ORDRE-CI EST IMPOSÉ, IL N'EST PAS ESTHÉTIQUE. Ces six
+           * colonnes sont ajoutées par ALTER dans update.php, donc à la suite
+           * des précédentes, et dans CET ordre précis — `footer_logo_height`
+           * entre `color_partners` et `color_footer`, aussi surprenant que ça
+           * paraisse. Les regrouper près de `footer_logo`, où elles seraient
+           * lisibles, faisait diverger le schéma d'une base neuve de celui d'un
+           * site migré. Ne pas « ranger ». */
+          `color_news_band` VARCHAR(7) DEFAULT NULL,
+          `color_partners` VARCHAR(7) DEFAULT NULL,
+          `footer_logo_height` INT DEFAULT 56,
+          `color_footer` VARCHAR(7) DEFAULT NULL,
+          `color_newsletter` VARCHAR(7) DEFAULT NULL,
+          `color_newsletter_deco` VARCHAR(7) DEFAULT NULL,
           /* ── Espace coureur & application mobile (lot 1) ──────────────────
            * Les valeurs par défaut sont portées par le DEFAULT de la colonne,
            * jamais par un UPDATE : sur une table à ligne unique, ADD COLUMN …
@@ -682,6 +728,23 @@ function getCreateTableStatements(): array
            * sur l'heure prévue plutôt que de laisser tout le monde sans temps.
            * Avant, on ne publie rien : mieux vaut « en course » qu'un temps faux. */
           `depart_grace_min` SMALLINT NOT NULL DEFAULT 10,
+          /* Espace coureur — interrupteur unique, lu par espace_coureur_actif().
+           *
+           * DÉFAUT 1 : l'espace coureur est ouvert, c'est l'état normal. Le
+           * couper sert à fermer temporairement l'accès (maintenance de
+           * l'espace, période creuse, incident) sans toucher au reste du site :
+           * les pages de public/espace-coureur/ renvoient vers l'accueil, et les
+           * boutons « Connexion » de la barre de navigation, du pied de page et
+           * de la page de téléchargement disparaissent.
+           *
+           * ⚠️ Désactiver n'efface RIEN : comptes, inscriptions, appareils et
+           * transferts restent en base et l'espace revient à l'identique dès
+           * qu'on le réactive. Seules les purges effacent.
+           *
+           * ⚠️ EN DERNIÈRE POSITION — cf. `chrono_enabled` plus haut : update.php
+           * ne sait qu'ajouter à la fin, et docs/audit-bdd.php compare les deux
+           * schémas colonne par colonne. */
+          `espace_coureur_actif` TINYINT(1) NOT NULL DEFAULT 1,
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
@@ -1633,6 +1696,85 @@ function getDefaultInserts(): array
     ];
 }
 
+/**
+ * Contenus par défaut qui vivent dans update.php, rejoués sur une base neuve.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ⚠️ SANS CECI, UNE INSTALLATION NEUVE N'A NI FAQ NI POLITIQUE DE CONFIDENTIALITÉ.
+ *
+ * Deux contenus ont toujours été écrits dans update.php seul : les questions de
+ * la foire aux questions (page publique `faq.php` ET base de connaissances de
+ * l'assistant) et le texte de politique de confidentialité. Un site MIGRÉ les
+ * recevait ; un site fraîchement INSTALLÉ ouvrait avec une FAQ vide et une page
+ * « Politique de confidentialité » blanche — ce dernier point n'est pas un
+ * détail cosmétique, c'est une obligation légale.
+ *
+ * ON EXTRAIT PLUTÔT QUE DE RECOPIER, et dans ce sens-là précisément. update.php
+ * fait déjà l'inverse pour les questions 901-909 (il les lit dans ce fichier) :
+ * chaque texte n'existe donc qu'à UN seul endroit, et les deux chemins
+ * d'installation ne peuvent pas diverger. Recopier ces quatre mille lignes ici
+ * garantirait le contraire — c'est toujours la copie la moins relue qui part en
+ * production.
+ *
+ * ⚠️ Les instructions extraites sont IDEMPOTENTES par construction du côté
+ * update.php (`INSERT … WHERE NOT EXISTS`), et celle de la politique de
+ * confidentialité ne remplit que si le champ est vide. Les rejouer ne peut donc
+ * rien écraser.
+ *
+ * Retourne ['faq' => string[], 'setting' => string[], 'avertissement' => ?string].
+ *
+ * ⚠️ DEUX LOTS, PARCE QU'ILS NE S'EXÉCUTENT PAS AU MÊME MOMENT.
+ *   • 'faq'     : AVANT getDefaultInserts(). Ces questions n'ont pas d'id écrit,
+ *                 elles prennent l'auto-incrément — donc 1 à 24, exactement comme
+ *                 sur un site migré. Jouées après le bloc 901-909, elles
+ *                 partiraient à 910 et les deux bases n'auraient plus les mêmes
+ *                 identifiants. Elles n'ont besoin que de la TABLE `chatbot_faq`,
+ *                 déjà créée à ce stade.
+ *   • 'setting' : APRÈS, forcément — elles écrivent dans la ligne `setting` id=1
+ *                 que getDefaultInserts() vient de créer.
+ *
+ * L'avertissement est affiché à la dernière étape : une graine manquante doit se
+ * voir, pas se deviner des mois plus tard devant une page vide.
+ */
+function getSeedsFromUpdate(PDO $pdo): array
+{
+    $src = @file_get_contents(__DIR__ . '/update.php');
+    if ($src === false || $src === '') {
+        return ['faq' => [], 'setting' => [], 'avertissement' =>
+            "update.php est introuvable : la foire aux questions et le texte de politique de "
+            . "confidentialité n'ont pas été installés. Reposez update.php à la racine du site "
+            . "et lancez-le une fois — il les ajoutera sans rien écraser."];
+    }
+
+    $faq     = [];
+    $setting = [];
+    $absents = [];
+
+    // 1. Questions de la FAQ générale — INSERT (idempotents) puis UPDATE
+    //    d'enrichissement des mots-clés, dans leur ordre d'origine.
+    if (preg_match_all('/"((?:INSERT INTO|UPDATE) `chatbot_faq`[^"]*)"/', $src, $m) && $m[1]) {
+        foreach ($m[1] as $stmt) { $faq[] = $stmt; }
+    } else {
+        $absents[] = 'les questions de la foire aux questions';
+    }
+
+    // 2. Politique de confidentialité : le heredoc du « lot 7 » de update.php.
+    //    Comme là-bas, on ne remplit QUE si le champ est vide.
+    if (preg_match('~<<<\'HTML\'\R(.*?)\R\s*HTML;~s', $src, $mh)) {
+        $setting[] = 'UPDATE `setting` SET `legal_privacy` = ' . $pdo->quote($mh[1])
+                   . " WHERE `id` = 1 AND (`legal_privacy` IS NULL OR `legal_privacy` = '')";
+    } else {
+        $absents[] = 'le texte de politique de confidentialité';
+    }
+
+    $avertissement = $absents
+        ? 'Contenus non installés depuis update.php : ' . implode(' et ', $absents)
+          . '. Lancez update.php une fois — il les ajoutera sans rien écraser.'
+        : null;
+
+    return ['faq' => $faq, 'setting' => $setting, 'avertissement' => $avertissement];
+}
+
 // ── Libellés des étapes ─────────────────────────────────────
 $stepLabels = [
     1 => 'Prérequis',
@@ -2075,6 +2217,16 @@ $stepLabels = [
               </li>
               <?php endif; ?>
             </ul>
+
+            <?php /* Graines de contenu manquantes (FAQ, politique de confidentialité).
+                     L'installation a réussi — on ne l'annule pas pour autant — mais
+                     ces deux pages ouvriraient vides, et personne ne s'en apercevrait
+                     avant qu'un visiteur le signale. Donc on le dit ici, tout de suite. */ ?>
+            <?php if (!empty($_SESSION['install']['seed_avertissement'])): ?>
+              <div class="oc-alert oc-alert-warning">
+                <?= htmlspecialchars($_SESSION['install']['seed_avertissement'], ENT_QUOTES, 'UTF-8') ?>
+              </div>
+            <?php endif; ?>
 
             <a href="login.php" class="oc-btn">
               Acc&eacute;der au site

@@ -2114,36 +2114,16 @@ $lot1Tables = [
           INDEX `idx_annee` (`annee`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-    /* Messages écartés par un coureur de SA boîte — voir install.php pour
-       le détail. Table ajoutée après coup : sans elle, une suppression
-       faite sur le téléphone ne suivait pas sur le navigateur. */
-    'participant_notifications_masquees' =>
-        "CREATE TABLE IF NOT EXISTS `participant_notifications_masquees` (
-          `participant_id` INT NOT NULL,
-          `notification_id` INT NOT NULL,
-          `masque_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (`participant_id`, `notification_id`),
-          CONSTRAINT `fk_pnm_participant` FOREIGN KEY (`participant_id`)
-            REFERENCES `participants`(`id`) ON DELETE CASCADE,
-          CONSTRAINT `fk_pnm_notification` FOREIGN KEY (`notification_id`)
-            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
-
-    /* Messages LUS par un coureur — voir install.php pour le détail.
-       Sans cette table, la pastille « non lus » de l'espace coureur ne peut
-       rien compter : « masqué » et « lu » sont deux choses différentes, on
-       écarte un message qu'on a lu comme un message qu'on n'a jamais ouvert. */
-    'participant_notifications_lues' =>
-        "CREATE TABLE IF NOT EXISTS `participant_notifications_lues` (
-          `participant_id` INT NOT NULL,
-          `notification_id` INT NOT NULL,
-          `lu_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (`participant_id`, `notification_id`),
-          CONSTRAINT `fk_pnl_participant` FOREIGN KEY (`participant_id`)
-            REFERENCES `participants`(`id`) ON DELETE CASCADE,
-          CONSTRAINT `fk_pnl_notification` FOREIGN KEY (`notification_id`)
-            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+    /* ⚠️ `participant_notifications_masquees` et `participant_notifications_lues`
+       ÉTAIENT ICI, ET C'ÉTAIT UN BUG. Leurs clés étrangères pointent vers
+       `participants`, qui est créée PLUS BAS dans ce même tableau : MySQL
+       refusait les deux CREATE avec « errno 150, Foreign key constraint is
+       incorrectly formed », et les tables n'existaient sur AUCUN site migré.
+       Personne ne le voyait — la migration signalait deux erreurs parmi cent
+       soixante-dix-neuf lignes, et l'espace coureur ne savait simplement plus
+       quels messages avaient été lus. Elles sont désormais en fin de tableau,
+       après `participants`. Une installation neuve, elle, n'a jamais eu le
+       problème : install.php crée `participants` en premier. */
 
     'editions' =>
         "CREATE TABLE IF NOT EXISTS `editions` (
@@ -2336,6 +2316,44 @@ $lot1Tables = [
           -- des doublons. Un SELECT préalable ne suffirait pas : deux envois
           -- simultanés passeraient tous les deux.
           UNIQUE KEY `idx_unicite` (`annee`, `inscription_no`, `type`, `point`, `detecte_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    /* ⚠️ EN DERNIER, ET L'ORDRE EST LA SEULE CHOSE QUI COMPTE ICI.
+       Ces deux tables référencent `participants` et `app_notifications` par
+       clé étrangère. MySQL exige que les deux existent DÉJÀ : placées plus
+       haut — là où elles étaient — le CREATE échouait sur « errno 150 » et la
+       table n'était jamais créée sur les sites migrés. Elles doivent donc venir
+       après `participants`. Ne pas les remonter pour la lisibilité. */
+
+    /* Messages écartés par un coureur de SA boîte — voir install.php pour
+       le détail. Table ajoutée après coup : sans elle, une suppression
+       faite sur le téléphone ne suivait pas sur le navigateur. */
+    'participant_notifications_masquees' =>
+        "CREATE TABLE IF NOT EXISTS `participant_notifications_masquees` (
+          `participant_id` INT NOT NULL,
+          `notification_id` INT NOT NULL,
+          `masque_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`participant_id`, `notification_id`),
+          CONSTRAINT `fk_pnm_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_pnm_notification` FOREIGN KEY (`notification_id`)
+            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    /* Messages LUS par un coureur — voir install.php pour le détail.
+       Sans cette table, la pastille « non lus » de l'espace coureur ne peut
+       rien compter : « masqué » et « lu » sont deux choses différentes, on
+       écarte un message qu'on a lu comme un message qu'on n'a jamais ouvert. */
+    'participant_notifications_lues' =>
+        "CREATE TABLE IF NOT EXISTS `participant_notifications_lues` (
+          `participant_id` INT NOT NULL,
+          `notification_id` INT NOT NULL,
+          `lu_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`participant_id`, `notification_id`),
+          CONSTRAINT `fk_pnl_participant` FOREIGN KEY (`participant_id`)
+            REFERENCES `participants`(`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_pnl_notification` FOREIGN KEY (`notification_id`)
+            REFERENCES `app_notifications`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 ];
 
@@ -2554,6 +2572,18 @@ $lot1Settings = [
     'fcm_service_account'                  => "TEXT DEFAULT NULL",
     // Délai de grâce après l'heure prévue, avant que le calcul n'y retombe.
     'depart_grace_min'                     => "SMALLINT NOT NULL DEFAULT 10",
+    // Espace coureur — interrupteur unique, lu par espace_coureur_actif().
+    //
+    // DÉFAUT 1, ET C'EST L'INVERSE DE `chrono_enabled`. Le chronométrage ouvre
+    // une collecte de positions GPS : on ne l'active jamais à la place de
+    // quelqu'un. L'espace coureur, lui, EXISTAIT DÉJÀ avant cette colonne — une
+    // migration qui le fermerait couperait, sans que personne ne l'ait demandé,
+    // l'accès des coureurs à leur QR code la veille de la course.
+    //
+    // ⚠️ Désactivé ne veut PAS dire effacé : comptes, inscriptions, appareils et
+    // transferts restent en base et l'espace revient à l'identique dès la
+    // réactivation. Seules les purges effacent.
+    'espace_coureur_actif'                 => "TINYINT(1) NOT NULL DEFAULT 1",
 ];
 
 foreach ($lot1Settings as $col => $ddl) {

@@ -16,6 +16,15 @@ require '../src/core/config.php';
 require_once '../src/content/tracker.php';
 trackPageVisit();
 checkMaintenance();
+
+/* Espace coureur fermé (Réglages → Maintenance) : cette page part avec lui.
+ * Elle n'existe que pour y mener — ses deux boutons pointent vers la connexion
+ * coureur, et l'application mobile se connecte aux mêmes comptes. La laisser
+ * ouverte afficherait une page entière de promesses qui ne mènent nulle part.
+ * Le lien du pied de page disparaît en même temps ; cette redirection couvre
+ * ceux qui arrivent par un favori ou par le moteur de recherche. */
+if (!espace_coureur_actif()) { header('Location: accueil.php'); exit; }
+
 require __DIR__ . '/../src/partials/navbar-data.php';
 
 $storeIos     = trim((string) ($data['app_store_url_ios'] ?? ''));

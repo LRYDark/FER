@@ -230,6 +230,13 @@ $maintenance_mode = !empty($data['maintenance_mode']) ? 1 : 0;
 $maintenance_message = $data['maintenance_message'] ?? '';
 $session_lifetime = (int) ($data['session_lifetime'] ?? 0); // minutes ; 0 = jamais (inactivité)
 $session_absolute_lifetime = (int) ($data['session_absolute_lifetime'] ?? 0); // minutes ; 0 = jamais (absolu)
+// Espace coureur : ouvert tant qu'on n'a pas décidé le contraire. La colonne
+// peut manquer (update.php pas encore passé) — d'où le défaut à 1, le même que
+// celui d'espace_coureur_actif() côté public, pour que la case cochée à l'écran
+// dise bien ce que voient les coureurs.
+$espace_coureur_actif = array_key_exists('espace_coureur_actif', $data)
+    ? (!empty($data['espace_coureur_actif']) ? 1 : 0)
+    : 1;
 
 // parcours
 $titleParcours  = $data['titleParcours']   ?? 'test';
@@ -1651,6 +1658,24 @@ if (isset($_POST['save_maintenance'])) {
         ->execute(['m' => $maintenance_mode, 'msg' => $maintenance_message]);
 
     addToast('success', 'Mode maintenance mis à jour !');
+
+    /* Espace coureur — dans le MÊME formulaire, mais écrit à part.
+     * La colonne peut manquer si update.php n'a pas encore tourné : la joindre
+     * à l'UPDATE ci-dessus ferait échouer le mode maintenance avec elle, alors
+     * que les deux réglages n'ont rien à voir l'un avec l'autre. */
+    $espaceCoureurNew = !empty($_POST['espace_coureur_actif']) ? 1 : 0;
+    try {
+        $pdo->prepare('UPDATE setting SET espace_coureur_actif = :v WHERE id = 1')
+            ->execute(['v' => $espaceCoureurNew]);
+        if ($espaceCoureurNew !== $espace_coureur_actif) {
+            addToast('success', $espaceCoureurNew
+                ? 'Espace coureur rouvert : les boutons et les liens sont revenus.'
+                : 'Espace coureur fermé : les liens renvoient vers l\'accueil et les boutons sont masqués.');
+        }
+        $espace_coureur_actif = $espaceCoureurNew;
+    } catch (\Throwable $e) {
+        addToast('error', "Espace coureur non enregistré (colonne absente) : lancez update.php.");
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -6074,6 +6099,52 @@ document.getElementById('fImport').addEventListener('submit', async (e) => {
         </div>
       </div>
     </div><!-- /col-12 -->
+
+    <?php /* ── Espace coureur ────────────────────────────────────────────────
+             Une carte à part du mode maintenance, et non une case de plus dans
+             la sienne : le mode maintenance ferme TOUT le site public, celui-ci
+             ne ferme qu'une porte. Les confondre ferait croire qu'activer l'un
+             fait l'effet de l'autre. */ ?>
+    <div class="col-12">
+      <div class="setting-card">
+        <h2>Espace coureur</h2>
+        <div class="row g-3 needs-validation">
+          <div class="col-12">
+            <label class="form-label">Autoriser l'accès à l'espace coureur</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="espace_coureur_actif" id="espace_coureur_actif" <?= $espace_coureur_actif ? 'checked' : '' ?>>
+              <label class="form-check-label" for="espace_coureur_actif">
+                <?= $espace_coureur_actif ? '<span class="badge bg-success">Ouvert</span>' : '<span class="badge bg-danger">Fermé</span>' ?>
+              </label>
+            </div>
+            <small class="text-muted d-block mt-2">
+              Décoché, l'espace coureur est <strong>fermé temporairement</strong> :
+              ses pages renvoient vers l'accueil, le bouton « Connexion » de la barre de
+              navigation (ordinateur et mobile) disparaît, ainsi que le lien
+              « Espace coureur &amp; application » du pied de page et la page de
+              téléchargement.
+            </small>
+            <small class="text-muted d-block mt-2">
+              <strong>Rien n'est supprimé.</strong> Les comptes, les inscriptions, les
+              appareils de confiance et les transferts en cours restent en base :
+              recocher la case remet tout en place à l'identique.
+            </small>
+          </div>
+          <div class="col-12 text-end">
+          </div>
+        </div>
+      </div>
+    </div><!-- /col-12 -->
+
+    <?php /* Pas de bouton de test ici, et c'est délibéré.
+             • docs/audit-bdd.php et docs/test-integrite.php : le dossier docs/
+               est `export-ignore`, il ne part pas en production — un bouton
+               pointerait dans le vide. Et l'un des deux fait `DROP DATABASE`.
+               Ils se lancent en ligne de commande, sur un environnement de
+               test, depuis le dépôt (voir docs/README.md).
+             • update.php?tool=check-integrity : il reste accessible depuis la
+               page de mise à jour elle-même, là où il a toujours été. Le
+               dupliquer ici n'apportait rien. */ ?>
 
     <div class="col-12">
       <div class="setting-card">

@@ -9,7 +9,25 @@
  * catalogue, un lien mort dans une réponse du chatbot.
  *
  * Il ne demande aucune base de données.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════
+ * EN LIGNE DE COMMANDE, DEPUIS LE DÉPÔT :   php docs/test-integrite.php
+ *
+ * Le `.htaccess` du dossier interdit l'accès par URL, et c'est très bien : ce
+ * banc lance `php -l` sur tous les fichiers du site et interroge git. Rien de
+ * tout cela n'a sa place derrière une adresse web. Le contrôle ci-dessous est
+ * la seconde barrière, celle qui tient si le fichier atterrit ailleurs.
+ *
+ * ⚠️ Il a besoin du DÉPÔT GIT (étape 8, gel de fichiers). Sur un site déployé
+ * sans son historique, cette étape s'affiche en avertissement et le reste
+ * fonctionne normalement.
+ * ═════════════════════════════════════════════════════════════════════════════
  */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit("test-integrite.php ne s'exécute qu'en ligne de commande : php docs/test-integrite.php\n");
+}
+
 $ok = 0; $ko = 0; $avert = 0;
 function verifie(string $titre, bool $cond, string $detail = ''): void {
     global $ok, $ko;
@@ -18,12 +36,28 @@ function verifie(string $titre, bool $cond, string $detail = ''): void {
 }
 function avertir(string $texte): void { global $avert; $avert++; echo "  ⚠  $texte\n"; }
 
-$R    = 'W:/FER/';
+/* Racine du projet, déduite de l'emplacement de ce fichier (docs/) : le banc
+ * doit tourner sur n'importe quel poste, Windows comme Linux.
+ *
+ * ⚠️ TOUJOURS DES SLASHS DANS LES MOTIFS glob(), JAMAIS D'ANTISLASH. Sous Linux
+ * l'antislash est un caractère d'ÉCHAPPEMENT pour glob() : `inc\*.php` n'a
+ * matché aucun fichier, et cinq contrôles ont tourné à vide en annonçant « OK »
+ * — un banc qui valide le néant est pire qu'un banc absent. Sous Windows les
+ * deux marchent, c'est ce qui l'a caché si longtemps. */
+$R    = str_replace('\\', '/', dirname(__DIR__)) . '/';
 $lire = fn(string $f) => (string) @file_get_contents($R . $f);
+
+/* `git -C <racine>` plutôt qu'un `cd` : la syntaxe du `cd` diffère d'un système
+ * à l'autre, celle de git non. */
+$git = fn(string $args) => (string) @shell_exec('git -C ' . escapeshellarg(rtrim($R, '/')) . ' ' . $args);
 
 /* ── 1. Tous les fichiers PHP compilent ─────────────────────────────────── */
 echo "\n=== 1. Compilation ===\n";
-$php = 'C:/laragon/bin/php/php-8.3.16-Win32-vs16-x64/php.exe';
+/* L'interpréteur qui exécute ce banc — garanti être un PHP en ligne de commande
+ * par le garde-fou PHP_SAPI du haut du fichier. On vérifie ainsi la syntaxe
+ * avec la MÊME version de PHP que celle qui lance le banc, plutôt qu'avec un
+ * chemin figé vers l'installation d'un poste particulier. */
+$php = PHP_BINARY;
 $fichiers = [];
 foreach (['', 'inc/', 'src/core/', 'src/auth/', 'src/content/', 'src/mail/', 'src/partials/',
           'public/', 'public/espace-coureur/', 'api/mobile/'] as $d) {
@@ -203,8 +237,8 @@ verifie('data-confirm n\'est employé que là où le script est chargé',
  * deux fois pour un seul clic. Le contrôle porte sur tous les pieds de page et
  * partials — un second gestionnaire ajouté ailleurs referait le même effet. */
 $doublons = [];
-foreach (array_merge(glob($R . 'src\partials\*.php') ?: [],
-                     glob($R . 'js\*.js') ?: []) as $f) {
+foreach (array_merge(glob($R . 'src/partials/*.php') ?: [],
+                     glob($R . 'js/*.js') ?: []) as $f) {
     if (basename($f) === 'confirm-script.php') continue;    // l'implémentation officielle
     if (basename($f) === 'ui.js') continue;                 // non chargé par les pages (cf. update.php)
     $src = (string) file_get_contents($f);
@@ -253,7 +287,10 @@ echo "\n=== 4. Cohérence de l'espace coureur ===\n";
 $sansStyles = [];
 foreach (glob($R . 'public/espace-coureur/*.php') ?: [] as $f) {
     $b = basename($f);
-    if (str_starts_with($b, '_') || $b === 'deconnexion.php') continue;
+    /* `agenda.php` ne rend AUCUN HTML : il sert un fichier .ics en pièce jointe
+       (Content-Type: text/calendar). Lui réclamer une feuille de style était un
+       faux échec — et un faux échec finit par faire ignorer les vrais. */
+    if (str_starts_with($b, '_') || $b === 'deconnexion.php' || $b === 'agenda.php') continue;
     $s = (string) file_get_contents($f);
     if (!str_contains($s, '_styles.php') && !str_contains($s, 'auth-head.php')) $sansStyles[] = $b;
 }
@@ -335,11 +372,19 @@ verifie('le gabarit d\'email reçoit bien l\'URL de l\'espace coureur',
  * déplacement n'a rien modifié à ce qu'il fait.
  * ──────────────────────────────────────────────────────────────────────────── */
 echo "\n=== 8. Fichiers que la consigne interdit de modifier ===\n";
-foreach (['login.php', 'change-password.php', 'reset-password.php',
-          'src/security/totp.php', 'src/security/webauthn.php'] as $f) {
-    $d = trim((string) shell_exec('cd /d W:\FER && git diff --stat 0f50e0ce..HEAD -- '
-                                  . escapeshellarg($f) . ' 2>nul'));
-    verifie("$f intact", $d === '', $d);
+/* ⚠️ SANS GIT, CE CONTRÔLE DIRAIT « INTACT » POUR TOUT. `git diff` renvoie une
+ * chaîne vide aussi bien quand rien n'a changé que quand la commande n'existe
+ * pas — et un banc qui valide en silence est pire que pas de banc du tout. On
+ * vérifie donc d'abord que le dépôt répond. */
+$gitDispo = trim($git('rev-parse --git-dir')) !== '';
+if (!$gitDispo) {
+    avertir('git indisponible ou dépôt absent — le gel des fichiers interdits n\'a PAS été vérifié');
+} else {
+    foreach (['login.php', 'change-password.php', 'reset-password.php',
+              'src/security/totp.php', 'src/security/webauthn.php'] as $f) {
+        $d = trim($git('diff --stat 0f50e0ce..HEAD -- ' . escapeshellarg($f)));
+        verifie("$f intact", $d === '', $d);
+    }
 }
 
 /* Le gel d'api.php, à sa nouvelle adresse. On compare le CORPS du fichier à la
@@ -348,7 +393,7 @@ foreach (['login.php', 'change-password.php', 'reset-password.php',
      • l'en-tête de documentation (avant le premier `require`) ;
      • les chemins `__DIR__`, qui doivent remonter d'un cran.
    Toute autre ligne modifiée est un changement de comportement déguisé. */
-$avant = (string) shell_exec('cd /d W:\FER && git show 0f50e0ce:api.php 2>nul');
+$avant = $git('show 0f50e0ce:api.php');
 $apres = $lire('api/v1.php');
 if ($avant === '') {
     avertir('impossible de relire api.php d\'origine (git indisponible ?) — gel non vérifié');
@@ -506,7 +551,7 @@ verifie('les deux sens du pont existent',
 // Tout écran qui écrit une des trois colonnes appariées doit appeler le pont.
 $appariees = ['date_course', 'course_km', 'start_point_coords'];
 $sansPont = [];
-foreach (glob($R . 'inc\*.php') ?: [] as $f) {
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
     $src = (string) file_get_contents($f);
     // Un UPDATE de `setting` touchant une colonne appariée.
     if (!preg_match('/UPDATE\s+setting\s+SET[^;\']*(' . implode('|', $appariees) . ')/i', $src)) {
@@ -623,9 +668,21 @@ verifie('le recalcul global épargne les résultats validés',
 verifie('l\'annulation du départ existe',
     str_contains($lire('src/partials/depart-course.php'), "value=\"annuler\""));
 
-// Aucune donnée personnelle : une notification vise une ÉDITION, pas des gens.
+/* Aucune donnée personnelle : une notification vise une ÉDITION, pas des gens.
+ *
+ * ⚠️ LE CONTRÔLE NE PEUT PLUS INTERDIRE `participant_id` DANS TOUT LE FICHIER.
+ * Depuis les messages « lus » et « masqués », deux tables de suivi PAR COUREUR
+ * existent — c'est un accusé de lecture, pas une liste de diffusion : la
+ * notification, elle, ne sait toujours pas à qui elle s'adresse. Interdire le
+ * mot partout faisait échouer le banc sur une fonctionnalité légitime, et un
+ * échec permanent est un échec qu'on cesse de lire.
+ *
+ * On retire donc les requêtes de ces deux tables avant de chercher : ce qui
+ * reste, c'est la notification elle-même, et là rien ne doit désigner quelqu'un. */
+$notifSansSuivi = preg_replace(
+    '/[^;]*participant_notifications_(?:lues|masquees)[^;]*;/is', '', $notif);
 verifie('aucune liste de destinataires nominatifs',
-    !preg_match('/participant_id|email_cible|destinataires/i', $notif));
+    !preg_match('/participant_id|email_cible|destinataires/i', $notifSansSuivi));
 
 // L'API doit servir les notifications MÊME chronométrage fermé : une annonce de
 // l'organisation n'a rien à voir avec les temps.
@@ -656,7 +713,7 @@ echo "\n=== 16 bis. Uniformité des boutons ===\n";
    faux positif permanent. */
 $feuillesAdmin = [];
 $sourcesAdmin  = [$R . 'src/partials/navbar-admin.php'];
-foreach (glob($R . 'inc\*.php') ?: [] as $f) {
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
     if (str_contains((string) file_get_contents($f), 'navbar-admin.php')) $sourcesAdmin[] = $f;
 }
 foreach ($sourcesAdmin as $f) {
@@ -680,7 +737,7 @@ verifie('aucune feuille chargée en admin ne redéfinit les boutons',
 // Une couleur en dur sur un bouton ne suit pas le thème : elle reste claire en
 // sombre, et le bouton se distingue de tous les autres.
 $dur = [];
-foreach (glob($R . 'inc\*.php') ?: [] as $f) {
+foreach (glob($R . 'inc/*.php') ?: [] as $f) {
     if (preg_match('/class="btn[^"]*"[^>]*style="[^"]*#[0-9a-fA-F]{3,6}/', (string) file_get_contents($f))) {
         $dur[] = basename($f);
     }
@@ -730,7 +787,7 @@ verifie('toute page du menu est dans l\'index de recherche',
 preg_match_all("/'ancre' => '([a-zA-Z]+)'/", $rech, $mAncres);
 $ancresMortes = [];
 $toutHtml = '';
-foreach (array_merge(glob($R . 'inc\*.php') ?: [], glob($R . 'src\partials\*.php') ?: []) as $f) {
+foreach (array_merge(glob($R . 'inc/*.php') ?: [], glob($R . 'src/partials/*.php') ?: []) as $f) {
     $toutHtml .= (string) file_get_contents($f);
 }
 foreach (array_unique(array_filter($mAncres[1])) as $ancre) {

@@ -251,7 +251,13 @@ include_once __DIR__ . '/../content/theme.php';
         <?php /* Espace coureur — même forme et même hauteur que « Inscription »,
                  mais en gris ardoise : deux boutons roses côte à côte se
                  concurrenceraient, et c'est l'inscription qui doit gagner. Le gris
-                 se marie avec le rose sans lui disputer l'attention. */ ?>
+                 se marie avec le rose sans lui disputer l'attention.
+
+                 Espace fermé (Réglages → Maintenance) : le bouton DISPARAÎT au
+                 lieu d'être grisé. Un bouton grisé pose une question à laquelle
+                 personne ne peut répondre ; le laisser cliquable enverrait vers
+                 une page qui renvoie aussitôt à l'accueil. */ ?>
+        <?php if (espace_coureur_actif()): ?>
         <a class="btn nav-connexion" href="espace-coureur/login"
            title="Espace coureur — mes inscriptions">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -261,6 +267,7 @@ include_once __DIR__ . '/../content/theme.php';
           </svg>
           <span>Connexion</span>
         </a>
+        <?php endif; ?>
         <a class="btn pink nav-cta" href="register">Inscription<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 14L12 9L7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       </div>
     </div>
@@ -481,7 +488,11 @@ include_once __DIR__ . '/../content/theme.php';
           <span>Parcours</span>
         </a>
         <!-- Espace coureur : SEUL point d'entrée sur mobile. Une pastille
-             supplémentaire à côté du CTA faisait doublon dans la même barre. -->
+             supplémentaire à côté du CTA faisait doublon dans la même barre.
+             Espace fermé (Réglages → Maintenance) : la pastille disparaît et la
+             barre se répartit sur les entrées restantes — elle est en flex, il
+             n'y a donc pas de trou à combler. -->
+        <?php if (espace_coureur_actif()): ?>
         <a class="mobile-bottom-btn" href="espace-coureur/login" aria-label="Connexion à l'espace coureur">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -489,6 +500,7 @@ include_once __DIR__ . '/../content/theme.php';
           </svg>
           <span>Connexion</span>
         </a>
+        <?php endif; ?>
         <!-- Inner CTA: visible only when menu is open -->
         <a class="mobile-bottom-cta-inner" href="register">Inscription</a>
       </div>
