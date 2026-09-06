@@ -445,10 +445,16 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
 
   <!-- ═══════ BARRE DU HAUT ═══════ -->
   <header class="oc-top">
-    <?php if (!empty($subItems)): ?>
-      <?php /* Le burger n'ouvre QUE le sous-menu. Sans sous-menu (Tableau de
-               bord), il n'ouvrirait rien : on ne l'affiche pas. */ ?>
-      <button class="oc-burger" id="ocBurger" type="button" aria-label="Ouvrir le sous-menu">
+    <?php /* Le burger ouvre TOUTE la navigation (src/partials/mobile-nav.php),
+             pas seulement le sous-menu de la section courante : sous 861 px les
+             onglets du haut sont masqués, ils vivent dans le tiroir. Il est donc
+             rendu sur chaque écran — y compris le tableau de bord, qui n'a pas
+             de sous-menu mais a bien des sections à atteindre.
+             Seule exception : un compte qui n'a accès à RIEN — le tiroir
+             serait vide, et un bouton qui n'ouvre rien vaut moins que pas de
+             bouton du tout. */ ?>
+    <?php if ($dashVisible || !empty($renderSections)): ?>
+      <button class="oc-burger" id="ocBurger" type="button" aria-label="Ouvrir le menu">
         <span></span><span></span><span></span>
       </button>
     <?php endif; ?>
@@ -533,6 +539,45 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
     </div>
   </header>
 
+  <?php
+  /* ═══ MENU DES PETITS ÉCRANS ═══
+   * Les onglets du haut ET les sous-menus, réunis en un seul tiroir. On
+   * réutilise exactement les listes déjà filtrées par les droits
+   * ($renderSections) : une seconde liste écrite à la main finirait par
+   * proposer un écran interdit, ou par en cacher un autorisé. */
+  $mnTitre  = 'Navigation';
+  $mnTop    = [];
+  $mnGroups = [];
+  if ($dashVisible) {
+      $mnTop[] = ['href' => $dashHref, 'label' => $dashLabel, 'svg' => $ico['dashboard'], 'active' => $dashActive];
+  }
+  foreach ($renderSections as $sectionLabel => $visible) {
+      $entrees = [];
+      foreach ($visible as [$href, $label, $icon, $isActive]) {
+          $e = ['href' => $href, 'label' => $label, 'svg' => $icon, 'active' => $isActive];
+          // Pastille « Accès bénévoles » : même compteur que le sous-menu, tenu
+          // à jour par le même script (sélection par classe, pas par id — deux
+          // éléments ne peuvent pas porter le même id).
+          if (strpos($href, 'tshirt-access.php') === 0) {
+              $e['badge'] = (int) ($tshirtPendingCount ?? 0);
+              $e['badgeClass'] = ' js-tshirt-badge';
+          }
+          $entrees[] = $e;
+      }
+      if ($showUpdateLink && $sectionLabel === 'Système') {
+          $entrees[] = ['href' => '../update.php', 'label' => 'Mise à jour BDD', 'svg' => $ico['download'], 'active' => false];
+      }
+      $mnGroups[] = [
+          'label' => $sectionLabel,
+          // La section de l'écran courant s'ouvre d'emblée : on doit voir où
+          // l'on se trouve avant de choisir où aller.
+          'open'  => (!$dashActive && $sectionLabel === $activeSection),
+          'items' => $entrees,
+      ];
+  }
+  include __DIR__ . '/mobile-nav.php';
+  ?>
+
   <div class="oc-body<?= empty($subItems) ? ' is-wide' : '' ?>">
 
     <?php if (!empty($subItems)): ?>
@@ -545,7 +590,7 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
           <svg viewBox="0 0 24 24"><?= $icon ?></svg>
           <span><?= htmlspecialchars($label) ?></span>
           <?php if (strpos($href, 'tshirt-access.php') === 0): ?>
-            <span class="jr-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
+            <span class="jr-badge js-tshirt-badge<?= empty($tshirtPendingCount) ? ' d-none' : '' ?>" id="tshirtPendingBadge"><?= (int) ($tshirtPendingCount ?? 0) ?></span>
           <?php endif; ?>
         </a>
       <?php endforeach; ?>
@@ -576,16 +621,22 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
   <?php if (canDoAction('tshirt_access.approve')): ?>
   <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
   (function(){
-    var badge = document.getElementById('tshirtPendingBadge');
-    if (!badge) return;
+    /* Sélection par CLASSE : la pastille existe en deux exemplaires depuis le
+       menu mobile — celle du sous-menu et celle du tiroir. Un getElementById
+       n'en aurait rafraîchi qu'une, et c'est justement celle du tiroir qui est
+       visible sur téléphone. */
+    var badges = document.querySelectorAll('.js-tshirt-badge');
+    if (!badges.length) return;
     function refresh(){
       fetch('../admin-api.php?route=tshirt-admin', {headers:{'X-Requested-With':'XMLHttpRequest'}})
         .then(function(r){ return r.json(); })
         .then(function(res){
           if (!res || !res.ok) return;
           var n = (res.pending || []).length;
-          badge.textContent = n;
-          badge.classList.toggle('d-none', n === 0);
+          badges.forEach(function(badge){
+            badge.textContent = n;
+            badge.classList.toggle('d-none', n === 0);
+          });
         }).catch(function(){});
     }
     setInterval(refresh, 30000);
@@ -604,9 +655,14 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
        contenu, il poussait le titre vers le bas sur tous les écrans alors
        qu'il ne dit qu'une chose, toujours la même. Ici, on ne le rend en
        pleine largeur que sur les écrans SANS sous-menu, où il n'aurait
-       nulle part où se ranger. */ ?>
-    <?php if (!empty($ocCatchall) && empty($subItems)): ?>
-      <a class="oc-testmode is-large<?= $ocCatchall['bloquant'] ? ' is-bloquant' : '' ?>" href="mail-settings.php?tab=google">
+       nulle part où se ranger.
+
+       ⚠️ ET SUR TÉLÉPHONE, TOUJOURS. Sous 861 px le sous-menu est masqué au
+       profit du tiroir : laissé à sa seule place habituelle, l'avertissement
+       disparaissait de 21 écrans sur 23 — exactement là où l'on risque le
+       plus de croire qu'un envoi est parti aux inscrits. */ ?>
+    <?php if (!empty($ocCatchall)): ?>
+      <a class="oc-testmode is-large<?= empty($subItems) ? '' : ' is-mobile-only' ?><?= $ocCatchall['bloquant'] ? ' is-bloquant' : '' ?>" href="mail-settings.php?tab=google">
         <i class="bi bi-<?= $ocCatchall['bloquant'] ? 'shield-fill-exclamation' : 'cone-striped' ?>"></i>
         <span class="lab">Mode test</span>
         <span class="det"><?= htmlspecialchars($ocCatchallTexte) ?></span>

@@ -32,9 +32,10 @@ $picture= $data['picture'] ?? '';
     <div class="auth-pane">
       <a class="brand" href="public/accueil">
         <?php if (file_exists(__DIR__ . '/files/_logos/logo_fer_rose.png')): ?>
-          <img src="files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+          <img src="files/_logos/logo_fer_rose.png" alt="Forbach en Rose" style="height:56px;width:auto">
+        <?php else: ?>
+          <span class="name">Forbach en Rose</span>
         <?php endif; ?>
-        <span class="name">Forbach en Rose</span>
       </a>
 
       <div class="inner">

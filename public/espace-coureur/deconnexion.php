@@ -43,9 +43,10 @@ $authArtTitre   = 'À bientôt.<br>Sur la ligne de départ.';
     <div class="auth-pane">
       <a class="brand" href="../accueil.php">
         <?php if (file_exists(dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png')): ?>
-          <img src="../../files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+          <img src="../../files/_logos/logo_fer_rose.png" alt="Forbach en Rose" style="height:56px;width:auto">
+        <?php else: ?>
+          <span class="name">Forbach en Rose</span>
         <?php endif; ?>
-        <span class="name">Forbach en Rose</span>
       </a>
 
       <div class="inner">

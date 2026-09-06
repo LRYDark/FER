@@ -3294,6 +3294,56 @@ $pageActions = '<a class="oc-btn" href="../public/accueil" target="_blank" rel="
     outline-offset: 4px;
     background: color-mix(in srgb, var(--primary, #f42182) 5%, transparent);
   }
+
+  /* ════════════════════════════════════════════════════════════
+     ÉDITEUR D'ACCUEIL — PETITS ÉCRANS
+     ------------------------------------------------------------
+     ⚠️ TOUT EST DANS UNE MEDIA QUERY, RIEN AU-DESSUS DE 1024 px.
+     Le rendu sur ordinateur ne bouge pas d'un pixel : les règles
+     ci-dessous ne s'appliquent nulle part ailleurs.
+
+     CE QUI ÉTAIT CASSÉ : `.ife-layout` est une rangée avec un
+     panneau de 300 px qui ne se rétracte pas (`flex-shrink: 0`) et
+     un aperçu en `flex: 1; min-width: 0`. Sur un téléphone de
+     390 px, l'aperçu recevait donc 390 − 28 (marges) − 300 − 16
+     (gouttière) = 46 px. L'éditeur était là, mais la page à éditer
+     tenait dans un ruban de 46 px : on ne pouvait rien viser, donc
+     rien modifier.
+
+     CE QU'ON FAIT : on empile. L'aperçu passe EN PREMIER (`order`)
+     — on choisit une section avant d'en régler les propriétés — et
+     le panneau se range dessous, sur toute la largeur.
+     ════════════════════════════════════════════════════════════ */
+  @media (max-width: 1024px) {
+    .ife-layout { flex-direction: column; min-height: 0; }
+
+    .ife-preview-wrap { order: 1; width: 100%; }
+
+    .ife-sidebar {
+      order: 2;
+      width: auto;
+      /* Collé, il se serait superposé à l'aperçu au lieu de le suivre : en
+         pile, il n'y a plus de colonne à côté de laquelle rester. */
+      position: static;
+      /* Plafonné, avec son propre défilement (.ife-sb-content) : sans plafond,
+         un panneau de section long poussait l'aperçu hors de portée du pouce. */
+      max-height: 70vh;
+    }
+
+    /* La barre d'outils flottait à droite du titre, sur une ligne où il ne
+       reste plus la place de deux boutons : elle chevauchait le titre puis se
+       coupait. À plat au-dessus, elle se replie proprement. */
+    .ife-preview-toolbar {
+      float: none;
+      position: static;
+      margin: 0 0 12px;
+      justify-content: flex-start;
+    }
+
+    /* Aperçu « Mobile » : le gabarit de 420 px était rogné par le
+       `overflow: hidden` du conteneur sur un écran plus étroit que lui. */
+    .ife-preview-wrap.is-mobile iframe { max-width: min(420px, 100%); }
+  }
 </style>
 
 <?php

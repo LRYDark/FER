@@ -289,7 +289,10 @@ if ($canBulkCreate) {
     .stats-cards .statCard .card-body{min-height:82px;padding:.7rem .5rem}
     .stats-cards .statCard .stat-value{font-size:1.5rem}
     .stats-cards .reg-stats-more{grid-column:1/-1;justify-self:center;width:auto;padding-left:1.4rem;padding-right:1.4rem;margin-top:.35rem}
-    .quick-search{width:90%}
+    /* Pleine largeur sur téléphone : à 90 %, le champ était le seul bloc en
+       retrait de la page — cartes, tableau et pagination touchent les bords,
+       lui flottait 18 px plus étroit de chaque côté. */
+    .quick-search{width:100%;max-width:none}
   }
   .hide-stats #stats {display: none !important;}
   .dashboard-actions .btn-rose{
