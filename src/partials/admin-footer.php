@@ -17,24 +17,27 @@ if (!empty($pageReadOnly)):
 <!-- ═══════ ADMIN LAYOUT SCRIPTS ═══════ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
 document.addEventListener('DOMContentLoaded', function() {
-  // ── Sidebar toggle (mobile) ──
-  var burger  = document.getElementById('ocBurger');
-  var sidebar = document.getElementById('oc-sidebar');
+  // ── Tiroir de navigation (mobile) ──
+  /* ⚠️ LE BURGER N'EST PLUS BRANCHÉ ICI. Depuis le menu mobile unique, c'est
+     src/partials/mobile-nav.php qui l'ouvre — et lui seul : deux scripts qui
+     écoutent le même bouton se seraient renvoyé la balle à chaque clic (l'un
+     ouvre, l'autre a déjà ouvert), et le tiroir de l'espace coureur, qui ne
+     charge pas ce fichier, serait resté sans comportement.
+     Ne reste ici que la fermeture des tiroirs de l'ANCIENNE coquille
+     (.jr-nav) : plus aucune page ne la rend, mais le voile de fond leur est
+     commun et un tiroir qu'on ne peut plus refermer coûte plus cher que ces
+     trois lignes. */
   var overlay = document.getElementById('ocOverlay');
 
-  /* ⚠️ SIDEBAR PEUT ÊTRE ABSENTE. Depuis le shell v2.1, une section sans
-     sous-entrées (Tableau de bord) ne rend pas de sous-menu du tout : sans
-     ces gardes, le premier clic sur le burger levait une exception qui
-     coupait TOUS les scripts d'habillage de la page. */
-  function openSidebar()  { if (sidebar) sidebar.classList.add('open'); if (overlay) overlay.classList.add('show'); }
-  function closeSidebar() { if (sidebar) sidebar.classList.remove('open'); if (overlay) overlay.classList.remove('show'); }
+  function closeSidebar() {
+    document.querySelectorAll('.jr-nav.open').forEach(function(n) { n.classList.remove('open'); });
+    if (overlay) overlay.classList.remove('show');
+  }
 
-  if (burger)  burger.addEventListener('click', openSidebar);
   if (overlay) overlay.addEventListener('click', closeSidebar);
 
   // Fermeture du tiroir au clic sur une entrée (mobile).
-  // .jr-nav : espace coureur — .oc-sub : sous-menu de l'admin v2.1.
-  document.querySelectorAll('.jr-nav a.item, .oc-sub a.item').forEach(function(link) {
+  document.querySelectorAll('.jr-nav a.item').forEach(function(link) {
     link.addEventListener('click', closeSidebar);
   });
 

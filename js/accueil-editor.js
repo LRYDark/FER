@@ -2678,9 +2678,30 @@
   document.querySelectorAll('.ife-sb-tab').forEach(function(tab) {
     tab.addEventListener('click', function() { switchSidebarTab(tab.dataset.sbTab); });
   });
+  /* ── Petits écrans : amener le panneau sous les yeux ──────────────────────
+   * Sous 1024 px, l'éditeur s'empile : l'aperçu d'abord, le panneau de
+   * propriétés dessous (voir la media query d'inc/setting.php). Sur un aperçu
+   * long, taper une section remplissait donc un panneau situé à des centaines
+   * de pixels plus bas — rien ne semblait se passer, et on croyait l'éditeur
+   * inerte sur téléphone.
+   *
+   * On ne défile QUE s'il est réellement hors champ : sinon, changer d'onglet
+   * (« Propriétés » / « Ajouter ») ferait sauter la page sous le doigt à
+   * chaque clic, alors que le panneau est déjà lisible. */
+  function revelerPanneau() {
+    if (!window.matchMedia || !window.matchMedia('(max-width: 1024px)').matches) return;
+    var sb = document.querySelector('.ife-sidebar');
+    if (!sb) return;
+    var haut = sb.getBoundingClientRect().top;
+    if (haut >= 0 && haut < window.innerHeight * 0.6) return;   // déjà à l'écran
+    try { sb.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    catch (e) { sb.scrollIntoView(); }   // anciens navigateurs : sans options
+  }
+
   function switchSidebarTab(target) {
     document.querySelectorAll('.ife-sb-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.sbTab === target); });
     document.querySelectorAll('.ife-sb-pane').forEach(function(p) { p.classList.toggle('active', p.dataset.sbPane === target); });
+    revelerPanneau();
   }
 
   document.getElementById('ifeSbWidth').addEventListener('change', function() {

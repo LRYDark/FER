@@ -1011,8 +1011,25 @@ $jsConfig = json_encode([
 <div class="ed-pane <?= $activeSubTab==='envoi'?'active':'' ?>" id="paneEnvoi">
 <div class="bg-white p-4" style="border-radius:12px;">
   <?php /* data-oc-action : la barre du bas devient « Envoyer le mail ». Cet
-           écran n'enregistre rien, il agit. Voir src/partials/save-bar.php. */ ?>
-  <form id="fMail" data-oc-action="Envoyer le mail">
+           écran n'enregistre rien, il agit. Voir src/partials/save-bar.php.
+
+           data-catchall : état du garde-fou, recopié dans la demande de
+           confirmation. Sans lui, on confirmerait « envoyer à 312 inscrits »
+           alors que tout part en réalité vers une seule adresse de test — la
+           confirmation dirait le contraire de ce qui se passe. L'attribut
+           data-confirm, lui, est posé par le JavaScript (il porte le NOMBRE de
+           destinataires, qui change à chaque ajout). */ ?>
+  <?php
+  $envCatchall = function_exists('mailCatchallStatus') ? mailCatchallStatus() : [];
+  $envCatchallTxt = '';
+  if (!empty($envCatchall['actif'])) {
+      $envCatchallTxt = !empty($envCatchall['bloquant'])
+          ? "MODE TEST : aucune adresse de test valide — aucun mail ne partira."
+          : "MODE TEST : le mail n'ira PAS aux destinataires ci-dessous. Tout partira vers " . $envCatchall['adresse'] . '.';
+  }
+  ?>
+  <form id="fMail" data-oc-action="Envoyer le mail"
+        data-catchall="<?= htmlspecialchars($envCatchallTxt, ENT_QUOTES, 'UTF-8') ?>">
     <div class="row g-3">
       <!-- Destinataires -->
       <div class="col-12">
@@ -2712,11 +2729,21 @@ if (container) {
 
 } // fin de la garde « if (container) » — éditeur de template
 
-  // ── Confirm dialogs ──
-  document.addEventListener('submit', function(e){
-    var f=e.target.closest('form[data-confirm]');
-    if(f&&!confirm(f.dataset.confirm)) e.preventDefault();
-  });
+  /* ⚠️ LES CONFIRMATIONS (data-confirm) NE SONT PLUS TRAITÉES ICI.
+   *
+   * Cette copie faisait double emploi avec src/partials/confirm-script.php,
+   * inclus par admin-footer.php — le même doublon avait déjà été retiré de
+   * admin-footer.php pour cette raison. Les deux se déclenchaient : la
+   * question était posée DEUX FOIS.
+   *
+   * Et ici c'était pire qu'ailleurs : celle-ci écoutait en phase de
+   * REMONTÉE, donc APRÈS le gestionnaire du formulaire. Sur l'envoi de mail,
+   * la seconde question serait arrivée une fois le mail DÉJÀ parti, et
+   * répondre « Annuler » n'aurait rien annulé du tout.
+   *
+   * confirm-script.php, lui, écoute en CAPTURE et fait stopPropagation() :
+   * il passe avant l'envoi, et un refus l'empêche vraiment. C'est le seul et
+   * unique endroit où une confirmation se décide, pour tout le site. */
 })();
 </script>
 
@@ -2873,6 +2900,33 @@ $(document).ready(function() {
     if (counter) counter.textContent = selectedRecipients.length + ' destinataire(s) sélectionné(s)';
     var hidden = document.getElementById('hiddenRecipients');
     if (hidden) hidden.value = JSON.stringify(selectedRecipients);
+    majConfirmation();
+  }
+
+  /* ══ Demande de confirmation avant l'envoi ═══════════════════════════════
+   * ⚠️ VIA data-confirm, ET SURTOUT PAS DEPUIS L'ÉCOUTEUR `submit` DU
+   * FORMULAIRE. src/partials/confirm-script.php écoute en phase de CAPTURE et
+   * fait stopPropagation() : l'événement n'atteint jamais le formulaire, donc
+   * ni l'envoi, ni la garde anti double-clic de la barre du bas
+   * (save-bar.php), qui aurait grisé le bouton cinq secondes après un simple
+   * « Annuler ». Un refus laisse l'écran exactement dans l'état où il était.
+   *
+   * Le message est reconstruit à chaque changement de destinataire : il porte
+   * leur nombre, et un compte figé au chargement mentirait dès le premier
+   * ajout. Aucun destinataire ⇒ AUCUN attribut : sans cela on demandait
+   * « envoyer à 0 destinataire ? » juste avant l'alerte qui dit qu'il en faut
+   * un — deux fenêtres pour un clic qui ne partait pas. */
+  function majConfirmation() {
+    var f = document.getElementById('fMail');
+    if (!f) return;
+    if (selectedRecipients.length === 0) { f.removeAttribute('data-confirm'); return; }
+
+    var n = selectedRecipients.length;
+    var msg = 'Envoyer ce mail à ' + n + ' destinataire' + (n > 1 ? 's' : '') + ' ?';
+    var garde = f.getAttribute('data-catchall') || '';
+    if (garde) msg = garde + '\n\n' + msg;
+    else       msg += "\n\nL'envoi est immédiat et ne peut pas être rattrapé.";
+    f.setAttribute('data-confirm', msg);
   }
 
   /* ══ Event listeners ════ */

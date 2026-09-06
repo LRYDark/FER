@@ -501,12 +501,29 @@ body.oc-has-savebar .oc-page { padding-bottom: 116px; }
   box-shadow: 0 1px 3px rgba(16, 24, 40, .035), 0 4px 14px rgba(16, 24, 40, .055);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* ⚠️ flex-end, ET NON space-between. Les boutons se tiennent À DROITE de la
+     barre, toujours — c'est le côté où l'on va les chercher.
+     `space-between` ne les y mettait que TANT QUE la colonne de gauche
+     existait pour les y pousser : depuis qu'elle disparaît avec son bouton
+     « Annuler » (voir plus bas), la colonne de droite restait seule et
+     `space-between` la ramenait à gauche. « Envoyer le mail » se retrouvait
+     donc collé au bord gauche.
+     Ancrage à droite + `margin-right: auto` sur la gauche : le placement ne
+     dépend plus de la présence de l'autre colonne. */
+  justify-content: flex-end;
   gap: 16px;
   flex-wrap: wrap;
 }
+.oc-savebar .left { margin-right: auto; }
 .oc-savebar .left,
 .oc-savebar .right { display: flex; align-items: center; gap: 14px; }
+/* ⚠️ `display: flex` ci-dessus BAT l'attribut `hidden` : sans cette règle, la
+   colonne de gauche vidée de son bouton « Annuler » resterait un élément flex.
+   Sur mobile, où elle prend une ligne entière (`flex: 1 1 100%`), la gouttière
+   de la barre s'ajoutait alors au-dessus des boutons — deux fois plus d'air
+   en haut qu'en bas, et de la hauteur perdue là où il y en a le moins.
+   C'est save-bar.php qui pose et retire l'attribut, avec le bouton. */
+.oc-savebar .left[hidden] { display: none; }
 
 .oc-savebar .oc-state {
   display: flex; align-items: center; gap: 8px;
@@ -558,6 +575,12 @@ body.oc-has-savebar .oc-page { padding-bottom: 116px; }
   display: none;
   width: 40px; height: 40px;
   flex: none;
+  /* ⚠️ `align-self` EXPLICITE. `.oc-top` aligne ses enfants en `stretch` ; un
+     enfant dont la hauteur est FIXÉE ne s'étire pas, il se cale en haut de la
+     barre. Le burger pendait donc 11 px au-dessus du logo et de la puce du
+     compte, qui sont centrés — les deux autres par des conteneurs
+     intermédiaires (.oc-brand, .oc-topright) qui, eux, s'étirent. */
+  align-self: center;
   border: 0;
   border-radius: var(--radius-m, 12px);
   background: var(--oc-control);
@@ -567,8 +590,143 @@ body.oc-has-savebar .oc-page { padding-bottom: 116px; }
 }
 .oc-burger span { display: block; width: 16px; height: 2px; background: var(--ink-dim); border-radius: 2px; }
 
+/* ════════ TIROIR UNIQUE DES PETITS ÉCRANS (src/partials/mobile-nav.php) ════
+   Sous 861 px, les onglets du haut ET le sous-menu de gauche disparaissent au
+   profit de CE tiroir : sections en accordéon, entrées dessous. Deux
+   navigations sur un écran de téléphone — des onglets qui défilent sans
+   indice, plus un tiroir qui ne montrait que la section déjà ouverte —
+   rendaient la moitié des écrans introuvables.
+   Au-dessus de 861 px il n'existe pas du tout : `display: none` le sort aussi
+   de l'ordre de tabulation, ce qu'un simple `visibility` n'aurait pas fait. */
+.oc-mobilenav {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  /* 100dvh suit la barre d'adresse qui se replie ; 100vh d'abord pour les
+     navigateurs qui ignorent l'unité — sans elle, la déclaration tombe et le
+     tiroir ne fait plus que la hauteur de son contenu. */
+  height: 100vh;
+  height: 100dvh;
+  width: min(320px, 88vw);
+  flex-direction: column;
+  background: var(--canvas);
+  border-radius: 0 18px 18px 0;
+  box-shadow: 0 8px 40px rgba(16, 24, 40, .18);
+  transform: translateX(-105%);
+  transition: transform var(--dur-med, .25s) var(--ease-out, ease);
+  z-index: calc(var(--z-nav, 40) + 20);
+}
+.oc-mobilenav.open { transform: none; }
+
+.oc-mobilenav .mn-head {
+  flex: none;
+  height: var(--oc-top-h);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 10px 0 18px;
+  border-bottom: 1px solid var(--oc-line);
+}
+.oc-mobilenav .mn-title {
+  flex: 1; min-width: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.oc-mobilenav .mn-close {
+  flex: none;
+  width: 36px; height: 36px;
+  border: 0; border-radius: var(--radius-m, 12px);
+  background: var(--oc-control);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.oc-mobilenav .mn-close svg { width: 17px; height: 17px; stroke: var(--ink-dim); fill: none; stroke-width: 2; stroke-linecap: round; }
+
+.oc-mobilenav .mn-scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 10px calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+/* ---- Une entrée ---- */
+.oc-mobilenav .mn-item {
+  display: flex; align-items: center; gap: 12px;
+  /* 44 px de haut : c'est la cible tactile en dessous de laquelle on vise à
+     côté. Les 9 px du sous-menu de bureau se pointent à la souris, pas au
+     pouce. */
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink-dim);
+  font-size: 14.5px; font-weight: 500;
+}
+.oc-mobilenav .mn-item .lab { flex: 1; min-width: 0; }
+.oc-mobilenav .mn-item svg { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.oc-mobilenav .mn-item i { font-size: 17px; line-height: 1; width: 18px; flex: none; text-align: center; }
+.oc-mobilenav .mn-item:active { background: var(--oc-control); }
+.oc-mobilenav .mn-item.is-active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+.oc-mobilenav .mn-badge {
+  flex: none;
+  min-width: 20px; height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1;
+}
+.oc-mobilenav .mn-item.is-active .mn-badge { background: var(--accent-ink); color: var(--accent); }
+.oc-mobilenav .mn-badge.d-none { display: none; }
+
+/* ---- Une section dépliable ---- */
+.oc-mobilenav .mn-group { display: flex; flex-direction: column; }
+.oc-mobilenav .mn-grouphead {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 0; border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit; font-size: 14.5px; font-weight: 600; text-align: left;
+  cursor: pointer;
+}
+.oc-mobilenav .mn-grouphead .lab { flex: 1; min-width: 0; }
+.oc-mobilenav .mn-grouphead svg {
+  width: 16px; height: 16px; flex: none;
+  stroke: var(--ink-faint); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  transition: transform var(--dur-fast, .15s) var(--ease-out, ease);
+}
+.oc-mobilenav .mn-group.is-open > .mn-grouphead { background: var(--oc-control); }
+.oc-mobilenav .mn-group.is-open > .mn-grouphead svg { transform: rotate(180deg); }
+
+/* Repli / dépli en `grid-template-rows` 0fr → 1fr : la seule façon d'animer
+   une hauteur AUTOMATIQUE sans la mesurer en JavaScript. Un navigateur qui
+   n'anime pas cette propriété bascule d'un coup — le contenu reste juste. */
+.oc-mobilenav .mn-groupitems {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-med, .25s) var(--ease-out, ease);
+}
+.oc-mobilenav .mn-group.is-open > .mn-groupitems { grid-template-rows: 1fr; }
+.oc-mobilenav .mn-groupinner { overflow: hidden; min-height: 0; }
+.oc-mobilenav .mn-groupinner .mn-item { margin-left: 10px; font-size: 14px; }
+
+.oc-mobilenav .mn-foot { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--oc-line); }
+
+/* Le fond ne défile plus derrière le tiroir ouvert : sans ça, un balayage
+   posé à côté du menu faisait glisser la page dessous. */
+body.oc-nav-open { overflow: hidden; }
+
 @media (max-width: 1100px) {
-  .oc-body { padding: 20px 20px 0; gap: 24px; grid-template-columns: 220px minmax(0, 1fr); }
+  /* ⚠️ `.oc-body.is-wide` AUSSI, sinon son `padding-left: 40px` (deux classes,
+     donc plus spécifique que ce raccourci) survit et la page se retrouve
+     décalée : 40 px à gauche contre 20 à droite. C'est ce décalage qui faisait
+     paraître le tableau du tableau de bord « pas centré ». */
+  .oc-body,
+  .oc-body.is-wide { padding: 20px 20px 0; }
+  .oc-body { gap: 24px; grid-template-columns: 220px minmax(0, 1fr); }
   .oc-savebar { left: 16px; right: 16px; }
 }
 
@@ -579,24 +737,24 @@ body.oc-has-savebar .oc-page { padding-bottom: 116px; }
   .oc-user .who { display: none; }
   .oc-user { padding: 0 6px; }
 
-  .oc-body { grid-template-columns: minmax(0, 1fr); padding: 16px 14px 0; }
+  /* Les onglets de section et le sous-menu passent tous les deux dans le
+     tiroir : les laisser en plus aurait fait trois navigations. */
+  .oc-tabs { display: none; }
+  .oc-sub  { display: none; }
+  .oc-mobilenav { display: flex; }
 
-  /* Le sous-menu passe en tiroir : même carte, sortie par la gauche. */
-  .oc-sub {
-    position: fixed;
-    top: 0; left: 0;
-    height: 100vh;
-    width: min(300px, 85vw);
-    border-radius: 0 18px 18px 0;
-    overflow-y: auto;
-    transform: translateX(-105%);
-    transition: transform var(--dur-med, .25s) var(--ease-out, ease);
-    z-index: calc(var(--z-nav, 40) + 20);
-    box-shadow: 0 8px 40px rgba(16, 24, 40, .18);
-  }
-  .oc-sub.open { transform: none; }
-  .oc-sub a.item.is-active { margin-right: 0; }
-  .oc-sub a.item.is-active::after { display: none; }
+  /* Exception : une barre d'onglets qui n'a PAS de tiroir derrière elle reste
+     visible (espace coureur déconnecté, une seule entrée). Masquer une
+     navigation sans en offrir une autre, c'est la supprimer. */
+  .oc-tabs.is-always { display: flex; }
+
+  /* Le logo prend la place libérée et reste le repère de retour au tableau
+     de bord, sans pousser la puce du compte hors de l'écran. */
+  .oc-brand { flex: 1; min-width: 0; }
+
+  .oc-body,
+  .oc-body.is-wide { padding: 16px 14px 0; }
+  .oc-body { grid-template-columns: minmax(0, 1fr); }
 
   .oc-pagehead { flex-direction: column; align-items: flex-start; gap: 12px; }
   .oc-pagehead h1 { font-size: 22px; }
@@ -607,6 +765,12 @@ body.oc-has-savebar .oc-page { padding-bottom: 116px; }
   .oc-savebar .right .oc-btn { flex: 1; justify-content: center; }
   body.oc-has-savebar .oc-page { padding-bottom: 170px; }
 }
+
+/* Avertissement « mode test » doublé dans le contenu pour les écrans à
+   sous-menu : sur grand écran il est déjà dans le sous-menu, ici il ferait
+   doublon. */
+.oc-testmode.is-mobile-only { display: none; }
+@media (max-width: 860px) { .oc-testmode.is-mobile-only { display: flex; } }
 
 /* Overlay du tiroir : réutilise .oc-overlay d'admin.css (déjà stylé). */
 

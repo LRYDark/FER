@@ -74,9 +74,10 @@ $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     <div class="auth-pane">
       <a class="brand" href="../accueil.php">
         <?php if (file_exists(dirname(__DIR__, 2) . '/files/_logos/logo_fer_rose.png')): ?>
-          <img src="../../files/_logos/logo_fer_rose.png" alt="" style="height:32px;width:auto">
+          <img src="../../files/_logos/logo_fer_rose.png" alt="Forbach en Rose" style="height:56px;width:auto">
+        <?php else: ?>
+          <span class="name">Forbach en Rose</span>
         <?php endif; ?>
-        <span class="name">Forbach en Rose</span>
       </a>
 
       <div class="inner is-wide">

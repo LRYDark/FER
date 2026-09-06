@@ -117,7 +117,24 @@ if (!empty($pageReadOnly)) return;
   var btnSave  = document.getElementById('ocSaveBtn');
   var btnSite  = document.getElementById('ocSaveSiteBtn');
   var btnReset = document.getElementById('ocResetBtn');
+  var gauche   = bar.querySelector('.left');
   var libelleSave = btnSave.innerHTML;
+
+  /* ⚠️ LA COLONNE DE GAUCHE DISPARAÎT AVEC SON SEUL BOUTON.
+     Elle ne contient que « Annuler les modifications », masqué la plupart du
+     temps. Vide, elle restait pourtant un élément flex de la barre — et sur
+     mobile, où elle passe en `flex: 1 1 100%`, elle occupait une LIGNE ENTIÈRE
+     de hauteur nulle : la gouttière de 16 px de la barre s'ajoutait alors
+     au-dessus des boutons, qui n'avaient que les 12 px de remplissage en
+     dessous. D'où deux fois plus d'air au-dessus qu'en dessous, et autant de
+     hauteur perdue sur l'écran le plus étroit.
+     `hidden` seul ne suffirait pas : `.oc-savebar .left { display: flex }` le
+     réécrit — le CSS pose donc `.left[hidden] { display: none }`. */
+  function majReset(cache) {
+    btnReset.hidden = cache;
+    if (gauche) gauche.hidden = cache;
+  }
+  majReset(true);
 
   function tableau(l) { return Array.prototype.slice.call(l); }
 
@@ -247,7 +264,7 @@ if (!empty($pageReadOnly)) return;
         btnSave.innerHTML = s.liste[0].getAttribute('data-oc-action') || libelleSave;
         modeCourant = 'action';
       }
-      btnReset.hidden = true;
+      majReset(true);
       if (btnSite) btnSite.hidden = true;
       etat.hidden = true;
       btnSave.disabled = actionLancee;
@@ -282,7 +299,7 @@ if (!empty($pageReadOnly)) return;
       txt.textContent = n + ' modification' + (n > 1 ? 's' : '') + ' non enregistrée' + (n > 1 ? 's' : '');
     }
     btnSave.disabled = (n === 0);
-    btnReset.hidden  = (n === 0);
+    majReset(n === 0);
     if (btnSite) btnSite.disabled = (n === 0);
   }
 
@@ -349,7 +366,7 @@ if (!empty($pageReadOnly)) return;
     etat.dataset.state = 'saving';
     txt.textContent = 'Enregistrement…';
     btnSave.disabled = true;
-    btnReset.hidden = true;
+    majReset(true);
     if (btnSite) btnSite.disabled = true;
     btnSave.innerHTML = '<span class="oc-spin"></span>Enregistrement…';
     /* TinyMCE se branche sur l'événement `submit`, que form.submit() et
@@ -366,7 +383,7 @@ if (!empty($pageReadOnly)) return;
     txt.textContent = message;
     btnSave.innerHTML = libelleSave;
     btnSave.disabled = false;
-    btnReset.hidden = false;
+    majReset(false);
     if (btnSite) btnSite.disabled = false;
   }
 

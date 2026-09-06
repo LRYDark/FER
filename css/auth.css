@@ -68,7 +68,13 @@
   padding: 0.6rem 1rem; cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
-.oc-btn-passkey:hover { border-color: var(--accent); background: var(--accent-soft); }
+/* Survol NEUTRE : gris, pas de rose. Tout liseré teinté autour du fond
+   faisait un « anneau » dur, même très désaturé. Le rose reste porté par
+   la seule icône de clé, ce qui suffit à rattacher le bouton à la marque. */
+.oc-btn-passkey:hover {
+  border-color: var(--ink-faint);
+  background: var(--surface-2);
+}
 .oc-btn-passkey:disabled { opacity: 0.6; cursor: default; }
 .oc-btn-passkey svg { width: 17px; height: 17px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 

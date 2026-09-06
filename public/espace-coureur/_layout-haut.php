@@ -95,6 +95,16 @@ if ($ecConnecte && function_exists('notif_nonLusCount') && notif_luesDisponible(
 <div class="oc-shell ec-shell">
 
   <header class="oc-top">
+    <?php /* Sous 861 px, admin-shell.css masque les onglets : ils passent dans
+             le tiroir. Déconnecté il n'y a qu'une entrée (« Se connecter »),
+             qui reste alors visible — un burger pour une seule ligne, c'est un
+             geste de plus pour rien. */ ?>
+    <?php if ($ecConnecte): ?>
+      <button class="oc-burger" id="ocBurger" type="button" aria-label="Ouvrir le menu">
+        <span></span><span></span><span></span>
+      </button>
+    <?php endif; ?>
+
     <a class="oc-brand" href="../accueil.php" title="Forbach en Rose">
       <?php if (is_file($ecLogo)): ?>
         <img src="../../files/_logos/logo_fer_rose.png" alt="Forbach en Rose">
@@ -103,7 +113,10 @@ if ($ecConnecte && function_exists('notif_nonLusCount') && notif_luesDisponible(
       <?php endif; ?>
     </a>
 
-    <nav class="oc-tabs">
+    <?php /* `is-always` : les onglets restent affichés sur mobile quand il n'y
+             a pas de tiroir pour les recueillir. Sans ça, « Se connecter »
+             disparaissait purement et simplement du téléphone. */ ?>
+    <nav class="oc-tabs<?= $ecConnecte ? '' : ' is-always' ?>">
       <?php if ($ecConnecte): ?>
         <?php foreach ($ecMenu as $fichier => [$libelle, $icone]): ?>
           <?php $ecPastille = ($fichier === 'messages.php' && $ecNonLus > 0); ?>
@@ -161,6 +174,30 @@ if ($ecConnecte && function_exists('notif_nonLusCount') && notif_luesDisponible(
       <?php endif; ?>
     </div>
   </header>
+
+  <?php if ($ecConnecte): ?>
+    <?php
+    /* ═══ MENU DES PETITS ÉCRANS ═══
+     * Le MÊME tiroir que l'administration (src/partials/mobile-nav.php), avec
+     * le menu du coureur : plat, donc uniquement des entrées et aucune
+     * section dépliable. Les onglets du haut ne défilent plus dans une barre
+     * sans indice de débordement — on les voit tous d'un coup. */
+    $mnTitre  = 'Espace coureur';
+    $mnGroups = [];
+    $mnTop    = [];
+    foreach ($ecMenu as $fichier => [$libelle, $icone]) {
+        $e = ['href' => $fichier, 'label' => $libelle, 'bi' => $icone, 'active' => ($ecPage === $fichier)];
+        // Même compteur que la pastille des onglets : une seule source.
+        if ($fichier === 'messages.php') $e['badge'] = (int) $ecNonLus;
+        $mnTop[] = $e;
+    }
+    include dirname(__DIR__, 2) . '/src/partials/mobile-nav.php';
+    ?>
+    <?php /* Voile de fond du tiroir — stylé par .oc-overlay (css/admin.css).
+             L'administration le rend dans navbar-admin.php ; ici il n'existait
+             pas, la coquille du coureur n'ayant jamais eu de tiroir. */ ?>
+    <div class="oc-overlay" id="ocOverlay"></div>
+  <?php endif; ?>
 
   <div class="oc-body is-wide">
     <?php /* Colonne de lecture bornée par défaut : sur un grand écran, une
