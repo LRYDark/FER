@@ -5,6 +5,8 @@
  * Endpoint AJAX (POST uniquement, JSON en sortie) pour le widget de chat.
  * Actions :
  *   - ask          : analyse un message et renvoie la réponse du bot
+ *                    (greet=1 : accueil automatique à l'ouverture du widget —
+ *                    la seule réponse où Rosie se présente)
  *   - check_email  : vérifie une adresse e-mail (inscription / t-shirt)
  *   - contact_send : envoi du formulaire de contact (reprend la logique de
  *                    l'ancienne page contact.php : captcha + CSRF + rate-limit
@@ -106,13 +108,32 @@ if ($action === 'ask') {
         $_POST['context'] = $emailCtx;
         $action = 'check_email'; // tombe dans le bloc suivant
     } else {
-        [$intent] = chatbot_match_intent($norm);
+        // 1) Couche sociale : bonjour, « ça va ? », merci, au revoir… sont
+        //    reconnus et retirés ; il ne reste que la vraie question ($rest).
+        $social = chatbot_social_parse(chatbot_normalize($message, true));
+        $rest   = $social['rest'];
 
-        // Intentions intégrées d'abord ; sinon la FAQ gérée depuis l'admin
+        // Accueil automatique à l'ouverture du widget : présentation + sujets
+        if (!empty($_POST['greet'])) {
+            chatbot_json(['ok' => true, 'reply' => chatbot_social_reply($social, $set, true)]);
+        }
+
+        // 2) Moteur d'intentions sur ce qui reste, puis la FAQ de l'admin
+        $intent = 'fallback';
+        if ($rest !== '') [$intent] = chatbot_match_intent($rest);
+
         if ($intent === 'fallback') {
-            $faq = chatbot_faq_match($pdo, $norm);
-            if ($faq !== null) {
-                chatbot_json(['ok' => true, 'reply' => chatbot_faq_reply($faq)]);
+            if ($rest !== '') {
+                $faq = chatbot_faq_match($pdo, $rest);
+                if ($faq !== null) {
+                    chatbot_json(['ok' => true, 'reply' => chatbot_social_decorate(chatbot_faq_reply($faq), $social)]);
+                }
+            }
+            // Rien d'autre qu'un mot gentil (ou un « t'es un robot ? ») :
+            // Rosie répond elle-même, comme une personne
+            if ($rest === '') {
+                $reply = chatbot_social_reply($social, $set);
+                if ($reply !== null) chatbot_json(['ok' => true, 'reply' => $reply]);
             }
             // Vraiment incompris → journalisé (anonyme) pour enrichir le bot depuis l'admin
             try {
@@ -120,7 +141,8 @@ if ($action === 'ask') {
                     ->execute([mb_substr($message, 0, 500)]);
             } catch (\Throwable $e) { /* table absente avant migration : non bloquant */ }
         }
-        chatbot_json(['ok' => true, 'reply' => chatbot_answer($intent, $set)]);
+        // La politesse du message habille la réponse (« Bonjour ! … »)
+        chatbot_json(['ok' => true, 'reply' => chatbot_social_decorate(chatbot_answer($intent, $set), $social)]);
     }
 }
 

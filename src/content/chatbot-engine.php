@@ -9,11 +9,24 @@
  * des inscriptions (vérification par e-mail, sans jamais divulguer de données
  * personnelles : uniquement oui/non + compte).
  *
+ * Deux étages, dans cet ordre (voir public/chatbot-api.php) :
+ *   1. la couche « politesse & petite conversation » (chatbot_social_*) :
+ *      salutations, « ça va ? », merci, au revoir, « t'es un robot ? »… sont
+ *      reconnus et RETIRÉS du message — Rosie y répond comme une personne ;
+ *   2. le moteur d'intentions (chatbot_match_intent) ne voit que ce qui
+ *      reste : la vraie question. « salut, je suis inscrite ? » répond donc à
+ *      la question, précédée d'un « Salut ! ».
+ *
  * Utilisé par public/chatbot-api.php.
  */
 
-/** Normalise un message : minuscules, sans accents, ponctuation → espaces. */
-function chatbot_normalize(string $s): string
+/**
+ * Normalise un message : minuscules, sans accents, ponctuation → espaces.
+ * En mode $keepPunct (couche sociale), la ponctuation n'est pas effacée mais
+ * réduite à deux jetons : « ? » (question) et « , » (toute autre frontière de
+ * proposition : virgule, point, « ! », parenthèse…). Le reste est identique.
+ */
+function chatbot_normalize(string $s, bool $keepPunct = false): string
 {
     // Défense : certains proxys/WAF convertissent les POST UTF-8 en Latin-1 —
     // on re-convertit pour ne pas perdre les accents (sinon "où"→"o ").
@@ -35,6 +48,15 @@ function chatbot_normalize(string $s): string
     $s = preg_replace('/\bt[\s\-_.]?shirts?\b|\btee[\s\-]?shirts?\b/u', 'tshirt', $s);
     // Apostrophes et ponctuation → espaces
     $s = preg_replace("/[’'´`]/u", ' ', $s);
+    if ($keepPunct) {
+        $s = preg_replace('/[^a-z0-9@,;:!?.…()«»"\s-]/u', ' ', $s);
+        // Une suite de ponctuation = UN jeton : « ? » si elle contient un
+        // point d'interrogation (« ?! », « ??? »), « , » sinon.
+        $s = preg_replace_callback('/(?:\s*[,;:!?.…()«»"]\s*)+/u', function ($m) {
+            return strpos($m[0], '?') !== false ? ' ? ' : ' , ';
+        }, $s);
+        return trim(preg_replace('/\s+/', ' ', $s));
+    }
     $s = preg_replace('/[^a-z0-9@.\s-]/u', ' ', $s);
     return trim(preg_replace('/\s+/', ' ', $s));
 }
@@ -308,16 +330,8 @@ function chatbot_match_intent(string $norm): array
             ['/\brecu fiscal\b|\bdefiscali|\bdeduction\b/', 5],
             ['/\b(cancer|ligue|depistage)\b/', 2],
         ],
-        // Politesse
-        'greeting' => [
-            ['/^(bonjour|bonsoir|salut|coucou|hello|hey|yo|bjr|slt)\b/', 5],
-        ],
-        'thanks' => [
-            ['/\b(mercii?s?|thanks|super|genial|parfait|top|nickel|cool)\b/', 3],
-        ],
-        'bye' => [
-            ['/\b(au revoir|a bientot|bonne (journee|soiree)|bye|ciao|a plus)\b/', 4],
-        ],
+        // Politesse (bonjour, merci, au revoir…) : ce n'est plus une intention
+        // — la couche chatbot_social_* la traite AVANT d'arriver ici.
     ];
 
     $best = 'fallback';
@@ -332,6 +346,332 @@ function chatbot_match_intent(string $norm): array
     // Seuil minimal : un score de 1 seul (ex. juste le mot "tshirt") reste accepté,
     // mais un score nul = incompris.
     return [$bestScore > 0 ? $best : 'fallback', $bestScore];
+}
+
+/* ═══════════════════ Politesse & petite conversation ═══════════════════
+ *
+ * Un visiteur ne parle pas par mots-clés : il écrit « bonjour ça va ? »,
+ * « merci beaucoup », « salut, je voudrais savoir si je suis inscrite ».
+ * Cette couche reconnaît la part SOCIALE du message (salutation, « ça va ? »,
+ * merci, au revoir, s'il vous plaît, « tu es un robot ? »…), la RETIRE, et
+ * confie le reste au moteur d'intentions ci-dessus. S'il ne reste rien, elle
+ * répond elle-même — chaleureusement, en variant ses formulations, et sans
+ * jamais se présenter deux fois (la présentation est réservée à l'accueil).
+ *
+ * Le texte analysé est normalisé AVEC la ponctuation (chatbot_normalize en
+ * mode $keepPunct : « , » marque une frontière de proposition, « ? » une
+ * question). C'est ce qui permet de distinguer « ça va ? je suis inscrite ? »
+ * (deux propositions) de « je suis bien inscrite » (où « bien » n'a rien de
+ * social) : les formules de bien-être ne sont retirées qu'en tête ou en fin
+ * de proposition, jamais au milieu d'une phrase.
+ */
+
+/** Sujets proposés en réponses rapides quand Rosie « relance ». */
+function chatbot_quick_default(): array
+{
+    return ['✅ Mon inscription', '🎽 T-shirt', '💶 Tarifs', '📩 QR code non reçu', '📍 Lieu & horaires', '❓ Voir la FAQ', '✉️ Nous écrire'];
+}
+
+/** Une formulation au hasard : la même phrase trois fois de suite sent le robot. */
+function chatbot_pick(array $variants): string
+{
+    return $variants[array_rand($variants)];
+}
+
+/**
+ * Le mot de salutation à renvoyer. On reprend celui du visiteur (« Salut » à
+ * qui dit salut, « Bonsoir » à qui dit bonsoir) ; sans indice, l'heure du
+ * serveur tranche entre Bonjour et Bonsoir.
+ */
+function chatbot_hello(string $said = ''): string
+{
+    if ($said !== '') {
+        if ($said === 're' || preg_match('/^re[- ]?bonjour/', $said))  return 'Re-bonjour';
+        if (strpos($said, 'bonsoir') !== false)                          return 'Bonsoir';
+        if (in_array($said, ['salut', 'slt'], true))                     return 'Salut';
+        if (in_array($said, ['coucou', 'cc'], true))                     return 'Coucou';
+        if (in_array($said, ['hello', 'hi', 'hey'], true))               return 'Hello';
+        if (strpos($said, 'bonjour') === 0 || $said === 'bjr')           return 'Bonjour';
+    }
+    $h = (int)date('G');
+    return ($h >= 18 || $h < 5) ? 'Bonsoir' : 'Bonjour';
+}
+
+/**
+ * Tous les motifs de la couche sociale (texte normalisé : minuscules, sans
+ * accents, apostrophes → espaces, « , » et « ? » comme frontières).
+ * UN motif par ligne : le script de test les relit tels quels.
+ *   - motifs « retirés »  : appliqués sur le message, la partie reconnue est
+ *                           effacée (greeting … presence)
+ *   - motifs « w_… »      : le message ENTIER (ancré ^…$ par l'appelant)
+ *   - leadin / filler     : amorces retirées en tête, mots vides résiduels
+ */
+function chatbot_social_patterns(): array
+{
+    $L  = '(?<=^|[,?])\s*';      // début de proposition
+    $R  = '\s*(?=[,?]|$)';       // fin de proposition
+    $hi = '(re[- ]?bonjour|bonjours?|bonsoir|salut|coucou|hello|hi|hey|yo|wesh|bjr|slt)';
+    return [
+        'greeting'      => '\b' . $hi . '\b(\s+a\s+(tous|toutes|vous|toi))?(\s+(madame|monsieur|tout\s+le\s+monde|l\s+assistante?|le\s+robot))?',
+        'greeting_sms'  => '^\s*(cc|re)' . $R,
+        'named'         => '\brosie\b',
+        'please'        => '\b(s\s*il\s+(vous|te)\s+plait|svp|stp|please|siouplait|siouplai)\b',
+        'thanks'        => '\b(merci+s?(\s+(beaucoup|bien|infiniment|mille\s+fois|d\s+avance|a\s+(toi|vous)))?(\s+pour\s+((ton|votre|vos|ces|cette|la|le|les|l|tout)\s+)?\w+)?|merki|thanks?|thank\s+you|thx|je\s+(te|vous)\s+remercie(\s+d\s+avance)?)\b',
+        'confused_q'    => $L . '(pardon|comment|quoi|hein|je\s+(ne\s+)?comprends\s+pas|j\s+ai\s+pas\s+compris|je\s+n\s+ai\s+pas\s+compris|pas\s+compris|c\s+est\s+a\s+dire|comment\s+ca)\s*(?=\?)',
+        'compliment'    => $L . '(c\s+est\s+(tres\s+|trop\s+|vraiment\s+)?(gentil|sympa|adorable|top|cool)|(t|tu|vous)\s+(es|etes)\s+(trop\s+|tres\s+|vraiment\s+|super\s+)?(gentil|gentille|sympa|cool|genial|geniale|forte?|top|au\s+top|mignonne?|belle|beau|intelligente?|efficace|rapide|la\s+meilleure|le\s+meilleur|super|adorable|parfaite?|drole)|je\s+(t|vous)\s+(aime|adore|kiffe)|bravo|felicitations?|bien\s+joue|chapeau|respect|(beau|bon)\s+(travail|boulot)|(tu|vous)\s+(m\s+as|m\s+avez)\s+(bien\s+|beaucoup\s+|vraiment\s+)?aidee?|tu\s+(assures|geres|dechires)|(tres|trop)\s+(gentil|gentille|sympa))' . $R,
+        'apology'       => $L . '(pardon|desolee?|excuse[- ]?moi|excusez[- ]?moi|oups|oops|mince|zut|je\s+m\s+excuse|toutes\s+mes\s+excuses|autant\s+pour\s+moi|my\s+bad)' . $R,
+        'bye'           => '\b(au\s+revoir|a\s+bientot|a\s+plus(\s+tard)?|a\s+tout\s+a\s+l\s+heure|a\s+la\s+prochaine|a\s+demain|a\s+(dimanche|samedi|lundi|mardi|mercredi|jeudi|vendredi)|a\s+tres\s+vite|a\s+tout\s+de\s+suite|bonne\s+(journee|soiree|nuit|continuation|fin\s+de\s+journee|semaine|apres[- ]?midi|chance|route)(\s+a\s+(toi|vous|tous|toutes))?|bon\s+(week[- ]?end|courage|dimanche|apres[- ]?midi|retablissement)|bye+|ciao|tchao|tchuss|je\s+(vous|te)\s+laisse|adieu|bisous?|bises|bonne\s+course(\s+a\s+(tous|toutes))?)' . $R,
+        'how_are_you_q' => $L . '((ca|sa)\s+va(\s+bien)?|(tu|vous)\s+(vas|allez)\s+bien|bien)\s*(?=\?)',
+        'not_fine'      => $L . '((oh|ah|ben|bah|bof|non)\s+)?((ca|sa)\s+va\s+pas(\s+(trop|tres|fort|top|terrible|du\s+tout))?|pas\s+(trop|tres|top|terrible|super|genial|fort|la\s+forme|la\s+peche|le\s+moral|ouf|(tres\s+|trop\s+)?bien)|bof|couci[- ]?couca|comme\s+ci\s+comme\s+ca|je\s+vais\s+(mal|pas\s+bien|moyen)|(je\s+suis|chui|j\s+suis|je\s+me\s+sens)\s+(fatiguee?|crevee?|epuisee?|triste|malade|stressee?|deprimee?|pas\s+bien|mal|pas\s+top|nulle?|au\s+bout|hs)|mauvaise\s+journee|(ca|sa)\s+pourrait\s+aller\s+mieux|moyen(nement)?|mal|(ca|sa)\s+va\s+moyen|dure\s+journee|journee\s+difficile)' . $R,
+        'fine'          => $L . '((oui|ouais|ouai|moi|nous|ben|bah|oh|ah)\s+)?(((je|moi\s+je|j)\s+(vais|suis)|on\s+va|nous\s+allons|tout\s+va|(ca|sa)\s+va|je\s+me\s+sens)\s+(tres\s+|super\s+|plutot\s+|assez\s+|vraiment\s+|trop\s+|tout\s+a\s+fait\s+)?(bien|nickel|impec\w*|super|top|au\s+top|en\s+(pleine\s+)?forme|parfaitement|a\s+merveille|tranquille|cool|d\s+enfer)|(oui|ouais|ouai|moi)\s+(ca|sa)\s+va|(ca|sa)\s+va(?=\s+(merci|et\s+(toi|vous)\b))|(tres|plutot|super|vraiment)\s+bien|bien(?=\s+(merci|et\s+(toi|vous)\b))|en\s+(pleine\s+)?forme|tout\s+va\s+bien|(ca|sa)\s+roule|(ca|sa)\s+gaze|la\s+peche|pas\s+mal)(\s+(aujourd\s+hui|ce\s+matin|ce\s+soir|en\s+ce\s+moment))?(\s+merci)?\s*(?=[,?]|$|et\s+(toi|vous)\b)',
+        'how_are_you'   => $L . '(et\s+)?(alors\s+)?(comment\s+((ca|sa)\s+va|vas[- ]?tu|allez[- ]?vous|tu\s+vas|vous\s+allez|va)|(ca|sa)\s+va(\s+bien)?|(tu|vous|t)\s+(vas|allez|es|etes)\s+(bien|en\s+forme)|la\s+forme|quoi\s+de\s+neuf|cava|sava)(\s+(aujourd\s+hui|ce\s+matin|ce\s+soir|en\s+ce\s+moment))?\s*(?=[,?]|$|et\s+(toi|vous)\b)',
+        'askback'       => $L . 'et\s+(toi|vous)(\s+(ca|sa)\s+va)?' . $R,
+        'presence'      => $L . '((t|tu)\s+es\s+(toujours\s+|encore\s+)?la|vous\s+etes\s+(toujours\s+|encore\s+)?la|(il\s+)?y\s+a\s+quelqu\s+un|ya\s+quelqu\s+un|quelqu\s+un|allo+|tu\s+m\s+entends|vous\s+m\s+entendez|c\s+est\s+(bien\s+)?(toi|vous)|tu\s+es|t\s+es|vous\s+etes)' . $R,
+        // ── Messages entiers ──
+        'w_rude'        => '(?:\w+ ){0,3}(?:connard|connasse|con|conne|salope|pute|putain|merde|fdp|ntm|nique|encule|batard|batarde|ta gueule|tg|debile|idiot|idiote|stupide|nul|nulle|inutile|abruti|cretin|bouffon|bouffonne|ferme la|va te faire|tu sers a rien|imbecile|pourri|pourrie|de merde|a chier|bidon|naze|casse toi|degage|va chier|ta mere|fuck|shit|bullshit|wtf|(?:tu es|t es) (?:nul|nulle|bete|con|conne|inutile)|vous etes (?:nuls?|nulles?|betes?|inutiles?))(?: \w+){0,3}',
+        'w_identity'    => 'qui (?:es|est|etes)[- ](?:tu|vous|ce)|(?:t|tu) es qui|vous etes qui|c est qui(?: ca| toi)?|(?:t|tu|vous) (?:es|etes) (?:un|une) (?:robot|humain|humaine|machine|ia|bot|vraie personne|personne reelle|personne|intelligence artificielle|vrai humain|vraie humaine|femme|fille|homme|garcon|mec|nana)|(?:es|est|etes)[- ](?:tu|vous) (?:un|une) (?:robot|humain|humaine|bot|ia|machine|vraie personne|personne)|est[- ]ce (?:que tu es|que vous etes|que t es|un robot|une vraie personne|une personne|un humain)(?: (?:un|une) \w+(?: \w+)?)?|je parle a (?:un|une) (?:robot|humain|humaine|bot|machine|vraie personne|personne)|c est (?:un|une) (?:robot|humain|humaine|bot|machine|vraie personne)|comment (?:tu t appelles?|vous vous appelez|tu te nommes|t appelles? tu|vous appelez vous)|(?:c est quoi |quel est )?(?:ton|votre) (?:nom|prenom)|(?:tu t appelles?|vous vous appelez) comment|(?:tu|vous) (?:fais|faites) quoi(?: dans la vie)?|que (?:fais|faites)[- ](?:tu|vous)(?: dans la vie)?|(?:tu es|t es|vous etes) (?:reelle?|vraie?|humaine?|virtuelle?)|robot|un robot|une ia|une machine|qui parle|a qui je parle|je parle a qui|avec qui je parle|c est quoi|(?:tu|vous) (?:es|etes) (?:chatgpt|une ia|gpt|google|siri|alexa)|qui t a (?:cree|creee|fait|faite|programme|programmee|concu|concue)|qui vous a (?:cree|creee|fait|programme)',
+        'w_age'         => '(?:tu as|t as|vous avez) quel age|quel age (?:as[- ]tu|avez[- ]vous|tu as|t as|vous avez)|(?:tu|vous) (?:as|avez) (?:\d+ ans|quel age)|ton age|votre age|c est quoi ton age',
+        'w_confused'    => 'je ne comprends pas|je comprends pas|comprends pas|pas compris|j ai pas compris|je n ai pas compris|c est a dire|comment ca|hein|quoi|comment|pardon|je ne comprends rien|je comprends rien|j ai rien compris|je n ai rien compris',
+        'w_help'        => 'aide|aidez[- ]?moi|aide[- ]?moi|help|sos|au secours|je (?:ne )?sais pas(?: quoi (?:demander|faire|dire|choisir))?|(?:que|qu est[- ]ce que|quoi) (?:peux|peut|sais|sait|pouvez|savez)[- ](?:tu|vous|on)(?: (?:faire|me dire|m apporter|pour moi))?|(?:tu|vous) (?:sers|servez|fais|faites) a quoi|tu (?:sais|peux) faire quoi|(?:tu|vous) (?:peux|pouvez) (?:m|nous) aider(?: (?:a|pour|avec) quoi)?|(?:a quoi|pour quoi) (?:tu sers|vous servez|ca sert)|c est quoi (?:ce (?:truc|chat|machin|bidule)|ca|cette fenetre|ce chat|ici)|que faire|quelles? (?:questions?|sujets?|choix|options?)|menu|options?|la liste|montre[- ]moi|montrez[- ]moi|liste des questions|les questions|voir les questions|afficher les questions|(?:mon|le) menu|accueil|recommencer|retour|debut|(?:tu|vous) (?:proposes?|proposez) quoi|que (?:proposes|proposez)[- ](?:tu|vous)|qu est[- ]ce (?:que tu proposes|que vous proposez|qu on peut faire ici)|(?:tu|vous) (?:peux|pouvez) faire quoi(?: pour moi)?',
+        'w_question_intro' => 'j ai une (?:petite |autre |derniere |deuxieme )?question|(?:petite |une |autre )?question|je (?:voudrais|voudrai|veux|souhaite|souhaiterais|aimerais|aimerai) (?:savoir|vous demander|te demander|poser une question|demander|un renseignement|une info|des infos|me renseigner)(?: quelque chose| qqch| un truc)?|(?:je peux|puis[- ]je|est[- ]ce que je peux|je pourrais) (?:te|vous) poser une question|j aurais une (?:petite )?question|besoin d (?:une )?info(?:rmation)?s?|j ai besoin d aide|j aurais besoin d aide|j ai besoin d (?:un )?renseignement|renseignements?|je cherche une info|infos?|informations?|une info|des infos|je (?:voudrais|veux|aimerais) (?:un|des) (?:renseignements?|infos?|informations?)|(?:tu|vous) (?:peux|pouvez) me renseigner|(?:je peux|puis[- ]je) (?:te|vous) demander (?:quelque chose|un truc|qqch)|dis[- ]?moi|dites[- ]?moi|je t ecoute|je vous ecoute',
+        'w_laugh'       => '(?:ha|ah|ho|hi|he){2,}\w*|(?:ha ?){2,}|lol|mdr|ptdr|xd|xdd|rire|trop drole|mort de rire|elle est bonne|(?:tu es|t es|vous etes) (?:drole|marrante?|rigolote?)|marrant|marrante|rigolo|rigolote',
+        'w_praise'      => '(?:ok |ah |oh |c est |c etait |trop |tres |vraiment |tout )?(?:super|top|au top|parfait|genial|geniale|cool|nickel|impeccable|impec|excellent|excellente|chouette|formidable|magnifique|extra|bien|clair|tres clair|parfaitement clair|tout bon|exactement|voila|tout a fait|bien vu|trop fort|trop forte|j adore|je kiffe|c est ca)(?: (?:super|top|parfait|genial|cool|nickel|merci|ok|clair|bien|alors|donc))*',
+        'w_ack_no'      => 'non|nan|nope|no|non merci|nan merci|non c est bon|non c est tout|c est bon|c est tout|rien|rien d autre|ca ira|ca va aller|pas besoin|pas pour le moment|pas maintenant|je n ai pas de question|j ai pas de question|aucune|aucune question|non ca va|non ca ira|non rien|c est tout pour moi|ce sera tout|ca sera tout|c est bon merci|non c est bon merci|laisse tomber|laissez tomber|pas la peine|tant pis|ok c est bon|non rien d autre|nan c est bon',
+        'w_ack_yes'     => 'ok|okay|oki|okey|d accord|dac|d acc|ca marche|ca roule|entendu|compris|bien recu|je vois|ah ok|ah d accord|ah bon|ah|oh|oui|ouais|ouai|yes|yep|si|volontiers|avec plaisir|je veux bien|c est note|note|ca me va|pas de souci|pas de probleme|ok ca marche|ok super|ok d accord|d accord merci|ok merci|oui merci|ah ok merci|ah d accord merci|bien sur|evidemment|carrement|allez|allons y|go|c est parti|vas y|allez y|ok je t ecoute|ok dis moi',
+        // ── Amorces (tête de phrase) et mots vides ──
+        'leadin'        => 'et|alors|donc|du coup|euh|heu|hum|ben|bah|bon|ok|d accord|dis[- ]?moi|dites[- ]?moi|excusez[- ]?moi|excuse[- ]?moi|juste|petite question|j ai une (?:petite |autre )?question|une question|question|j aurais une question|(?:tu|vous) (?:peux|pouvez) m aider(?: (?:a|pour|avec))?|j ai besoin d aide(?: (?:pour|avec))?|j aurais besoin d aide(?: (?:pour|avec))?|aidez[- ]?moi(?: (?:a|pour|avec))?|aide[- ]?moi(?: (?:a|pour|avec))?|je (?:voudrais|voudrai|veux|souhaite|souhaiterais|aimerais|aimerai) (?:savoir|vous demander|te demander|demander)|(?:est[- ]ce que )?(?:tu|vous) (?:sais|savez|peux|pouvez) me dire|(?:pouvez|peux)[- ](?:vous|tu) me dire|(?:je peux|puis[- ]je|je voudrais|je voulais|je pourrais) (?:te|vous) poser une question',
+        'filler'        => 'et|ou|mais|donc|alors|a|de|du|le|la|les|un|une|des|ca|sa|c|est|ce|en|y|il|elle|on|je|tu|vous|moi|toi|nous|bien|tres|trop|aussi|encore|vraiment|voila|hein|quoi|ah|oh|eh|euh|heu|hum|ben|bah|bon|ok|d|accord|puis|pour|par|sur|avec|si|me|te|se|ne|pas|que|qui|-|\.',
+    ];
+}
+
+/**
+ * Sépare la part sociale d'un message de sa vraie question.
+ * @param  string $text message normalisé AVEC ponctuation : chatbot_normalize($msg, true)
+ * @return array {tags: array<string,bool>, hello: string, askback: bool, rest: string}
+ *         rest = ce qu'il reste à comprendre (normalisé comme chatbot_normalize),
+ *         '' si le message n'était que de la politesse.
+ */
+function chatbot_social_parse(string $text): array
+{
+    $P = chatbot_social_patterns();
+    $tags = []; $hello = ''; $askback = false;
+    $s = ' ' . $text . ' ';
+
+    // Retire un motif du texte et pose son étiquette. Vrai s'il a matché.
+    $take = function (string $key, string $tag) use (&$s, &$tags, $P): bool {
+        $re = '/' . $P[$key] . '/';
+        if (!preg_match($re, $s)) return false;
+        $s = preg_replace($re, ' ', $s);
+        $tags[$tag] = true;
+        return true;
+    };
+
+    // 1) Salutation — n'importe où ; on retient le mot pour le renvoyer
+    if (preg_match('/' . $P['greeting'] . '/', $s, $m) || preg_match('/' . $P['greeting_sms'] . '/', $s, $m)) {
+        $hello = $m[1];
+        $take('greeting', 'greeting') || $take('greeting_sms', 'greeting');
+    }
+    // Bien-être : la question explicite (« ça va bien ? ») avant les affirmations.
+    // Passé DEUX fois : avant le retrait du « merci » (« je vais bien merci »,
+    // « ça va merci » sont des affirmations, pas des questions) et après
+    // (« merci ça va ? » ne devient une question qu'une fois « merci » ôté).
+    $wellbeing = function () use ($take, &$askback): void {
+        $take('how_are_you_q', 'how_are_you');
+        $take('not_fine', 'not_fine');
+        $take('fine', 'fine');
+        $take('how_are_you', 'how_are_you');
+        if ($take('askback', 'how_are_you')) $askback = true;   // « et vous ? » : on répond sans redemander
+    };
+    // 2) Interpellation, s'il vous plaît
+    $take('named', 'named');
+    $take('please', 'please');
+    // 3) Bien-être (1er passage), puis merci
+    $wellbeing();
+    $take('thanks', 'thanks');
+    // 4) « pardon ? », compliments, excuses, au revoir
+    $take('confused_q', 'confused');
+    $take('compliment', 'compliment');
+    $take('apology', 'apology');
+    $take('bye', 'bye');
+    // 5) Bien-être (2e passage), « tu es là ? »
+    $wellbeing();
+    $take('presence', 'presence');
+
+    // 6) Ce qu'il reste : la vraie question (ou rien)
+    $rest = trim(preg_replace('/\s+/', ' ', str_replace([',', '?'], ' ', $s)));
+
+    // Message entier = petite conversation (identité, aide, oui/non, rire…)
+    if ($rest !== '') {
+        foreach ($P as $key => $re) {
+            if (strpos($key, 'w_') !== 0) continue;
+            if (preg_match('/^(?:' . $re . ')$/', $rest)) { $tags[substr($key, 2)] = true; $rest = ''; break; }
+        }
+    }
+    if ($rest !== '') {
+        // Amorces retirées pour que le moteur voie la question elle-même
+        $rest = preg_replace('/^(?:(?:' . $P['leadin'] . ')\s+)+/', '', $rest);
+        // Il ne reste que des mots vides (« et », « alors »…) → rien à comprendre
+        if (preg_match('/^(?:(?:' . $P['filler'] . ')\s*)+$/', $rest)) $rest = '';
+    }
+    if ($rest === '' && !$tags) $tags['emoji'] = true;   // que des émojis / de la ponctuation
+
+    return ['tags' => $tags, 'hello' => $hello, 'askback' => $askback, 'rest' => $rest];
+}
+
+/**
+ * Réponse de Rosie quand le message n'était QUE de la petite conversation.
+ * @param array $p     résultat de chatbot_social_parse()
+ * @param array $set   ligne complète de `setting`
+ * @param bool  $intro accueil automatique à l'ouverture du widget : la seule
+ *                     fois où Rosie se présente
+ * @return array|null  {text, quick, action} — null si rien de social
+ */
+function chatbot_social_reply(array $p, array $set, bool $intro = false): ?array
+{
+    $t = $p['tags'];
+    $r = ['text' => '', 'quick' => [], 'action' => null];
+    $hello = chatbot_hello($p['hello'] ?? '');
+    $named = !empty($t['named']);
+
+    if ($intro) {
+        $extra = '';
+        $ts = !empty($set['date_course']) ? strtotime($set['date_course']) : false;
+        if ($ts && $ts > time()) {
+            $days = (int)ceil(($ts - time()) / 86400);
+            $extra = ' Plus que <strong>' . $days . ' jour' . ($days > 1 ? 's' : '') . '</strong> avant la course ! 🎉';
+        }
+        $r['text'] = $hello . ' ! 👋 Je suis <strong>Rosie</strong>, l\'assistante de Forbach en Rose.' . $extra
+                   . '<br>Comment puis-je vous aider ?';
+        $r['quick'] = chatbot_quick_default();
+        return $r;
+    }
+    if (!$t) return null;
+
+    // Grossièreté ou coup de sang : on ne relève pas, on reste douce et utile
+    if (!empty($t['rude'])) {
+        $r['text'] = 'Oh… je suis désolée si quelque chose vous a contrarié. 💗 Je fais de mon mieux ! '
+                   . 'Dites-moi ce dont vous avez besoin — ou écrivez-nous, une vraie personne vous répondra.';
+        $r['quick'] = chatbot_quick_default();
+        return $r;
+    }
+
+    // Au revoir : on clôt (avec le merci s'il y en a un), sans relancer
+    if (!empty($t['bye'])) {
+        $txt = !empty($t['thanks']) ? chatbot_pick(['Avec plaisir ! 💗 ', 'Je vous en prie ! 💗 ']) : '';
+        $txt .= chatbot_pick([
+            'À bientôt, et merci de soutenir la lutte contre le cancer du sein ! 🎀',
+            'Bonne journée à vous, et à bientôt sur Forbach en Rose ! 🎀',
+            'Au revoir, prenez soin de vous ! 💗🎀',
+        ]);
+        $r['text'] = $txt;
+        return $r;
+    }
+
+    $parts = [];        // phrases, dans l'ordre : salutation → bien-être → merci → …
+    $relance = true;    // finir par « Comment puis-je vous aider ? » + sujets
+    $quick = true;
+
+    if (!empty($t['greeting'])) {
+        $parts[] = $hello . ' ! ' . chatbot_pick(['👋', '😊', '🎀']);
+    }
+    if (!empty($t['presence'])) {
+        $parts[] = $named ? 'Oui, c\'est bien moi, Rosie ! 😊' : 'Oui, je suis là ! 😊';
+    } elseif ($named && count($t) === 1) {
+        $parts[] = 'Oui, c\'est moi ! 😊';
+    }
+    if (!empty($t['not_fine'])) {
+        $parts[] = chatbot_pick([
+            'Oh, je suis désolée de l\'entendre… 💗 J\'espère pouvoir vous rendre la journée un peu plus douce.',
+            'Oh non… 💗 Courage ! Si je peux vous aider en quoi que ce soit, je suis là.',
+        ]);
+    } elseif (!empty($t['fine']) && !empty($t['how_are_you'])) {
+        $parts[] = chatbot_pick([
+            'Ravie de l\'entendre ! Moi, je vais très bien, merci 😊',
+            'Super ! Moi ça va très bien, merci de demander 😊',
+        ]);
+    } elseif (!empty($t['fine'])) {
+        $parts[] = chatbot_pick(['Ravie de l\'entendre ! 😊', 'Tant mieux ! 😊', 'Parfait, ça fait plaisir ! 😊']);
+    } elseif (!empty($t['how_are_you'])) {
+        $parts[] = !empty($p['askback'])
+            ? chatbot_pick(['Je vais très bien, merci de demander ! 😊', 'Très bien, merci ! 😊'])
+            : chatbot_pick([
+                'Je vais très bien, merci ! Et vous ? 😊',
+                'Très bien, merci de demander ! Et vous, ça va ? 😊',
+                'En pleine forme, merci ! Et vous ? 😊',
+            ]);
+    }
+    if (!empty($t['apology'])) {
+        $parts[] = chatbot_pick(['Pas de souci, ça arrive ! 😊', 'Aucun problème ! 😊']);
+    }
+    $wellbeing = !empty($t['not_fine']) || !empty($t['fine']) || !empty($t['how_are_you']);
+    if (!empty($t['compliment'])) {
+        $parts[] = chatbot_pick(['Oh, merci, vous êtes adorable ! 🥰', 'Vous allez me faire rougir ! 😊', 'Merci beaucoup, ça me touche ! 💗']);
+    } elseif ((!empty($t['thanks']) || !empty($t['praise'])) && !$wellbeing && empty($t['ack_no'])) {
+        // « je vais bien merci » : le merci fait partie de l'échange, on n'y
+        // répond pas à part ; « non merci » a sa propre formule plus bas.
+        $parts[] = chatbot_pick(['Avec plaisir ! 💗', 'Je vous en prie ! 💗', 'C\'est tout naturel ! 💗']);
+    }
+    if (!empty($t['laugh']) || !empty($t['emoji'])) {
+        $parts[] = chatbot_pick(['😄', 'Haha ! 😄', '😊']);
+    }
+    if (!empty($t['identity'])) {
+        $parts[] = 'Je suis <strong>Rosie</strong>, l\'assistante virtuelle de Forbach en Rose 🎀 — un petit robot, '
+                 . 'mais avec un grand cœur ! Je connais la course sur le bout des doigts : inscriptions, t-shirts, '
+                 . 'QR codes, horaires, parcours… Et si vous préférez parler à une vraie personne, il suffit de nous écrire.';
+    }
+    if (!empty($t['age'])) {
+        $parts[] = 'Je suis toute jeune — je suis née avec ce site ! 🎀 Mais je connais Forbach en Rose par cœur.';
+    }
+    if (!empty($t['help']) || !empty($t['confused'])) {
+        $parts[] = (!empty($t['confused']) ? 'Pardon, je n\'ai peut-être pas été claire ! 😊 ' : '')
+                 . 'Voici ce que je sais faire : vérifier votre inscription ou votre t-shirt, renvoyer votre QR code, '
+                 . 'vous renseigner sur le lieu, les horaires, le parcours, les tarifs… Posez-moi votre question, ou choisissez un sujet :';
+        $relance = false;
+    } elseif (!empty($t['question_intro']) || (!empty($t['please']) && count($t) === 1)) {
+        $parts[] = 'Je vous écoute ! 😊 Posez-moi votre question, ou choisissez un sujet :';
+        $relance = false;
+    }
+    if (!empty($t['ack_no'])) {
+        $parts[] = !empty($t['thanks'])
+            ? chatbot_pick(['Avec plaisir ! 💗 Si une question vous vient, je suis là.', 'Je vous en prie ! 💗 Je reste là si besoin.'])
+            : chatbot_pick(['D\'accord ! 😊 Si une question vous vient, je suis là.', 'Très bien ! 😊 Je reste là si besoin.']);
+        $relance = false; $quick = false;
+    } elseif (!empty($t['ack_yes']) && empty($t['thanks']) && empty($t['praise'])) {
+        $parts[] = chatbot_pick(['Parfait ! 😊', 'Très bien ! 😊', 'Ça marche ! 😊']);
+    }
+
+    if (!$parts) $parts[] = 'Je suis là ! 😊';
+    $text = implode(' ', $parts);
+    if ($relance) {
+        $onlyThanks = (!empty($t['thanks']) || !empty($t['praise'])) && empty($t['greeting'])
+                   && empty($t['how_are_you']) && empty($t['fine']) && empty($t['not_fine']);
+        $text .= '<br>' . ($onlyThanks
+            ? 'N\'hésitez pas si vous avez une autre question.'
+            : chatbot_pick(['Comment puis-je vous aider ?', 'Que puis-je faire pour vous ?', 'Dites-moi ce que je peux faire pour vous !']));
+    }
+    $r['text'] = $text;
+    $r['quick'] = $quick ? chatbot_quick_default() : [];
+    return $r;
+}
+
+/**
+ * Habille la réponse d'une intention (ou d'une FAQ) avec la politesse du
+ * message : « Bonjour ! Je vais très bien, merci ! 😊 » devant la réponse à
+ * « bonjour ça va ? je suis inscrite ? », « Bonne journée » derrière un
+ * « merci, bonne journée ».
+ */
+function chatbot_social_decorate(array $reply, array $p): array
+{
+    $t = $p['tags'];
+    $pre = '';
+    if (!empty($t['greeting']))        $pre .= chatbot_hello($p['hello'] ?? '') . ' ! ';
+    if (!empty($t['not_fine']))        $pre .= 'Oh, désolée de l\'entendre… 💗 ';
+    elseif (!empty($t['how_are_you'])) $pre .= 'Je vais très bien, merci ! 😊 ';
+    elseif (!empty($t['fine']))        $pre .= 'Ravie de l\'entendre ! 😊 ';
+    if (!empty($t['apology']))         $pre .= 'Pas de souci ! ';
+    if ($pre !== '') $reply['text'] = $pre . $reply['text'];
+    if (!empty($t['bye'])) $reply['text'] .= '<br>Bonne journée à vous, et à bientôt ! 🎀';
+    return $reply;
 }
 
 /** Formate la date de course en français ("dimanche 5 octobre 2025 à 9h30"). */
@@ -395,28 +735,12 @@ function chatbot_linkify(string $s): string
  */
 function chatbot_answer(string $intent, array $set): array
 {
-    $quickDefault = ['✅ Mon inscription', '🎽 T-shirt', '💶 Tarifs', '📩 QR code non reçu', '📍 Lieu & horaires', '❓ Voir la FAQ', '✉️ Nous écrire'];
+    $quickDefault = chatbot_quick_default();
     $r = ['text' => '', 'quick' => [], 'action' => null];
 
     switch ($intent) {
-        case 'greeting': {
-            $extra = '';
-            $t = !empty($set['date_course']) ? strtotime($set['date_course']) : false;
-            if ($t && $t > time()) {
-                $days = (int)ceil(($t - time()) / 86400);
-                $extra = ' Plus que <strong>' . $days . ' jour' . ($days > 1 ? 's' : '') . '</strong> avant la course ! 🎉';
-            }
-            $r['text'] = 'Bonjour ! 👋 Je suis l\'assistant de Forbach en Rose.' . $extra . '<br>Comment puis-je vous aider ?';
-            $r['quick'] = $quickDefault;
-            break;
-        }
-        case 'thanks':
-            $r['text'] = 'Avec plaisir ! 💗 N\'hésitez pas si vous avez une autre question.';
-            $r['quick'] = $quickDefault;
-            break;
-        case 'bye':
-            $r['text'] = 'À bientôt, et merci de soutenir la lutte contre le cancer du sein ! 🎀';
-            break;
+        /* Bonjour / merci / au revoir : voir chatbot_social_reply() — Rosie y
+         * répond comme une personne, et se présente uniquement à l'accueil. */
 
         /* ── Espace coureur & application (lot 6) ───────────────────────────
          * Les URL sont écrites en relatif depuis la racine du site : le chatbot
@@ -480,7 +804,7 @@ function chatbot_answer(string $intent, array $set): array
             break;
 
         case 'registration_problem': {
-            $txt = '😕 Désolé pour ce désagrément ! Le plus souvent, il s\'agit d\'un souci passager :<br>'
+            $txt = '😕 Désolée pour ce désagrément ! Le plus souvent, il s\'agit d\'un souci passager :<br>'
                  . '1️⃣ Réessayez dans quelques minutes, idéalement depuis un autre navigateur ou un autre appareil.<br>'
                  . '2️⃣ Si ça ne passe toujours pas, écrivez-nous en décrivant le problème (message d\'erreur, étape bloquée…) — nous vous aiderons rapidement.';
             $onsite = trim((string)($set['registration_onsite_info'] ?? ''));
@@ -790,7 +1114,7 @@ function chatbot_answer(string $intent, array $set): array
         }
 
         default: // fallback
-            $r['text'] = 'Hmm, je ne suis pas sûr d\'avoir compris. 🤔<br>'
+            $r['text'] = 'Hmm, je ne suis pas sûre d\'avoir compris. 🤔<br>'
                 . 'Jetez un œil à notre <a href="faq">FAQ</a>, choisissez un sujet ci-dessous, '
                 . 'ou laissez-nous directement un message :';
             $r['quick'] = $quickDefault;
