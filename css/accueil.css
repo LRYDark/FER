@@ -688,13 +688,27 @@
       position: relative;
     }
     /* Hero pleine largeur : casse la containment du `<main>` (qui a width:var(--content-width))
-       en ramenant la card à 100vw via une astuce `margin-left/right: calc(50% - 50vw)`.
-       Désactive aussi le border-radius pour un rendu bord-à-bord. */
+       en ramenant la card à la largeur VISIBLE de la fenêtre via une astuce
+       `margin-left/right: calc(50% - 50vw)`. Le border-radius, lui, n est pas
+       supprimé : il est réduit aux DEUX COINS DU BAS (règle plus bas). */
+    /* ⚠️ `100vw` COMPTE LA BARRE DE DÉFILEMENT, `100%` non. Sur la vraie page
+       publique (qui scrolle), la card débordait donc d une demi-largeur de
+       barre (~8 px) de CHAQUE côté, débord aussitôt rogné par le
+       `html,body{overflow-x:hidden}` de fer-modern.css. Les deux coins arrondis
+       du bas étaient rabotés dans leur partie la plus courbe : il ne restait
+       qu une courbure de ~2 px, invisible — la vidéo semblait à angles droits.
+       Dans l aperçu de l éditeur, la barre de défilement est masquée
+       (`body.editor-mode{scrollbar-width:none}`) : 100vw tombait pile sur la
+       largeur visible et l arrondi s affichait entier. D où le fameux
+       « arrondi dans l admin, pas sur le site public ».
+       `--sbw` porte la largeur réelle de la barre de défilement (posée en JS
+       par accueil.php, 0 px quand il n y en a pas) : on la retire de la
+       largeur, et on décale de sa moitié pour rester centré. */
     .demo-wrap.fullwidth-desktop{
-      width: 100vw;
-      max-width: 100vw;
-      margin-left: calc(50% - 50vw);
-      margin-right: calc(50% - 50vw);
+      width: calc(100vw - var(--sbw, 0px));
+      max-width: calc(100vw - var(--sbw, 0px));
+      margin-left: calc(50% - 50vw + var(--sbw, 0px) / 2);
+      margin-right: calc(50% - 50vw + var(--sbw, 0px) / 2);
       /* ⚠️ ON GARDE LA MARGE HAUTE DE .demo-wrap (4.6875rem), ON NE LA MET PAS
          À ZÉRO. La barre de navigation est fixe, AU-DESSUS du
          contenu : à zéro, la vidéo passe DESSOUS et son haut — badges compris —
@@ -712,22 +726,132 @@
     .demo-wrap.fullwidth-desktop{
       margin-top: 4.6875rem !important;
     }
+    /* ══ COINS DU BAS : UN CACHE PAR-DESSUS, PAS UNE DÉCOUPE DE LA VIDÉO ══
+
+       Version précédente : `.demo-card-media{overflow:hidden;border-radius:inherit}`
+       rognait la <video>. Or une vidéo qui joue vit sur sa PROPRE COUCHE GPU :
+       l arrondi n est alors plus tracé par le moteur de rendu — qui lisse les
+       courbes — mais appliqué par le compositeur, sans anticrénelage. D où
+       l escalier bien visible sur un écran 4K, et surtout la découpe qui saute
+       pendant le défilement : le compositeur lâche le rognage arrondi le temps
+       du scroll (coins carrés), puis l arrondi réapparaît à l arrêt.
+
+       On ne rogne donc plus rien du tout. La vidéo reste un rectangle plein et
+       on POSE PAR-DESSUS, dans les deux coins du bas, la couleur du fond de
+       page. Ce cache est un élément peint normalement : lissé par le
+       rasteriseur à la densité réelle de l écran, et parfaitement immobile au
+       défilement puisque plus aucune couche GPU n est rognée.
+
+       Comment il est dessiné : UN PETIT CARRÉ PAR COIN, rempli d un dégradé
+       radial dont le disque intérieur est transparent — la vidéo reste visible
+       à l intérieur de l arc, la couleur du fond couvre le petit triangle
+       restant. La transition transparent → opaque est étalée sur 1 px, ce qui
+       lui donne son anticrénelage : le bord est lisse, sans escalier.
+
+       ⚠️ NE PAS revenir au couple `box-shadow` + `clip-path` (première
+       tentative) : l ombre externe dessinait bien les deux triangles, mais son
+       bord droit du bas coïncidait pile avec le bord de découpe. Les deux sont
+       lissés SÉPARÉMENT puis multipliés : sur la rangée de pixels partagée, ni
+       l un ni l autre ne couvre à 100 %, et il restait un TRAIT CLAIR d un
+       pixel EN TRAVERS DE TOUTE LA LARGEUR de la vidéo. Un dégradé se peint en
+       une seule passe : pas de bord partagé, donc pas de trait.
+       ══════════════════════════════════════════════════════════════════════ */
     .demo-wrap.fullwidth-desktop .demo-card{
-      /* Seuls les DEUX COINS DU BAS sont arrondis : en haut la vidéo touche la
-         barre de navigation, un arrondi y dessinerait une encoche. */
+      /* L arrondi RESTE déclaré ici, mais il ne découpe plus la vidéo (c était
+         `.demo-card-media` qui rognait) : il ne sert plus qu à donner sa forme
+         au cache de coin et au rappel d ombre. Seuls les DEUX COINS DU BAS : en haut la
+         vidéo touche la barre de navigation, un arrondi y ferait une encoche. */
       border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px);
+      /* L ombre portee n est PAS peinte ici. Peinte par la card, elle passe
+         DERRIERE la video, donc derriere le cache de coin - lequel est opaque et
+         la masquait : le petit triangle ressortait en blanc franc au milieu d un
+         fond legerement grise par cette meme ombre. On la redessine donc AU-DESSUS
+         du cache (`::after`), ou elle grise le triangle comme tout le pourtour. */
+      box-shadow: none;
+    }
+    .demo-wrap.fullwidth-desktop .demo-card-media{
+      /* LE point de la correction : plus aucun rognage arrondi de la couche vidéo. */
+      border-radius: 0;
+    }
+    /* LE CACHE - une bande au ras du bas, transparente partout SAUF deux paves de
+       coin, chacun rempli d un degrade radial dont le disque interieur est
+       transparent : la video reste visible a l interieur de l arc. */
+    .demo-wrap.fullwidth-desktop .demo-card::before{
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: var(--radius-lg, 24px);
+      z-index: 30;            /* au-dessus de .demo-overlay (2) et .video-toggle (10) */
+      pointer-events: none;   /* ne vole ni les clics de l editeur ni le play/pause */
+      background:
+        radial-gradient(circle at 100% 0,
+          #0000 calc(var(--radius-lg, 24px) - 0.5px),
+          var(--hero-corner-bg, #ffffff) calc(var(--radius-lg, 24px) + 0.5px))
+          left bottom / var(--radius-lg, 24px) var(--radius-lg, 24px) no-repeat,
+        radial-gradient(circle at 0 0,
+          #0000 calc(var(--radius-lg, 24px) - 0.5px),
+          var(--hero-corner-bg, #ffffff) calc(var(--radius-lg, 24px) + 0.5px))
+          right bottom / var(--radius-lg, 24px) var(--radius-lg, 24px) no-repeat;
+    }
+    /* LE RAPPEL D OMBRE - au-dessus du cache. Une ombre externe ne se peint que
+       HORS de la boite arrondie : elle assombrit donc exactement les deux
+       triangles de coin et le pourtour de la video, jamais la video elle-meme.
+       Aucun `clip-path` ici : c est un bord de decoupe qui avait cree le trait
+       clair en travers de la video (cf. avertissement plus haut). */
+    .demo-wrap.fullwidth-desktop .demo-card::after{
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 31;
+      pointer-events: none;
+      border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px);
+      box-shadow: var(--hero-card-shadow, 0 18px 60px rgba(2,6,23,.14));
     }
 
     @media (max-width: 1040px){
+      /* Même correction de barre de défilement que le pendant desktop. */
       .demo-wrap.fullwidth-mobile{
-        width: 100vw;
-        max-width: 100vw;
-        margin-left: calc(50% - 50vw);
-        margin-right: calc(50% - 50vw);
+        width: calc(100vw - var(--sbw, 0px));
+        max-width: calc(100vw - var(--sbw, 0px));
+        margin-left: calc(50% - 50vw + var(--sbw, 0px) / 2);
+        margin-right: calc(50% - 50vw + var(--sbw, 0px) / 2);
       }
+      /* Coins du bas : même cache posé par-dessus que côté desktop — voir
+         l explication complète au-dessus de `.demo-wrap.fullwidth-desktop`. */
       .demo-wrap.fullwidth-mobile .demo-card{
         border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px);
+        box-shadow: none;   /* redessinee au-dessus du cache, cf. `::after` */
         height: var(--hero-card-height-mobile, var(--hero-card-height, clamp(42.5rem, 70vh, 65rem)));
+      }
+      .demo-wrap.fullwidth-mobile .demo-card-media{
+        border-radius: 0;
+      }
+      /* Cache + rappel d ombre : meme montage que cote desktop, voir plus haut. */
+      .demo-wrap.fullwidth-mobile .demo-card::before{
+        content: "";
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        height: var(--radius-lg, 24px);
+        z-index: 30;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at 100% 0,
+            #0000 calc(var(--radius-lg, 24px) - 0.5px),
+            var(--hero-corner-bg, #ffffff) calc(var(--radius-lg, 24px) + 0.5px))
+            left bottom / var(--radius-lg, 24px) var(--radius-lg, 24px) no-repeat,
+          radial-gradient(circle at 0 0,
+            #0000 calc(var(--radius-lg, 24px) - 0.5px),
+            var(--hero-corner-bg, #ffffff) calc(var(--radius-lg, 24px) + 0.5px))
+            right bottom / var(--radius-lg, 24px) var(--radius-lg, 24px) no-repeat;
+      }
+      .demo-wrap.fullwidth-mobile .demo-card::after{
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 31;
+        pointer-events: none;
+        border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px);
+        box-shadow: var(--hero-card-shadow, none);
       }
       /* Hauteur mobile spécifique : prend --hero-card-height-mobile si défini, sinon
          retombe sur la valeur desktop ou le CSS par défaut. */
@@ -742,6 +866,14 @@
         margin-top: 5.9375rem;
       }
     }
+
+    /* Couleur des caches de coin du héro (cf. `.demo-card::after`) : le fond de
+       page, pour que le cache se fonde dans la page. ⚠️ `--page-bg` ne suit PAS
+       le thème sombre — `body.dark-theme` pose `background:#16171d` en dur sans
+       toucher la variable (fer-modern.css) : on redéclare donc la valeur ici, et
+       les deux doivent rester alignées. */
+    .demo-card{ --hero-corner-bg: var(--page-bg, #ffffff); }
+    body.dark-theme .demo-card{ --hero-corner-bg: #16171d; }
 
     .demo-card{
       position: relative;
@@ -759,7 +891,11 @@
       border-radius: var(--radius-lg);
       overflow: visible;
       border: none;
-      box-shadow: 0 18px 60px rgba(2,6,23,.14);
+      /* Ombre portee en VARIABLE : en pleine largeur elle est redessinee PAR-DESSUS
+         le cache de coin (cf. `.demo-card::after`), et les deux doivent rester
+         rigoureusement identiques - sinon le raccord se voit. */
+      --hero-card-shadow: 0 18px 60px rgba(2,6,23,.14);
+      box-shadow: var(--hero-card-shadow);
       background: #000;
       isolation: isolate;
       /* Permet d'utiliser cqw/cqh dans les descendants pour positionner les éléments
@@ -2530,7 +2666,9 @@
     width: var(--hero-card-width-mobile, var(--hero-card-width, 100%));
     margin-left:  var(--hero-card-mx-mobile, var(--hero-card-mx, auto));
     margin-right: var(--hero-card-mx-mobile, var(--hero-card-mx, auto));
-    box-shadow: none;
+    /* On eteint la VARIABLE et pas seulement `box-shadow` : sinon le rappel
+       d ombre pose au-dessus du cache de coin en ressusciterait une ici. */
+    --hero-card-shadow: none;
     opacity: 0;
     transition: opacity .3s ease;
   }
