@@ -237,6 +237,32 @@ if (!empty($textsRaw)) {
 
   <link rel="stylesheet" href="../css/accueil.css?v=<?= @filemtime(__DIR__ . '/../css/accueil.css') ?: time() ?>">
 <?php include __DIR__ . '/../src/content/theme.php'; ?>
+  <script nonce="<?= $GLOBALS['csp_nonce'] ?>">
+  /* ─── --sbw : largeur RÉELLE de la barre de défilement ────────────────────
+     Le héro « pleine largeur » sort du <main> en se donnant 100vw + des marges
+     négatives (cf. .demo-wrap.fullwidth-desktop dans accueil.css). Or 100vw
+     COMPTE la barre de défilement, alors que la zone réellement visible, elle,
+     ne la compte pas : la vidéo débordait donc de ~8 px de chaque côté, débord
+     rogné en silence par `html,body{overflow-x:hidden}`. Les coins arrondis du
+     bas y perdaient leur courbure et la vidéo paraissait à angles droits — le
+     tout invisible dans l aperçu de l éditeur, dont la barre de défilement est
+     masquée. On mesure donc la barre et le CSS la déduit.
+     innerWidth compte la barre, documentElement.clientWidth non : la différence
+     EST sa largeur (0 sur mobile et sur les barres flottantes de macOS).
+     Recalculé au redimensionnement ET au chargement complet, car l apparition
+     ou la disparition d une barre de défilement change la donne. */
+  (function () {
+    var root = document.documentElement;
+    function syncScrollbarWidth() {
+      var w = window.innerWidth - root.clientWidth;
+      root.style.setProperty('--sbw', (w > 0 ? w : 0) + 'px');
+    }
+    syncScrollbarWidth();
+    document.addEventListener('DOMContentLoaded', syncScrollbarWidth);
+    window.addEventListener('load', syncScrollbarWidth);
+    window.addEventListener('resize', syncScrollbarWidth);
+  })();
+  </script>
 </head>
 
 <body<?php if ($flash_info_active && !empty($flash_info_text)): ?> class="has-flash-banner"<?php endif; ?>>
