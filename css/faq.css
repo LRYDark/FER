@@ -130,10 +130,12 @@
   padding: 12px 22px;
   border-radius: var(--radius, 14px);
   cursor: pointer;
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--pink, #db2777) 30%, transparent);
-  transition: transform .15s, box-shadow .15s;
+  /* Pas de halo rose sous le bouton (même règle que le bouton d envoi de
+     l assistant) : le rose plein suffit. */
+  box-shadow: none;
+  transition: transform .15s, filter .15s;
 }
-.faq-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--pink, #db2777) 38%, transparent); }
+.faq-cta-btn:hover { transform: translateY(-1px); filter: brightness(1.07); }
 
 /* ── Thème sombre public ── */
 body.dark-theme .faq-hero-title { color: #f1f5f9; }

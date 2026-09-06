@@ -168,6 +168,16 @@
   /* ══════════ Formulaire de contact intégré ══════════ */
   var captchaState = { mode: null, tsWidgetId: null, tsLoading: null, didFallback: false };
 
+  /* Le formulaire remplace la conversation : tant qu'il est affiché, la barre
+     de saisie (« Écrivez votre question… » + bouton d'envoi) n'a plus de rôle
+     — on la masque (CSS .fcb-form-mode) pour ne laisser qu'un seul chemin. */
+  function setFormMode(on) { root.classList.toggle('fcb-form-mode', !!on); }
+  function closeContactForm() {
+    var card = msgsEl.querySelector('.fcb-form-card');
+    if (card) card.remove();
+    setFormMode(false);
+  }
+
   function ensureTurnstileScript() {
     if (window.turnstile) return Promise.resolve();
     if (captchaState.tsLoading) return captchaState.tsLoading;
@@ -214,7 +224,10 @@
         '<button type="submit" class="fcb-submit" disabled>Envoyer le message</button>' +
       '</form>';
     msgsEl.appendChild(card);
+    setFormMode(true);
     scrollBottom();
+    var firstField = card.querySelector('input[name="nom"]');
+    if (firstField) setTimeout(function () { firstField.focus(); }, 60);
 
     var form = card.querySelector('form');
     var submitBtn = form.querySelector('.fcb-submit');
@@ -349,6 +362,7 @@
       post(fields, files).then(function (j) {
         if (j && j.ok) {
           card.remove();
+          setFormMode(false);
           addMsg('✅ ' + esc(j.message), 'bot');
           addQuickReplies(['✅ Mon inscription', '📍 Lieu & horaires']);
         } else {
@@ -370,13 +384,16 @@
 
   /* ══════════ Ouverture / fermeture ══════════ */
   /* Toujours accueillir avec les questions rapides — le formulaire de contact
-     n'apparaît que sur demande (chip « Nous écrire » ou intention détectée). */
+     n'apparaît que sur demande (chip « Nous écrire » ou intention détectée).
+     greet=1 : c'est l'accueil automatique, la seule fois où Rosie se présente
+     (un « bonjour » tapé ensuite par le visiteur reçoit une réponse plus
+     naturelle, sans présentation). */
   function greet() {
     if (started) return;
     started = true;
     busy = true;
     var typing = addTyping();
-    post({ action: 'ask', message: 'bonjour' }).then(function (j) {
+    post({ action: 'ask', message: 'bonjour', greet: '1' }).then(function (j) {
       typing.remove();
       busy = false;
       if (j && j.ok && j.reply) handleReply(j.reply);
@@ -413,7 +430,14 @@
       root.classList.add('fcb-open');
       bubble.setAttribute('aria-expanded', 'true');
       lockBody();
-      setTimeout(function () { inputEl.focus(); }, 250);
+      setTimeout(function () {
+        // Formulaire ouvert → la barre de saisie est masquée : on entre
+        // directement dans son premier champ.
+        var target = root.classList.contains('fcb-form-mode')
+          ? msgsEl.querySelector('.fcb-form-card input[name="nom"]')
+          : inputEl;
+        if (target) target.focus();
+      }, 250);
     }
     greet();
   }
@@ -437,6 +461,7 @@
   if (homeBtn) homeBtn.addEventListener('click', function () {
     if (busy) return;
     clearQuickReplies();
+    closeContactForm();
     emailContext = null;
     inputEl.setAttribute('placeholder', 'Écrivez votre question…');
     inputEl.setAttribute('type', 'text');

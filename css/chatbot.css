@@ -2,8 +2,12 @@
    Widget chatbot public — Forbach en Rose
    Reprend le vocabulaire du design public (fer-modern.css) :
    pilules blanches + ombres douces (--pill-shadow), chips d'icônes
-   carrés arrondis teintés (12 % de --primary), rayons pilotés par le
-   thème (--radius / --radius-lg), encre --page-text, sombre #1e1f28.
+   carrés arrondis teintés (12 % de --primary), encre --page-text, sombre
+   #1e1f28. ARRONDIS : un seul réglage (Réglages → Thème → rayon) émis par
+   theme.php en --radius / --radius-sm / --radius-lg — le widget suit le même
+   vocabulaire que le site : --radius pour les boutons et champs
+   (--radius-btn / --radius-pill), --radius-lg pour les panneaux
+   (--radius-panel), --radius-sm pour les petites chips d'icône (.nav-icon).
    ═══════════════════════════════════════════════════════════════ */
 
 #ferChatbot {
@@ -88,7 +92,7 @@
   text-align: center;
   background: #fff;
   color: var(--page-text, #0f172a);
-  border-radius: 26px;   /* forme bien arrondie, style bulle de dialogue */
+  border-radius: var(--radius-lg, 18px);   /* même rayon que les panneaux du site */
   padding: 13px 30px 13px 18px;
   font-size: 13.5px;
   line-height: 1.45;
@@ -174,7 +178,7 @@
   max-height: calc(100dvh - 120px);
   background: #fff;
   border: 1px solid rgba(15, 23, 42, .10);
-  border-radius: calc(var(--radius-lg, 18px) + 4px);
+  border-radius: var(--radius-lg, 18px);
   box-shadow: 0 24px 80px rgba(2, 6, 23, .14), 0 8px 32px rgba(2, 6, 23, .08);
   display: flex;
   flex-direction: column;
@@ -260,7 +264,7 @@
   background: #fff;
   color: var(--page-text, #0f172a);
   border: 1px solid rgba(15, 23, 42, .08);
-  border-bottom-left-radius: 6px;
+  border-bottom-left-radius: min(6px, var(--radius, 14px));
   box-shadow: 0 2px 10px rgba(2, 6, 23, .05);
 }
 .fcb-bot a { color: var(--pink, #db2777); font-weight: 600; }
@@ -268,8 +272,8 @@
   align-self: flex-end;
   background: linear-gradient(135deg, var(--pink, #db2777), var(--pink-dark, #be185d));
   color: #fff;
-  border-bottom-right-radius: 6px;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--pink, #db2777) 30%, transparent);
+  border-bottom-right-radius: min(6px, var(--radius, 14px));
+  box-shadow: 0 2px 10px rgba(2, 6, 23, .08);
 }
 
 /* Indicateur "en train d'écrire" */
@@ -293,7 +297,7 @@
   font-size: 13px;
   font-weight: 600;
   padding: 8px 14px;
-  border-radius: var(--radius-sm, 10px);
+  border-radius: var(--radius, 14px);   /* = --radius-btn du site */
   cursor: pointer;
   box-shadow: 0 2px 10px rgba(2, 6, 23, .06);
   transition: background .15s, color .15s, border-color .15s, transform .12s;
@@ -315,19 +319,24 @@
 }
 .fcb-input {
   flex: 1;
-  border: 0;
-  border-radius: var(--radius-sm, 10px);
+  /* Contour fin : sur le fond blanc de la barre, l aplat gris seul ne se
+     voyait pas — le champ semblait absent. */
+  border: 1px solid rgba(15, 23, 42, .16);
+  border-radius: var(--radius, 14px);   /* = champs du site (barre FAQ) */
   padding: 10px 16px;
   font-size: 14px;
   font-family: inherit;
   outline: none;
-  background: color-mix(in srgb, var(--page-text, #0f172a) 5%, #fff);
+  background: #fff;
   color: var(--page-text, #0f172a);
-  transition: background .15s;
+  transition: border-color .15s, box-shadow .15s;
   min-width: 0;
 }
-/* Au focus, l aplat s éclaircit : plus de liseré rose autour du champ. */
-.fcb-input:focus { background: color-mix(in srgb, var(--page-text, #0f172a) 9%, #fff); }
+.fcb-input::placeholder { color: rgba(15, 23, 42, .38); }
+.fcb-input:focus {
+  border-color: color-mix(in srgb, var(--pink, #db2777) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pink, #db2777) 14%, transparent);
+}
 .fcb-send {
   width: 42px; height: 42px; border-radius: var(--radius, 14px);
   border: none;
@@ -335,14 +344,18 @@
   color: #fff;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: transform .15s, box-shadow .15s;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--pink, #db2777) 35%, transparent);
+  transition: transform .15s;
+  box-shadow: none;
   flex-shrink: 0;
 }
 .fcb-send:hover { transform: translateY(-1px) scale(1.05); }
 .fcb-send svg { width: 18px; height: 18px; }
 
-/* ── Formulaire de contact intégré (mêmes champs que le site) ── */
+/* ── Formulaire de contact intégré (mêmes champs que le site) ──
+   Tant qu'il est ouvert, on répond DANS le formulaire : la barre de saisie
+   (« Écrivez votre question… » + bouton d'envoi) est masquée par le JS, qui
+   pose .fcb-form-mode sur #ferChatbot. */
+.fcb-form-mode .fcb-inputbar { display: none; }
 .fcb-form-card { max-width: 96%; width: 96%; }
 .fcb-form { display: flex; flex-direction: column; gap: 9px; }
 .fcb-form label { font-size: 12.5px; font-weight: 600; color: var(--page-muted, rgba(15,23,42,.65)); display: flex; flex-direction: column; gap: 4px; }
@@ -350,17 +363,20 @@
 .fcb-form input[type="text"],
 .fcb-form input[type="email"],
 .fcb-form textarea {
-  border: 0;
-  background: color-mix(in srgb, var(--page-text, #0f172a) 5%, #fff);
+  /* La carte du formulaire est blanche : un champ blanc SANS contour y
+     disparaissait (on ne voyait plus où écrire). Contour fin obligatoire. */
+  border: 1px solid rgba(15, 23, 42, .18);
+  background: #fff;
   border-radius: var(--radius, 14px);
   padding: 9px 12px;
   font-size: 14px;
   font-family: inherit;
   outline: none;
-  background: #fff;
   color: var(--page-text, #0f172a);
   transition: border-color .15s, box-shadow .15s;
 }
+.fcb-form input::placeholder,
+.fcb-form textarea::placeholder { color: rgba(15, 23, 42, .38); }
 .fcb-form input:focus, .fcb-form textarea:focus {
   border-color: color-mix(in srgb, var(--pink, #db2777) 55%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--pink, #db2777) 14%, transparent);
@@ -404,17 +420,18 @@
 .fcb-captcha-err { color: #b91c1c; font-size: 12px; min-height: 1em; margin-top: 4px; }
 .fcb-submit {
   border: none;
-  /* Au repos, un aplat neutre ; le rose vient au survol (règle plus bas). */
-  background: color-mix(in srgb, var(--page-text, #0f172a) 7%, #fff);
-  color: var(--page-text, #0f172a);
+  /* Bouton d'action principal : rose plein, et AUCUNE ombre — le halo rose
+     qui bavait sous le bouton salissait le bas de la carte. */
+  background: linear-gradient(135deg, var(--pink, #db2777), var(--pink-dark, #be185d));
+  color: #fff;
   font-size: 14px; font-weight: 700;
   padding: 11px;
   border-radius: var(--radius, 14px);
   cursor: pointer;
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--pink, #db2777) 30%, transparent);
-  transition: opacity .15s, transform .15s, box-shadow .15s;
+  box-shadow: none;
+  transition: opacity .15s, transform .15s, filter .15s;
 }
-.fcb-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--pink, #db2777) 38%, transparent); }
+.fcb-submit:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.07); }
 .fcb-submit:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
 /* ── ≤1040px : présentation « mobile » (header + barre de nav du site).
@@ -531,14 +548,17 @@ body.dark-theme .fcb-home:hover { background: rgba(255, 255, 255, .08); color: #
 body.dark-theme .fcb-messages { background: #15161d; }  /* fond uni, comme en clair */
 body.dark-theme .fcb-bot { background: #1e1f28; color: #e2e8f0; border-color: rgba(255, 255, 255, .08); }
 body.dark-theme .fcb-inputbar { background: #1e1f28; border-top-color: rgba(255, 255, 255, .08); }
-body.dark-theme .fcb-input { background: #15161d; border-color: rgba(255, 255, 255, .12); color: #e2e8f0; }
+body.dark-theme .fcb-input { background: #15161d; border-color: rgba(255, 255, 255, .14); color: #e2e8f0; }
+body.dark-theme .fcb-input::placeholder,
+body.dark-theme .fcb-form input::placeholder,
+body.dark-theme .fcb-form textarea::placeholder { color: rgba(241, 245, 249, .4); }
 body.dark-theme .fcb-chip { background: #1e1f28; border-color: rgba(255, 255, 255, .12); color: #e2e8f0; box-shadow: none; }
 body.dark-theme .fcb-chip:hover { background: color-mix(in srgb, var(--pink, #db2777) 20%, #1e1f28); color: #fff; }
 body.dark-theme .fcb-form label { color: rgba(241, 245, 249, .65); }
 body.dark-theme .fcb-form label small { color: rgba(241, 245, 249, .4); }
 body.dark-theme .fcb-form input[type="text"],
 body.dark-theme .fcb-form input[type="email"],
-body.dark-theme .fcb-form textarea { background: #15161d; border-color: rgba(255, 255, 255, .12); color: #e2e8f0; }
+body.dark-theme .fcb-form textarea { background: #15161d; border-color: rgba(255, 255, 255, .14); color: #e2e8f0; }
 body.dark-theme .fcb-att-list li { background: #1e1f28; border-color: rgba(255, 255, 255, .1); color: #e2e8f0; }
 body.dark-theme .fcb-att-size { color: rgba(241, 245, 249, .45); }
 body.dark-theme .fcb-math-q { color: #e2e8f0; }
@@ -553,20 +573,7 @@ body.dark-theme .fcb-win-below .fcb-teaser::after  { border-top-color: transpare
 body.dark-theme .fcb-teaser-close { color: rgba(241, 245, 249, .5); }
 body.dark-theme .fcb-teaser-close:hover { background: rgba(255, 255, 255, .08); color: #f1f5f9; }
 
-/* ── Le rose au survol, jamais au repos ───────────────────────────────────
-   Les boutons de l'assistant étaient roses en permanence, et plus foncés au
-   survol : dans une conversation, une rangée de pastilles roses pèse autant
-   que la réponse qu'on vient de lire. Au repos ils sont neutres ; la couleur
-   marque le survol, c'est-à-dire l'intention. */
-.fcb-submit:hover {
-  background: linear-gradient(135deg, var(--pink, #db2777), var(--pink-dark, #be185d));
-  color: #fff;
-}
-body.dark-theme .fcb-submit {
-  background: rgba(255, 255, 255, .08);
-  color: #e2e8f0;
-}
-body.dark-theme .fcb-submit:hover {
-  background: linear-gradient(135deg, var(--pink, #db2777), var(--pink-dark, #be185d));
-  color: #fff;
-}
+/* ── Rose réservé à l'action ──────────────────────────────────────────────
+   Les puces de réponse rapide restent neutres au repos (le rose y marque le
+   survol) ; seul « Envoyer le message », l'action principale du formulaire,
+   est rose en permanence — dans les deux thèmes, sans ombre colorée. */
