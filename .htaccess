@@ -30,6 +30,14 @@
 # Bloquer le dossier .git
 RedirectMatch 404 /\.git
 
+# Dépendances PHP : rien sous vendor/ n'est servi au navigateur. Ouverts,
+# composer.json, composer.lock et vendor/composer/installed.json donnaient
+# la version exacte de chaque bibliothèque — de quoi cibler ses failles.
+RedirectMatch 404 /vendor(/|$)
+<FilesMatch "^composer\.(json|lock)$">
+    Require all denied
+</FilesMatch>
+
 # Désactiver le listing des répertoires
 Options -Indexes
 
