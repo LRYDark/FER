@@ -380,9 +380,15 @@ $gitDispo = trim($git('rev-parse --git-dir')) !== '';
 if (!$gitDispo) {
     avertir('git indisponible ou dépôt absent — le gel des fichiers interdits n\'a PAS été vérifié');
 } else {
-    foreach (['login.php', 'change-password.php', 'reset-password.php',
-              'src/security/totp.php', 'src/security/webauthn.php'] as $f) {
-        $d = trim($git('diff --stat 0f50e0ce..HEAD -- ' . escapeshellarg($f)));
+    /* Référence du gel, fichier par fichier. Les trois pages d'authentification
+       ont reçu en 2.0.0 (993c3b69) une retouche VOULUE — le logo de l'en-tête —
+       qui faisait échouer ce contrôle à chaque passage : leur gel repart de là. */
+    foreach (['login.php'                 => '993c3b69',
+              'change-password.php'       => '993c3b69',
+              'reset-password.php'        => '993c3b69',
+              'src/security/totp.php'     => '0f50e0ce',
+              'src/security/webauthn.php' => '0f50e0ce'] as $f => $depuis) {
+        $d = trim($git('diff --stat ' . $depuis . '..HEAD -- ' . escapeshellarg($f)));
         verifie("$f intact", $d === '', $d);
     }
 }
