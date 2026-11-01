@@ -327,21 +327,33 @@ function notif_reglages(PDO $pdo): array
  */
 function notif_luesDisponible(PDO $pdo): bool
 {
-    static $ok = null;
-    if ($ok !== null) return $ok;
+    return notif_tableDisponible($pdo, 'participant_notifications_lues');
+}
+
+/**
+ * Même question pour une table quelconque, mémorisée par table.
+ *
+ * ⚠️ TESTER AVANT DE LIRE, PAS APRÈS. Sans ce test, chaque page de l'espace
+ * coureur écrivait une ligne « Table doesn't exist » dans le journal tant que
+ * update.php n'avait pas été joué — des dizaines par minute.
+ */
+function notif_tableDisponible(PDO $pdo, string $table): bool
+{
+    static $cache = [];
+    if (isset($cache[$table])) return $cache[$table];
     try {
-        $pdo->query('SELECT 1 FROM participant_notifications_lues LIMIT 0');
-        $ok = true;
+        $st = $pdo->query('SELECT 1 FROM `' . str_replace('`', '', $table) . '` LIMIT 0');
+        $cache[$table] = $st !== false;
     } catch (\Throwable $e) {
-        $ok = false;
+        $cache[$table] = false;
     }
-    return $ok;
+    return $cache[$table];
 }
 
 /** Identifiants des messages déjà lus par ce coureur. */
 function notif_luesIds(PDO $pdo, int $participantId): array
 {
-    if ($participantId <= 0) return [];
+    if ($participantId <= 0 || !notif_luesDisponible($pdo)) return [];
     try {
         $st = $pdo->prepare('SELECT notification_id FROM participant_notifications_lues
                               WHERE participant_id = ?');
@@ -360,7 +372,7 @@ function notif_luesIds(PDO $pdo, int $participantId): array
 function notif_marquerLu(PDO $pdo, int $participantId, array $notificationIds): int
 {
     $ids = array_values(array_unique(array_filter(array_map('intval', $notificationIds), fn($i) => $i > 0)));
-    if ($participantId <= 0 || !$ids) return 0;
+    if ($participantId <= 0 || !$ids || !notif_luesDisponible($pdo)) return 0;
     try {
         $st = $pdo->prepare('INSERT IGNORE INTO participant_notifications_lues
                                (participant_id, notification_id) VALUES (?, ?)');
@@ -376,7 +388,7 @@ function notif_marquerLu(PDO $pdo, int $participantId, array $notificationIds): 
 /** Remet un message en « non lu ». */
 function notif_marquerNonLu(PDO $pdo, int $participantId, int $notificationId): void
 {
-    if ($participantId <= 0 || $notificationId <= 0) return;
+    if ($participantId <= 0 || $notificationId <= 0 || !notif_luesDisponible($pdo)) return;
     try {
         $pdo->prepare('DELETE FROM participant_notifications_lues
                         WHERE participant_id = ? AND notification_id = ?')
@@ -396,6 +408,7 @@ function notif_marquerNonLu(PDO $pdo, int $participantId, int $notificationId): 
 function notif_boiteCoureur(PDO $pdo, int $participantId, ?int $annee): array
 {
     $messages = notif_pourCoureur($pdo, $annee);
+    if (!notif_tableDisponible($pdo, 'participant_notifications_masquees')) return $messages;
     try {
         $st = $pdo->prepare('SELECT notification_id FROM participant_notifications_masquees
                               WHERE participant_id = ?');

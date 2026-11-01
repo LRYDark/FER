@@ -395,7 +395,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               body: fd,
               headers: { 'X-Requested-With': 'XMLHttpRequest' }
           })
-          .then(function (r) { return r.json(); })
+          /* Pas r.json() : une page d'erreur HTML (pare-feu de l'hébergeur,
+             erreur 500) s'affichait en « Unexpected token '<' ». */
+          .then(function (r) {
+              return r.text().then(function (t) {
+                  try { return JSON.parse(t); }
+                  catch (e) { throw new Error("le serveur n'a pas pu traiter le message (HTTP " + r.status + '). Réessayez dans un instant.'); }
+              });
+          })
           .then(function (data) {
               if (data.ok) {
                   window.location.reload();

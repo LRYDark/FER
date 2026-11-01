@@ -1,6 +1,6 @@
 <?php
 /**
- * Assistant d'installation — Forbach en Rose v2.0.0
+ * Assistant d'installation — Forbach en Rose v2.0.1
  * Accessible uniquement si la configuration chiffrée (config/config.enc)
  * est absente ou incomplète.
  */

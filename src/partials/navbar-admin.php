@@ -133,6 +133,43 @@ $themeVarsOnly = true; // admin : theme.php n'émet QUE les variables --primary/
 include __DIR__ . '/../content/theme.php';
 ?>
 
+<?php /* ═══════ Réponses JSON illisibles → message compréhensible ═══════
+   ⚠️ « Unexpected token '<' » NE DIT RIEN À PERSONNE. C'est ce qu'affichait
+   r.json() dès que le serveur répondait en HTML : page de connexion après une
+   session expirée, page d'erreur du pare-feu de l'hébergeur, image refusée
+   car trop lourde (413), erreur 500. Les quelque cent appels fetch() de
+   l'administration passent tous par Response.prototype.json : le remplacer
+   ICI, avant tout script de page, corrige le message partout d'un coup. Le
+   début de la réponse reste dans la console pour le diagnostic. */ ?>
+<script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
+(function () {
+  if (!window.Response || !Response.prototype.json || Response.prototype.json._fer) return;
+  function explication(r) {
+    if (r.redirected && /login\.php/.test(r.url || '')) return 'Session expirée : reconnectez-vous puis recommencez.';
+    if (r.status === 401) return 'Session expirée : reconnectez-vous puis recommencez.';
+    if (r.status === 413) return 'Envoi trop volumineux pour le serveur : réduisez la taille de l’image ou du fichier.';
+    if (r.status === 403) return 'Requête refusée par le serveur (droits ou pare-feu de l’hébergeur). Rechargez la page puis réessayez.';
+    if (r.status === 404) return 'Adresse introuvable sur le serveur (404).';
+    if (r.status >= 500) return 'Erreur du serveur (' + r.status + '). Réessayez ; si cela persiste, consultez les journaux.';
+    return 'Réponse inattendue du serveur. Rechargez la page puis réessayez.';
+  }
+  var json = function () {
+    var r = this;
+    return r.text().then(function (t) {
+      try { return JSON.parse(t); }
+      catch (e) {
+        console.error('[JSON] Réponse non JSON de ' + (r.url || '?') + ' (HTTP ' + r.status + ') :', String(t).slice(0, 400));
+        var err = new Error(explication(r));
+        err.status = r.status;
+        throw err;
+      }
+    });
+  };
+  json._fer = true;
+  Response.prototype.json = json;
+})();
+</script>
+
 <!-- ═══════ jr-theme (habillage admin) ═══════ -->
 <script nonce="<?= $GLOBALS['csp_nonce'] ?? '' ?>">
 (function () {
@@ -534,7 +571,7 @@ $saisieTab = ($currentPage === 'saisie.php' && ($_GET['tab'] ?? '') === 'inscrip
           <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           <span>Déconnexion</span>
         </a>
-        <div class="ver">Version 2.0.0</div>
+        <div class="ver">Version 2.0.1</div>
       </div>
     </div>
   </header>

@@ -93,7 +93,12 @@ function course_edition(PDO $pdo, ?int $annee = null): ?array
         $st->execute([$annee]);
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
     } catch (\Throwable $e) {
-        error_log('[COURSE] edition : ' . $e->getMessage());
+        // 42S02 = table absente : update.php pas encore joué après une mise à
+        // jour des fichiers. Les appelants retombent déjà sur `courses` ; inutile
+        // d'écrire une ligne de journal à chaque page vue.
+        if (!($e instanceof \PDOException && $e->getCode() === '42S02')) {
+            error_log('[COURSE] edition : ' . $e->getMessage());
+        }
         return null;
     }
 }

@@ -180,6 +180,19 @@ if (!empty($pageReadOnly)) return;
     if (el.type === 'file')     return el.files && el.files.length > 0;
     if (el.type === 'checkbox' || el.type === 'radio') return el.checked !== el.defaultChecked;
     if (el.tagName === 'SELECT') {
+      /* ⚠️ UNE LISTE SANS OPTION « selected » DANS LE HTML affiche quand même
+         sa première option — sélectionnée, mais avec defaultSelected à false.
+         Comparée telle quelle, elle comptait pour « 1 modification » dès le
+         chargement : sur l'onglet Formulaire (liste « Type » de la fenêtre
+         d'ajout de champ), changer d'onglet sans rien toucher déclenchait
+         « Quitter le site ? ». Son état d'origine, c'est la première option
+         non désactivée — celle que le navigateur choisit lui-même. */
+      if (!el.multiple && !Array.prototype.some.call(el.options, function (o) { return o.defaultSelected; })) {
+        // Une liste déployée (size > 1), elle, ne sélectionne rien d'office.
+        var premiere = el.size > 1 ? -1
+          : Array.prototype.findIndex.call(el.options, function (o) { return !o.disabled; });
+        return el.selectedIndex !== premiere;
+      }
       return Array.prototype.some.call(el.options, function (o) { return o.selected !== o.defaultSelected; });
     }
     return el.value !== el.defaultValue;

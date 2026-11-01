@@ -842,6 +842,20 @@ if (($__idleMin > 0 || $__absMin > 0) && isset($_SESSION['uid'])):
     idleTimer = setTimeout(goLogin, idleMs);
   }
 
+  /* ⚠️ TinyMCE ÉDITE DANS UNE IFRAME : ses frappes ne remontent pas jusqu'au
+     document. Rédiger un long article ne comptait donc pas comme une activité —
+     ni keep-alive, ni report du verrouillage — et la session expirait en pleine
+     saisie : l'enregistrement tombait sur la page de connexion. On branche
+     chaque éditeur à mesure qu'il s'initialise. */
+  setInterval(function(){
+    if (!window.tinymce || !tinymce.editors) return;
+    Array.prototype.forEach.call(tinymce.editors, function(ed){
+      if (ed._ferActivite) return;
+      ed._ferActivite = true;
+      ed.on('keydown mousedown input', onActivity);
+    });
+  }, 2000);
+
   if (absEndMs) {
     var rem = absEndMs - Date.now();
     if (rem <= 0) goLogin(); else setTimeout(goLogin, rem);

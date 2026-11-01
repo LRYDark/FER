@@ -236,13 +236,15 @@ if (isset($_SESSION['uid'])) {
     }
 
     if ($__expired) {
-        $_SESSION = [];
-        if (ini_get('session.use_cookies')) {
-            $__p = session_get_cookie_params();
-            setcookie(session_name(), '', time() - 42000, $__p['path'], $__p['domain'], $__p['secure'], $__p['httponly']);
-        }
-        session_destroy();
+        /* ⚠️ VIDER ET CHANGER D'IDENTIFIANT, PAS DÉTRUIRE. session_destroy()
+           laissait la suite de la requête SANS session : le premier
+           csrf_token() appelé une fois la page commencée tentait alors un
+           session_start() après l'envoi des en-têtes (« Session cannot be
+           started after headers have already been sent ») et le jeton du
+           formulaire n'était jamais mémorisé. Une session vierge sous un
+           nouvel identifiant déconnecte tout autant. */
         $_SESSION = []; // pour la suite de la requête : utilisateur non authentifié
+        session_regenerate_id(true);
     } elseif ($__idleLife > 0 || $__absLife > 0) {
         $_SESSION['last_activity'] = $__now;
     }
@@ -585,14 +587,44 @@ function canDoAction(string $action): bool
     return false;
 }
 
+/**
+ * La requête vient-elle d'un fetch()/XHR plutôt que d'une navigation ?
+ *
+ * X-Requested-With ne suffit pas : beaucoup d'appels fetch() ne le posent
+ * pas. Sec-Fetch-Dest vaut « empty » pour tout fetch/XHR, quel qu'il soit.
+ */
+function isScriptRequest(): bool
+{
+    return isAjaxRequest() || ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') === 'empty';
+}
+
+/**
+ * Refus d'accès lisible par du JavaScript.
+ *
+ * ⚠️ UNE REDIRECTION VERS login.php EST SUIVIE PAR fetch(). Le script recevait
+ * alors la page de connexion en HTML, et son r.json() affichait « Unexpected
+ * token '<' » — typiquement en enregistrant un article après une session
+ * expirée. On répond en JSON, avec les clés que lisent déjà les pages
+ * (`message` pour les écrans de contenu, `error`/`err` pour l'API).
+ */
+function denyScriptRequest(int $status, string $message): void
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => false, 'message' => $message, 'error' => $message, 'err' => $message]);
+    exit;
+}
+
 function requirePage(string $page)
 {
     if (!isset($_SESSION['uid'])) {
+        if (isScriptRequest()) denyScriptRequest(401, 'Session expirée : reconnectez-vous puis recommencez.');
         http_response_code(403);
         header('Location: ../login.php');
         exit;
     }
     if (!canAccessPage($page)) {
+        if (isScriptRequest()) denyScriptRequest(403, "Vous n'avez pas accès à cette page.");
         // Éviter les boucles de redirection : si dashboard est accessible et qu'on n'est pas déjà dessus, y aller
         if ($page !== 'dashboard' && canAccessPage('dashboard')) {
             header('Location: dashboard.php');
@@ -1202,7 +1234,7 @@ function getTinyMceConfig(PDO $pdo, array $overrides = []): string {
             formData.append('file', blobInfo.blob(), blobInfo.filename());
             formData.append('csrf_token', '$csrfToken');
             fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
-                .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Upload failed'); return d; }); })
                 .then(function(data) { if (data.location) resolve(data.location); else reject(data.error || 'Upload error'); })
                 .catch(function(e) { reject(e.message); });
         });
@@ -1218,7 +1250,7 @@ function getTinyMceConfig(PDO $pdo, array $overrides = []): string {
             formData.append('file', file);
             formData.append('csrf_token', '$csrfToken');
             fetch('../inc/tinymce-upload.php', { method: 'POST', body: formData })
-                .then(function(r) { if (!r.ok) throw new Error('Upload failed'); return r.json(); })
+                .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Upload failed'); return d; }); })
                 .then(function(data) { if (data.location) { var n = data.title || file.name.replace(/\\.[^.]+$/,''); callback(data.location, { title: n, text: n + '.' + file.name.split('.').pop() }); } })
                 .catch(function(e) { alert('Erreur upload: ' + e.message); });
         });

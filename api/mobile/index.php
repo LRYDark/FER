@@ -927,17 +927,19 @@ if (($route[0] ?? '') === 'me') {
          * ⚠️ LES ÉPINGLÉS ÉCHAPPENT AU FILTRE, comme ils échappent déjà au
          * bouton de suppression. Ce sont les informations qu'on relit la
          * veille — rendez-vous, parking, retrait des T-shirts. */
+        // Table absente (update.php non joué) : on sert tout, sans erreur ni
+        // ligne de journal à chaque rafraîchissement de l'application.
         $masques = [];
-        try {
-            $st = $pdo->prepare('SELECT notification_id
-                                   FROM participant_notifications_masquees
-                                  WHERE participant_id = ?');
-            $st->execute([$participantId]);
-            $masques = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-        } catch (\Throwable $e) {
-            // Table absente : migration non jouée. On sert tout plutôt que de
-            // faire échouer la boîte de réception.
-            error_log('[API] masquees : ' . $e->getMessage());
+        if (notif_tableDisponible($pdo, 'participant_notifications_masquees')) {
+            try {
+                $st = $pdo->prepare('SELECT notification_id
+                                       FROM participant_notifications_masquees
+                                      WHERE participant_id = ?');
+                $st->execute([$participantId]);
+                $masques = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+            } catch (\Throwable $e) {
+                error_log('[API] masquees : ' . $e->getMessage());
+            }
         }
         if ($masques) {
             $vues = array_filter(

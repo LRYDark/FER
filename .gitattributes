@@ -13,7 +13,9 @@
 # n'en exécute pas une ligne : c'est du code compilé ailleurs, pour des
 # téléphones. L'envoyer alourdirait chaque déploiement de plusieurs milliers de
 # fichiers sans le moindre usage.
+# .github/ = la vérification automatique (CI) lancée par GitHub à chaque envoi.
 APPS/                       export-ignore
 docs/                       export-ignore
+.github/                    export-ignore
 .gitattributes              export-ignore
 .gitignore                  export-ignore

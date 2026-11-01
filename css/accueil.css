@@ -159,6 +159,21 @@
     body.has-flash-banner .mobile-header{
       top: 2.375rem;
     }
+    /* Le méga-menu et son voile flou sont en position fixe, calés sur la
+       navbar sans bandeau (cf. fer-modern.css) : les décaler de la hauteur du
+       bandeau, sinon ils recouvrent le bas de la navbar au survol. */
+    body.has-flash-banner .mega-overlay{
+      top: calc(4.375rem + 2.375rem);
+    }
+    body.has-flash-banner.nav-scrolled .mega-overlay{
+      top: 0;
+    }
+    body.has-flash-banner .mega{
+      top: calc(5.125rem + 2.375rem);
+    }
+    body.has-flash-banner.nav-scrolled .mega{
+      top: calc(6.625rem + 2.375rem);
+    }
     @media (max-width: 1040px){
       /* Ne décaler que de la hauteur du bandeau : la .mobile-header est fixe et
          semi-transparente (elle flotte au-dessus du hero, top: 2.375rem). Compter
