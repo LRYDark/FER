@@ -16,6 +16,8 @@ on:
     branches: [main, beta]
   pull_request:
   workflow_dispatch:
+  # Rejoué par deploy.yml avant tout envoi en production.
+  workflow_call:
 
 jobs:
   integrite:

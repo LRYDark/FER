@@ -1,0 +1,145 @@
+# Déploiement en production (PlanetHoster / N0C) par SSH.
+#
+# Pourquoi : la mise à jour se faisait à la main, dossier par dossier, en
+# devinant ce qui avait changé — et en risquant d'écraser config/ ou les
+# images envoyées. Ici, seuls les fichiers dont le CONTENU a changé partent.
+#
+# Déclenchement :
+#   • publication d'une release sur GitHub ;
+#   • bouton « Run workflow » (onglet Actions), avec une option « simulation »
+#     qui liste ce qui partirait sans rien envoyer.
+#
+# ⚠️ CE QUI NE PART JAMAIS, ET POURQUOI :
+#   • config/config.enc, config/master.key, .env, .install.lock : ils ne sont
+#     pas dans git, et l'envoi ne SUPPRIME rien côté serveur (pas de --delete).
+#     Les exclusions ci-dessous sont une seconde barrière.
+#   • files/ (sauf son .htaccess) : images envoyées depuis l'admin, et la vidéo
+#     d'accueil FER.mp4 qui a pu être remplacée en production.
+#   • storage/ : journaux et sessions du serveur.
+#   • docs/, APPS/, .github/ : exclus du paquet par .gitattributes.
+#
+# Après le déploiement, il reste UNE action manuelle : « Mise à jour BDD »
+# (update.php) en admin. Elle modifie la base : on la garde sous les yeux.
+#
+# Secrets à définir (Settings → Secrets and variables → Actions) :
+#   PROD_SSH_KEY      clé privée dédiée (sa clé publique est dans N0C → Clés SSH)
+#   PROD_SSH_HOST     forbachenrose.com
+#   PROD_SSH_USER     utilisateur de l'hébergement
+#   PROD_PATH         dossier du site, ex. /home/<utilisateur>/public_html
+#   PROD_KNOWN_HOSTS  empreintes du serveur (ssh-keyscan -p 5022 forbachenrose.com)
+
+name: Déploiement prod
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      simulation:
+        description: "Simulation : lister les fichiers qui partiraient, sans rien envoyer"
+        type: boolean
+        default: true
+
+# Jamais deux déploiements en même temps.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  # Rien ne part si le banc d'intégrité échoue (erreur de syntaxe PHP, etc.).
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Envoi sur le serveur
+    needs: ci
+    runs-on: ubuntu-latest
+    env:
+      SSH_PORT: '5022'
+      SIMULATION: ${{ github.event_name == 'workflow_dispatch' && inputs.simulation }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Le paquet = exactement ce que contient git, moins les chemins
+      # export-ignore (docs/, APPS/, .github/…).
+      - name: Préparer le paquet
+        run: |
+          mkdir -p "$RUNNER_TEMP/paquet"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/paquet"
+          echo "Fichiers dans le paquet : $(find "$RUNNER_TEMP/paquet" -type f | wc -l)"
+
+      - name: Clé SSH
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_KNOWN_HOSTS: ${{ secrets.PROD_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$PROD_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # ⚠️ GARDE-FOU : le dossier visé doit contenir config/config.enc. Un
+      # PROD_PATH erroné (faute de frappe, dossier parent) ferait sinon pleuvoir
+      # le site dans un endroit où il n'a rien à faire.
+      - name: Vérifier la cible
+        env:
+          HOST: ${{ secrets.PROD_SSH_HOST }}
+          USER_SSH: ${{ secrets.PROD_SSH_USER }}
+          PROD_PATH: ${{ secrets.PROD_PATH }}
+        run: |
+          ssh -i ~/.ssh/deploy -p "$SSH_PORT" -o BatchMode=yes "$USER_SSH@$HOST" \
+            "test -f '$PROD_PATH/config/config.enc' && echo 'Cible OK : site trouvé' || { echo 'config/config.enc introuvable dans PROD_PATH : arrêt'; exit 1; }"
+          if ssh -i ~/.ssh/deploy -p "$SSH_PORT" -o BatchMode=yes "$USER_SSH@$HOST" 'command -v rsync' >/dev/null; then
+            echo "RSYNC=1" >> "$GITHUB_ENV"
+          else
+            echo "rsync absent sur le serveur : envoi complet par tar"
+            echo "RSYNC=0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Envoyer les fichiers modifiés
+        env:
+          HOST: ${{ secrets.PROD_SSH_HOST }}
+          USER_SSH: ${{ secrets.PROD_SSH_USER }}
+          PROD_PATH: ${{ secrets.PROD_PATH }}
+        run: |
+          FILTRES=(
+            --exclude=/config/config.enc --exclude=/config/master.key
+            --exclude=/config/.env --exclude=/config/.install.lock
+            # Le dossier files/ lui-même doit rester inclus, sinon rsync n'y
+            # entre pas et son .htaccess ne part jamais.
+            --include=/files/ --include=/files/.htaccess --exclude=/files/**
+            --exclude=/storage/***
+          )
+          if [ "$RSYNC" = "1" ]; then
+            # --checksum : on compare le CONTENU, pas la date (git archive pose
+            # la date du commit, qui ne dit rien de ce qui a changé).
+            # Pas de --delete : rien n'est jamais supprimé côté serveur ;
+            # update.php se charge du ménage des fichiers obsolètes.
+            OPTS=(-rlz --checksum --itemize-changes --chmod=D755,F644)
+            [ "$SIMULATION" = "true" ] && OPTS+=(--dry-run)
+            rsync "${OPTS[@]}" "${FILTRES[@]}" \
+              -e "ssh -i $HOME/.ssh/deploy -p $SSH_PORT -o BatchMode=yes" \
+              "$RUNNER_TEMP/paquet/" "$USER_SSH@$HOST:$PROD_PATH/" | tee "$RUNNER_TEMP/envoi.txt"
+            N=$(grep -c '^<f' "$RUNNER_TEMP/envoi.txt" || true)
+          else
+            cd "$RUNNER_TEMP/paquet"
+            rm -rf storage config/config.enc config/master.key
+            find files -type f ! -path files/.htaccess -delete
+            N=$(find . -type f | wc -l)
+            if [ "$SIMULATION" != "true" ]; then
+              tar -czf - . | ssh -i ~/.ssh/deploy -p "$SSH_PORT" -o BatchMode=yes "$USER_SSH@$HOST" "tar -xzf - -C '$PROD_PATH'"
+            fi
+          fi
+          {
+            if [ "$SIMULATION" = "true" ]; then
+              echo "### Simulation : $N fichier(s) partiraient — rien n'a été envoyé"
+            else
+              echo "### ✅ $N fichier(s) envoyé(s) en production"
+              echo ""
+              echo "⚠️ Dernière étape : se connecter en admin → Système → **Mise à jour BDD**."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Effacer la clé
+        if: always()
+        run: rm -f ~/.ssh/deploy
