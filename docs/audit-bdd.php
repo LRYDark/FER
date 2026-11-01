@@ -325,10 +325,10 @@ if ($srcInstall === false || $srcUpdate === false) {
 /* La version de RÉFÉRENCE d'install.php — celle d'avant le lot 1 — vient de
  * l'historique git : c'est elle qui simule le point de départ d'un site en
  * production. `git -C` évite un `cd` propre à un système d'exploitation. */
-$srcRef = shell_exec('git -C ' . escapeshellarg(FER_ROOT) . ' show f260914b:install.php');
+$srcRef = shell_exec('git -C ' . escapeshellarg(FER_ROOT) . ' show 17222ac4:install.php');
 if (!is_string($srcRef) || !str_contains($srcRef, 'function getCreateTableStatements')) {
     fwrite(STDERR,
-        "Impossible de lire la version de référence d'install.php (commit f260914b).\n"
+        "Impossible de lire la version de référence d'install.php (commit 17222ac4).\n"
         . "Ce banc a besoin du dépôt git complet et de la commande `git` dans le PATH.\n"
         . "Sur un serveur où le site est déployé sans son historique, il ne peut pas tourner :\n"
         . "lancez-le depuis le dépôt de développement.\n");

@@ -165,7 +165,7 @@ fois celles-ci terminées.
 **Ils restent dans l'historique git**, et se restaurent un par un :
 
 ```bash
-git show d0f908ca:docs/test-api-v1.php > docs/test-api-v1.php
+git show dda405a4:docs/test-api-v1.php > docs/test-api-v1.php
 ```
 
 À faire si l'on reprend le développement de l'**API mobile** ou du

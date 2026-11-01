@@ -381,13 +381,13 @@ if (!$gitDispo) {
     avertir('git indisponible ou dépôt absent — le gel des fichiers interdits n\'a PAS été vérifié');
 } else {
     /* Référence du gel, fichier par fichier. Les trois pages d'authentification
-       ont reçu en 2.0.0 (993c3b69) une retouche VOULUE — le logo de l'en-tête —
+       ont reçu en 2.0.0 (f95fc040) une retouche VOULUE — le logo de l'en-tête —
        qui faisait échouer ce contrôle à chaque passage : leur gel repart de là. */
-    foreach (['login.php'                 => '993c3b69',
-              'change-password.php'       => '993c3b69',
-              'reset-password.php'        => '993c3b69',
-              'src/security/totp.php'     => '0f50e0ce',
-              'src/security/webauthn.php' => '0f50e0ce'] as $f => $depuis) {
+    foreach (['login.php'                 => 'f95fc040',
+              'change-password.php'       => 'f95fc040',
+              'reset-password.php'        => 'f95fc040',
+              'src/security/totp.php'     => 'f3a98a5f',
+              'src/security/webauthn.php' => 'f3a98a5f'] as $f => $depuis) {
         $d = trim($git('diff --stat ' . $depuis . '..HEAD -- ' . escapeshellarg($f)));
         verifie("$f intact", $d === '', $d);
     }
@@ -399,7 +399,7 @@ if (!$gitDispo) {
      • l'en-tête de documentation (avant le premier `require`) ;
      • les chemins `__DIR__`, qui doivent remonter d'un cran.
    Toute autre ligne modifiée est un changement de comportement déguisé. */
-$avant = $git('show 0f50e0ce:api.php');
+$avant = $git('show f3a98a5f:api.php');
 $apres = $lire('api/v1.php');
 if ($avant === '') {
     avertir('impossible de relire api.php d\'origine (git indisponible ?) — gel non vérifié');
